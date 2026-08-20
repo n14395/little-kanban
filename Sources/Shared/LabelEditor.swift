@@ -1,0 +1,171 @@
+import SwiftUI
+
+/// A task's label chips plus the dashed `+` that opens the label picker.
+struct LabelEditor: View {
+    struct Metrics {
+        var chipSize: LabelChip.Size
+        var addFont: CGFloat
+        var addHorizontalPadding: CGFloat
+        var addVerticalPadding: CGFloat
+        var addRadius: CGFloat
+        var addBorderWidth: CGFloat
+        var spacing: CGFloat
+        var picker: LabelPickerList.Metrics
+
+        static let desk = Metrics(
+            chipSize: .compact, addFont: 11, addHorizontalPadding: 7, addVerticalPadding: 3,
+            addRadius: 6, addBorderWidth: 1, spacing: 5, picker: .desk
+        )
+        static let sheet = Metrics(
+            chipSize: .comfortable, addFont: 13, addHorizontalPadding: 11, addVerticalPadding: 5,
+            addRadius: 8, addBorderWidth: 1.5, spacing: 6, picker: .sheet
+        )
+    }
+
+    @Environment(\.palette) private var palette
+    @Environment(BoardStore.self) private var store
+
+    let task: TaskItem
+    let scope: DetailScope
+    var metrics: Metrics = .desk
+
+    var body: some View {
+        FlowLayout(spacing: metrics.spacing) {
+            ForEach(store.labels(for: task)) { label in
+                LabelChip(label: label, size: metrics.chipSize)
+            }
+            addButton
+        }
+    }
+
+    private var addButton: some View {
+        Button {
+            store.toggleLabelPicker(scope)
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: metrics.addFont, weight: .heavy))
+                .foregroundStyle(palette.ink(0.5))
+                .padding(.horizontal, metrics.addHorizontalPadding)
+                .padding(.vertical, metrics.addVerticalPadding)
+                .overlay {
+                    RoundedRectangle(cornerRadius: metrics.addRadius)
+                        .strokeBorder(
+                            palette.ink(0.25),
+                            style: StrokeStyle(lineWidth: metrics.addBorderWidth, dash: [3, 3])
+                        )
+                }
+        }
+        .buttonStyle(.bare)
+        .accessibilityLabel("Add label")
+        .popover(isPresented: pickerBinding, arrowEdge: .bottom) {
+            LabelPickerList(task: task, metrics: metrics.picker)
+                .environment(store)
+                .environment(\.palette, palette)
+                .presentationCompactAdaptation(.popover)
+        }
+    }
+
+    private var pickerBinding: Binding<Bool> {
+        Binding(
+            get: { store.labelPickerScope == scope },
+            set: { isOpen in
+                if isOpen { store.labelPickerScope = scope } else { store.closeLabelPicker() }
+            }
+        )
+    }
+}
+
+/// The picker body: every known label with a tick for the ones applied, plus a
+/// field that creates a new label on ⏎.
+struct LabelPickerList: View {
+    struct Metrics {
+        var width: CGFloat
+        var maxListHeight: CGFloat
+        var rowVerticalPadding: CGFloat
+        var rowHorizontalPadding: CGFloat
+        var rowRadius: CGFloat
+        var chipSize: LabelChip.Size
+        var fieldFont: CGFloat
+        var fieldPadding: CGFloat
+        var fieldRadius: CGFloat
+        var panelPadding: CGFloat
+
+        static let desk = Metrics(
+            width: 214, maxListHeight: 168, rowVerticalPadding: 6, rowHorizontalPadding: 7,
+            rowRadius: 8, chipSize: .compact, fieldFont: 12, fieldPadding: 8,
+            fieldRadius: 9, panelPadding: 7
+        )
+        static let sheet = Metrics(
+            width: 250, maxListHeight: 196, rowVerticalPadding: 9, rowHorizontalPadding: 8,
+            rowRadius: 10, chipSize: .comfortable, fieldFont: 14, fieldPadding: 10,
+            fieldRadius: 11, panelPadding: 8
+        )
+    }
+
+    @Environment(\.palette) private var palette
+    @Environment(BoardStore.self) private var store
+
+    let task: TaskItem
+    var metrics: Metrics = .desk
+
+    /// Read through the store so ticks update as labels are toggled.
+    private var liveTask: TaskItem { store[task.id] ?? task }
+
+    var body: some View {
+        VStack(spacing: 5) {
+            ScrollView {
+                VStack(spacing: 1) {
+                    ForEach(store.labels) { label in
+                        row(for: label)
+                    }
+                }
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(maxHeight: metrics.maxListHeight)
+
+            newLabelField
+        }
+        .padding(metrics.panelPadding)
+        .frame(width: metrics.width)
+        .background(palette.card)
+        .presentationBackground(palette.card)
+    }
+
+    private func row(for label: LabelDef) -> some View {
+        let isApplied = liveTask.labelKeys.contains(label.key)
+        return Button {
+            store.toggleLabel(label.key, on: task.id)
+        } label: {
+            HStack(spacing: 8) {
+                LabelChip(label: label, size: metrics.chipSize)
+                Spacer(minLength: 0)
+                Image(systemName: "checkmark")
+                    .font(.system(size: metrics.chipSize == .compact ? 11 : 13, weight: .bold))
+                    .foregroundStyle(palette.ink(0.7))
+                    .opacity(isApplied ? 1 : 0)
+            }
+            .padding(.vertical, metrics.rowVerticalPadding)
+            .padding(.horizontal, metrics.rowHorizontalPadding)
+            .background(isApplied ? palette.ink(0.05) : .clear, in: .rect(cornerRadius: metrics.rowRadius))
+        }
+        .buttonStyle(.bare)
+        .hoverBackground(palette.ink(0.06), radius: metrics.rowRadius)
+        .accessibilityAddTraits(isApplied ? [.isSelected] : [])
+    }
+
+    private var newLabelField: some View {
+        @Bindable var store = store
+        return HStack(spacing: metrics.chipSize == .compact ? 7 : 8) {
+            Image(systemName: "plus")
+                .font(.system(size: metrics.fieldFont, weight: .heavy))
+                .foregroundStyle(palette.ink(0.4))
+            TextField("New label, then ⏎", text: $store.labelDraft)
+                .textFieldStyle(.plain)
+                .font(SimpleKanbanFont.ui(metrics.fieldFont, .bold, relativeTo: .caption))
+                .foregroundStyle(palette.ink)
+                .onSubmit { store.createLabel(named: store.labelDraft, on: task.id) }
+        }
+        .padding(metrics.fieldPadding)
+        .background(palette.ink(0.05), in: .rect(cornerRadius: metrics.fieldRadius))
+    }
+}
