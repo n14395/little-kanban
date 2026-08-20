@@ -46,7 +46,10 @@ struct MacColumnView: View {
         }
         .padding(.leading, showsLeadingRule ? 14 : 0)
         .dropDestination(for: String.self) { items, _ in
-            guard let dragged = items.first, store[dragged] != nil else { return false }
+            // The drag payload is a `String` because `UUID` is not `Transferable`.
+            guard let text = items.first, let dragged = UUID(uuidString: text),
+                  store[dragged] != nil
+            else { return false }
             store.move(dragged, to: column.id)
             return true
         } isTargeted: { targeted in

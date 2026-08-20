@@ -10,22 +10,14 @@ struct PhoneDetailSheet: View {
 
     let task: TaskItem
 
+    @FocusState private var focusedField: TaskField?
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 header
-
-                Text(task.title)
-                    .font(SimpleKanbanFont.serif(29))
-                    .lineSpacing(3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                Text(task.note.isEmpty ? "No description yet." : task.note)
-                    .font(SimpleKanbanFont.ui(14.5, .medium, relativeTo: .subheadline))
-                    .lineSpacing(5)
-                    .foregroundStyle(palette.ink(0.62))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
+                titleField
+                noteField
                 moveTo
                 attributeCards
                 labels
@@ -40,6 +32,54 @@ struct PhoneDetailSheet: View {
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(28)
         .presentationBackground(palette.sheet)
+        .onChange(of: focusedField) { previous, current in
+            if let previous { store.endEditing(previous, on: task.id, scope: .sheet) }
+            if let current { store.beginEditing(current, on: task.id, scope: .sheet) }
+        }
+        .onAppear { claimPendingFocus() }
+        .onDisappear {
+            if let field = focusedField { store.endEditing(field, on: task.id, scope: .sheet) }
+        }
+    }
+
+    /// A task captured with the "+" button arrives untitled, so the sheet opens
+    /// ready to type its name.
+    private func claimPendingFocus() {
+        guard store.pendingTitleFocusID == task.id else { return }
+        store.pendingTitleFocusID = nil
+        focusedField = .title
+    }
+
+    // MARK: Editable text
+
+    private var titleField: some View {
+        TextField("Task title", text: binding(.title), axis: .vertical)
+            .textFieldStyle(.plain)
+            .font(SimpleKanbanFont.serif(29))
+            .lineSpacing(3)
+            .foregroundStyle(palette.ink)
+            .focused($focusedField, equals: .title)
+            .submitLabel(.done)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityLabel("Title")
+    }
+
+    private var noteField: some View {
+        TextField("Add a description", text: binding(.note), axis: .vertical)
+            .textFieldStyle(.plain)
+            .font(SimpleKanbanFont.ui(14.5, .medium, relativeTo: .subheadline))
+            .lineSpacing(5)
+            .foregroundStyle(palette.ink(0.62))
+            .focused($focusedField, equals: .note)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityLabel("Description")
+    }
+
+    private func binding(_ field: TaskField) -> Binding<String> {
+        Binding(
+            get: { store.text(field, on: task.id) },
+            set: { store.setText($0, field: field, on: task.id) }
+        )
     }
 
     private var header: some View {
@@ -70,20 +110,10 @@ struct PhoneDetailSheet: View {
     private var attributeCards: some View {
         HStack(spacing: 8) {
             attributeCard(title: "Due") {
-                Text(task.due.isEmpty ? "No due date" : task.due)
-                    .font(SimpleKanbanFont.ui(14, .bold, relativeTo: .subheadline))
-                    .foregroundStyle(
-                        task.due.isEmpty
-                            ? palette.ink(0.45)
-                            : palette.dueTone(due: task.due, columnID: task.columnID).foreground
-                    )
+                DueDateField(task: task, scope: .sheet, metrics: .sheet)
             }
             attributeCard(title: "Priority") {
-                HStack(spacing: 6) {
-                    PriorityDot(priority: task.priority, diameter: 7)
-                    Text(task.priority.displayName)
-                        .font(SimpleKanbanFont.ui(14, .bold, relativeTo: .subheadline))
-                }
+                PriorityPicker(task: task, scope: .sheet, metrics: .sheet)
             }
         }
     }

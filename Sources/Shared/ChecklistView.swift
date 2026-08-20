@@ -95,7 +95,7 @@ struct ChecklistView: View {
                 .textFieldStyle(.plain)
                 .font(SimpleKanbanFont.ui(metrics.font, .semibold, relativeTo: .footnote))
                 .foregroundStyle(palette.ink)
-                .onSubmit { store.addSubtask(to: task.id, text: store.subtaskDraft(for: scope)) }
+                .onSubmit { store.commitSubtaskDraft(for: scope, task: task.id) }
         }
         .padding(.vertical, metrics.rowVerticalPadding)
         .padding(.horizontal, metrics.rowHorizontalPadding)
@@ -104,8 +104,8 @@ struct ChecklistView: View {
 
     private var subtaskDraftBinding: Binding<String> {
         Binding(
-            get: { store.subtaskDraft(for: scope) },
-            set: { store.setSubtaskDraft($0, for: scope) }
+            get: { store.subtaskDraft(for: scope, task: task.id) },
+            set: { store.setSubtaskDraft($0, for: scope, task: task.id) }
         )
     }
 }

@@ -1,21 +1,27 @@
 import CoreText
 import SwiftUI
 
-/// Registers the bundled Manrope / Instrument Serif faces at launch.
+/// Registers the bundled Manrope / Instrument Serif faces the first time a font
+/// is asked for.
 ///
 /// Registering at runtime (rather than via `UIAppFonts` / `ATSApplicationFontsPath`)
 /// keeps one code path for both platforms and lets ``SimpleKanbanFont`` fall back to the
 /// system faces if the `Resources/Fonts` folder is ever removed.
 enum FontRegistry {
-    private(set) nonisolated(unsafe) static var hasCustomFonts = false
+    /// A `static let` is initialised exactly once, under the runtime's own lock,
+    /// which is what makes the answer safe to read from any isolation domain
+    /// without an escape hatch — and it hangs registration off the first read.
+    static let hasCustomFonts: Bool = {
+        registerBundledFonts()
+        return isRegistered(SimpleKanbanFont.Weight.bold.postScriptName)
+            && isRegistered(SimpleKanbanFont.serifPostScriptName)
+    }()
 
-    static func registerBundledFonts() {
+    private static func registerBundledFonts() {
         let urls = Bundle.main.urls(forResourcesWithExtension: "ttf", subdirectory: "Fonts") ?? []
         for url in urls {
             CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
         }
-        hasCustomFonts = isRegistered(SimpleKanbanFont.Weight.bold.postScriptName)
-            && isRegistered(SimpleKanbanFont.serifPostScriptName)
     }
 
     private static func isRegistered(_ postScriptName: String) -> Bool {

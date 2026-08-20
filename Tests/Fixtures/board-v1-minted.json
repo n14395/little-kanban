@@ -1,0 +1,434 @@
+{
+  "accentTheme" : "pine",
+  "labels" : [
+    {
+      "dark" : {
+        "background" : {
+          "rgb" : {
+            "_0" : 15236184,
+            "opacity" : 0.2
+          }
+        },
+        "foreground" : {
+          "rgb" : {
+            "_0" : 15840411,
+            "opacity" : 1
+          }
+        }
+      },
+      "key" : "design",
+      "light" : {
+        "background" : {
+          "rgb" : {
+            "_0" : 12735279,
+            "opacity" : 0.12
+          }
+        },
+        "foreground" : {
+          "rgb" : {
+            "_0" : 10370591,
+            "opacity" : 1
+          }
+        }
+      },
+      "name" : "Design"
+    },
+    {
+      "dark" : {
+        "background" : {
+          "rgb" : {
+            "_0" : 5291690,
+            "opacity" : 0.18
+          }
+        },
+        "foreground" : {
+          "rgb" : {
+            "_0" : 8903625,
+            "opacity" : 1
+          }
+        }
+      },
+      "key" : "ios",
+      "light" : {
+        "background" : {
+          "rgb" : {
+            "_0" : 2060131,
+            "opacity" : 0.13
+          }
+        },
+        "foreground" : {
+          "rgb" : {
+            "_0" : 1530448,
+            "opacity" : 1
+          }
+        }
+      },
+      "name" : "iOS"
+    },
+    {
+      "dark" : {
+        "background" : {
+          "ink" : {
+            "opacity" : 0.1
+          }
+        },
+        "foreground" : {
+          "ink" : {
+            "opacity" : 0.65
+          }
+        }
+      },
+      "key" : "api",
+      "light" : {
+        "background" : {
+          "ink" : {
+            "opacity" : 0.08
+          }
+        },
+        "foreground" : {
+          "ink" : {
+            "opacity" : 0.6
+          }
+        }
+      },
+      "name" : "API"
+    },
+    {
+      "dark" : {
+        "background" : {
+          "rgb" : {
+            "_0" : 15751770,
+            "opacity" : 0.18
+          }
+        },
+        "foreground" : {
+          "rgb" : {
+            "_0" : 16097440,
+            "opacity" : 1
+          }
+        }
+      },
+      "key" : "bug",
+      "light" : {
+        "background" : {
+          "rgb" : {
+            "_0" : 12462120,
+            "opacity" : 0.12
+          }
+        },
+        "foreground" : {
+          "rgb" : {
+            "_0" : 10691106,
+            "opacity" : 1
+          }
+        }
+      },
+      "name" : "Bug"
+    },
+    {
+      "dark" : {
+        "background" : {
+          "rgb" : {
+            "_0" : 15118140,
+            "opacity" : 0.18
+          }
+        },
+        "foreground" : {
+          "rgb" : {
+            "_0" : 15715204,
+            "opacity" : 1
+          }
+        }
+      },
+      "key" : "polish",
+      "light" : {
+        "background" : {
+          "rgb" : {
+            "_0" : 13208086,
+            "opacity" : 0.15
+          }
+        },
+        "foreground" : {
+          "rgb" : {
+            "_0" : 9067782,
+            "opacity" : 1
+          }
+        }
+      },
+      "name" : "Polish"
+    },
+    {
+      "dark" : {
+        "background" : {
+          "rgb" : {
+            "_0" : 7247600,
+            "opacity" : 0.18
+          }
+        },
+        "foreground" : {
+          "rgb" : {
+            "_0" : 11125495,
+            "opacity" : 1
+          }
+        }
+      },
+      "key" : "release-1-2",
+      "light" : {
+        "background" : {
+          "rgb" : {
+            "_0" : 3890089,
+            "opacity" : 0.12
+          }
+        },
+        "foreground" : {
+          "rgb" : {
+            "_0" : 3099276,
+            "opacity" : 1
+          }
+        }
+      },
+      "name" : "Release 1.2"
+    }
+  ],
+  "nextSerial" : 103,
+  "tasks" : [
+    {
+      "activity" : [
+        {
+          "id" : "A1000000-0000-4000-8000-000000000001",
+          "text" : "Captured from quick-add",
+          "when" : 777201124
+        }
+      ],
+      "code" : "NW-136",
+      "columnID" : "inbox",
+      "id" : "i1",
+      "labelKeys" : [
+
+      ],
+      "note" : "Captured from the menu bar. Needs scoping — probably one column at a glance.",
+      "priority" : "Medium",
+      "subtasks" : [
+
+      ],
+      "title" : "Widget on the iOS home screen"
+    },
+    {
+      "activity" : [
+        {
+          "id" : "A1000000-0000-4000-8000-000000000002",
+          "text" : "Moved to In Progress",
+          "when" : 777310882
+        },
+        {
+          "id" : "A1000000-0000-4000-8000-000000000003",
+          "text" : "Comment added on spacing",
+          "when" : 777207730
+        },
+        {
+          "id" : "A1000000-0000-4000-8000-000000000004",
+          "text" : "Created",
+          "when" : 776593800
+        }
+      ],
+      "code" : "NW-118",
+      "columnID" : "doing",
+      "due" : 777337200,
+      "id" : "t1",
+      "labelKeys" : [
+        "ios",
+        "design"
+      ],
+      "note" : "Card follows the pointer with a lifted shadow; columns highlight on hover.",
+      "priority" : "High",
+      "subtasks" : [
+        {
+          "done" : true,
+          "id" : "B1000000-0000-4000-8000-000000000001",
+          "text" : "Lift + shadow states"
+        },
+        {
+          "done" : true,
+          "id" : "B1000000-0000-4000-8000-000000000002",
+          "text" : "Column drop targets"
+        },
+        {
+          "done" : false,
+          "id" : "B1000000-0000-4000-8000-000000000003",
+          "text" : "Keyboard fallback"
+        }
+      ],
+      "title" : "Drag-and-drop between columns"
+    },
+    {
+      "activity" : [
+        {
+          "id" : "A1000000-0000-4000-8000-000000000005",
+          "text" : "Estimated at 3 days",
+          "when" : 777129645
+        }
+      ],
+      "code" : "NW-104",
+      "columnID" : "next",
+      "due" : 777510000,
+      "id" : "t3",
+      "labelKeys" : [
+        "api",
+        "release-1-2"
+      ],
+      "note" : "Buffer mutations locally and replay on reconnect.",
+      "priority" : "High",
+      "subtasks" : [
+        {
+          "done" : false,
+          "id" : "B1000000-0000-4000-8000-000000000004",
+          "text" : "Mutation log"
+        },
+        {
+          "done" : false,
+          "id" : "B1000000-0000-4000-8000-000000000005",
+          "text" : "Replay + retry"
+        }
+      ],
+      "title" : "Offline queue for edits"
+    },
+    {
+      "activity" : [
+        {
+          "id" : "A1000000-0000-4000-8000-000000000006",
+          "text" : "Reported",
+          "when" : 776886900
+        }
+      ],
+      "code" : "NW-113",
+      "columnID" : "backlog",
+      "id" : "t9",
+      "labelKeys" : [
+        "bug"
+      ],
+      "note" : "",
+      "priority" : "Low",
+      "subtasks" : [
+
+      ],
+      "title" : "Card count badge misaligns at 3 digits"
+    },
+    {
+      "activity" : [
+        {
+          "id" : "A1000000-0000-4000-8000-000000000007",
+          "text" : "Marked done",
+          "when" : 776793873
+        },
+        {
+          "id" : "A1000000-0000-4000-8000-000000000008",
+          "text" : "Created",
+          "when" : 775735200
+        }
+      ],
+      "code" : "NW-90",
+      "columnID" : "done",
+      "due" : 776300400,
+      "id" : "t11",
+      "labelKeys" : [
+        "design",
+        "polish"
+      ],
+      "note" : "",
+      "priority" : "Medium",
+      "subtasks" : [
+        {
+          "done" : true,
+          "id" : "B1000000-0000-4000-8000-000000000006",
+          "text" : "Palette"
+        },
+        {
+          "done" : true,
+          "id" : "B1000000-0000-4000-8000-000000000007",
+          "text" : "Type scale"
+        }
+      ],
+      "title" : "Warm neutral palette + type scale"
+    },
+    {
+      "activity" : [
+        {
+          "id" : "A1000000-0000-4000-8000-000000000009",
+          "text" : "Created",
+          "when" : 777392400
+        }
+      ],
+      "code" : "NW-140",
+      "columnID" : "next",
+      "id" : "t12",
+      "labelKeys" : [
+        "api"
+      ],
+      "note" : "Read the newest file in backups and adopt it as an edit.",
+      "priority" : "Medium",
+      "subtasks" : [
+
+      ],
+      "title" : "Restore a board from a backup"
+    },
+    {
+      "activity" : [
+        {
+          "id" : "A1000000-0000-4000-8000-000000000010",
+          "text" : "Captured from quick-add",
+          "when" : 777398112
+        }
+      ],
+      "code" : "NW-141",
+      "columnID" : "inbox",
+      "id" : "t13",
+      "labelKeys" : [
+
+      ],
+      "note" : "",
+      "priority" : "Low",
+      "subtasks" : [
+
+      ],
+      "title" : "Keyboard shortcuts sheet"
+    },
+    {
+      "activity" : [
+        {
+          "id" : "A1000000-0000-4000-8000-000000000011",
+          "text" : "Moved to In Progress",
+          "when" : 777470300
+        },
+        {
+          "id" : "A1000000-0000-4000-8000-000000000012",
+          "text" : "Reported",
+          "when" : 777401930
+        }
+      ],
+      "code" : "NW-142",
+      "columnID" : "doing",
+      "due" : 777596400,
+      "id" : "t14",
+      "labelKeys" : [
+        "bug",
+        "ios"
+      ],
+      "note" : "Trimming the query to nothing leaves the results list holding a stale row.",
+      "priority" : "High",
+      "subtasks" : [
+        {
+          "done" : true,
+          "id" : "B1000000-0000-4000-8000-000000000008",
+          "text" : "Reproduce on device"
+        },
+        {
+          "done" : false,
+          "id" : "B1000000-0000-4000-8000-000000000009",
+          "text" : "Guard the empty case"
+        }
+      ],
+      "title" : "Crash on empty search"
+    }
+  ],
+  "version" : 1
+}

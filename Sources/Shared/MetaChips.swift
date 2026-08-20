@@ -15,22 +15,30 @@ struct PriorityDot: View {
 }
 
 /// The due-date pill, tinted by urgency.
+///
+/// The day to measure from is passed in rather than read from the clock: the
+/// caller takes it from `DayClock`, which is what re-renders the chip at
+/// midnight instead of leaving it reading "Today" into the next morning.
 struct DueChip: View {
     @Environment(\.palette) private var palette
-    let due: String
+    let due: CalendarDay
+    let today: CalendarDay
     let columnID: BoardColumn.ID
     var font: CGFloat = 11
     var horizontalPadding: CGFloat = 6
     var radius: CGFloat = 6
 
     var body: some View {
-        let tone = palette.dueTone(due: due, columnID: columnID)
-        Text(due)
+        let tone = palette.dueTone(due: due, today: today, columnID: columnID)
+        Text(DueDate.label(due, from: today))
             .font(SimpleKanbanFont.ui(font, .bold, relativeTo: .caption))
             .foregroundStyle(tone.foreground)
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, 2)
             .background(tone.background, in: .rect(cornerRadius: radius))
+            // "Mon" alone is last Monday or next Monday, and the colour that
+            // tells them apart is not something VoiceOver can read out.
+            .accessibilityLabel(DueDate.accessibilityLabel(due, from: today))
     }
 }
 

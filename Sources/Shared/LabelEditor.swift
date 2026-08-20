@@ -40,7 +40,7 @@ struct LabelEditor: View {
 
     private var addButton: some View {
         Button {
-            store.toggleLabelPicker(scope)
+            store.toggleLabelPicker(scope, task: task.id)
         } label: {
             Image(systemName: "plus")
                 .font(.system(size: metrics.addFont, weight: .heavy))
@@ -58,7 +58,7 @@ struct LabelEditor: View {
         .buttonStyle(.bare)
         .accessibilityLabel("Add label")
         .popover(isPresented: pickerBinding, arrowEdge: .bottom) {
-            LabelPickerList(task: task, metrics: metrics.picker)
+            LabelPickerList(task: task, scope: scope, metrics: metrics.picker)
                 .environment(store)
                 .environment(\.palette, palette)
                 .presentationCompactAdaptation(.popover)
@@ -69,7 +69,7 @@ struct LabelEditor: View {
         Binding(
             get: { store.labelPickerScope == scope },
             set: { isOpen in
-                if isOpen { store.labelPickerScope = scope } else { store.closeLabelPicker() }
+                if isOpen { store.labelPickerScope = scope } else { store.closeLabelPicker(scope, task: task.id) }
             }
         )
     }
@@ -106,6 +106,9 @@ struct LabelPickerList: View {
     @Environment(BoardStore.self) private var store
 
     let task: TaskItem
+    /// Which surface the picker belongs to, so the half-typed name in its
+    /// field is kept apart from the other surface's.
+    let scope: DetailScope
     var metrics: Metrics = .desk
 
     /// Read through the store so ticks update as labels are toggled.
@@ -154,18 +157,24 @@ struct LabelPickerList: View {
     }
 
     private var newLabelField: some View {
-        @Bindable var store = store
-        return HStack(spacing: metrics.chipSize == .compact ? 7 : 8) {
+        HStack(spacing: metrics.chipSize == .compact ? 7 : 8) {
             Image(systemName: "plus")
                 .font(.system(size: metrics.fieldFont, weight: .heavy))
                 .foregroundStyle(palette.ink(0.4))
-            TextField("New label, then ⏎", text: $store.labelDraft)
+            TextField("New label, then ⏎", text: draftBinding)
                 .textFieldStyle(.plain)
                 .font(SimpleKanbanFont.ui(metrics.fieldFont, .bold, relativeTo: .caption))
                 .foregroundStyle(palette.ink)
-                .onSubmit { store.createLabel(named: store.labelDraft, on: task.id) }
+                .onSubmit { store.commitLabelDraft(for: scope, task: task.id) }
         }
         .padding(metrics.fieldPadding)
         .background(palette.ink(0.05), in: .rect(cornerRadius: metrics.fieldRadius))
+    }
+
+    private var draftBinding: Binding<String> {
+        Binding(
+            get: { store.labelDraft(for: scope, task: task.id) },
+            set: { store.setLabelDraft($0, for: scope, task: task.id) }
+        )
     }
 }

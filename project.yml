@@ -51,6 +51,7 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         SUPPORTS_MACCATALYST: NO
         CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: P52946XHRJ
         TARGETED_DEVICE_FAMILY: "1,2"
         ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
         CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Resources/SimpleKanban.entitlements

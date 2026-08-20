@@ -7,6 +7,7 @@ import SwiftUI
 struct PhoneNavDrawer: View {
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
+    @Environment(\.dayClock) private var dayClock
 
     var body: some View {
         ZStack(alignment: .leading) {
@@ -49,7 +50,7 @@ struct PhoneNavDrawer: View {
 
             sectionHeader("Views", topPadding: 24)
             VStack(spacing: 2) {
-                viewRow("Today", count: store.todayCount)
+                viewRow("Today", count: store.todayCount(today: dayClock.today))
                 viewRow("Upcoming")
                 viewRow("High priority")
                 viewRow("Due this week")
@@ -59,6 +60,9 @@ struct PhoneNavDrawer: View {
 
             Spacer(minLength: 0)
             weeklySummary
+            AccentPicker(metrics: .drawer)
+                .padding(.horizontal, 20)
+                .padding(.top, 18)
         }
         .padding(.top, 20)
         .padding(.bottom, 34)

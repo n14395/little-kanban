@@ -8,6 +8,7 @@ import SwiftUI
 /// switching or view filtering behaviour, so neither does this. See README.
 struct MacSidebar: View {
     @Environment(\.palette) private var palette
+    @Environment(\.dayClock) private var dayClock
     @Environment(BoardStore.self) private var store
 
     var body: some View {
@@ -24,7 +25,7 @@ struct MacSidebar: View {
 
             sectionHeader("Views", topPadding: 22)
             VStack(spacing: 2) {
-                viewRow("Today", count: store.todayCount)
+                viewRow("Today", count: store.todayCount(today: dayClock.today))
                 viewRow("Upcoming")
                 viewRow("High priority")
                 viewRow("Due this week")
@@ -34,6 +35,9 @@ struct MacSidebar: View {
 
             Spacer(minLength: 0)
             weeklySummary
+            AccentPicker(metrics: .desk)
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
         }
         .padding(.top, 14)
         .padding(.bottom, 12)

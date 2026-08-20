@@ -6,6 +6,7 @@ import SwiftUI
 struct PhoneTaskCard: View {
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
+    @Environment(\.dayClock) private var dayClock
 
     let task: TaskItem
 
@@ -22,7 +23,7 @@ struct PhoneTaskCard: View {
                     }
                 }
 
-                Text(task.title)
+                Text(task.displayTitle)
                     .font(SimpleKanbanFont.ui(16, .bold, relativeTo: .body))
                     .lineSpacing(2)
                     .multilineTextAlignment(.leading)
@@ -32,8 +33,15 @@ struct PhoneTaskCard: View {
 
                 HStack(spacing: 9) {
                     PriorityDot(priority: task.priority, diameter: 7)
-                    if !task.due.isEmpty {
-                        DueChip(due: task.due, columnID: task.columnID, font: 12, horizontalPadding: 7, radius: 7)
+                    if let due = task.due {
+                        DueChip(
+                            due: due,
+                            today: dayClock.today,
+                            columnID: task.columnID,
+                            font: 12,
+                            horizontalPadding: 7,
+                            radius: 7
+                        )
                     }
                     if task.hasSubtasks {
                         SubtaskCountBadge(text: task.subtaskProgressText, font: 12, showsGlyph: false)

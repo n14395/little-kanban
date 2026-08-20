@@ -1,18 +1,18 @@
 import SwiftUI
 
 /// A label's background/foreground pair for one colour scheme.
-struct LabelTone: Hashable, Sendable {
+struct LabelTone: Hashable, Sendable, Codable {
     var background: SwatchColor
     var foreground: SwatchColor
 
     static func tinted(_ hex: UInt32, _ opacity: Double, on foreground: UInt32) -> LabelTone {
-        LabelTone(background: .fixed(Color(hex: hex, opacity: opacity)), foreground: .hex(foreground))
+        LabelTone(background: .rgb(hex, opacity: opacity), foreground: .hex(foreground))
     }
 }
 
 /// A label definition. `key` is the stable slug stored on tasks; `name` is what
 /// the user sees on the chip.
-struct LabelDef: Identifiable, Hashable, Sendable {
+struct LabelDef: Identifiable, Hashable, Sendable, Codable {
     var key: String
     var name: String
     var light: LabelTone
@@ -57,11 +57,18 @@ extension LabelDef {
     ]
 
     /// Slugifies user input the way the spec does: lowercase, non-alphanumerics
-    /// collapsed to single hyphens.
+    /// collapsed to single hyphens — then trimmed, so "Infra Work!" is
+    /// `infra-work` and not `infra-work-`. A name of pure punctuation slugs to
+    /// nothing, so it falls back to a unique key rather than an empty one.
+    ///
+    /// Keys already on disk keep resolving: this only affects labels made from
+    /// here on, and nothing rewrites keys on load.
     static func key(from text: String) -> String {
         let slug = text.lowercased().replacingOccurrences(
             of: "[^a-z0-9]+", with: "-", options: .regularExpression
         )
-        return slug
+        let trimmed = slug.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        guard !trimmed.isEmpty else { return "label-" + UUID().uuidString.prefix(8).lowercased() }
+        return trimmed
     }
 }

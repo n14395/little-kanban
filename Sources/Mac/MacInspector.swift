@@ -3,28 +3,30 @@
 import SwiftUI
 
 /// The 336pt detail panel. Same content as the iOS sheet, different container.
+///
+/// Every field here writes straight through to the store, so an edit shows on
+/// the board card as it is typed. Activity is logged once per editing session
+/// rather than once per keystroke — see `BoardStore.beginEditing`.
 struct MacInspector: View {
     @Environment(\.palette) private var palette
+    @Environment(\.dayClock) private var dayClock
     @Environment(BoardStore.self) private var store
 
     let task: TaskItem
+
+    @FocusState private var focusedField: TaskField?
+    /// Which task the focused field belongs to. Selecting another card swaps
+    /// `task` underneath a live focus, so the snapshot is closed against the
+    /// task that was actually being edited.
+    @State private var focusOwnerID: TaskItem.ID?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header
                 VStack(alignment: .leading, spacing: 18) {
-                    Text(task.title)
-                        .font(SimpleKanbanFont.serif(26))
-                        .lineSpacing(3)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Text(task.note.isEmpty ? "No description yet." : task.note)
-                        .font(SimpleKanbanFont.ui(13, .medium, relativeTo: .subheadline))
-                        .lineSpacing(4)
-                        .foregroundStyle(palette.ink(0.62))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
+                    titleField
+                    noteField
                     status
                     attributes
                     checklist
@@ -40,6 +42,40 @@ struct MacInspector: View {
         .background(palette.panel)
         .hairline(.leading, color: palette.ink(0.08))
         .transition(.opacity)
+        .onChange(of: focusedField) { previous, current in
+            if let previous, let owner = focusOwnerID {
+                store.endEditing(previous, on: owner, scope: .desk)
+            }
+            focusOwnerID = current == nil ? nil : task.id
+            if let current { store.beginEditing(current, on: task.id, scope: .desk) }
+        }
+        .onChange(of: task.id) { previousID, _ in
+            if let field = focusedField, let owner = focusOwnerID, owner == previousID {
+                store.endEditing(field, on: owner, scope: .desk)
+            }
+            focusOwnerID = nil
+            focusedField = nil
+        }
+        // Closing the panel mid-edit takes the field out of the hierarchy;
+        // whether SwiftUI clears `focusedField` first is not guaranteed, and a
+        // session left open never logs the rename and never restores a title
+        // emptied to whitespace. Closed against the task that was being edited,
+        // which may no longer be `task`.
+        .onDisappear {
+            if let field = focusedField, let owner = focusOwnerID {
+                store.endEditing(field, on: owner, scope: .desk)
+            }
+            focusOwnerID = nil
+        }
+        .onAppear { claimPendingFocus() }
+        .onChange(of: store.pendingTitleFocusID) { _, _ in claimPendingFocus() }
+    }
+
+    /// A task created without a title opens with the title field ready.
+    private func claimPendingFocus() {
+        guard store.pendingTitleFocusID == task.id else { return }
+        store.pendingTitleFocusID = nil
+        focusedField = .title
     }
 
     private var header: some View {
@@ -61,6 +97,39 @@ struct MacInspector: View {
         .padding(.top, 16)
     }
 
+    // MARK: Editable text
+
+    private var titleField: some View {
+        TextField("Task title", text: binding(.title), axis: .vertical)
+            .textFieldStyle(.plain)
+            .font(SimpleKanbanFont.serif(26))
+            .lineSpacing(3)
+            .foregroundStyle(palette.ink)
+            .focused($focusedField, equals: .title)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityLabel("Title")
+    }
+
+    private var noteField: some View {
+        TextField("Add a description", text: binding(.note), axis: .vertical)
+            .textFieldStyle(.plain)
+            .font(SimpleKanbanFont.ui(13, .medium, relativeTo: .subheadline))
+            .lineSpacing(4)
+            .foregroundStyle(palette.ink(0.62))
+            .focused($focusedField, equals: .note)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityLabel("Description")
+    }
+
+    private func binding(_ field: TaskField) -> Binding<String> {
+        Binding(
+            get: { store.text(field, on: task.id) },
+            set: { store.setText($0, field: field, on: task.id) }
+        )
+    }
+
+    // MARK: Attributes
+
     private var status: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Status").sectionLabelStyle(size: 10.5)
@@ -74,21 +143,11 @@ struct MacInspector: View {
         Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
             GridRow(alignment: .center) {
                 fieldName("Due")
-                Text(task.due.isEmpty ? "No due date" : task.due)
-                    .font(SimpleKanbanFont.ui(12.5, .bold, relativeTo: .footnote))
-                    .foregroundStyle(
-                        task.due.isEmpty
-                            ? palette.ink(0.45)
-                            : palette.dueTone(due: task.due, columnID: task.columnID).foreground
-                    )
+                DueDateField(task: task, scope: .desk, metrics: .desk)
             }
             GridRow(alignment: .center) {
                 fieldName("Priority")
-                HStack(spacing: 7) {
-                    PriorityDot(priority: task.priority, diameter: 7)
-                    Text(task.priority.displayName)
-                        .font(SimpleKanbanFont.ui(12.5, .bold, relativeTo: .footnote))
-                }
+                PriorityPicker(task: task, scope: .desk, metrics: .desk)
             }
             GridRow(alignment: .top) {
                 fieldName("Labels")
@@ -135,13 +194,13 @@ struct MacInspector: View {
     }
 
     private func entryText(_ entry: ActivityEntry) -> Text {
-        Text(entry.text)
+        Text(entry.text(today: dayClock.today))
             .font(SimpleKanbanFont.ui(12, .medium, relativeTo: .caption))
             .foregroundColor(palette.ink(0.6))
     }
 
     private func entryStamp(_ entry: ActivityEntry) -> Text {
-        Text("· \(entry.when)")
+        Text("· \(entry.whenText())")
             .font(SimpleKanbanFont.ui(12, .semibold, relativeTo: .caption))
             .foregroundColor(palette.ink(0.35))
     }

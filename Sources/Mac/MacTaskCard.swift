@@ -5,6 +5,7 @@ import SwiftUI
 /// A draggable board card.
 struct MacTaskCard: View {
     @Environment(\.palette) private var palette
+    @Environment(\.dayClock) private var dayClock
     @Environment(BoardStore.self) private var store
 
     let task: TaskItem
@@ -27,7 +28,7 @@ struct MacTaskCard: View {
         .offset(y: isHovering ? -1 : 0)
         .animation(.easeOut(duration: 0.12), value: isHovering)
         .onHover { isHovering = $0 }
-        .draggable(task.id)
+        .draggable(task.id.uuidString)
         .onDragSessionUpdated { session in
             switch session.phase {
             case .initial:
@@ -40,7 +41,10 @@ struct MacTaskCard: View {
             }
         }
         .dropDestination(for: String.self) { items, _ in
-            guard let dragged = items.first, dragged != task.id, store[dragged] != nil else { return false }
+            // The drag payload is a `String` because `UUID` is not `Transferable`.
+            guard let text = items.first, let dragged = UUID(uuidString: text),
+                  dragged != task.id, store[dragged] != nil
+            else { return false }
             store.move(dragged, to: task.columnID, before: task.id)
             return true
         } isTargeted: { targeted in
@@ -58,7 +62,7 @@ struct MacTaskCard: View {
                 }
             }
 
-            Text(task.title)
+            Text(task.displayTitle)
                 .font(SimpleKanbanFont.ui(13.5, .bold, relativeTo: .subheadline))
                 .lineSpacing(1.5)
                 .foregroundStyle(isDone ? palette.ink(0.45) : palette.ink)
@@ -76,8 +80,8 @@ struct MacTaskCard: View {
 
             HStack(spacing: 8) {
                 PriorityDot(priority: task.priority)
-                if !task.due.isEmpty {
-                    DueChip(due: task.due, columnID: task.columnID)
+                if let due = task.due {
+                    DueChip(due: due, today: dayClock.today, columnID: task.columnID)
                 }
                 if task.hasSubtasks {
                     SubtaskCountBadge(text: task.subtaskProgressText)

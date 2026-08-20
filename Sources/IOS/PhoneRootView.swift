@@ -7,6 +7,7 @@ import SwiftUI
 struct PhoneRootView: View {
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
+    @Environment(\.dayClock) private var dayClock
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -36,6 +37,7 @@ struct PhoneRootView: View {
                 PhoneDetailSheet(task: task)
                     .environment(store)
                     .environment(\.palette, palette)
+                    .environment(\.dayClock, dayClock)
             }
         }
     }

@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The four accent options the design exposes as an editable prop.
-enum AccentTheme: String, CaseIterable, Identifiable, Sendable {
+enum AccentTheme: String, CaseIterable, Identifiable, Sendable, Codable {
     case ember, pine, indigo, ink
 
     var id: String { rawValue }
@@ -79,7 +79,7 @@ struct Palette: Equatable, Sendable {
 
     func resolve(_ swatch: SwatchColor) -> Color {
         switch swatch {
-        case .fixed(let color): color
+        case .rgb(let hex, let opacity): Color(hex: hex, opacity: opacity)
         case .ink(let opacity): ink(opacity)
         case .accent: accent
         }
