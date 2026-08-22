@@ -9,9 +9,15 @@ struct AccentPicker: View {
         var ringGap: CGFloat
         var ringWidth: CGFloat
         var spacing: CGFloat
+        /// The square a swatch claims. On the desk that is what it draws; a
+        /// finger needs 44 whatever the circle underneath it measures.
+        var swatchHit: CGFloat
 
-        static let desk = Metrics(swatch: 14, ringGap: 3.5, ringWidth: 1.5, spacing: 9)
-        static let drawer = Metrics(swatch: 18, ringGap: 4, ringWidth: 2, spacing: 12)
+        static let desk = Metrics(swatch: 14, ringGap: 3.5, ringWidth: 1.5, spacing: 9, swatchHit: 21)
+        // The drawer's squares tile edge to edge: four 44pt targets and the
+        // design's 12pt gaps do not both fit across a 375pt phone, and touching
+        // them leaves 18pt of air between the circles anyway.
+        static let drawer = Metrics(swatch: 18, ringGap: 4, ringWidth: 2, spacing: 0, swatchHit: 44)
     }
 
     @Environment(\.palette) private var palette
@@ -22,7 +28,7 @@ struct AccentPicker: View {
     var body: some View {
         HStack(spacing: metrics.spacing) {
             Text("Accent")
-                .sectionLabelStyle(tracking: 0.08, opacity: 0.4)
+                .sectionLabelStyle(tracking: 0.08, opacity: Palette.readableInk)
             Spacer(minLength: 0)
             ForEach(AccentTheme.allCases) { theme in
                 swatchButton(theme)
@@ -50,6 +56,7 @@ struct AccentPicker: View {
                             lineWidth: metrics.ringWidth
                         )
                 }
+                .frame(minWidth: metrics.swatchHit, minHeight: metrics.swatchHit)
         }
         .buttonStyle(.bare)
         .help(theme.label)

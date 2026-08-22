@@ -10,15 +10,18 @@ struct LabelEditor: View {
         var addRadius: CGFloat
         var addBorderWidth: CGFloat
         var spacing: CGFloat
+        /// The square the dashed `+` claims. Zero on the desk, where it claims
+        /// only what it draws; on touch the dashed box is half a target.
+        var addHit: CGFloat
         var picker: LabelPickerList.Metrics
 
         static let desk = Metrics(
             chipSize: .compact, addFont: 11, addHorizontalPadding: 7, addVerticalPadding: 3,
-            addRadius: 6, addBorderWidth: 1, spacing: 5, picker: .desk
+            addRadius: 6, addBorderWidth: 1, spacing: 5, addHit: 0, picker: .desk
         )
         static let sheet = Metrics(
             chipSize: .comfortable, addFont: 13, addHorizontalPadding: 11, addVerticalPadding: 5,
-            addRadius: 8, addBorderWidth: 1.5, spacing: 6, picker: .sheet
+            addRadius: 8, addBorderWidth: 1.5, spacing: 6, addHit: 44, picker: .sheet
         )
     }
 
@@ -32,7 +35,9 @@ struct LabelEditor: View {
     var body: some View {
         FlowLayout(spacing: metrics.spacing) {
             ForEach(store.labels(for: task)) { label in
-                LabelChip(label: label, size: metrics.chipSize)
+                LabelChip(label: label, size: metrics.chipSize) {
+                    store.toggleLabel(label.key, on: task.id)
+                }
             }
             addButton
         }
@@ -43,8 +48,8 @@ struct LabelEditor: View {
             store.toggleLabelPicker(scope, task: task.id)
         } label: {
             Image(systemName: "plus")
-                .font(.system(size: metrics.addFont, weight: .heavy))
-                .foregroundStyle(palette.ink(0.5))
+                .symbolSize(metrics.addFont, weight: .heavy, relativeTo: .caption)
+                .foregroundStyle(palette.inkText(0.5))
                 .padding(.horizontal, metrics.addHorizontalPadding)
                 .padding(.vertical, metrics.addVerticalPadding)
                 .overlay {
@@ -54,6 +59,7 @@ struct LabelEditor: View {
                             style: StrokeStyle(lineWidth: metrics.addBorderWidth, dash: [3, 3])
                         )
                 }
+                .frame(minWidth: metrics.addHit, minHeight: metrics.addHit)
         }
         .buttonStyle(.bare)
         .accessibilityLabel("Add label")
@@ -84,6 +90,8 @@ struct LabelPickerList: View {
         var rowVerticalPadding: CGFloat
         var rowHorizontalPadding: CGFloat
         var rowRadius: CGFloat
+        /// The row's floor. A chip plus its padding falls short of 44 on touch.
+        var rowHit: CGFloat
         var chipSize: LabelChip.Size
         var fieldFont: CGFloat
         var fieldPadding: CGFloat
@@ -92,12 +100,12 @@ struct LabelPickerList: View {
 
         static let desk = Metrics(
             width: 214, maxListHeight: 168, rowVerticalPadding: 6, rowHorizontalPadding: 7,
-            rowRadius: 8, chipSize: .compact, fieldFont: 12, fieldPadding: 8,
+            rowRadius: 8, rowHit: 0, chipSize: .compact, fieldFont: 12, fieldPadding: 8,
             fieldRadius: 9, panelPadding: 7
         )
         static let sheet = Metrics(
             width: 250, maxListHeight: 196, rowVerticalPadding: 9, rowHorizontalPadding: 8,
-            rowRadius: 10, chipSize: .comfortable, fieldFont: 14, fieldPadding: 10,
+            rowRadius: 10, rowHit: 44, chipSize: .comfortable, fieldFont: 14, fieldPadding: 10,
             fieldRadius: 11, panelPadding: 8
         )
     }
@@ -110,6 +118,9 @@ struct LabelPickerList: View {
     /// field is kept apart from the other surface's.
     let scope: DetailScope
     var metrics: Metrics = .desk
+
+    /// The picker exists to be typed into, so it opens with the field ready.
+    @FocusState private var isFieldFocused: Bool
 
     /// Read through the store so ticks update as labels are toggled.
     private var liveTask: TaskItem { store[task.id] ?? task }
@@ -132,6 +143,10 @@ struct LabelPickerList: View {
         .frame(width: metrics.width)
         .background(palette.card)
         .presentationBackground(palette.card)
+        .defaultFocus($isFieldFocused, true)
+        // `defaultFocus` alone does not always take in a popover, whose window
+        // becomes key a beat after its content appears.
+        .onAppear { isFieldFocused = true }
     }
 
     private func row(for label: LabelDef) -> some View {
@@ -143,12 +158,13 @@ struct LabelPickerList: View {
                 LabelChip(label: label, size: metrics.chipSize)
                 Spacer(minLength: 0)
                 Image(systemName: "checkmark")
-                    .font(.system(size: metrics.chipSize == .compact ? 11 : 13, weight: .bold))
+                    .symbolSize(metrics.chipSize == .compact ? 11 : 13, weight: .bold, relativeTo: .caption)
                     .foregroundStyle(palette.ink(0.7))
                     .opacity(isApplied ? 1 : 0)
             }
             .padding(.vertical, metrics.rowVerticalPadding)
             .padding(.horizontal, metrics.rowHorizontalPadding)
+            .frame(minHeight: metrics.rowHit)
             .background(isApplied ? palette.ink(0.05) : .clear, in: .rect(cornerRadius: metrics.rowRadius))
         }
         .buttonStyle(.bare)
@@ -159,13 +175,19 @@ struct LabelPickerList: View {
     private var newLabelField: some View {
         HStack(spacing: metrics.chipSize == .compact ? 7 : 8) {
             Image(systemName: "plus")
-                .font(.system(size: metrics.fieldFont, weight: .heavy))
-                .foregroundStyle(palette.ink(0.4))
+                .symbolSize(metrics.fieldFont, weight: .heavy, relativeTo: .subheadline)
+                .foregroundStyle(palette.inkText(0.4))
             TextField("New label, then ⏎", text: draftBinding)
                 .textFieldStyle(.plain)
                 .font(SimpleKanbanFont.ui(metrics.fieldFont, .bold, relativeTo: .caption))
                 .foregroundStyle(palette.ink)
+                .focused($isFieldFocused)
                 .onSubmit { store.commitLabelDraft(for: scope, task: task.id) }
+                .onKeyPress(.escape) {
+                    // Closing the picker is also what clears the draft.
+                    store.closeLabelPicker(scope, task: task.id)
+                    return .handled
+                }
         }
         .padding(metrics.fieldPadding)
         .background(palette.ink(0.05), in: .rect(cornerRadius: metrics.fieldRadius))

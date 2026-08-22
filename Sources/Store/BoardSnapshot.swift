@@ -12,21 +12,47 @@ struct BoardSnapshot: Codable, Sendable {
     /// than silently mis-decoded. See `BoardMigration.swift`.
     var version: Int = BoardSnapshot.currentVersion
     var tasks: [TaskItem]
+    /// The boards, in sidebar order, each carrying its own columns. Since v5 —
+    /// v4 kept one flat `columns` array here, from before there was more than
+    /// one board to hang columns on.
+    var boards: [Board] = SeedData.boards
     var labels: [LabelDef]
     /// Kept so task codes keep climbing across launches. Without it a new
     /// session restarts at NW-140 and collides with tasks an earlier one made.
+    /// One counter for the whole file, not one per board: the prefix is what
+    /// distinguishes a board's codes, and a per-board counter would hand two
+    /// boards the same number and make the prefix load-bearing.
     var nextSerial: Int
     var accentTheme: AccentTheme
+    /// The board last looked at. This one *is* saved, unlike the saved view —
+    /// which board you are on is where your work is, not where you happened to
+    /// glance. Optional so a file whose boards have been hand-edited still
+    /// reads; the store falls back to the first board.
+    var activeBoardID: Board.ID?
 
-    static let currentVersion = 2
+    static let currentVersion = 6
 
     /// The serial a fresh board starts minting from.
     static let baseSerial = 100
 
-    /// The human code a serial mints. Kept here rather than inline in
-    /// `addTask` because the v1 migration has to agree with it: a board whose
-    /// serial has fallen behind its codes would mint one it already contains.
-    static func code(forSerial serial: Int) -> String { "NW-\(140 + serial - baseSerial)" }
+    /// The human code a serial mints, under the destination's prefix. Kept here
+    /// rather than inline in `addTask` because the v1 migration has to agree
+    /// with it: a board whose serial has fallen behind its codes would mint one
+    /// it already contains.
+    static func code(prefix: String = Board.defaultCodePrefix, forSerial serial: Int) -> String {
+        "\(prefix)-\(140 + serial - baseSerial)"
+    }
+
+    /// The serial a code was minted from, whatever prefix it carries, or `nil`
+    /// for one this did not mint. Reading the number rather than rebuilding the
+    /// whole code is what lets `discardIfUntouched` hand a serial back without
+    /// knowing which board — or the Inbox — minted it.
+    static func serial(ofCode code: String) -> Int? {
+        guard let dash = code.lastIndex(of: "-"),
+              let number = Int(code[code.index(after: dash)...])
+        else { return nil }
+        return baseSerial + number - 140
+    }
 }
 
 /// Why a saved board could not be used, and where it was put for safe keeping.
@@ -61,6 +87,17 @@ struct BoardLoadResult: Sendable {
     var migratedFromVersion: Int? = nil
 }
 
+/// One file in `backups/`, and when it was taken.
+///
+/// The stamp is read out of the name rather than off the file, so a backup
+/// copied to another machine still says when it was made.
+struct BoardBackup: Identifiable, Hashable, Sendable {
+    var url: URL
+    var takenAt: Date?
+
+    var id: URL { url }
+}
+
 /// A board file that cannot be turned into a snapshot. `load()` converts these
 /// into a `BoardLoadFailure`; `restore(from:)` throws them, because a restore
 /// the user asked for should fail loudly.
@@ -91,14 +128,37 @@ enum BoardFileError: LocalizedError, Equatable, Sendable {
 struct BoardFile: Sendable {
     var url: URL
 
-    private static let logger = Logger(subsystem: "com.simplekanban.SimpleKanban", category: "persistence")
+    private static let logger = Logger(subsystem: "com.n14395.SimpleKanban", category: "persistence")
 
     /// `~/Library/Application Support/SimpleKanban/board.json` on both platforms.
     static let `default`: BoardFile = {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL.temporaryDirectory
+        // `xcodebuild test` launches this app as the test host under its real
+        // bundle identifier, so an unguarded `.default` puts the suite on the
+        // developer's own board — reading it, migrating it, and quarantining it
+        // when the tree is briefly on an older schema. A test may only ever be
+        // handed a throwaway file, so the app's own file steps aside first.
+        guard !isRunningTests else {
+            return BoardFile(url: URL.temporaryDirectory
+                .appending(path: "SimpleKanbanTestHost-\(UUID().uuidString)/board.json"))
+        }
         return BoardFile(url: base.appending(path: "SimpleKanban/board.json"))
     }()
+
+    /// True when this process was launched by a test runner rather than by a
+    /// person. Both spellings are checked because Swift Testing and XCTest
+    /// announce themselves differently.
+    ///
+    /// Not private: `BoardStore.scheduleSave` asks it the same question about
+    /// the two *other* pieces of machine-wide state the app owns — see there.
+    static var isRunningTests: Bool {
+        let environment = ProcessInfo.processInfo.environment
+        return environment["XCTestConfigurationFilePath"] != nil
+            || environment["XCTestBundlePath"] != nil
+            || environment["XCTestSessionIdentifier"] != nil
+            || NSClassFromString("XCTestCase") != nil
+    }
 
     // MARK: Loading
 
@@ -134,13 +194,47 @@ struct BoardFile: Sendable {
     /// because synthesised `Codable` throws `keyNotFound` for a field the older
     /// shape never wrote — a default does not save you. Routing on the version
     /// first is what keeps a v1 file out of the current decoder.
+    ///
+    /// Each older version is decoded by the shape that wrote it and then walked
+    /// forward one step at a time, so a v1 file passes through exactly the same
+    /// v4 → v5 code a v4 file does. Widening an old decoder to reach the current
+    /// shape instead would make every future field silently rewrite the past.
     static func decode(_ data: Data) throws -> (snapshot: BoardSnapshot, migratedFrom: Int?) {
         let decoder = JSONDecoder()
         switch try version(of: data) {
         case BoardSnapshot.currentVersion:
             return (try decoder.decode(BoardSnapshot.self, from: data), nil)
+        case 5:
+            // v5 and v6 are the same shape. What changed is how `Priority`
+            // spells itself on disk, which `Priority.init(stored:)` absorbs, so
+            // the current decoder reads a v5 file — but the bump still has to
+            // happen, because the reverse is not true and a v5 build must
+            // refuse this file rather than lose every priority in it.
+            return (BoardSnapshot.migrate(v5: try decoder.decode(BoardSnapshot.self, from: data)), 5)
+        case 4:
+            let v4 = try decoder.decode(BoardSnapshotV4.self, from: data)
+            return (BoardSnapshot.migrate(v5: BoardSnapshot.migrate(v4: v4)), 4)
+        case 3:
+            let v3 = try decoder.decode(BoardSnapshotV3.self, from: data)
+            return (BoardSnapshot.migrate(v5: BoardSnapshot.migrate(v4: BoardSnapshot.migrate(v3: v3))), 3)
+        case 2:
+            let v2 = try decoder.decode(BoardSnapshotV2.self, from: data)
+            return (
+                BoardSnapshot.migrate(
+                    v5: BoardSnapshot.migrate(v4: BoardSnapshot.migrate(v3: BoardSnapshot.migrate(v2: v2)))
+                ),
+                2
+            )
         case 1:
-            return (BoardSnapshot.migrate(v1: try decoder.decode(BoardSnapshotV1.self, from: data)), 1)
+            let v1 = try decoder.decode(BoardSnapshotV1.self, from: data)
+            return (
+                BoardSnapshot.migrate(
+                    v5: BoardSnapshot.migrate(
+                        v4: BoardSnapshot.migrate(v3: BoardSnapshot.migrate(v2: BoardSnapshot.migrate(v1: v1)))
+                    )
+                ),
+                1
+            )
         case let version where version > BoardSnapshot.currentVersion:
             throw BoardFileError.newerVersion(version)
         default:
@@ -161,6 +255,15 @@ struct BoardFile: Sendable {
 
     // MARK: Writing
 
+    /// The one encoder the board is written with. Exported bytes go through it
+    /// too, so a file the user exports and the file on disk are the same
+    /// document rather than two spellings of one.
+    static func encoder() -> JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return encoder
+    }
+
     /// Which generation of which file has reached the disk.
     ///
     /// Write ordering belongs to the *file*, not to whoever is writing it. Two
@@ -176,6 +279,20 @@ struct BoardFile: Sendable {
     private static let writeOrder = Mutex<[URL: WriteOrder]>([:])
 
     private var orderKey: URL { url.standardizedFileURL }
+
+    #if DEBUG
+    /// How many times bytes have actually landed on each path.
+    ///
+    /// Only the tests read it, and only because there is no other way to tell
+    /// one write from two: both leave the same file, and a modification date
+    /// has one-second resolution where the thing under test is a 500ms
+    /// debounce. Keyed like `writeOrder`, because what is worth counting is
+    /// writes to a *file* rather than calls on one `BoardFile` value.
+    private static let writeCounts = Mutex<[URL: Int]>([:])
+
+    /// Writes to this file that have reached the disk since the process began.
+    var writeCount: Int { Self.writeCounts.withLock { $0[orderKey] ?? 0 } }
+    #endif
 
     /// Claims the generation for a save. Called when the save is *queued*, so a
     /// write overtaken while it waited out a debounce can tell.
@@ -202,9 +319,7 @@ struct BoardFile: Sendable {
     /// background encode is exactly the stall this is meant to avoid.
     @discardableResult
     func write(_ snapshot: BoardSnapshot, generation: UInt64) throws -> Bool {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let data = try encoder.encode(snapshot)
+        let data = try Self.encoder().encode(snapshot)
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(), withIntermediateDirectories: true
         )
@@ -218,6 +333,9 @@ struct BoardFile: Sendable {
             table[orderKey] = order
             // Atomic: a crash mid-write leaves the previous board intact.
             try data.write(to: url, options: .atomic)
+            #if DEBUG
+            Self.writeCounts.withLock { $0[orderKey, default: 0] += 1 }
+            #endif
             return true
         }
     }
@@ -254,6 +372,38 @@ struct BoardFile: Sendable {
         prune(keeping: limit)
     }
 
+    /// Copies the live file into `backups/` whatever the age of the last one,
+    /// then prunes. Returns where it went, or `nil` if it could not be kept.
+    ///
+    /// `backupIfDue` deliberately does neither of those things — it is the
+    /// rolling backup, and one a second is far more history than it is for. A
+    /// restore or a reset is the one moment the board about to be replaced has
+    /// no other copy anywhere, and "there was already one this second" is not an
+    /// answer to that.
+    @discardableResult
+    func backupNow(keeping limit: Int = 10) -> URL? {
+        let manager = FileManager.default
+        guard manager.fileExists(atPath: url.path(percentEncoded: false)) else { return nil }
+        var moment = Date.now
+        var destination = backupsDirectory.appending(path: "board-\(Self.stamp(moment)).json")
+        while manager.fileExists(atPath: destination.path(percentEncoded: false)) {
+            // The stamp is second-resolution and it is also what orders the
+            // list, so a clash takes the next second rather than a decorated
+            // name — which would sort as the *older* of the two.
+            moment.addTimeInterval(1)
+            destination = backupsDirectory.appending(path: "board-\(Self.stamp(moment)).json")
+        }
+        do {
+            try manager.createDirectory(at: backupsDirectory, withIntermediateDirectories: true)
+            try manager.copyItem(at: url, to: destination)
+        } catch {
+            Self.logger.error("Could not keep the board before replacing it: \(error.localizedDescription)")
+            return nil
+        }
+        prune(keeping: limit)
+        return destination
+    }
+
     /// Newest first. The stamp in the name sorts chronologically, which is the
     /// reason it is zero-padded UTC rather than anything friendlier.
     func backups() -> [URL] {
@@ -263,6 +413,12 @@ struct BoardFile: Sendable {
         return contents
             .filter { $0.pathExtension == "json" && $0.lastPathComponent.hasPrefix("board-") }
             .sorted { $0.lastPathComponent > $1.lastPathComponent }
+    }
+
+    /// The same list with the moment each was taken, which is the only thing
+    /// that tells one apart from another in the restore list.
+    func recentBackups() -> [BoardBackup] {
+        backups().map { BoardBackup(url: $0, takenAt: Self.date(ofBackup: $0)) }
     }
 
     /// Reads a backup into a snapshot, migrating it forward if it predates the
@@ -375,12 +531,187 @@ struct BoardFile: Sendable {
 
     /// When a backup was taken, from its name — falling back to the file's own
     /// modification date if someone has renamed it.
-    private static func date(ofBackup backupURL: URL) -> Date? {
+    static func date(ofBackup backupURL: URL) -> Date? {
         let name = backupURL.deletingPathExtension().lastPathComponent
         let prefix = "board-"
         if name.hasPrefix(prefix), let date = stampFormatter().date(from: String(name.dropFirst(prefix.count))) {
             return date
         }
         return try? backupURL.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+    }
+}
+
+// MARK: - Export and import
+
+/// What an import did. Every number here is something that was *added*: an
+/// import never renames, recolours, moves or removes anything already on the
+/// board, so there is no "replaced" to count.
+struct BoardImportSummary: Equatable, Sendable {
+    var boardsAdded = 0
+    /// Columns folded into a board that was already here.
+    var columnsAdded = 0
+    var tasksAdded = 0
+    /// Tasks that arrived under an id this board already uses. Neither side
+    /// wins: the arriving one is kept beside the one already here.
+    var tasksCopied = 0
+    var labelsAdded = 0
+    /// Tasks that were already here, identical — what re-importing the same
+    /// file is made of.
+    var tasksUnchanged = 0
+
+    var changedAnything: Bool {
+        boardsAdded + columnsAdded + tasksAdded + tasksCopied + labelsAdded > 0
+    }
+}
+
+extension BoardSnapshot {
+    /// The bytes an export writes.
+    func encoded() throws -> Data { try BoardFile.encoder().encode(self) }
+
+    /// Reads exported bytes of any shipped version, migrating an older file
+    /// forward on the way in.
+    ///
+    /// Throws rather than returning a `BoardLoadResult`: a file the user picked
+    /// and asked to import has to fail loudly, and there is nothing to
+    /// quarantine — the file is theirs and stays where it is.
+    static func decoding(_ data: Data) throws -> BoardSnapshot {
+        try BoardFile.decode(data).snapshot
+    }
+
+    /// Folds an imported board into this one.
+    ///
+    /// **Merge, never replace.** Nothing already here is renamed, recoloured,
+    /// moved or removed, and the two fields that are not the file's to change —
+    /// the accent, and which board is being looked at — stay as they are.
+    ///
+    /// Tasks are matched on `id`, which is why 3.7 made them UUIDs. A task that
+    /// is already here byte for byte is skipped, so re-importing the same file
+    /// is a no-op; a task arriving under an id that names a *different* task
+    /// here is kept **as well as**, under a fresh id, rather than one of the two
+    /// being picked as the winner. Codes are re-minted only where they would
+    /// collide: a code is a label a person may have pasted into a commit
+    /// message, so it is left alone wherever it can be.
+    ///
+    /// Boards are matched on `id` too. One that is already here keeps its name,
+    /// dot and prefix and gains only the columns it is missing — a board is a
+    /// place the user has arranged, and an import that re-ordered or renamed
+    /// its columns would be overwriting exactly what the merge is there to
+    /// protect. Column ids are unique across boards, because the store resolves
+    /// a card's board from its column, so a column arriving with an id already
+    /// in use on a *new* board is re-minted.
+    func merging(_ incoming: BoardSnapshot) -> (snapshot: BoardSnapshot, summary: BoardImportSummary) {
+        var merged = self
+        var summary = BoardImportSummary()
+        // Above both files' counters, so nothing re-minted here can collide
+        // with a code either side has already issued.
+        var serial = Swift.max(nextSerial, incoming.nextSerial)
+
+        var boardOfColumn = Dictionary(
+            merged.boards.flatMap { board in board.columns.map { ($0.id, board.id) } },
+            uniquingKeysWith: { first, _ in first }
+        )
+        // Where each incoming column ended up here.
+        var columnMap: [BoardColumn.ID: BoardColumn.ID] = [:]
+
+        for incomingBoard in incoming.boards {
+            if let index = merged.boards.firstIndex(where: { $0.id == incomingBoard.id }) {
+                for column in incomingBoard.columns {
+                    columnMap[column.id] = column.id
+                    guard boardOfColumn[column.id] == nil else { continue }
+                    merged.boards[index].columns.append(column)
+                    boardOfColumn[column.id] = incomingBoard.id
+                    summary.columnsAdded += 1
+                }
+                continue
+            }
+            var board = incomingBoard
+            board.columns = []
+            for original in incomingBoard.columns {
+                var column = original
+                if boardOfColumn[column.id] != nil { column.id = UUID() }
+                columnMap[original.id] = column.id
+                boardOfColumn[column.id] = board.id
+                board.columns.append(column)
+            }
+            merged.boards.append(board)
+            summary.boardsAdded += 1
+        }
+
+        let prefixes = Dictionary(
+            merged.boards.map { ($0.id, $0.codePrefix) }, uniquingKeysWith: { first, _ in first }
+        )
+        var here = Dictionary(merged.tasks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var contents = Set(merged.tasks.map(Self.contentKey))
+        var codes = Set(merged.tasks.map(\.code))
+
+        for incomingTask in incoming.tasks {
+            var task = incomingTask
+            if let columnID = incomingTask.columnID, let mapped = columnMap[columnID],
+               let boardID = boardOfColumn[mapped] {
+                task.placement = .column(board: boardID, column: mapped)
+            } else {
+                // A card whose column did not come with the file is still the
+                // user's, and the Inbox is where it can be found again — the
+                // same answer `BoardStore.placed` gives.
+                task.placement = .inbox
+            }
+            if let mine = here[incomingTask.id] {
+                guard mine != task else {
+                    summary.tasksUnchanged += 1
+                    continue
+                }
+                // A copy of this card may already be here from an earlier
+                // import of the same file: the copy took a fresh id, so it no
+                // longer answers to the id that arrived, and matching on the id
+                // alone would add another one on every re-import.
+                guard !contents.contains(Self.contentKey(task)) else {
+                    summary.tasksUnchanged += 1
+                    continue
+                }
+                task.id = UUID()
+                summary.tasksCopied += 1
+            } else {
+                summary.tasksAdded += 1
+            }
+            while codes.contains(task.code) {
+                task.code = BoardSnapshot.code(
+                    prefix: task.boardID.flatMap { prefixes[$0] } ?? Board.inboxCodePrefix,
+                    forSerial: serial
+                )
+                serial += 1
+            }
+            codes.insert(task.code)
+            contents.insert(Self.contentKey(task))
+            here[task.id] = task
+            merged.tasks.append(task)
+        }
+
+        var keys = Set(merged.labels.map(\.key))
+        for label in incoming.labels where !keys.contains(label.key) {
+            merged.labels.append(label)
+            keys.insert(label.key)
+            summary.labelsAdded += 1
+        }
+
+        merged.nextSerial = Swift.max(serial, Swift.max(nextSerial, incoming.nextSerial))
+        merged.version = BoardSnapshot.currentVersion
+        return (merged, summary)
+    }
+
+    /// A card stripped of the two things about it that are labels rather than
+    /// content — its id and its code — so "this card is already here under
+    /// another number" is one lookup rather than a scan.
+    ///
+    /// Both are set aside because both are exactly what an earlier import may
+    /// have changed: a colliding card is kept under a fresh id, and a card whose
+    /// code was already taken is re-minted. Everything else about a card —
+    /// including its `createdAt`, its `updatedAt` and the ids of its activity
+    /// entries — travels with the file unchanged, which is what makes this
+    /// specific enough to key on.
+    private static func contentKey(_ task: TaskItem) -> TaskItem {
+        var probe = task
+        probe.id = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+        probe.code = ""
+        return probe
     }
 }

@@ -1,6 +1,6 @@
 name: SimpleKanban
 options:
-  bundleIdPrefix: com.simplekanban
+  bundleIdPrefix: com.n14395
   createIntermediateGroups: true
   generateEmptyDirectories: false
   minimumXcodeGenVersion: "2.42.0"
@@ -22,19 +22,113 @@ targets:
     sources:
       - path: Sources
       - path: Resources/Assets.xcassets
+      # The String Catalog every `String(localized:)` and `Text(_:comment:)` in
+      # the app extracts into. `SWIFT_EMIT_LOC_STRINGS` above writes the
+      # .stringsdata; the catalog is what a translator is handed — and a
+      # catalogue that is in no target is a file on disk, with every
+      # `String(localized:)` falling back to its key.
+      - path: Resources/Localizable.xcstrings
       - path: Resources/Fonts
         type: folder
+      # Required-reason API declarations. A resource of the bundle rather than
+      # a build setting: the App Store reads it out of the .app, and
+      # notarization is happy either way.
+      - path: Resources/PrivacyInfo.xcprivacy
     info:
       path: Resources/Info.plist
       properties:
         CFBundleDisplayName: Simple Kanban
-        CFBundleShortVersionString: "1.0"
-        CFBundleVersion: "1"
+        # Both come from the build settings below rather than being written
+        # twice: a literal here drifts from MARKETING_VERSION the first time
+        # anyone bumps it, and the About panel and the update check both read
+        # the plist.
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSHumanReadableCopyright: "Copyright © 2026 Nicholas Fay. All rights reserved."
         LSApplicationCategoryType: public.app-category.productivity
+        # The asset-catalogue icon's name. actool writes it into the merged
+        # plist on its own, but an iOS submission is rejected without it and
+        # `UIImage(named:)` — which the About panel uses to show the icon back
+        # to the user — only resolves an app icon that has one.
+        CFBundleIconName: AppIcon
         ITSAppUsesNonExemptEncryption: false
-        UILaunchScreen: {}
+        # The drag payloads in Sources/Model/TaskTransfer.swift. An exported
+        # type the bundle does not declare is registered dynamically and
+        # resolves to one that conforms to nothing.
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.n14395.SimpleKanban.task
+            UTTypeDescription: Simple Kanban Task
+            UTTypeConformsTo:
+              - public.data
+          - UTTypeIdentifier: com.n14395.SimpleKanban.subtask
+            UTTypeDescription: Simple Kanban Sub-task
+            UTTypeConformsTo:
+              - public.data
+          # The export/import document (6.2). JSON rather than opaque data, so
+          # a .simplekanban file opens in a text editor without an argument.
+          - UTTypeIdentifier: com.n14395.SimpleKanban.board
+            UTTypeDescription: Simple Kanban Board
+            UTTypeConformsTo:
+              - public.json
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - simplekanban
+        # Markdown belongs to nobody here, so it is imported rather than
+        # exported. Without this the Markdown export's save panel has no
+        # extension to offer and writes a .txt.
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: net.daringfireball.markdown
+            UTTypeDescription: Markdown Text
+            UTTypeConformsTo:
+              - public.plain-text
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - md
+                - markdown
+        # simplekanban://task/<uuid> — parsed by `TaskLink` (6.11). The code
+        # that reads a URL is never handed one the bundle has not claimed.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.n14395.SimpleKanban.task-link
+            CFBundleTypeRole: Editor
+            CFBundleURLSchemes:
+              - simplekanban
+        # The activity Handoff and Spotlight continue. The system hands one over
+        # only to a bundle that says it can take it.
+        NSUserActivityTypes:
+          - com.n14395.SimpleKanban.task
+        # What makes the board document the app's own: a .simplekanban file
+        # takes the app's icon and opens here.
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Simple Kanban Board
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - com.n14395.SimpleKanban.board
+        # An opened board file is read and merged, never edited where it lies,
+        # so it is read in place rather than copied into the app's Inbox — that
+        # copy would be litter nothing here ever deletes. Declaring it also
+        # silences the iOS build warning that an app owning a document type has
+        # not said which of the two it does.
+        LSSupportsOpeningDocumentsInPlace: true
+        # The launch screen was an empty dict, which is legal and paints white —
+        # a hard flash before a dark board. `LaunchBackground` is `--app` from
+        # Palette in both schemes, so the launch image is the colour the first
+        # frame lands on.
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        # Where "Check for Updates" looks (7.6). In the bundle rather than in
+        # code so a fork changes one line, and `./build.sh --publish` refuses to
+        # release when this and the `origin` remote disagree — an installed copy
+        # that polls the wrong repository never finds its own updates.
+        SKUpdateRepository: n14395/simple-kanban
+        SKReleasesPage: https://github.com/n14395/simple-kanban/releases/latest
+        # Landscape is unlocked on the phone (5.5): a two-up board is
+        # genuinely useful, and PhoneRootView lays one out for the compact
+        # vertical size class. No upside-down, matching Apple's own phone apps.
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         UISupportedInterfaceOrientations~ipad:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
@@ -43,7 +137,7 @@ targets:
     settings:
       base:
         PRODUCT_NAME: Simple Kanban
-        PRODUCT_BUNDLE_IDENTIFIER: com.simplekanban.SimpleKanban
+        PRODUCT_BUNDLE_IDENTIFIER: com.n14395.SimpleKanban
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: NO
@@ -55,3 +149,27 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
         CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Resources/SimpleKanban.entitlements
+    scheme:
+      testTargets:
+        - SimpleKanbanTests
+      gatherCoverageData: false
+
+  SimpleKanbanTests:
+    type: bundle.unit-test
+    supportedDestinations: [macOS, iOS]
+    sources:
+      - path: Tests
+    dependencies:
+      - target: SimpleKanban
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.n14395.SimpleKanbanTests
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: P52946XHRJ
+        TARGETED_DEVICE_FAMILY: "1,2"
+        # XcodeGen derives the host path from the target name; the app's
+        # PRODUCT_NAME has a space in it, and the executable sits in a
+        # different place on each platform.
+        TEST_HOST[sdk=macosx*]: "$(BUILT_PRODUCTS_DIR)/Simple Kanban.app/Contents/MacOS/Simple Kanban"
+        TEST_HOST[sdk=iphone*]: "$(BUILT_PRODUCTS_DIR)/Simple Kanban.app/Simple Kanban"

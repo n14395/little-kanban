@@ -39,14 +39,28 @@ struct PhoneTabBar: View {
     private var tabPill: some View {
         HStack(spacing: 4) {
             ForEach(PhoneTab.allCases) { tab in
-                let isCurrent = store.tab == tab
-                Button { store.tab = tab } label: {
+                // A saved view has replaced the list, so none of the three
+                // places the tabs name is what is on screen; highlighting one
+                // of them anyway would be the drawer's inert rows over again.
+                let isCurrent = store.activeView == nil && store.tab == tab
+                Button { store.selectTab(tab) } label: {
                     Text(tab.label)
                         .font(SimpleKanbanFont.ui(12, isCurrent ? .extraBold : .bold, relativeTo: .caption))
-                        .foregroundStyle(isCurrent ? palette.accent : palette.ink(0.45))
+                        .foregroundStyle(isCurrent ? palette.accent : palette.inkText(0.45))
+                        // Three single words in three equal thirds of a phone.
+                        // At an accessibility size they do not fit, and a word
+                        // has nowhere to break: the pill read "Boar / d",
+                        // "Inbo / x", "Sear / ch". Held to one line and allowed
+                        // to shrink, they still grow with the reader's text —
+                        // just not past the slot they have to sit in.
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.55)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 9)
                         .background(isCurrent ? palette.accentSoft : .clear, in: .rect(cornerRadius: 12))
+                        // The selected chip is drawn at the design's height;
+                        // the tab claims the 44pt minimum around it.
+                        .frame(minHeight: 44)
                 }
                 .buttonStyle(.bare)
                 .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
@@ -57,11 +71,13 @@ struct PhoneTabBar: View {
     }
 
     private var quickCaptureButton: some View {
-        Button { store.quickCapture() } label: {
+        Button {
+            store.quickCapture()
+        } label: {
             Image(systemName: "plus")
-                .font(.system(size: 24, weight: .regular))
-                .foregroundStyle(.white)
-                .frame(width: 52, height: 52)
+                .symbolSize(24, weight: .regular, relativeTo: .title3)
+                .foregroundStyle(palette.onAccent)
+                .frame(minWidth: 52, minHeight: 52)
         }
         .buttonStyle(.bare)
         .glassEffect(.regular.tint(palette.accent).interactive(), in: .circle)

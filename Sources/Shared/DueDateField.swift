@@ -10,6 +10,10 @@ struct DueDateField: View {
         var chipFont: CGFloat
         var chipHorizontalPadding: CGFloat
         var chipRadius: CGFloat
+        /// The square the chip's button claims, and the floor under a row in
+        /// the calendar. Zero on the desk, where each claims what it draws.
+        var chipHit: CGFloat
+        var rowHit: CGFloat
         var addHorizontalPadding: CGFloat
         var addVerticalPadding: CGFloat
         var addBorderWidth: CGFloat
@@ -20,13 +24,13 @@ struct DueDateField: View {
         var panelPadding: CGFloat
 
         static let desk = Metrics(
-            chipFont: 12.5, chipHorizontalPadding: 7, chipRadius: 6,
+            chipFont: 12.5, chipHorizontalPadding: 7, chipRadius: 6, chipHit: 0, rowHit: 0,
             addHorizontalPadding: 8, addVerticalPadding: 3, addBorderWidth: 1,
             pickerWidth: 268, rowFont: 12, rowVerticalPadding: 6,
             rowRadius: 8, panelPadding: 10
         )
         static let sheet = Metrics(
-            chipFont: 14, chipHorizontalPadding: 9, chipRadius: 7,
+            chipFont: 14, chipHorizontalPadding: 9, chipRadius: 7, chipHit: 44, rowHit: 44,
             addHorizontalPadding: 11, addVerticalPadding: 5, addBorderWidth: 1.5,
             pickerWidth: 320, rowFont: 14, rowVerticalPadding: 9,
             rowRadius: 10, panelPadding: 12
@@ -50,26 +54,38 @@ struct DueDateField: View {
 
     private var today: CalendarDay { dayClock.today }
 
+    /// What the chip is worth out loud. The fallback is localized here rather
+    /// than left in the modifier: `??` beside a `String` picks
+    /// `accessibilityValue`'s `StringProtocol` overload, which takes its
+    /// argument as the finished text and never looks in the catalogue.
+    private var spokenDue: String {
+        task.dueText(today: today)
+            ?? String(localized: "No due date", comment: "Spoken value of a card's due-date chip when nothing is set")
+    }
+
     var body: some View {
         Button {
             setPickerOpen(!isPickerOpen)
         } label: {
-            if let due = task.due {
-                DueChip(
-                    due: due,
-                    today: today,
-                    columnID: task.columnID,
-                    font: metrics.chipFont,
-                    horizontalPadding: metrics.chipHorizontalPadding,
-                    radius: metrics.chipRadius
-                )
-            } else {
-                addAffordance
+            Group {
+                if let due = task.due {
+                    DueChip(
+                        due: due,
+                        today: today,
+                        role: store.role(of: task),
+                        font: metrics.chipFont,
+                        horizontalPadding: metrics.chipHorizontalPadding,
+                        radius: metrics.chipRadius
+                    )
+                } else {
+                    addAffordance
+                }
             }
+            .frame(minWidth: metrics.chipHit, minHeight: metrics.chipHit)
         }
         .buttonStyle(.bare)
         .accessibilityLabel("Due date")
-        .accessibilityValue(task.dueText(today: today) ?? "No due date")
+        .accessibilityValue(spokenDue)
         .popover(isPresented: pickerBinding, arrowEdge: .bottom) {
             picker
                 .environment(\.palette, palette)
@@ -84,11 +100,11 @@ struct DueDateField: View {
     private var addAffordance: some View {
         HStack(spacing: 5) {
             Image(systemName: "calendar")
-                .font(.system(size: metrics.chipFont - 1, weight: .semibold))
+                .symbolSize(metrics.chipFont - 1, weight: .semibold, relativeTo: .caption)
             Text("Add due date")
                 .font(SimpleKanbanFont.ui(metrics.chipFont, .bold, relativeTo: .footnote))
         }
-        .foregroundStyle(palette.ink(0.45))
+        .foregroundStyle(palette.inkText(0.45))
         .padding(.horizontal, metrics.addHorizontalPadding)
         .padding(.vertical, metrics.addVerticalPadding)
         .overlay {
@@ -125,14 +141,15 @@ struct DueDateField: View {
                 } label: {
                     HStack(spacing: 7) {
                         Image(systemName: "xmark.circle")
-                            .font(.system(size: metrics.rowFont, weight: .semibold))
+                            .symbolSize(metrics.rowFont, weight: .semibold, relativeTo: .subheadline)
                         Text("Clear due date")
                             .font(SimpleKanbanFont.ui(metrics.rowFont, .bold, relativeTo: .caption))
                     }
-                    .foregroundStyle(palette.ink(0.6))
+                    .foregroundStyle(palette.inkText(0.6))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, metrics.rowVerticalPadding)
                     .padding(.horizontal, 6)
+                    .frame(minHeight: metrics.rowHit)
                 }
                 .buttonStyle(.bare)
                 .hoverBackground(palette.ink(0.06), radius: metrics.rowRadius)
@@ -153,12 +170,13 @@ struct DueDateField: View {
         } label: {
             Text(preset.label)
                 .font(SimpleKanbanFont.ui(metrics.rowFont, .bold, relativeTo: .caption))
-                .foregroundStyle(isCurrent ? .white : palette.ink(0.65))
+                .foregroundStyle(isCurrent ? palette.onAccent : palette.ink(0.65))
                 .lineLimit(1)
                 .padding(.vertical, metrics.rowVerticalPadding - 2)
                 .padding(.horizontal, 9)
                 .frame(maxWidth: .infinity)
                 .background(isCurrent ? palette.accent : palette.ink(0.06), in: .capsule)
+                .frame(minHeight: metrics.rowHit)
         }
         .buttonStyle(.bare)
         .accessibilityAddTraits(isCurrent ? [.isSelected] : [])

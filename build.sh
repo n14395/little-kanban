@@ -16,7 +16,7 @@ APP_NAME="SimpleKanban"
 BUILD_DIR="$PWD/build"
 APP_PATH="$BUILD_DIR/$APP_NAME.app"
 DMG_PATH="$BUILD_DIR/$APP_NAME.dmg"
-BUNDLE_ID="com.simplekanban.SimpleKanban"
+BUNDLE_ID="com.n14395.SimpleKanban"
 ENTITLEMENTS=""
 
 # Exported from ~/.zshrc. The literal fallback keeps the script working when it is
@@ -202,6 +202,21 @@ publish() {
     command -v gh >/dev/null 2>&1 || die "the GitHub CLI (gh) is not installed"
     git remote get-url origin >/dev/null 2>&1 \
         || die "this repository has no 'origin' remote — cannot push the tag"
+
+    # The installed copies poll SKUpdateRepository (see UpdateChecker.swift). A
+    # release cut from a repository the bundle does not name is one none of them
+    # will ever hear about, and the failure is silent and permanent — so it is
+    # checked here, where the two facts are both to hand, rather than trusted.
+    local declared origin_slug
+    declared="$(/usr/libexec/PlistBuddy -c 'Print :SKUpdateRepository' \
+        "$APP_PATH/Contents/Info.plist" 2>/dev/null || true)"
+    origin_slug="$(git remote get-url origin \
+        | sed -E 's#^(https://github\.com/|git@github\.com:)##; s#\.git$##')"
+    if [[ -z "$declared" ]]; then
+        die "the built app declares no SKUpdateRepository — set it in project.yml"
+    elif [[ "$declared" != "$origin_slug" ]]; then
+        die "SKUpdateRepository is '$declared' but origin is '$origin_slug' — installed copies would check the wrong repository"
+    fi
 
     local versioned="$BUILD_DIR/$APP_NAME-$VERSION_NUM.dmg"
     cp -f "$DMG_PATH" "$versioned"

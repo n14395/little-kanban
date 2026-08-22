@@ -12,9 +12,12 @@ struct PriorityPicker: View {
         var font: CGFloat
         var dotDiameter: CGFloat
         var spacing: CGFloat
+        /// The square the menu's label claims. A dot and a word are around 17pt
+        /// tall, which is a third of what a finger needs.
+        var hit: CGFloat
 
-        static let desk = Metrics(font: 12.5, dotDiameter: 7, spacing: 7)
-        static let sheet = Metrics(font: 14, dotDiameter: 7, spacing: 6)
+        static let desk = Metrics(font: 12.5, dotDiameter: 7, spacing: 7, hit: 0)
+        static let sheet = Metrics(font: 14, dotDiameter: 7, spacing: 6, hit: 44)
     }
 
     @Environment(\.palette) private var palette
@@ -61,9 +64,10 @@ struct PriorityPicker: View {
                     .font(SimpleKanbanFont.ui(metrics.font, .bold, relativeTo: .footnote))
                     .foregroundStyle(palette.ink)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: metrics.font - 4, weight: .bold))
-                    .foregroundStyle(palette.ink(0.35))
+                    .symbolSize(metrics.font - 4, weight: .bold, relativeTo: .caption)
+                    .foregroundStyle(palette.inkText(0.35))
             }
+            .frame(minWidth: metrics.hit, minHeight: metrics.hit)
             .contentShape(.rect)
         }
         .modifier(BorderlessMenu())
@@ -92,7 +96,11 @@ struct PriorityPicker: View {
 
 /// Strips the menu's own chrome so only the label above shows. The borderless
 /// style is macOS-only; on iOS a plain `Menu` already draws nothing.
-private struct BorderlessMenu: ViewModifier {
+///
+/// Not private: `BoardDestinationMenu` draws a label of its own and needs the
+/// same chrome stripped, and a second copy of a `#if` is a second thing to keep
+/// in step.
+struct BorderlessMenu: ViewModifier {
     func body(content: Content) -> some View {
         #if os(macOS)
         content.menuStyle(.borderlessButton)

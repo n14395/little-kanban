@@ -84,7 +84,16 @@ enum SimpleKanbanFont {
 extension View {
     /// Applies the design's uppercase micro-label treatment:
     /// `11px / 800 / 0.1em tracking / uppercase`.
-    func sectionLabelStyle(size: CGFloat = 11, tracking: CGFloat = 0.1, opacity: Double = 0.38) -> some View {
+    ///
+    /// The default opacity is the readable floor rather than the design's 0.38.
+    /// 0.38 of ink under 11pt uppercase type is the single most common finding
+    /// the accessibility audit made — it resolves to about 2.4:1 — and every one
+    /// of the twenty-six call sites had to pass the floor by hand to get out of
+    /// it. A default that has to be overridden everywhere is not a default; this
+    /// is the same number said once.
+    func sectionLabelStyle(
+        size: CGFloat = 11, tracking: CGFloat = 0.1, opacity: Double = Palette.readableInk
+    ) -> some View {
         modifier(SectionLabelStyle(size: size, tracking: tracking, opacity: opacity))
     }
 }
@@ -100,6 +109,9 @@ private struct SectionLabelStyle: ViewModifier {
             .font(SimpleKanbanFont.ui(size, .extraBold, relativeTo: .caption2))
             .tracking(size * tracking)
             .textCase(.uppercase)
-            .foregroundStyle(palette.ink(opacity))
+            // `inkText` rather than `ink`: the floor belongs to the tone, so a
+            // call site that passes the design's own lighter number still gets
+            // text that can be read.
+            .foregroundStyle(palette.inkText(opacity))
     }
 }

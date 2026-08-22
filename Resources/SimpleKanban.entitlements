@@ -4,7 +4,13 @@
 <dict>
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
-	<key>com.apple.security.files.user-selected.read-only</key>
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<!-- The one outbound call the app makes: the update check reads
+	     api.github.com when the user presses the button, and nothing else. A
+	     sandboxed app with no client entitlement gets a connection refused it
+	     cannot explain. -->
+	<key>com.apple.security.network.client</key>
 	<true/>
 </dict>
 </plist>

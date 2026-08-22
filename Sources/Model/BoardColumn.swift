@@ -1,30 +1,102 @@
 import Foundation
 
+/// What a column *is for*, as opposed to what it is called.
+///
+/// **`.done` is the only role with behaviour attached**: reaching it ticks off a
+/// task's outstanding sub-tasks, tints its due chip green, and is what
+/// "completed" means to the weekly meter and to the archive. `.backlog` and
+/// `.active` are descriptive only — nothing branches on them, and nothing
+/// should start to, because the moment a rule hangs off `.active` a board whose
+/// owner never made an "in progress" column stops behaving like a board.
+///
+/// The role exists because those three behaviours used to match on the literal
+/// column id `"done"`, which a user-created column would have silently broken.
+enum ColumnRole: String, Codable, Hashable, Sendable, CaseIterable {
+    /// Not started.
+    case backlog
+    /// In flight.
+    case active
+    /// Complete.
+    case done
+}
+
 /// One column of the board. `short` is the abbreviated name used by the
 /// "move to" segmented control, where horizontal room is tight.
-struct BoardColumn: Identifiable, Hashable, Sendable {
-    let id: String
-    let name: String
-    let short: String
-    let dot: SwatchColor
+///
+/// Columns are board data rather than a fixed set: they are carried in
+/// `BoardSnapshot` and can be added, renamed, recoloured, reordered and deleted
+/// through `BoardStore`. The statics below are what a board is *seeded* with,
+/// and what the v3 → v4 migration maps a legacy string id onto.
+///
+/// Which is why the seed names are the only ones translated: a name is user
+/// content the moment a board exists, and rewriting it under a language change
+/// would be editing somebody's board. Seeding is the one moment there is no
+/// user content to overwrite.
+struct BoardColumn: Identifiable, Hashable, Codable, Sendable {
+    var id: UUID = UUID()
+    var name: String
+    var short: String
+    var dot: SwatchColor
+    var role: ColumnRole
 }
 
 extension BoardColumn {
-    /// The capture column. It sits outside the workflow: it is shown on the
-    /// macOS board and the iOS Inbox tab, but never in the column pager or the
-    /// "move to" control.
-    static let inbox = BoardColumn(id: "inbox", name: "Inbox", short: "Inbox", dot: .ink(opacity: 0.35))
+    /// Seed column ids are fixed rather than fresh for the same reason
+    /// `SeedData`'s task ids are: the migration, the seed and the tests all have
+    /// to name the same column, across relaunches and across machines.
+    private static func seedID(_ n: UInt8) -> UUID {
+        UUID(uuid: (0xC0, 0x1D, 0, 0, 0, 0, 0x40, 0, 0x80, 0, 0, 0, 0, 0, 0, n))
+    }
 
-    static let backlog = BoardColumn(id: "backlog", name: "Backlog", short: "Backlog", dot: .hex(0xA8A29A))
-    static let upNext = BoardColumn(id: "next", name: "Up Next", short: "Up Next", dot: .hex(0xC98A16))
-    static let inProgress = BoardColumn(id: "doing", name: "In Progress", short: "Doing", dot: .hex(0xC2532F))
-    static let done = BoardColumn(id: "done", name: "Done", short: "Done", dot: .hex(0x1F6F63))
+    /// The column the Inbox used to be, kept only so the v3 → v4 step has an
+    /// id to map `"inbox"` onto and the v4 → v5 step has one to recognise.
+    ///
+    /// **It is not a column any more.** Since v5 the Inbox is global and a card
+    /// is in it by being on no board at all — see `TaskPlacement`. No board
+    /// holds this column, nothing draws it, and a task filed into it would be
+    /// unfiled again by `BoardStore` on the way in.
+    static let inbox = BoardColumn(
+        id: seedID(1), name: Board.inboxName, short: Board.inboxName,
+        dot: .ink(opacity: 0.35), role: .backlog
+    )
 
-    /// The four workflow columns, in board order.
+    static let backlog = BoardColumn(
+        id: seedID(2),
+        name: String(localized: "Backlog", comment: "Seed column: work not started"),
+        short: String(localized: "Backlog", comment: "Seed column: work not started"),
+        dot: .hex(0xA8A29A), role: .backlog
+    )
+    static let upNext = BoardColumn(
+        id: seedID(3),
+        name: String(localized: "Up Next", comment: "Seed column: work queued to start"),
+        short: String(localized: "Up Next", comment: "Seed column: work queued to start"),
+        dot: .hex(0xC98A16), role: .backlog
+    )
+    static let inProgress = BoardColumn(
+        id: seedID(4),
+        name: String(localized: "In Progress", comment: "Seed column: work in flight"),
+        short: String(localized: "Doing",
+                      comment: "Abbreviated seed column name for the \"move to\" control, where room is tight"),
+        dot: .hex(0xC2532F), role: .active
+    )
+    static let done = BoardColumn(
+        id: seedID(5),
+        name: String(localized: "Done", comment: "Seed column: finished work"),
+        short: String(localized: "Done", comment: "Seed column: finished work"),
+        dot: .hex(0x1F6F63), role: .done
+    )
+
+    /// The four workflow columns, in board order — what a fresh board's
+    /// `BoardStore.columns` starts as.
     static let workflow: [BoardColumn] = [backlog, upNext, inProgress, done]
 
-    /// Every column the macOS board renders, Inbox first.
-    static let all: [BoardColumn] = [inbox] + workflow
-
-    static func column(id: String) -> BoardColumn? { all.first { $0.id == id } }
+    /// The string ids columns had up to snapshot v3, when there were only ever
+    /// these five. The v3 → v4 step maps them; `BoardStore` never sees them.
+    static let legacyIDs: [String: BoardColumn.ID] = [
+        "inbox": inbox.id,
+        "backlog": backlog.id,
+        "next": upNext.id,
+        "doing": inProgress.id,
+        "done": done.id,
+    ]
 }

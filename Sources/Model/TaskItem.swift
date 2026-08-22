@@ -30,6 +30,12 @@ struct ActivityEntry: Identifiable, Hashable, Codable, Sendable {
         case subtaskRenamed
         case subtaskRemoved
         case subtasksCompletedOnDone(count: Int)
+        case archived
+        case unarchived
+        /// Taken off a board and back into the global Inbox. Distinct from
+        /// `moved`, which names a column: the Inbox is not one, and its name is
+        /// the app's rather than the user's, so it is rendered rather than stored.
+        case unfiled
         /// Pre-rendered English from a board written before entries were structured.
         case legacy(String)
     }
@@ -77,6 +83,12 @@ struct ActivityEntry: Identifiable, Hashable, Codable, Sendable {
             String(localized: "Sub-task renamed", comment: "Activity feed: a sub-task was renamed")
         case .subtaskRemoved:
             String(localized: "Sub-task removed", comment: "Activity feed: a sub-task was deleted")
+        case .archived:
+            String(localized: "Archived", comment: "Activity feed: the task was filed away")
+        case .unarchived:
+            String(localized: "Restored from the archive", comment: "Activity feed: the task was taken back out of the archive")
+        case .unfiled:
+            String(localized: "Moved to the Inbox", comment: "Activity feed: the task was taken off its board")
         case .subtasksCompletedOnDone(let count):
             count == 1
                 ? String(localized: "1 sub-task completed", comment: "Activity feed: one sub-task ticked off by the move to Done")
@@ -120,10 +132,20 @@ struct ActivityEntry: Identifiable, Hashable, Codable, Sendable {
 
 struct TaskItem: Identifiable, Hashable, Codable, Sendable {
     var id: UUID = UUID()
-    /// The human-facing ticket reference, e.g. `NW-118`. Sequential per board —
-    /// it is a label, not a key; `id` is the key.
+    /// The human-facing ticket reference, e.g. `NW-118`. Minted from the
+    /// destination's code prefix and the board file's serial — it is a label,
+    /// not a key; `id` is the key. It never changes once minted, not even when
+    /// the task moves to another board: by then it may be in a commit message.
     var code: String
-    var columnID: BoardColumn.ID
+    /// The board the task is on, or `nil` for the global Inbox.
+    ///
+    /// Read-only from outside this file, along with `columnID`: the two are one
+    /// fact in two fields, and `placement` is the only thing that writes them.
+    /// The memberwise initialiser can still spell an illegal pair — it is what
+    /// decoding and the tests build tasks with — so `BoardStore` puts every set
+    /// of tasks it adopts back through `TaskPlacement` on the way in.
+    private(set) var boardID: Board.ID?
+    private(set) var columnID: BoardColumn.ID?
     var title: String
     var note: String = ""
     var labelKeys: [String] = []
@@ -135,10 +157,41 @@ struct TaskItem: Identifiable, Hashable, Codable, Sendable {
     var activity: [ActivityEntry] = []
     var createdAt: Date = .now
     var updatedAt: Date = .now
+    /// When the task was filed away, or `nil` while it is still on the board.
+    /// An archived task stays in the file and keeps its column — it is simply
+    /// not part of the board any more. Optional rather than a `Bool` with a
+    /// default because that is the only shape a synthesised decoder tolerates
+    /// the absence of, which is what lets a v2 file read as v3.
+    var archivedAt: Date?
+
+    /// Where the task sits, as the one value it really is. The setter is the
+    /// only writer of `boardID` and `columnID`, so the invariant — both set, or
+    /// neither — holds by construction rather than by everybody remembering.
+    var placement: TaskPlacement {
+        get {
+            guard let boardID, let columnID else { return .inbox }
+            return .column(board: boardID, column: columnID)
+        }
+        set {
+            boardID = newValue.boardID
+            columnID = newValue.columnID
+        }
+    }
+
+    /// In the global Inbox: captured, and not yet on a board.
+    var isUnfiled: Bool { boardID == nil }
+
+    var isArchived: Bool { archivedAt != nil }
 
     var completedSubtaskCount: Int { subtasks.filter(\.done).count }
     var hasSubtasks: Bool { !subtasks.isEmpty }
-    var subtaskProgressText: String { "\(completedSubtaskCount)/\(subtasks.count)" }
+    /// `2/3` on a card. Localized rather than interpolated so a right-to-left
+    /// translation can put the bidi marks around it that stop "2/3" being read
+    /// back as three out of two.
+    var subtaskProgressText: String {
+        String(localized: "\(completedSubtaskCount)/\(subtasks.count)",
+               comment: "Sub-task progress on a card: completed over total")
+    }
     var subtaskFraction: Double {
         subtasks.isEmpty ? 0 : Double(completedSubtaskCount) / Double(subtasks.count)
     }

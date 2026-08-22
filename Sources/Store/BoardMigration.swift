@@ -1,9 +1,15 @@
 import Foundation
 
-// The board as version 1 wrote it. These types describe bytes already on disk,
-// so they are frozen: when the current model changes they stay exactly as they
-// are and a `…V2` shape is added beside them. Reusing `TaskItem` here instead
-// would mean every future field silently rewrote the past.
+// The board as each older version wrote it. These types describe bytes already
+// on disk, so they are frozen: when the current model changes they stay exactly
+// as they are and a shape for the version that has just been superseded is
+// added beside them. Reusing `TaskItem` here instead would mean every future
+// field silently rewrote the past.
+//
+// The migrations form a chain — v1 → v2 → v3 → v4 → v5 → v6, one function per
+// step — so a v1 file and a v5 file reach the present through the same code, and
+// adding v7 costs one shape and one function rather than an edit to every
+// decoder. v6 is the one step with no shape of its own; see `migrate(v5:)`.
 //
 // Decoding is deliberately forgiving about fields v1 gave a default and strict
 // about the four it always required. A board with an unrecognised priority is
@@ -95,6 +101,289 @@ struct ActivityEntryV1: Decodable {
     }
 }
 
+/// The board as version 2 wrote it: UUID task ids, `due` as a calendar day,
+/// structured activity, and the `createdAt`/`updatedAt` stamps — everything the
+/// current shape has except `archivedAt`.
+///
+/// Its leaves are the live `SubTask`, `ActivityEntry` and `LabelDef`, which is
+/// the one place this file reuses a current type. Those three did not change
+/// between v2 and v3, and a `Kind` a v2 file cannot contain costs a v2 decoder
+/// nothing. The moment any of them does change, it is frozen here as the v1
+/// leaves are.
+struct BoardSnapshotV2: Decodable {
+    var tasks: [TaskItemV2]
+    var labels: [LabelDef]
+    var nextSerial: Int
+    var accentTheme: AccentTheme
+
+    enum CodingKeys: String, CodingKey { case tasks, labels, nextSerial, accentTheme }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        tasks = try container.decode([TaskItemV2].self, forKey: .tasks)
+        labels = try container.decodeIfPresent([LabelDef].self, forKey: .labels) ?? LabelDef.seed
+        nextSerial = try container.decodeIfPresent(Int.self, forKey: .nextSerial) ?? BoardSnapshot.baseSerial
+        accentTheme = try container.decodeIfPresent(AccentTheme.self, forKey: .accentTheme) ?? .ember
+    }
+
+    init(tasks: [TaskItemV2], labels: [LabelDef], nextSerial: Int, accentTheme: AccentTheme) {
+        self.tasks = tasks
+        self.labels = labels
+        self.nextSerial = nextSerial
+        self.accentTheme = accentTheme
+    }
+}
+
+struct TaskItemV2: Decodable {
+    var id: UUID
+    var code: String
+    var columnID: String
+    var title: String
+    var note: String
+    var labelKeys: [String]
+    var due: CalendarDay?
+    var priority: Priority
+    var subtasks: [SubTask]
+    var activity: [ActivityEntry]
+    var createdAt: Date
+    var updatedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id, code, columnID, title, note, labelKeys, due, priority, subtasks, activity,
+             createdAt, updatedAt
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        code = try container.decode(String.self, forKey: .code)
+        columnID = try container.decode(String.self, forKey: .columnID)
+        title = try container.decode(String.self, forKey: .title)
+        note = try container.decodeIfPresent(String.self, forKey: .note) ?? ""
+        labelKeys = try container.decodeIfPresent([String].self, forKey: .labelKeys) ?? []
+        due = try container.decodeIfPresent(CalendarDay.self, forKey: .due)
+        priority = try container.decodeIfPresent(Priority.self, forKey: .priority) ?? .medium
+        subtasks = try container.decodeIfPresent([SubTask].self, forKey: .subtasks) ?? []
+        activity = try container.decodeIfPresent([ActivityEntry].self, forKey: .activity) ?? []
+        // v2 always wrote both, but a board hand-edited between the two is
+        // still a board: an absent stamp reads as "now" rather than failing.
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? .now
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
+    }
+
+    init(
+        id: UUID, code: String, columnID: String, title: String, note: String,
+        labelKeys: [String], due: CalendarDay?, priority: Priority, subtasks: [SubTask],
+        activity: [ActivityEntry], createdAt: Date, updatedAt: Date
+    ) {
+        self.id = id
+        self.code = code
+        self.columnID = columnID
+        self.title = title
+        self.note = note
+        self.labelKeys = labelKeys
+        self.due = due
+        self.priority = priority
+        self.subtasks = subtasks
+        self.activity = activity
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
+/// The board as version 3 wrote it: everything v2 had, plus `archivedAt`. Its
+/// column ids are still the five compiled-in strings — "inbox", "backlog",
+/// "next", "doing", "done" — which is what v4 replaces with per-board columns
+/// carrying UUIDs.
+///
+/// Its leaves are the live `SubTask`, `ActivityEntry` and `LabelDef`, which is
+/// the one place this file reuses a current type. None of the three changed
+/// between v3 and v4: `ActivityEntry.moved` carries its column id as a *string*
+/// precisely so a historical record can outlive the column it names, so the v4
+/// step rewrites the value rather than the shape. The moment any of them does
+/// change, it is frozen here as the v1 leaves are.
+struct BoardSnapshotV3: Decodable {
+    var version: Int
+    var tasks: [TaskItemV3]
+    var labels: [LabelDef]
+    var nextSerial: Int
+    var accentTheme: AccentTheme
+
+    enum CodingKeys: String, CodingKey { case version, tasks, labels, nextSerial, accentTheme }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 3
+        tasks = try container.decode([TaskItemV3].self, forKey: .tasks)
+        labels = try container.decodeIfPresent([LabelDef].self, forKey: .labels) ?? LabelDef.seed
+        nextSerial = try container.decodeIfPresent(Int.self, forKey: .nextSerial) ?? BoardSnapshot.baseSerial
+        accentTheme = try container.decodeIfPresent(AccentTheme.self, forKey: .accentTheme) ?? .ember
+    }
+
+    init(tasks: [TaskItemV3], labels: [LabelDef], nextSerial: Int, accentTheme: AccentTheme) {
+        self.version = 3
+        self.tasks = tasks
+        self.labels = labels
+        self.nextSerial = nextSerial
+        self.accentTheme = accentTheme
+    }
+}
+
+struct TaskItemV3: Decodable {
+    var id: UUID
+    var code: String
+    var columnID: String
+    var title: String
+    var note: String
+    var labelKeys: [String]
+    var due: CalendarDay?
+    var priority: Priority
+    var subtasks: [SubTask]
+    var activity: [ActivityEntry]
+    var createdAt: Date
+    var updatedAt: Date
+    var archivedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, code, columnID, title, note, labelKeys, due, priority, subtasks, activity,
+             createdAt, updatedAt, archivedAt
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        code = try container.decode(String.self, forKey: .code)
+        columnID = try container.decode(String.self, forKey: .columnID)
+        title = try container.decode(String.self, forKey: .title)
+        note = try container.decodeIfPresent(String.self, forKey: .note) ?? ""
+        labelKeys = try container.decodeIfPresent([String].self, forKey: .labelKeys) ?? []
+        due = try container.decodeIfPresent(CalendarDay.self, forKey: .due)
+        priority = try container.decodeIfPresent(Priority.self, forKey: .priority) ?? .medium
+        subtasks = try container.decodeIfPresent([SubTask].self, forKey: .subtasks) ?? []
+        activity = try container.decodeIfPresent([ActivityEntry].self, forKey: .activity) ?? []
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? .now
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
+        archivedAt = try container.decodeIfPresent(Date.self, forKey: .archivedAt)
+    }
+
+    init(
+        id: UUID, code: String, columnID: String, title: String, note: String,
+        labelKeys: [String], due: CalendarDay?, priority: Priority, subtasks: [SubTask],
+        activity: [ActivityEntry], createdAt: Date, updatedAt: Date, archivedAt: Date?
+    ) {
+        self.id = id
+        self.code = code
+        self.columnID = columnID
+        self.title = title
+        self.note = note
+        self.labelKeys = labelKeys
+        self.due = due
+        self.priority = priority
+        self.subtasks = subtasks
+        self.activity = activity
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.archivedAt = archivedAt
+    }
+}
+
+/// The board as version 4 wrote it: per-board columns with UUID ids, and one
+/// flat `columns` array for the single board that was all there was. Its tasks
+/// carry a `columnID` that is always present, and the Inbox is one of those
+/// column ids rather than the absence of one — which is what v5 changes.
+///
+/// `BoardColumn`, `SubTask`, `ActivityEntry` and `LabelDef` are the live types
+/// here, the one place this file reuses current shapes. None of the four
+/// changed between v4 and v5. The moment any of them does, it is frozen here as
+/// the v1 leaves are.
+struct BoardSnapshotV4: Decodable {
+    var version: Int
+    var tasks: [TaskItemV4]
+    var columns: [BoardColumn]
+    var labels: [LabelDef]
+    var nextSerial: Int
+    var accentTheme: AccentTheme
+
+    enum CodingKeys: String, CodingKey { case version, tasks, columns, labels, nextSerial, accentTheme }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 4
+        tasks = try container.decode([TaskItemV4].self, forKey: .tasks)
+        columns = try container.decodeIfPresent([BoardColumn].self, forKey: .columns) ?? BoardColumn.workflow
+        labels = try container.decodeIfPresent([LabelDef].self, forKey: .labels) ?? LabelDef.seed
+        nextSerial = try container.decodeIfPresent(Int.self, forKey: .nextSerial) ?? BoardSnapshot.baseSerial
+        accentTheme = try container.decodeIfPresent(AccentTheme.self, forKey: .accentTheme) ?? .ember
+    }
+
+    init(tasks: [TaskItemV4], columns: [BoardColumn], labels: [LabelDef], nextSerial: Int, accentTheme: AccentTheme) {
+        self.version = 4
+        self.tasks = tasks
+        self.columns = columns
+        self.labels = labels
+        self.nextSerial = nextSerial
+        self.accentTheme = accentTheme
+    }
+}
+
+struct TaskItemV4: Decodable {
+    var id: UUID
+    var code: String
+    var columnID: UUID
+    var title: String
+    var note: String
+    var labelKeys: [String]
+    var due: CalendarDay?
+    var priority: Priority
+    var subtasks: [SubTask]
+    var activity: [ActivityEntry]
+    var createdAt: Date
+    var updatedAt: Date
+    var archivedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, code, columnID, title, note, labelKeys, due, priority, subtasks, activity,
+             createdAt, updatedAt, archivedAt
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        code = try container.decode(String.self, forKey: .code)
+        columnID = try container.decode(UUID.self, forKey: .columnID)
+        title = try container.decode(String.self, forKey: .title)
+        note = try container.decodeIfPresent(String.self, forKey: .note) ?? ""
+        labelKeys = try container.decodeIfPresent([String].self, forKey: .labelKeys) ?? []
+        due = try container.decodeIfPresent(CalendarDay.self, forKey: .due)
+        priority = try container.decodeIfPresent(Priority.self, forKey: .priority) ?? .medium
+        subtasks = try container.decodeIfPresent([SubTask].self, forKey: .subtasks) ?? []
+        activity = try container.decodeIfPresent([ActivityEntry].self, forKey: .activity) ?? []
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? .now
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
+        archivedAt = try container.decodeIfPresent(Date.self, forKey: .archivedAt)
+    }
+
+    init(
+        id: UUID, code: String, columnID: UUID, title: String, note: String,
+        labelKeys: [String], due: CalendarDay?, priority: Priority, subtasks: [SubTask],
+        activity: [ActivityEntry], createdAt: Date, updatedAt: Date, archivedAt: Date?
+    ) {
+        self.id = id
+        self.code = code
+        self.columnID = columnID
+        self.title = title
+        self.note = note
+        self.labelKeys = labelKeys
+        self.due = due
+        self.priority = priority
+        self.subtasks = subtasks
+        self.activity = activity
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.archivedAt = archivedAt
+    }
+}
+
 extension BoardSnapshot {
     /// Version 1 → 2.
     ///
@@ -106,15 +395,132 @@ extension BoardSnapshot {
     /// v2 save never lands would otherwise re-identify the whole feed on the
     /// next launch. The timestamps 3.3 added are backfilled from the feed, which is
     /// the only evidence a v1 board carries about when anything happened.
-    static func migrate(v1: BoardSnapshotV1) -> BoardSnapshot {
-        BoardSnapshot(
-            version: BoardSnapshot.currentVersion,
-            tasks: v1.tasks.map(TaskItem.init(v1:)),
+    ///
+    /// It stops at v2 rather than at the present. The step after it is the one
+    /// a v2 file on disk takes too, and a board arriving from either direction
+    /// has to come out the same.
+    static func migrate(v1: BoardSnapshotV1) -> BoardSnapshotV2 {
+        BoardSnapshotV2(
+            tasks: v1.tasks.map(TaskItemV2.init(v1:)),
             labels: v1.labels,
             nextSerial: max(v1.nextSerial, serialFloor(for: v1.tasks)),
             accentTheme: v1.accentTheme
         )
     }
+
+    /// Version 2 → 3.
+    ///
+    /// v3 adds the archive. Nothing written before it was ever archived, so
+    /// every task arrives on the board rather than in the Archive view — which
+    /// is what `archivedAt` being absent already means, and is stated here
+    /// rather than left to a property default so the step is a real link in the
+    /// chain and not a gap in it.
+    static func migrate(v2: BoardSnapshotV2) -> BoardSnapshotV3 {
+        BoardSnapshotV3(
+            tasks: v2.tasks.map(TaskItemV3.init(v2:)),
+            labels: v2.labels,
+            nextSerial: v2.nextSerial,
+            accentTheme: v2.accentTheme
+        )
+    }
+
+    /// Version 3 → 4.
+    ///
+    /// v4 makes the columns board data. The five that used to be compiled in
+    /// keep their name, short name, dot and order and gain a `ColumnRole`; the
+    /// board's own list is the four workflow columns, because the Inbox sits
+    /// outside the workflow and is not something a person may rename or delete.
+    ///
+    /// Every string id a v3 file holds is mapped onto the matching column's
+    /// UUID — on the task itself and inside each `.moved` activity entry, which
+    /// is what `reopen` reads to send a completed task back where it was
+    /// working. A task naming a column that never existed goes to the Inbox
+    /// rather than being dropped: an unplaceable card is still the user's — and
+    /// the v5 step, which reads "not one of this board's columns" as unfiled,
+    /// picks it up from there.
+    static func migrate(v3: BoardSnapshotV3) -> BoardSnapshotV4 {
+        BoardSnapshotV4(
+            tasks: v3.tasks.map(TaskItemV4.init(v3:)),
+            columns: BoardColumn.workflow,
+            labels: v3.labels,
+            nextSerial: v3.nextSerial,
+            accentTheme: v3.accentTheme
+        )
+    }
+
+    /// Version 4 → 5.
+    ///
+    /// v5 makes the columns a *board's* columns and the Inbox global. The one
+    /// board a v4 file describes is made here, adopting its columns whole —
+    /// same ids, so nothing a task or an activity entry names has to be
+    /// rewritten — and it becomes the active board.
+    ///
+    /// The task split is the whole point of the step: a card in the old Inbox
+    /// column becomes unfiled, because the Inbox is not a column any more, and
+    /// every other card joins the board. "The old Inbox column" is spelled as
+    /// "a column this board does not have", which also catches a card left
+    /// pointing at a column a hand-edited file deleted — an unplaceable card is
+    /// still the user's, and the Inbox is where it can be found again.
+    ///
+    /// Codes are left exactly as they are. A code is a label a person may have
+    /// pasted into a commit message; a migration that renumbered NW-118 to
+    /// IN-118 because the card happened to be in the Inbox would break it.
+    static func migrate(v4: BoardSnapshotV4) -> BoardSnapshot {
+        // A file hand-edited down to no columns would leave every card homeless.
+        let columns = v4.columns.isEmpty ? BoardColumn.workflow : v4.columns
+        let board = Board(
+            id: migratedBoardID,
+            name: "Northwind iOS 3.0",
+            dot: .accent,
+            // The board is at least as old as the oldest thing on it.
+            createdAt: v4.tasks.map(\.createdAt).min() ?? .now,
+            columns: columns,
+            codePrefix: Board.defaultCodePrefix
+        )
+        let known = Set(columns.map(\.id))
+        return BoardSnapshot(
+            version: BoardSnapshot.currentVersion,
+            tasks: v4.tasks.map { task in
+                TaskItem(
+                    v4: task,
+                    placement: known.contains(task.columnID)
+                        ? .column(board: board.id, column: task.columnID)
+                        : .inbox
+                )
+            },
+            boards: [board],
+            labels: v4.labels,
+            nextSerial: v4.nextSerial,
+            accentTheme: v4.accentTheme,
+            activeBoardID: board.id
+        )
+    }
+
+    /// Version 5 → 6.
+    ///
+    /// v6 stops the file storing its own UI text. `Priority`'s raw values were
+    /// "High", "Medium" and "Low" — the very strings the pickers drew — and are
+    /// now `high`, `medium` and `low`, so a board can be read in one language
+    /// and shown in another.
+    ///
+    /// Nothing else about the shape moved, which is why there is no
+    /// `BoardSnapshotV5` to decode through: `Priority.init(stored:)` answers to
+    /// either spelling, so the current decoder reads a v5 file whole and this
+    /// step has only the stamp left to do. It is still a step. Without the bump
+    /// a v5 build handed a v6 file would decode no priority at all and set the
+    /// user's board aside as corrupt; with it, it refuses the file and says why.
+    static func migrate(v5: BoardSnapshot) -> BoardSnapshot {
+        var snapshot = v5
+        snapshot.version = BoardSnapshot.currentVersion
+        return snapshot
+    }
+
+    /// Fixed rather than fresh so migrating the same bytes twice — a file
+    /// restored from the copy `preserveBeforeMigration` keeps, say — names the
+    /// same board both times.
+    private static let migratedBoardID = UUID(
+        uuid: (0xB0, 0xA4, 0, 0, 0, 0, 0x40, 0, 0x80, 0, 0, 0, 0, 0, 0, 4)
+    )
 
     /// The lowest serial that still mints a code above every code the board
     /// already carries.
@@ -137,7 +543,7 @@ extension BoardSnapshot {
     private static func codeNumber(_ task: TaskItemV1) -> Int? { codeNumber(task.code) }
 }
 
-private extension TaskItem {
+private extension TaskItemV2 {
     init(v1: TaskItemV1) {
         let stamps = v1.activity.map(\.when)
         self.init(
@@ -148,11 +554,88 @@ private extension TaskItem {
             note: v1.note,
             labelKeys: v1.labelKeys,
             due: v1.due.map { CalendarDay($0) },
-            priority: Priority(rawValue: v1.priority) ?? .medium,
+            priority: Priority(stored: v1.priority) ?? .medium,
             subtasks: v1.subtasks.map { SubTask(id: $0.id, text: $0.text, done: $0.done) },
             activity: v1.activity.map { ActivityEntry(id: $0.id, .legacy($0.text), when: $0.when) },
             createdAt: stamps.min() ?? .now,
             updatedAt: stamps.max() ?? .now
         )
+    }
+}
+
+private extension TaskItemV3 {
+    init(v2: TaskItemV2) {
+        self.init(
+            id: v2.id,
+            code: v2.code,
+            columnID: v2.columnID,
+            title: v2.title,
+            note: v2.note,
+            labelKeys: v2.labelKeys,
+            due: v2.due,
+            priority: v2.priority,
+            subtasks: v2.subtasks,
+            activity: v2.activity,
+            createdAt: v2.createdAt,
+            updatedAt: v2.updatedAt,
+            archivedAt: nil
+        )
+    }
+}
+
+private extension TaskItemV4 {
+    init(v3: TaskItemV3) {
+        self.init(
+            id: v3.id,
+            code: v3.code,
+            columnID: BoardColumn.legacyIDs[v3.columnID] ?? BoardColumn.inbox.id,
+            title: v3.title,
+            note: v3.note,
+            labelKeys: v3.labelKeys,
+            due: v3.due,
+            priority: v3.priority,
+            subtasks: v3.subtasks,
+            activity: v3.activity.map(ActivityEntry.mappingLegacyColumnIDs),
+            createdAt: v3.createdAt,
+            updatedAt: v3.updatedAt,
+            archivedAt: v3.archivedAt
+        )
+    }
+}
+
+private extension TaskItem {
+    init(v4: TaskItemV4, placement: TaskPlacement) {
+        self.init(
+            id: v4.id,
+            code: v4.code,
+            boardID: placement.boardID,
+            columnID: placement.columnID,
+            title: v4.title,
+            note: v4.note,
+            labelKeys: v4.labelKeys,
+            due: v4.due,
+            priority: v4.priority,
+            subtasks: v4.subtasks,
+            activity: v4.activity,
+            createdAt: v4.createdAt,
+            updatedAt: v4.updatedAt,
+            archivedAt: v4.archivedAt
+        )
+    }
+}
+
+private extension ActivityEntry {
+    /// Rewrites the column id inside a `.moved` entry, leaving the name it
+    /// carries alone — the name is what the feed shows, and it was already
+    /// written for a column that may since have been renamed. An entry naming a
+    /// column v4 has no id for keeps the string it had: it is history, and the
+    /// only code that reads it treats an unresolvable id as no id at all.
+    static func mappingLegacyColumnIDs(_ entry: ActivityEntry) -> ActivityEntry {
+        guard case .moved(let columnID, let columnName) = entry.kind,
+              let mapped = BoardColumn.legacyIDs[columnID]
+        else { return entry }
+        var entry = entry
+        entry.kind = .moved(columnID: mapped.uuidString, columnName: columnName)
+        return entry
     }
 }

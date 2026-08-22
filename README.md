@@ -1,6 +1,8 @@
 # Simple Kanban
 
-A Kanban board for macOS and iOS — one shared board, two native surfaces.
+A Kanban board for macOS and iOS — many boards, one global Inbox, one shared
+file, three surfaces over one board: a Mac window, an iPad split view and an
+iPhone screen.
 
 Built in SwiftUI from the Claude Design spec archived in
 `simple-kanban design spec.zip`.
@@ -34,25 +36,73 @@ If Xcode is installed but not selected (`xcode-select -p` points at the
 Command Line Tools), prefix commands with
 `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`.
 
+The unit tests run from the same scheme on either destination — see **Tests**.
+`build.sh` wraps the release path instead: it produces `build/SimpleKanban.app`,
+and `--dmg`, `--sign` (Developer ID, notarize, staple) and `--publish vN.N` take
+it the rest of the way. `./build.sh --help` prints the lot.
+
+Two things are generated rather than checked in by hand and are re-run when what
+they are drawn from changes: `swift Tools/make-app-icon.swift` writes the app
+icon, and the String Catalog is synced from the compiler's own extraction — see
+**Language and direction** for the command, which needs a build of *both*
+platforms.
+
+A build run against a machine with no `board.json` comes up on the first-run
+picker. `-SimpleKanbanSkipFirstRun YES` gets past it; see **First run**.
+
 ## Layout
 
 ```
-project.yml            XcodeGen manifest — target, plist, entitlements
+project.yml            XcodeGen manifest — targets, plist, entitlements, exported drag types
+build.sh               release build: .app, .dmg, signing, notarization, GitHub release
+Tools/
+  make-app-icon.swift  draws the app icon: all eleven PNGs *and* the appiconset's
+                       Contents.json, so a slot and its image cannot drift apart
 Sources/
-  App/                 SimpleKanbanApp scene, RootView platform switch
-  Model/               TaskItem, ActivityEntry, CalendarDay, DayClock, BoardColumn,
-                       LabelDef, Priority, DueDate, SeedData
+  App/                 SimpleKanbanApp scene, RootView's size-class switch and undo-manager
+                       handover; BoardCommands — the macOS menu bar, and MacWindowState;
+                       FirstRunView — the starter picker a first launch comes up on;
+                       AboutView and UpdateChecker — the macOS About window's panel
+  Model/               TaskItem, TaskPlacement, Board, BoardColumn, ActivityEntry,
+                       CalendarDay, DayClock, LabelDef, Priority, DueDate, SavedView,
+                       TaskTransfer, AppCommand — the shortcut vocabulary, SeedData;
+                       TaskIntents — deep links, Handoff, Spotlight and App Intents
   Store/               BoardStore — all state and mutations; BoardSnapshot + BoardFile —
-                       the saved file; BoardMigration — the shapes older files were written in
+                       the saved file; BoardMigration — the shapes older files were written
+                       in; NotificationScheduler — due-date reminders
   Theme/               Palette (design tokens), Typography, SwatchColor
-  Mac/                 Sidebar, toolbar, board, columns, cards, inspector
-  IOS/                 Header, pager, cards, tab bar, drawer, detail sheet
-  Shared/              Chips, checklist, label/priority/due/accent pickers, flow layout, hairlines
-Tests/
-  Fixtures/            board-v1.json — a real v1 board, kept to migrate against
+  Mac/                 What only a window has: the root layout, the status strip, the
+                       shortcuts sheet, the due-date sheet and the menu bar extra
+  IOS/                 PhoneRootView — header, pager, cards, tab bar, drawer, detail
+                       sheet; PadRootView — the desk's three panes in a split view
+  Shared/              The board itself — scroller, column, card, composer, keyboard map
+                       — plus the sidebar, the toolbar, the inspector, chips (label, due,
+                       column, count), checklist, completion toggle, label manager, empty
+                       states, activity feed, flat task list,
+                       label/priority/due/accent/dot/move-to pickers, board destination
+                       menu, flow layout, hairlines; settings, the export/import
+                       documents with the panels that present them, and the two
+                       accessibility helpers every surface goes through — ScaledChrome
+                       (chrome that grows with Dynamic Type) and ReducedMotion
+Tests/                 Swift Testing suites — model, store, boards, columns and their
+                       roles, placement, editing sessions, undo, persistence, search and
+                       its scoping, saved views, the archive, migration, day rollover,
+                       drag payloads and where a drop may land, touch metrics, selection
+                       and the bulk commands, the shortcut vocabulary, board focus,
+                       export/import, backups, notifications, deep links, App Intents,
+                       preferences, the first-run templates, the built bundle, the
+                       localisation rules, five hundred cards, and the joins between all
+                       of those and the app
+  Fixtures/            board-v1*.json … board-v5.json — real older boards, kept to migrate against
 Resources/
   Fonts/               Manrope + Instrument Serif (OFL), registered on first use
-  Assets.xcassets      AccentColor, AppIcon placeholder
+  Assets.xcassets      AccentColor; AppIcon — one iOS slot and ten macOS renditions,
+                       all written by Tools/make-app-icon.swift; LaunchBackground —
+                       the colour UILaunchScreen names, in both schemes
+  Localizable.xcstrings  the String Catalog every user-facing string extracts into
+  PrivacyInfo.xcprivacy  the required-reason API declarations a submission is read for
+  SimpleKanban.entitlements  sandbox, user-selected files, and the network client the
+                       update check needs
 ```
 
 `BoardStore` is a direct port of the spec's `Component extends DCLogic` class —
@@ -66,13 +116,13 @@ side, wrapped in mock chrome. Natively the OS supplies that chrome, so:
 
 | Design | Implementation |
 | --- | --- |
-| Mock macOS window + traffic lights | Real window, `.windowStyle(.hiddenTitleBar)`; the sidebar reserves the 14pt band the lights occupy |
+| Mock macOS window + traffic lights | Real window, `.windowStyle(.hiddenTitleBar)`; the sidebar reserves the 14pt band the lights occupy, and with the sidebar hidden the toolbar takes a 68pt leading inset instead — the lights are still there |
 | Mock iPhone bezel, status bar, home indicator | The device |
 | Light/Dark toggle in the page header | Follows the system appearance; both palettes come straight from the spec's theme blocks |
 | `--glass` tab bar + `backdrop-filter: blur(20px)` | `glassEffect` inside a `GlassEffectContainer` (the spec's light-mode `--glass` is a self-referential CSS variable and resolves to nothing — Liquid Glass replaces it) |
 | Absolutely-positioned label picker | Native `.popover` |
-| `animation: sheetUp`, `max-height: 82%` | Native `.sheet` with `.presentationDetents([.fraction(0.82), .large])` |
-| HTML5 drag events | `.draggable` / `.dropDestination` with `onDragSessionUpdated` |
+| `animation: sheetUp`, `max-height: 82%` | Native `.sheet`, but `.presentationDetents([.large])` — the 82% could not be kept without shrinking every control inside it; see **Touch targets** |
+| HTML5 drag events | `.draggable` / `.dropDestination` with `onDragSessionUpdated`, over the app's own `TaskTransfer` type rather than loose text; see **Drag and drop** |
 | Due chips tinted by matching the strings `"Today"` / `"Thu"` / `"Fri"` | Real calendar days; `DueDate` derives both the chip text and its urgency from the day distance those literals encoded |
 | `min-width` on the status segments | Border-box, so the frame wraps the padding; `ViewThatFits` gives the spec's `flex: 1 0 auto` **and** its `overflow-x: auto` fallback |
 
@@ -88,6 +138,25 @@ Deliberate departures from a literal transcription:
   capture flow creates a task and opens its detail surface — with no way to name
   it. Title, description, priority and due date are all editable now; see
   **Editing** below.
+- **Every board change is undoable.** The design has no undo and no confirmation
+  on anything, which is a fine pairing only while nothing can be lost. ⌘Z is the
+  system's own `UndoManager`, so it is the Edit menu on macOS and shake-to-undo
+  on iOS; see **Undo**.
+- **Tasks can be deleted, and completed without being dragged.** Both are
+  affordances the design simply does not draw. Delete asks nothing first —
+  undo, rather than a dialog people learn to dismiss unread, is the safety net.
+- **Sub-tasks and labels are editable, not append-only.** The spec can add a
+  sub-task and tick it, and add a label and apply it, and that is the whole of
+  it. Rows are renamed, deleted and reordered in place; labels are renamed,
+  recoloured and deleted board-wide; see **Editing**.
+- **A title is one line.** The design's field wraps, so Return typed a newline
+  into a string the card layout has no room to draw. Return commits instead, and
+  anything pasted in has its whitespace folded flat before it reaches the card.
+- **Cards only drag where the rows on screen are the board's own order.** A drop
+  resolves against the unfiltered array, so under a search a card lands where
+  nobody can see it, and in a saved view — which draws no columns and may impose
+  an ordering of its own — it lands in a column the user is not even looking at;
+  see **Drag and drop**.
 - **Due dates are days, not instants.** `CalendarDay` stores a year, month and
   day, so a task due today still reads "Today" after the device crosses a time
   zone; see **Editing**.
@@ -103,31 +172,543 @@ Deliberate departures from a literal transcription:
 - **Backups are kept locally.** A rolling `backups/` folder beside the board,
   because quarantine only rescues a file that fails to decode — not a board the
   app reads perfectly and whose contents are wrong.
+- **Every control is a finger wide on touch.** The spec is drawn for a pointer,
+  so its swatches are 28pt and its checklist boxes 30pt; the iOS build claims
+  44pt for each of them without redrawing any of it. See **Touch targets**.
+- **Nothing renders as blank space.** Every list in the design is drawn with
+  content in it, so an empty column, an empty board, a search that matched
+  nothing, an empty saved view and an unselected inspector had no appearance at
+  all. Each says which kind of empty it is and offers the one thing worth doing
+  about it; see **Empty states**.
+- **The Inbox is a destination, not the board's first column.** The design
+  draws it as one, and with a single board that reads fine. The Inbox is global
+  — a quick capture must never have to pick a board first — so drawing it inside
+  one board's strip would say it belonged to that board, and it would have to be
+  drawn identically inside every other. It sits above the board list in the
+  sidebar and the drawer instead, and the board strip is the active board's own
+  columns; see **Boards, columns and the Inbox**.
+- **"Move to" offers the Inbox as its first segment.** The spec's control ports
+  its `COLS`-vs-`ALL_COLS` distinction and so lists the workflow only, which on
+  the phone — where it is the only route off a board — made filing a card a
+  one-way door. It now leads with the Inbox, which is also what makes "unfile
+  this" reachable without a pointer.
+- **A card away from its place says where it is.** The design only ever draws a
+  card under its own heading. The saved views, the iOS Search tab and the iOS
+  Inbox tab all draw cards from anywhere, where the column is the one thing the
+  card no longer says, so those carry a column chip — and an unfiled card gets
+  an "Inbox" chip rather than none, because absence is not readable in a list
+  that mixes the two; see **Saved views and the archive**.
+- **Work can be filed away rather than only finished or deleted.** The design's
+  Done column is where cards go and stay, so a board in use for a month is
+  mostly history. The Archive keeps them in the file and off the board; see
+  **Saved views and the archive**.
+- **Everything the app can do has a name, a menu item and a key.** The design
+  draws no menu bar, so the app shipped SwiftUI's defaults — which went on
+  advertising New Window on the ⌘N a toolbar button had quietly taken for New
+  Task. One vocabulary feeds the menu bar, the board's key handlers and a
+  shortcuts reference now; board cards take focus and move under ⌥←/→, and every
+  one of those commands is a VoiceOver action as well as a key, which is the
+  first non-drag way this board has had of moving a card. See **Selection,
+  commands and shortcuts**.
+- **The phone turns.** The spec draws one portrait screen and the plist locked
+  the phone to it. Landscape shows two columns at once, which is a Kanban board
+  doing the thing a Kanban board is for; see **Gestures and haptics on iOS**.
+- **The iPad gets the desk, not the phone.** The spec draws two devices and the
+  root picked between them with `#if os(macOS)`, which made every iPad a very
+  large phone. The layout is chosen by the idiom *and* the window's width now —
+  a Max-class iPhone in landscape is a regular size class and is still a phone —
+  and the board,
+  the sidebar, the toolbar and the inspector moved into `Sources/Shared/` so the
+  iPad composes the same views rather than a third copy of them; see **The
+  iPad**.
+
+## Touch targets
+
+Apple's minimum is 44x44pt on touch and the spec's own geometry is smaller than
+that in several places, so the rule is that **the claim grows and the drawing
+does not**. Widening the circle, the pill or the chip would be a different
+design; widening the region that hit-tests to it is not.
+
+A control in `Sources/Shared/` is used by both the macOS inspector and the iOS
+sheet and has no `#if os()` to lean on, so it carries the number instead: every
+one has a nested `struct Metrics` with its own hit sizes and two presets, `.desk`
+for the pointer and `.sheet`/`.drawer` for touch. The touch preset is at least
+44; the pointer preset claims exactly what the control draws, or zero — a
+`frame(minWidth: 0)` and a `padding(-0)` are exact no-ops, which is what keeps
+macOS pixel-identical. `.buttonStyle(.bare)` already puts a `.contentShape(.rect)`
+around a button's label, so framing the label at the hit size is the whole fix.
+
+Four details are worth knowing before changing any of it:
+
+- **Where a wider claim would push a neighbour, pull it back.** The checklist
+  box claims 44 and hands the difference straight back as negative padding
+  (`ChecklistView.boxOverhang`), so the row keeps the height and the text
+  position it draws today. Keep the overhang inside the row: hit-testing does
+  not follow a view outside an ancestor.
+- **Where 44pt targets and the design's gaps cannot both fit a 375pt phone, the
+  targets win.** `AccentPicker.Metrics.drawer` tiles its four swatches edge to
+  edge rather than shrink them.
+- **A `TextField` is not covered by a frame.** Its editable area is the text it
+  draws — around 21pt tall inside a 44pt row — so a frame around it buys
+  nothing. The row gets a `.contentShape(.rect)` and an `.onTapGesture` that
+  claims focus, which is what makes the whole row edit. `ChecklistView.row`,
+  `ChecklistView.addRow` and `LabelManagerView.row` each carry that pair, and on
+  the phone `PhoneDetailSheet` puts a `focusCatcher` *behind* each field — behind,
+  so a tap on the text still reaches the field and the caret lands where the
+  finger did. A filled `.background` drawn over such a catcher needs
+  `.allowsHitTesting(false)` or it swallows the taps the catcher is there for;
+  `PhoneHeader`'s search pill is the one that does.
+- **The accessibility tree has its own frames, and its own way of ignoring you.**
+  A field's accessibility element is its text too: `PhoneHeader`'s search field
+  published a 309x22 frame inside a 44pt row, and `.frame(minHeight: 44)` did not
+  move it — `.contentShape(.accessibility, Rectangle())` is what hands it the row.
+  A placeholder is not a name either, so the field carries an explicit
+  `.accessibilityLabel`. The checklist's sub-task fields had both faults —
+  measured at 289x21 with no label at all — and take the same treatment through
+  `ChecklistView.Metrics.fieldHit`, with `fieldOverhang` handing the extra height
+  back to the row the way `boxOverhang` does for the toggle. They measure 289x44
+  and read "Sub-task, Lift + shadow states" now. And an `Image` among siblings is
+  published whatever you do to it: neither `.accessibilityHidden(true)` on the
+  symbol nor `.accessibilityElement(children: .ignore)` on the row removed the
+  drawer's seven decorative SF Symbols, which stayed *hittable* under Apple's
+  catalogue names ("Warning", "Brightness Higher", "Clock With A Circular Arrow").
+  `EmptyStateView` had the same leak from inside an `.accessibilityElement(children:
+  .combine)`, where an empty Backlog's `tray` published an element called "Inbox" —
+  a word from a different part of the app.
+  `.accessibilityRepresentation`, which substitutes the subtree outright, is what
+  works in both places; the drawer rows read "Today, 1" and the empty state reads
+  its headline and message as one sentence with no glyph in it.
+- **A field is only as wide as the last time somebody measured it.** The label
+  manager's rename rows published 124.7x22.3 and now carry
+  `LabelManagerView.Metrics.fieldHit`, the same pair `ChecklistView` uses, for
+  124.7x44 on all five rows. The add-column composer held two more of the same
+  kind: its Cancel measured 47.3x19.3 and its name field 43.9pt tall, and a 44pt
+  frame plus `.contentShape(.accessibility, Rectangle())` takes them to 75.3x44
+  and 338x44. `TouchTargetTests` pins both new presets — it could not have found
+  either.
+
+`Sources/IOS/` follows the same rule with no `Metrics` to carry it: the platform
+views frame their labels at 44 inline, and put `.contentShape(.circle)` on the
+`Button` rather than inside its label, because the outer shape is the one that
+wins. Where the wider claim would move the drawn shape, it is anchored —
+`PhoneHeader`'s hamburger frames at `alignment: .bottomLeading` so the disc keeps
+its margin and the target grows into the space above it.
+
+The desk is under the same *accessibility* rule, even though the pointer
+never needed the 44pt half of it — a screen reader reads the desk too. The
+sidebar's Manage-labels row, both "back to the board" buttons, the new-task and
+new-board rows and the add-column tile substitute their subtrees; the column
+header's `ellipsis` is hidden instead, because a `Menu` cannot be substituted
+without losing the menu. Where a label holds no `Image` at all — the sidebar's
+Inbox, board and saved-view rows, whose dot is a `Circle` and not an element —
+the smaller fix is enough and reads better anyway: the name is the
+`.accessibilityLabel` and the count is the `.accessibilityValue`, so the row is
+not *renamed* every time a card is filed. Substituting a subtree does not swallow
+a `.keyboardShortcut`, measured — but that measurement was taken while ⌘N still
+lived on the toolbar's New task button, and it no longer has a subject: ⌘N is the
+File menu's now and no substituted control in this app carries a key of its own
+(see **Selection, commands and shortcuts**). Whether substitution keeps a
+*context* menu was never measured, which is the other reason the board rows take
+the smaller fix: their context menu is the only route rename, recolour, reorder
+and delete have.
+
+**The detail sheet is `.large` only, and that is a touch-target decision rather
+than a layout one.** A sheet held at any detent below `.large` floats inset 8pt
+from each screen edge on this OS and is *scaled* to compensate, so its whole
+content renders smaller than it lays out. At `.fraction(0.82)` every nominal 44pt
+control in the sheet measured **42.2488pt on a 402pt-wide phone** and
+**42.1227pt on a 375pt one** — Close, Add label, the checklist toggles, the
+Move-to chips, Due date and Priority, all of them under the minimum. The factor
+is `(width - 16) / width`, which is 0.96020 and 0.95733 for those two widths, so
+it differs per device and no constant inflation of the shared `.sheet` presets
+can clear 44 everywhere. The presets therefore still claim exactly 44 and the
+sheet gave up its height instead: at `.large` the same controls measure
+**44.0000 x 44.0000 on both devices**. `TouchTargetTests` cannot see any of
+this — it reads the presets, and the presets were right the whole time.
+
+The board itself now carries the pair too. `BoardTaskCard`, `BoardColumnView`,
+`BoardScrollView`, `BoardTaskComposer`, `BoardSidebar`, `BoardToolbar` and
+`TaskInspector` each have a `.desk` preset holding the numbers that were literals
+in `Sources/Mac` and a `.pad` preset that claims 44 wherever the pointer claimed
+22, 24, 26 or 34. Two of those numbers are worth knowing about. A `Metrics` that
+selects another control's preset — `BoardColumnView.Metrics.pad.emptyState` is
+`EmptyStateView.Metrics.sheet` — is still passing metrics, not branching on the
+platform, and it is what keeps the inspector's seven sub-controls from needing
+seven call-site conditionals. And `FieldHitArea` exists because a `minHeight` of
+zero has to mean *nothing at all*: it applies the 44pt frame and the
+`.contentShape(.accessibility,)` only when the preset asks for them, so a control
+shared with macOS does not quietly reshape its accessibility element there.
+
+`EmptyStateView` is the newest control to carry the pair: its action button is
+drawn at the same size on both platforms, and `Metrics.sheet.actionHit` claims
+44pt *around* the drawn pill while `Metrics.desk.actionHit` is 0. `ActivityFeed`
+and `TaskListMetrics` carry no hit sizes at all — neither has a control of its
+own, and a metric that guards nothing is one more number to keep true.
+
+`TouchTargetTests` guards the metrics as constants, because the two defects the
+rule was written for — a 28pt swatch and a 30pt checklist box — were both a
+constant nobody could see was too small, and a constant is what a later edit
+puts back. Its limit is that a constant cannot see a live `TextField`'s area:
+both rows above measured 44pt in the suite while the field inside them was live
+for 21, and closing that took a coordinate tap on a booted simulator. Anything
+about a *rendered* region has to be proved that way rather than read.
+
+## Accessibility
+
+Touch targets are one half of this; the other half is what the app says, what it
+says it with, and what happens to the layout when the reader turns the type up.
+Four rules, each of which came out of a finding the Accessibility Inspector's
+audit made against a running build.
+
+**Nothing is said in colour alone.** Priority used to be a coloured dot: three
+tints, one shape, and in greyscale a card said nothing about how urgent it was.
+`PriorityDot` now draws a different *shape* per priority — a filled disc, a
+filled square, a ring — which nobody has to turn a setting on to get, and
+`PriorityDot.mark(for:)` names the three so the suite can hold them apart. With
+`differentiateWithoutColor` on, the mark on a card adds the word as well; the
+picker leaves it off, because there the word is already the row beside it. The
+due chip's meaning was entirely in its tint, so under the same setting it takes a
+glyph — a tick for done, an exclamation for urgent, a clock for close, and
+nothing at all for a date far enough out that the chip is only a date. A mark on
+every chip would distinguish nothing. Which way round that flag is read lives in
+a view body, where no assertion about a value can reach it, so the suite states it
+about the source instead: `differentiateWithoutColor` is never read negated. The
+setting only ever *adds*.
+
+**Secondary ink has a floor.** The design's quiet tones run from 0.38 of ink on a
+section label to 0.55 on a place chip, and against the surfaces they are drawn on
+those read between 2.4:1 and 4.0:1 — under the 4.5:1 WCAG asks of text that size,
+and 26 separate audit findings on one iPad screen. Every `foregroundStyle` that
+took a fraction of ink now goes through `Palette.inkText(_:)`, which floors the
+opacity at `Palette.readableInk`. The call site still passes the design's own
+number, so the hierarchy it wanted is still written down and lifts on its own if
+the palette is ever re-toned. `AccessibilityContrastTests` walks every tone
+against every surface in both schemes. The floor is 0.68 rather than the 0.62 the
+arithmetic alone allows: at 0.62 the audit went on reporting the count pill,
+whose 11pt digit sits on a second wash of ink and computes to 4.76:1 — a number
+anti-aliased type that small does not actually deliver.
+
+**Chrome grows with the type inside it.** A 66pt toolbar, a 232pt source list, a
+272pt column and a 336pt panel are all boxes around text that scales, and at AX5
+they clipped: column headings truncated to "Bac…", the inspector broke "Priority"
+across two lines as "Prio / rity". `ChromeScale` is a `DynamicProperty` that
+hands back one multiplier — how much larger the reader's text is than the
+default — and every one of those numbers is passed through it. Heights are stated
+as **minimums**, so past the cap the container keeps growing on its content;
+widths take the cap, because a source list twice its width is most of an iPad.
+The two roots and `TaskInspector` share `TaskInspector.widthCap` so the panel and
+the slot it sits in grow by the same amount. Three places take the trade the
+other way: `LabelChip` and the phone's tab pill hold one line and shrink to it —
+"Board", "Inbox" and "Search" are single words with nowhere to break, and the
+pill read "Boar / d" — and `ProgressMeter` steps out of the row entirely, because
+it is decoration a reader is already hidden from and the count beside it says the
+same thing in words.
+
+SF Symbols went with them. `.font(.system(size:))` pins a glyph, so at an
+accessibility size the word beside it doubled and the icon did not; `symbolSize(_:weight:relativeTo:)`
+is the replacement, and fourteen call sites now use it. C3 asks this of new code;
+that sweep is what the old code needed.
+
+**Reduce Motion is honoured everywhere there is motion.** `.animation(_:value:)`
+became `motionAnimation(_:value:)` — the same thing, with the animation dropped
+when the reader has asked for less — and every `withAnimation` goes through
+`Motion.run(_:reduceMotion:_:)`. A `nil` animation is what SwiftUI reads as "at
+once", which is the point: the drawer still opens, the pager still lands on the
+column, the board still scrolls the focused card into view. Only the travel goes.
+The card's hover lift is the one thing that goes entirely — the shadow still
+deepens, because that says where the pointer is rather than moving anything.
+
+### Modals, and the surface behind them
+
+`PhoneNavDrawer` is a hand-rolled `ZStack` overlay rather than a sheet, so it
+carries `.accessibilityAddTraits(.isModal)` and moves focus to its title on open.
+
+The macOS label manager was reported as invisible to accessibility — no `AXSheet`
+under the window, none of its controls anywhere. **That half does not
+reproduce.** Driven on macOS 26 through a UI-test bundle: with the sheet up the
+window has one `AXSheet` child (its children go 4 → 5), and the sheet publishes
+36 buttons, 12 static texts and 5 text fields — 55 elements, every one
+`hittable=true`, including all six colour swatches on every row. What *did*
+reproduce is the other half: the board behind stayed reachable, with `New task`
+answering `hittable=true` under a modal that had taken the pointer away from it.
+So the fix is on the presenting side. `LabelManagerSheet` hides the view it is
+attached to while it is up, and on macOS the flag is hoisted to `MacRootView`
+(`BoardSidebar.isManagingLabels`, a binding in the same shape as
+`isNamingNewBoard`) so the whole window goes with it. Measured after: the app's
+button count drops from 84 to 39 — the 36 in the sheet plus three — `New task`
+and the column menus are gone from the tree, the sheet keeps all 55 of its
+elements, and the audit over that state falls from 37 findings to 4.
+
+### What the audit still says
+
+`performAccessibilityAudit` from a UI-test bundle is the same check the
+Accessibility Inspector runs. On an iPad Pro 13" in portrait it went from **58
+findings to 27** (contrast 26 → 6, clipped text 17 → 5); on macOS the board reads
+11, and the label-manager sheet 4. Two categories survive and are understood:
+
+- **`dynamicType`, 16 of them, all on micro-labels.** Every one is text at 11pt
+  or below — the uppercase label chips, the count pill, the sub-task badge, the
+  section captions — drawn in the bundled Manrope face through
+  `.custom(_:size:relativeTo:)`. They *do* scale: a label chip measures 17.5pt
+  wide at the default size and 61.5 at AX5. Nothing at 11.5pt or above is
+  flagged, which puts the audit's floor between the two; taking it would mean
+  raising the design's smallest type, which is a design decision rather than a
+  fix.
+- **A handful of `textClipped` on views that truncate by construction** — the two
+  text fields, a card's note under its line limit, a menu label under
+  `lineLimit(1)`. The card's note now gets six lines instead of two at an
+  accessibility size, which is the part of that group that was a real defect.
+
+The harness lives in the scratchpad rather than the repo, because it drives an
+installed build by bundle id and has no host target: `Audit.swift` runs the audit
+and a VoiceOver-order traversal at either text size, `MacDrive.swift` does the
+same for the window and answers the sheet question.
+
+## Empty states
+
+Every list in the design is drawn with content in it, so each one had no
+appearance when it was empty and rendered as blank space. `EmptyStateView` is
+the shared control — an SF Symbol, a headline in `SimpleKanbanFont.serif`, a
+line of body copy, and at most one button — with the usual `Metrics.desk` /
+`Metrics.sheet` presets. `.desk` is sized to fit a 272pt board column as well as
+the 336pt inspector, so there is no third preset.
+
+**Which kind of empty it is decides the way out**, and that distinction is the
+whole point of the copy:
+
+| Surface | Headline | Offers |
+| --- | --- | --- |
+| An empty column | "Nothing in Backlog" | Add a task |
+| An empty board | "This board is empty" | Add a task |
+| No boards at all | "No boards" | New board |
+| A search that matched nothing | "No matches" | Clear search |
+| An empty saved view | "Nothing due today", one per view | nothing |
+| The empty iOS Inbox | "Inbox is clear" | Add a task |
+| The macOS inspector with nothing selected | "No task selected" | nothing |
+
+A place with nothing in it offers to fill it; a filter that matched nothing
+offers to drop the filter; a saved view offers neither, because there is nowhere
+in it to put a card — it is a filter over the board, and a task added to it might
+not match it. The no-results body names the query back — *Nothing here matches
+“drag”* — so the reader sees what was actually searched for rather than what they
+meant to type.
+
+The strings live on the factories
+(`EmptyStateView.column/.board/.noBoards/.noResults/.savedView/.inbox/.noSelection`)
+rather than at the call sites, so the surfaces that show the same emptiness cannot
+drift into as many wordings of it — which is not hypothetical: the two "no boards"
+states were written independently on the two platforms and had already reached two
+symbols, two headlines and two bodies before they were pulled back onto one
+factory. All are `String(localized:)`.
+
+Two of them are worth calling out. **The macOS inspector no longer collapses**:
+it used to guard on `isInspectorOpen && selectedTask != nil`, so the whole 336pt
+panel vanished the moment a card was deselected and the board reflowed under the
+pointer, which made the inspector toggle look broken. It now renders at its own
+width with a placeholder. And **the iOS empty column does not use
+`EmptyStateView.column`** — that copy says "Drag a card here, or start one", and
+the phone has no card drag; `PhoneRootView.emptyColumn` says "Add the first task
+to this column, or swipe to another" instead.
 
 ## What the spec does not define
 
-These are faithful gaps, not oversights — the design has no behaviour for them:
+One faithful gap is left, and it is not an oversight — the design has no
+behaviour for it. **There is no sync.** The board is saved locally and the design
+defines no remote; the slot the design gave to "Synced just now" reports what the
+store last managed to do with the local file instead (see **Persistence**). The
+sidebar's other two board rows used to be listed here as well — "Website refresh"
+and "Support triage" rendered as designed with hardcoded counts and switched to
+nothing. Boards are real now, so that gap is closed rather than described; see
+**Boards, columns and the Inbox**.
 
-- **Board and view rows are presentational.** "Website refresh", "Support
-  triage", "Upcoming" and friends render exactly as designed but do not switch
-  or filter; the spec defines no second board and no view queries. The "Today"
-  badge is the exception — it is a real count of tasks due today outside Done.
-- **No sync.** The board is saved locally and the design defines no remote. The
-  slot the design gave to "Synced just now" reports what the store last managed
-  to do with the local file instead (see **Persistence**).
-- **No delete.** The design provides no affordance for removing a task.
+## Boards, columns and the Inbox
+
+A board is a name, a colour, a code prefix and the columns work moves through:
+
+```swift
+struct Board: Identifiable, Hashable, Codable, Sendable {
+    var id: UUID
+    var name: String
+    var dot: SwatchColor
+    var createdAt: Date
+    var columns: [BoardColumn]
+    var codePrefix: String      // the "NW" in "NW-118" — a label, not a key
+}
+```
+
+`store.boards` is the sidebar's order and is saved. So is `activeBoardID` — which
+board you are on is where your work is, not where you happened to glance, which is
+the opposite of the saved view. What the main surface is *showing* is not saved:
+`BoardSurface` is `.board`, `.inbox` or `.view(SavedView)`, it is set through
+`selectSurface(_:)` (`selectTab(_:)` on the phone), and it belongs to a sitting.
+
+Boards can be created, renamed, recoloured, reordered and deleted from both
+surfaces — the macOS sidebar's context menu and its click-to-edit toolbar title,
+the iOS drawer's long-press menu and its board editor sheet. Reordering is menu
+items rather than a drag on both, because the rows are already card drop targets
+and a second meaning for the same gesture would fight the first. Dots come from
+`Board.dots` on the model, drawn by the shared `DotPicker` on both surfaces: a
+board coloured on the phone has to be recolourable to the same colour on the
+desk. Each dot carries its name — Accent, Stone, Amber, Ember, Pine, Indigo —
+because a swatch announced as "Colour 4" tells a VoiceOver user nothing about
+what picking it does. The last three are the accent themes' own hexes and take
+the accent themes' names; the first is `.accent` itself, the one dot that follows
+the theme rather than naming a colour. `Board.dotPalette` is still there as the
+bare `[SwatchColor]` the invariants are checked against.
+
+**Which board a card is on is one control, `BoardDestinationMenu`, and one
+convention.** Four surfaces were writing "the Inbox, then every board, with the
+current one marked" and marking it three different ways: a tick, a disabled row,
+or leaving the current one out of the list. It is a tick, everywhere. The other
+two make the menu change shape depending on where the card is — so a board sits
+in a different place each time it is opened, and the menu never says where the
+card is now — and a disabled row is the one a screen reader skips. Choosing the
+ticked destination does nothing rather than re-filing: filing a card onto the
+board it is already on sends it to that board's landing column, which is a move
+nobody asked for and two of the four menus were quietly making. A surface that
+already has a menu of its own — the two card context menus — nests
+`BoardDestinationItems` instead of drawing the pill.
+
+**Deleting a board sends its cards — archived ones included — to the Inbox** and
+records `.unfiled` on each, rather than deleting them silently. It is one ⌘Z, and
+neither surface asks first, matching delete everywhere else here. Deleting the
+*last* board is allowed: what is left is the Inbox, which was never one board's,
+plus the affordance to make another, so it is a state the user can both reach and
+leave. Both surfaces draw `EmptyStateView.noBoards` there rather than a blank
+strip, and every surface tolerates `activeBoard == nil`.
+
+**And it survives a relaunch.** `BoardStore.restored` adopts an empty
+`snapshot.boards` rather than repairing it: seeding one back would hand somebody
+who deliberately emptied their board list a board they did not make, carrying
+sample cards that are not theirs. Only the *absence* of a snapshot — a first
+launch — seeds. A file damaged past decoding never reaches this path at all;
+`BoardFile.load` quarantines it and reports a failure, so "empty" never has to
+stand in for "broken".
+
+Counts are real: a board row shows that board's live cards, the Inbox row shows
+unfiled ones, and both exclude the archive the same way the header total does.
+
+### The Inbox is global
+
+**There is one Inbox and it belongs to no board.** This is a decided design point
+rather than a convenience: a quick capture must never have to pick a board first,
+and a per-board Inbox would mean choosing one before you know what you have
+caught. It is a sidebar destination above the board list on macOS and a tab on
+iOS, reachable whichever board is active — and it is why the board strip no
+longer opens with an Inbox column; see **deliberate departures** above.
+
+A task is therefore either *unfiled* or *on a board in one of its columns*, and
+never half of either. That invariant lives in one type:
+
+```swift
+enum TaskPlacement: Hashable, Sendable {
+    case inbox
+    case column(board: Board.ID, column: BoardColumn.ID)
+}
+```
+
+One value rather than two nullable fields, because `boardID` / `columnID` has
+exactly two legal shapes and the others — "on a board, in no column", "in a column
+on no board" — are bugs that surface only as a card nobody can find. There is no
+way to spell them here. `TaskItem.placement` is the only writer of the two stored
+fields, `performMove` is the only thing that sets `placement`, and `file(_:onto:)`,
+`file(_:onto:column:)`, `unfile(_:)` and `move(_:to:)` are the only ways in. Every
+set of tasks the store adopts is put back through `TaskPlacement` at init, where
+**the column is the fact that decides**: column ids are unique across boards, so a
+card naming a column lands on whichever board owns it whether it arrived claiming
+that board, another, or none, and a card naming no column — or one no board has —
+is unfiled.
+
+**A task can be moved between boards, and back to the Inbox, from both surfaces.**
+On macOS, drag a card onto a board row in the sidebar to file it there and onto the
+Inbox row to unfile it, or use the inspector's board menu and its "Move to"
+segments. On iOS, the detail sheet's board row and the card's "Move to ▸" context
+submenu do the same, and the picker's Inbox segment is the route back — the phone
+has no card drag, so without it filing a card was a one-way door.
+
+### Codes
+
+`code` — "NW-118" — is the human-facing label printed on the card. It is minted
+from the **destination's** `codePrefix` plus one global `nextSerial`, and unfiled
+tasks take the constant prefix `"IN"`. One counter for the whole file rather than
+one per board: the prefix is what tells two boards' codes apart, and a per-board
+counter would hand two boards the same number and make the prefix load-bearing.
+
+**A code never changes once minted.** Filing an IN-141 onto Northwind leaves it
+called IN-141, because by then it may be sitting in someone's commit message. That
+is also why the migration renumbers nothing. A board given no prefix derives one
+from its initials, upper-cased and capped at four characters, and falls back to
+`"NW"` — a board that cannot mint a code is a board no task can be added to.
+
+### Columns, and the role that carries the behaviour
+
+Columns are a **board's** data, not a fixed set and not the store's: they live on
+`Board.columns`, they are written with the board, and they can be added, renamed,
+recoloured, reordered and deleted. `BoardStore.columns` is the active board's,
+which is what the macOS strip and the iOS pager draw. A new board starts from the
+seed workflow with **fresh ids** (`Board.startingColumns()`) rather than the seed's
+own: a column id is what places a card, so two boards sharing one would draw each
+other's cards and deleting the column on either would move both boards' cards.
+
+The **Inbox is not one of them** — it is global; see above.
+
+Each column carries a `ColumnRole` — `backlog`, `active` or `done` — and
+**`.done` is the only role with behaviour attached**: arriving in it ticks off a
+task's outstanding sub-tasks, tints its due chip green, and is what the weekly
+meter and "Archive completed" mean by shipped. Those three used to match on the
+literal column id `"done"`, which a column the user made would have silently
+broken. `.backlog` and `.active` are descriptive, and nothing may start
+branching on them — a board whose owner never made an "in progress" column has
+to go on behaving like a board. Everything asks the store rather than the task:
+`store.isDone(task)`, `store.role(of: task)`, `store.column(for: task)`.
+
+**Column management exists on both surfaces**, because a board made on the phone
+would otherwise be stuck with its four starting columns for good. macOS hangs it
+off the column header (`BoardColumnView.columnMenu`, `BoardColumnEditor`, and the
+trailing `AddColumnTile`); iOS puts a Columns section in `PhoneBoardEditor`,
+where a row opens into name, abbreviation, dot, move up/down and delete. The
+abbreviation is editable wherever the name is: `MoveToPicker` draws it, and on
+the phone that control is the only route a card has off a column. `addColumn` and
+`moveColumn` are defined over the **active** board — a column carries no board id,
+only the board that holds it — so `PhoneBoardEditor` calls `selectBoard` on
+appear rather than risk adding board A's column while showing board B. `rename`,
+`recolor` and `delete` find the board from the column and are safe anywhere.
+
+A role is chosen when the column is made and is not editable afterwards — the
+spec's column management is add, rename, recolour, reorder and delete, and a role
+that could be moved between columns would let a board hold two Done columns, or
+none, between one keystroke and the next. Add a column with the role you want
+instead; the refusal below says so in as many words.
+
+Deleting a column moves its cards — archived ones included — to the first column
+left, and each of them records the move, so a card changing column is explicable
+from its own history. A delete that would leave the board without a `.done`
+column, or without one that is not `.done`, is **refused with a `ColumnRefusal`
+the surface can show** rather than ignored: from the outside, "delete" doing
+nothing is indistinguishable from a bug.
 
 ## Editing
 
 Both detail surfaces — the macOS inspector and the iOS sheet — write straight
 through to `BoardStore`, so an edit lands on the board card as it is typed.
 
-- **Title and description** are text fields. A title emptied to nothing is
-  restored on blur rather than leaving an unreachable card; a task that has
-  genuinely never been named renders as "Untitled".
+- **Title and description** are text fields. The title is single-line: Return
+  commits it and hands focus back, and a paste has its newlines and runs of
+  spaces folded to single spaces on the way in, because a card has room for a
+  line and not for a paragraph. The description keeps its vertical axis — it is
+  meant to hold paragraphs — so iOS gives it a Done key in the keyboard bar. A
+  title emptied to nothing is restored on blur rather than leaving an
+  unreachable card; a task that has genuinely never been named renders as
+  "Untitled".
 - **Priority** is a menu whose label is the design's existing dot-plus-name.
 - **Due date** is the design's chip, made tappable: Today / Tomorrow / Next week
   shortcuts, a calendar, and Clear.
+- **Sub-tasks and labels** are edited in place; see below.
+- **Escape** clears a draft in all three of the fields the design defines it
+  for — the column composer, the sub-task draft and the label picker — and
+  cancels a rename in the label manager. Where there is nothing to clear it is
+  passed on rather than swallowed, so it still closes whatever is presenting the
+  field.
 
 `due` is a calendar **day** — a `CalendarDay` of year, month and day, written to
 disk as `"2026-08-20"` — rather than an instant. A task due today still reads
@@ -149,11 +730,100 @@ likes.
 keeps the design's colours whatever day it is run — only the weekday *names*
 track the real calendar.
 
+### Completing, reopening and deleting
+
+A task reaches Done three ways now: dragged there, sent there from "Move to", or
+completed where it stands — a circular checkbox on either card, a leading swipe
+on iOS, a context-menu item on macOS. The checkbox is `CompletionToggle`, which
+is also what the checklist rows are drawn from: same accent fill, same border,
+same tick glyph, so the board and the checklist cannot drift into two ideas of
+what "done" looks like. Only the corner radius is a metric, because a card wants
+the circle the spec draws beside a title and a row wants the design's rounded
+square. On a card the control sits *over* the button rather than inside its
+label: a button nested in another button's label never sees the click, and
+ticking a card must not also open its detail surface. `reopen` sends a completed
+task back to the newest column its own history names whose role is not `.done`,
+and to the board's first such column when it has none, so the Done tick is a
+round trip rather than a one-way door. Neither verb applies to a filed card: `complete` and `reopen`
+refuse an archived task outright, where Restore is the only verb — see
+**Saved views and the archive**.
+
+Delete happens immediately. It is a context-menu item and an inspector button on
+macOS, and a trailing swipe plus a row at the foot of the sheet on iOS; each
+swipe action is duplicated in the row's context menu, because a swipe is
+unreachable with VoiceOver or Switch Control. Deleting a task takes its drafts,
+its open editing sessions and its search memo with it, and the selection falls to
+the next card in the same column — else the one above it — rather than jumping
+the board. A one-line field that an open session had emptied is put back
+*before* the undo step opens, so undo is never the one path that lands an
+untitled card on the board.
+
+The iOS quick-capture button creates its task untitled and opens the sheet with
+the title focused, so closing that sheet without typing anything would leave an
+untitled card behind. It does not: dismissing takes the card away again — by the
+× or by the drag-down, both of which go through the same pair of calls — but
+only while the task is still *exactly* as capture made it. A task the user
+touched once is theirs, whatever they emptied it back to afterwards.
+
+The iOS list is a real `List` rather than the `LazyVStack` it started as, purely
+for `swipeActions`: a hand-rolled swipe has to fight the scroll view for the
+gesture, re-implement the full-swipe threshold, and is invisible to VoiceOver.
+The rows are stripped back to clear backgrounds, no separators and the design's
+10pt gap, so the cards look exactly as they did.
+
+### Sub-tasks
+
+Every row edits in place — the box toggles, and the text is a `TextField` driven
+by the same `beginEditing`/`endEditing` session as the task title, so a row
+retyped a letter at a time is one activity entry and one ⌘Z. Delete is an `×`
+revealed on hover on macOS and the row's context menu on iOS, which is also the
+path VoiceOver has on both: a control that waits for a pointer is a control a
+screen reader cannot ask for. Reordering is a drag on the row itself and logs
+nothing — the order is on screen, and a feed of "sub-task moved" would bury the
+changes that matter. Every row is 44pt tall on touch and the whole of it takes
+focus, the dashed `+` box on the add row included — a `TextField` is only live
+across the text it draws, so the row rather than the field is what a finger
+aims at; see **Touch targets**.
+
+### Labels
+
+`renameLabel`, `recolorLabel` and `deleteLabel` finish the vocabulary. A rename
+never regenerates the `key`: the key is what every task stores, so re-slugging it
+from the new name would leave every task carrying the old one and silently
+detach the label from all of them. Deleting a label strips the key from every
+task that had it and records the removal on each, because a chip disappearing
+from a card should be explicable from that card's own history. A new label's
+name is capped at 40 characters and a chip truncates to one line — past that it
+is all ellipsis and no information, and one long label takes a whole row of the
+flow layout to itself.
+
+`LabelManagerView` is the board-wide surface: every label with an inline rename,
+`LabelDef.tones` as a swatch row, a count of the tasks carrying it, and delete.
+It is presented as a sheet from the macOS sidebar and the iOS drawer, and
+kept a plain view so a Settings pane can host the same body later. The rename
+field takes focus from anywhere on its 44pt name line and announces itself as
+"Label name" — a placeholder is not read once a field holds text, and this one
+always does. An *applied*
+chip carries its own remove control as well — an `×` revealed on hover on macOS,
+a long-press menu on both — while a chip on a card, which is a read-out and not
+a control, renders exactly as it always has.
+
+Those tones carry their names — Indigo, Violet, Pine, Red, Amber, Stone — beside
+their hexes on the model, the way `Board.dots` does and for the same reason: a
+swatch announced as "Colour 4" gives a VoiceOver user its position and nothing
+about what choosing it does, and a name kept in the picker instead drifts from
+the colour the moment either is edited. Naming one of the app's two swatch rows
+and not the other would only have moved the problem. `LabelDef.palette` is still
+there as the derived pair list `recolorLabel` and the round-robin in `addLabel`
+take, exactly as `Board.dotPalette` is.
+
 ### Activity
 
 The feed is live rather than static text. Moves, renames, description changes,
-priority and due-date changes, label add/remove and new sub-tasks all append an
-entry, newest first, and timestamps age ("20m ago", "2h ago", "3d ago").
+priority and due-date changes, label add/remove, and sub-tasks added, renamed
+and removed all append an entry, newest first, and timestamps age ("just now",
+"20 min ago", "2 hr ago", "3 days ago"). The sub-tasks a move into Done ticks
+off arrive as one counted entry rather than one line each.
 
 An entry stores *what happened* — an `ActivityEntry.Kind` case plus whatever its
 sentence needs — and the sentence is rendered at display time, so history written
@@ -165,13 +835,96 @@ renamed or has gone. Entries from a build that wrote finished English survive as
 
 Text fields log **once per editing session**, not once per keystroke:
 `beginEditing` snapshots the value on focus and `endEditing` compares on blur.
-A session is keyed by (surface, task, field), so the macOS inspector and the iOS
-sheet editing the same title cannot share — and corrupt — one before-value, and
-pointing a surface at another card closes the session against the card that was
-actually being edited. The due-date popover's whole lifetime is one session:
-trying three dates in the calendar before settling on a fourth writes one entry,
-not four. Naming a task that was created untitled is not logged as a rename —
-"Created" already says it.
+A session is keyed by (surface, task, field, sub-task), so the macOS inspector
+and the iOS sheet editing the same title cannot share — and corrupt — one
+before-value, two checklist rows on one task are two sessions, and pointing a
+surface at another card closes the session against the card that was actually
+being edited. The due-date popover's whole lifetime is one session: trying three
+dates in the calendar before settling on a fourth writes one entry, not four.
+Naming a task that was created untitled is not logged as a rename — "Created"
+already says it.
+
+The feed itself is `Sources/Shared/ActivityFeed.swift`, drawn the same way on
+both surfaces: a dot at 22% ink, the sentence at 60%, the relative stamp at 35%,
+with `Metrics.desk` and `Metrics.sheet` for the geometry. The macOS rendering is
+the reference — the iOS sheet had no activity section at all, so the same task
+showed its history on one platform and hid it on the other.
+
+Stamps age without a relaunch. The feed reads `dayClock.today` once, so
+everything re-renders at midnight when "today" becomes "yesterday", and each row
+sits in its own `TimelineView(.periodic(from: .now, by: 60))` for the sub-day
+text — per row rather than per feed, so a tick invalidates one line instead of
+the panel. The timeline wraps the row's whole concatenated `Text` rather than the
+stamp alone, because the stamp has to flow and wrap inline after the sentence and
+only one `Text` does that. The feed draws **rows only, no heading**: both surfaces
+label their own section at their own size.
+
+## Undo
+
+⌘Z is the system's, not a stack of this app's own: `RootView` hands the window's
+`UndoManager` to the store, and every board mutation registers a step against it.
+Going through the platform's manager is what buys the standard macOS Edit menu
+reading "Undo Delete Task" and "Redo Move Task" — the action names are
+`String(localized:)` — and iOS shake-to-undo, for nothing. `canUndo`/`canRedo`
+are exposed for the menu-bar items Phase E adds. With no manager in the
+environment every mutation still works and ⌘Z simply does nothing, which is what
+a preview and a test see unless the test asks for one.
+
+A step is a **snapshot, not an inverse**. `undoable(_:_:)` captures the board's
+value state — `tasks`, `labels`, `nextSerial` — before and after the body and
+registers only if the two differ, so a drop that changed nothing stays off the
+Edit menu. An inverse hand-written per mutation is where undo bugs live, and the
+board is arrays of value types, so holding one costs a retain rather than a copy.
+Nested calls collapse into the outer step, so a mutation assembled out of other
+mutations still costs exactly one ⌘Z. Adding a task and discarding an untouched
+quick capture are each their own step: they cancel out on the board but not on
+the stack, and an unregistered removal sitting on top of the capture's step is
+exactly the shape that lets a later ⌘Z put the discarded card back.
+
+Because a snapshot step reverses *everything* the board did since its
+before-state, one rule holds throughout:
+
+> Every board mutation registers its own undo step immediately. Editing sessions
+> coalesce *activity entries*, not undo steps — with one exception: continuous
+> text, where a session groups the keystrokes it owns and nothing else.
+
+So a title typed a letter at a time is one ⌘Z, while four dates tried in the
+calendar are four ⌘Z and one activity line. "Nothing else" is kept true at every
+step boundary — a registration or a restore — by moving each open session's
+before-state up to the board as it then stands. Without that, a description
+field that keeps focus while the pickers and the checklist are used in the same
+panel eventually files one step that reaches back past all of them, or puts back
+something the user had already undone.
+
+The move cannot be made on its own, because the text typed since the last
+boundary would then belong to no step at all: the step above it was snapshotted
+before that text existed, and the session's own step now starts after it.
+**Every keystroke belongs to exactly one step**, so at a boundary the unfiled
+text is dealt with first.
+
+- At a **registration** it is filed as a step of its own, from the *oldest* open
+  session — only the oldest covers the whole unfiled delta, and filing a younger
+  one would orphan the older prefix again. It goes in underneath, so the first
+  ⌘Z takes back the thing that interrupted the typing and the second takes back
+  the typing. The undo group is closed and reopened around it, or the two share
+  the run loop's group and one ⌘Z reverts text typed before the user clicked
+  anything.
+- At a **restore** it cannot be filed at all: a registration made while the
+  manager is undoing lands on the *redo* stack. So it is carried across the
+  restore instead — a ⌘Z aimed at an older step leaves what is still being typed
+  on the board, and the session goes on owning it and files it on blur. Text the
+  restored board sets itself is not carried (undoing the session's own earlier
+  step is asking for that step's value), and carried text is stripped out of the
+  redo snapshot, or the same keystrokes sit on both sides of a step where no ⌘Z
+  can reach them.
+
+**The selection is deliberately not restored.** There are two of them
+(`selection`, a set, and `sheetID`), they belong to a surface rather than to the
+board, and neither is in `BoardSnapshot`; a restore only drops the ids that have
+stopped naming anything. The cost is known: undoing a delete brings the card
+back while the inspector stays on its neighbour, and fixing that belongs to
+whatever offers the undo rather than to the board. The accent theme is not on
+the stack either — it is a preference, not board data.
 
 ## Search
 
@@ -179,15 +932,862 @@ Search is multi-token AND rather than a phrase match, so "drag columns" finds a
 title with the two words apart. Each token is matched against a task's title,
 description, code and label keys, and both sides are folded case- and
 diacritic-insensitively — "cafe" finds "Café". The folded text is memoised per
-task and stamped with `updatedAt`, so a keystroke re-filters the board without
-re-folding it.
+task so a keystroke re-filters the board without re-folding it. The memo is
+stamped with a monotonic per-task counter rather than `updatedAt`: `Date.now` is
+coarser than the gap between two consecutive mutations, so two edits can land on
+the same instant and a memo keyed on it would go on serving the first one's text.
+
+An archived task is in no search. It has left the board, so it is not something
+the search failed to find — the Archive view is where it is looked for.
+
+### Where the query applies
+
+There is one `query`, bound by the macOS toolbar and the iOS search field both,
+and the rule is that **it never narrows a surface that is not showing a way to
+clear it.**
+
+- **macOS** — the field is always in the toolbar, so the board honours the query.
+  There is deliberately no "Filtered" indicator here: the indicator exists for a
+  query whose field is off screen, which on macOS never happens. Both fields do
+  carry an `xmark.circle.fill` clear button while non-empty.
+- **iOS Search tab** — the field is on screen; the flat list honours it.
+- **iOS Board and Inbox tabs** — the query is ignored outright
+  (`BoardStore.boardTasks(in:)`). `PhoneHeader` only shows the field on Search,
+  so filtering these left a board that had silently lost most of its cards with
+  nothing on screen to explain why.
+- **A saved view** — honours the query wherever it is shown, because searching
+  should narrow a view rather than replace it. On iOS a view can be open with
+  the tab bar on Board and no field in sight, so `showsMobileFilterNotice` is
+  true there and the surface shows a "Filtered" indicator that clears it.
+
+`mobileAppliesQuery` answers the question for the current phone surface;
+`clearQuery()` is what both clear buttons and the indicator call. The query is
+session state, so clearing it registers no undo step and needs no save.
+
+## Saved views and the archive
+
+`SavedView` is a standing filter over the whole board, shown as a flat list in
+place of the columns. `BoardStore.activeView` selects one, and is session
+state — where the user is looking rather than anything about the board, so it is
+out of `BoardSnapshot` and out of `BoardMutation`.
+
+| View | Predicate |
+| --- | --- |
+| Today | due, and `.today` **or** `.overdue` |
+| Upcoming | due, and more than a day away |
+| High priority | `priority == .high` |
+| Due this week | due within the next seven days, today included |
+| Recently updated | newest `updatedAt` first, capped at 20 |
+| Archive | `archivedAt != nil`, newest filing first |
+
+All except Recently updated and the Archive exclude Done; all except the Archive
+exclude archived tasks. **Today includes overdue on purpose** — work that
+slipped past its date must not vanish from the one list a person checks daily.
+There is one spelling of that count, `count(of: .today, today:)`, and nothing
+else — a second name for one number is how the badge and the list drifted apart
+in the first place.
+
+`tasks(in:today:)` applies the predicate, the ordering and the cap, and then the
+query on top; `count(of:today:)` is the view's **membership** and is deliberately
+*not* narrowed by the query, which would make it report the search rather than
+the view. The ordering is a stable sort: "Archive completed" files a column's
+worth of cards on one instant, and `sorted(by:)` would order those ties
+arbitrarily and differently on each render.
+
+The two count pills answer different questions, and are fed from different calls
+on purpose:
+
+| pill | source | why |
+| --- | --- | --- |
+| macOS sidebar row, iOS drawer row | `count(of:today:)`, unnarrowed | a badge on a destination: how much is *in* the view |
+| the flat list's own header | `tasks(in:today:).count`, narrowed | it sits on top of the list, so it is read as that list's length |
+
+A header pill fed by membership reports "1" directly above "Nothing here matches",
+which makes the search look broken rather than the view look full. Both headers
+now resolve the list once and hand its length up — `MacRootView.body` into
+`header(count:)`, `PhoneRootView.body` into `PhoneHeader(listCount:)` — so the
+caption and the rows under it are the same array by construction. With no query
+running the two pills are the same number for every view; the query is the only
+thing allowed to part them.
+
+`archive(_:)`, `unarchive(_:)` and `archiveCompleted()` are undoable, and an
+archived task keeps its column and stays in the file — it is simply not part of
+the board — and comes back where it was. `archiveCompleted()` is one step, so a
+user tidying up after a week presses ⌘Z once rather than once per card.
+
+**In the Archive the verb is Restore, and it is the only one.** A filed card is
+not work in progress, so its completion toggle is not drawn: `BoardTaskCard` makes
+`completionToggle` a `@ViewBuilder` that yields nothing and drops the gutter it
+was drawn over with it, so the Archive's rows close up instead of every one of
+them keeping a hole; `PhoneTaskCard` puts a Restore disc in the same 22pt circle
+at the same 44pt target. The context menu offers Restore *in place of*
+Complete/Reopen, the leading swipe on the phone restores rather than completes,
+and the macOS rotor action for completion is suppressed. Left live, the tick did
+two invisible things: it moved the card to Done — silently choosing the column it
+would reappear in — and on the way in it ticked off whatever sub-tasks were left.
+Neither showed, because the Archive is ordered by `archivedAt` and the row did
+not move.
+
+**The store owes the same answer, so no surface can put the hole back.**
+`complete` and `reopen` both begin `guard let task = self[id], !task.isArchived`
+and return having changed nothing and cost no undo step. Hiding a control is a
+view's opinion; refusing the mutation is the rule.
+
+**Filing is not touching.** `archive`, `unarchive` and `archiveCompleted` must
+leave `updatedAt` exactly where it was, which is why `update(_:log:stamping:_:)`
+carries a `stamping` flag and those paths pass `stamping: false`. The rest of the
+bookkeeping still happens — `markChanged` bumps the per-task revision and the
+board revision, so the column grouping and the search memo keyed on them
+invalidate and the board stops matching text it no longer shows. Filing is the
+*only* exception: every other mutation changes what the card says and stamps
+normally, `deleteLabel` included, because taking a chip off a card is a visible
+change to that card.
+
+The **"This week" meter** is a rolling seven-day window on `updatedAt`: shipped
+(in Done, touched in the last seven days) over touched (in the last seven days).
+It was `doneCount / tasks.count` over all tasks ever, which only climbed and
+stopped meaning anything after the first fortnight. The accessors say so —
+`weeklyShippedCount(today:)` and `weeklyProgressFraction(today:)` — and both take
+the day, so the window turns over at midnight under a running app. Archived tasks
+**are** counted here, the one place the archive is not subtracted: archiving is
+filing rather than un-shipping, and its affordance sits on the Done column header,
+so a meter that fell to zero the moment the user tidied up would punish the action
+standing next to it. Filing does not move `updatedAt` either, so the reverse
+cannot happen: a card filed today that shipped last month stays outside the
+window rather than being counted as this week's work. The button beside the meter
+moves it in neither direction.
+
+### Reaching a view, and leaving it
+
+A view replaces the board with a flat list — `TaskListView`, the one the iOS
+Search and Inbox tabs also draw. Cards in it carry a **column chip**: the
+column's `dot` on the neutral tone the due chip uses, because a second coloured
+pill reads as another label. It is the one thing a card away from its own column
+no longer says, and it is off on the board, where the heading above has just said
+it. An **unfiled** card gets the chip too, reading "Inbox": a view can hold cards
+from any board and the Inbox at once, and leaving the chip off would ask the
+reader to infer "unfiled" from a gap. The one place the chip is suppressed is the
+phone's Inbox tab, where every row is unfiled and the tab is already called
+Inbox.
+
+"Build it once" took a second pass to actually mean it. The phone had a list that
+merely *resembled* the shared one — its own `List`, down to a private copy of the
+row modifier — which left `TaskListView` with a single macOS call site and the
+duplication the whole item exists to remove. What absorbs the phone's list is a
+second generic parameter:
+
+```swift
+struct TaskListView<Card: View, Trailing: View>: View
+```
+
+`trailing` is a `@ViewBuilder` of rows drawn after the cards, inside the same
+`List` and under the same row modifier, so the phone's dashed "add task to…" row
+and its empty state scroll with the cards and inherit their margins rather than
+carrying a second copy of them. Three things about it are load-bearing:
+
+- **The no-trailing call site is unchanged.** Two `where Trailing == EmptyView`
+  overloads keep macOS spelled exactly `TaskListView(tasks: tasks, metrics: .desk)`.
+- **Nothing is dropped by rendering an empty view.** The rows are skipped by a
+  static `if Trailing.self != EmptyView.self`, because an `EmptyView` wrapped in a
+  row modifier is a view like any other and a `List` is entitled to give it a
+  row's worth of insets.
+- **Swipe actions arrive through the card, not the list.** `PlatformTaskCard` is
+  the one place a `#if os()` picks the platform's card — the desk and the iPad
+  draw `ListCard`, the phone draws `PhoneTaskCard` with `PhoneTaskRowActions`. List-row traits are read off the
+  row's own view, so this is where SwiftUI looks for them.
+
+`PhoneRootView.taskList` is now a call to that view and its `BareRow` is gone.
+
+- **macOS** — the sidebar's view rows are real `Button`s with a live `CountPill`,
+  the active one styled `palette.accentSoft` exactly as the active board row is.
+  Clicking the active row returns to the board, and so does the `← Board` button
+  in the list's own header. The Archive sits slightly apart from the five
+  filters, because it is a place things go rather than a filter over the board.
+  ⌘N leaves the view first: the composer lives at the top of a board column, so
+  from a flat list it opened a row nobody could see.
+- **iOS** — the drawer's Views list carries the same rows, and the `…` menu in
+  the header carries them again for a user who is not in the drawer. The header
+  grows a bar naming the open view with a way back.
+
+These rules are the iPhone's alone:
+
+- **Picking a tab leaves the view.** `mobileTasks` lets a view outrank the tab,
+  so without this, tapping "Inbox" showed Today. `selectTab(_:)` and
+  `quickCapture()` both clear it, and no tab is highlighted while a view is open
+  — highlighting one would name a place that is not what is on screen.
+- **The `…` button is a real `Menu`.** It was a decorated `Image` — no action, no
+  accessibility label, no tap target — sitting beside a hamburger that worked. It
+  now has a 44pt target and carries the board-level actions with no other home on
+  touch: the saved views, Archive completed, Manage labels and Clear search.
+- **Column chips are on Search, Inbox and every saved view, never the Board tab**
+  (`showsMobileColumnChips`), where the pager directly above names the column.
+- **Everything below the drawer's title scrolls, and the indicators show.**
+  Pinning the weekly summary and the accent picker outside the `ScrollView` left
+  the rows between them whatever height was left over — 481pt of viewport for
+  620pt of rows on a 402x874 phone, so the Archive row was clipped and "Manage
+  labels" sat 59pt past a fold that hidden indicators refused to admit to. The
+  bar to clear is the *smallest* supported iPhone, not the largest: on a 375x667
+  device one swipe now reaches "Manage labels" and the accent swatches, and that
+  is the end of the scroll.
+- **The drawer is modal to VoiceOver as well as to the eye.**
+  `.accessibilityHidden(store.isNavDrawerOpen)` on `PhoneRootView`, applied
+  *before* the `.overlay` so it takes the board and leaves the drawer;
+  `.accessibilityAddTraits(.isModal)` on the drawer; and an
+  `@AccessibilityFocusState` that moves focus to the drawer's heading on open.
+  Without it the board underneath stayed hittable while every drawer row did not,
+  so VoiceOver could drive the board it could not see and not the drawer it
+  could.
+
+## Selection, commands and shortcuts
+
+**The selection is a set.** `BoardStore.selection` is a `Set<TaskItem.ID>`: the
+board offers a range (⇧-click), a toggle (⌘-click) and Select All, and the bulk
+commands those exist for. `selectedID` survives as a computed face on it that
+returns the one selected task — and `nil` for none *and* for several, which is
+what keeps every consumer working unchanged, because the inspector showing a task
+when exactly one is picked and its empty state otherwise is the right answer for
+a multi-selection too. Assigning to it replaces the whole selection.
+
+Writing the set is what ends the editing sessions a surface left behind: a
+surface that has moved to another card cannot end them there, and a session
+nobody will ever end silences that card's picker logging for good. The rule is
+measured against `selectedID` rather than the set, so picking a *second* card
+takes the panel off the first as surely as picking another one would.
+
+A range is measured against the ids the surface passes in, in the order it is
+drawing them — the range a user means is the one they can see, which is neither
+the board's array order nor a set's. The anchor stays where it was put, so a run
+of ⇧-clicks sweeps out from one card rather than growing from the last.
+
+**Bulk commands are one ⌘Z, not one per card** — the whole point of a
+multi-selection. `move`, `complete`, `archive`, `deleteTasks`, `toggleLabel`,
+`setPriority` and `setDue` each take a `Set<TaskItem.ID>` and wrap the
+single-card mutation they are built from in one `undoable`; the nested step
+collapses into it. Built that way rather than copied, because a second hand-written
+copy of each rule is what eventually drifts from the first. They act in board
+order, so cards moved together arrive in the order they were in, and they name
+themselves in the plural, so the Edit menu says how much a ⌘Z is about to take
+back. A bulk label goes *on* until every selected card has it and only then comes
+off — toggling each card independently would leave a mixed selection exactly as
+mixed as it started. `addTasks(to:titles:)` joined them for ⌘V: one `undoable`
+around the loop, and the selection and draft state moved once *after* the step
+closes rather than per card inside it.
+
+Three invariants of those paths, each of which fails silently and each of which
+had a surviving mutant:
+
+- **Board order.** Every bulk command acts in the order the board has the cards,
+  never the set's. A test that pins two cards is a coin toss rather than an
+  assertion — `Set` hashing is seeded per process — so pin four and pin every
+  resulting position.
+- **Placement.** The bulk move goes straight to `performMove`, so the
+  `isPlaceable` pairing check the singular `move` makes on the way past is the
+  bulk path's own to make, or a selection lands on board A in board B's column.
+- **The anchor.** ⌘-clicking a card out of the selection takes the anchor with
+  it, or the next ⇧-click sweeps from a card that is no longer picked.
+
+**A bulk command acts on the cards it applies to and titles itself from those.**
+`complete(_:)` *is* `completeTargets(_:)` and `archive(_:)` *is*
+`archiveTargets(_:)`, so the count a menu item promises and the list it acts on
+are the same call and cannot drift — which they did: three cards with one already
+in Done gave a menu reading "Complete 3 Tasks" and an undo step called "Complete
+Task", having moved two. `canComplete(_:)` / `canArchive(_:)` answer for one card
+and are the same predicate the singular mutations guard with, not a second copy
+of it. Delete and Copy act on the whole selection, so `selectionCount` is the
+right number for those.
+
+**One shortcut vocabulary, in one place.** `Sources/Model/AppCommand.swift` is an
+enum of every command with its localised title, its keys, its menu and the block
+of it, which cards it applies to, and who performs it. (`needsSelection` survives
+as the coarse half of that last question — "is this aimed at a card at all" — and
+is no longer what a menu item asks.) The menu
+bar, the board's key handlers and the keyboard-shortcuts sheet are all built from
+it, because three surfaces that each spell the vocabulary out separately will
+drift — and a sheet claiming a shortcut the menu does not have is worse than no
+sheet at all.
+
+- **⌘N is New Task and ⇧⌘N is New Board.** ⌘N used to sit on a toolbar button
+  while the default File menu still advertised ⌘N as New Window, so the menu and
+  the key disagreed about what the app did. Replacing SwiftUI's `.newItem` group
+  with these two is what settles it, and `beginAddingWhereVisible()` is what
+  keeps the composer on screen: it is drawn by whichever surface owns the place
+  it is adding to, so the command puts that surface up first rather than focusing
+  a text field nobody can see.
+- **⌘C, ⌘V and ⌘A get no menu item.** A Copy on the Edit menu takes ⌘C away from
+  every text field in the app, and Select All takes ⌘A. They sit in the `.board`
+  group, which is handled where the board has focus and taught by the sheet.
+- **Undo and Redo are listed but not declared.** `UndoManager` already puts them
+  on the Edit menu; declaring them again would put two of each there. They carry
+  `source: .system` so the menu skips them and the sheet still shows them.
+- **Import and Export carry no key.** Both open a panel the user then has to
+  answer, so a key would buy a keystroke and cost one of the few left. They were
+  `source: .unbuilt` — named and drawn disabled — until Phase F built them;
+  nothing is in that state now, and the case stays so the next one is declared
+  rather than omitted.
+- Submenu *contents* are not in the enum. The columns under Move to Column, the
+  priorities, the saved views and the boards all belong to the store and change
+  as the user works; the enum names the anchor and the menu fills it.
+- ⌘F reaches a search field it cannot see: `focusSearch()` bumps
+  `searchFocusToken`, which the toolbar's field watches. A counter rather than a
+  flag, because with the field already focused a flag is already true and a
+  second ⌘F would be no change at all.
+
+### The menu bar
+
+`BoardCommands` (`Sources/App/BoardCommands.swift`) is the menu bar, **generated**
+from `AppCommand` rather than transcribed from it:
+
+| menu | items |
+| --- | --- |
+| **File** | New Task ⌘N · New Board ⇧⌘N · Import… · Export… |
+| **Edit** | Undo ⌘Z · Redo ⇧⌘Z · Delete Task ⌘⌫ · Find ⌘F |
+| **View** | Toggle Inspector ⌥⌘I · Toggle Sidebar ⌃⌘S · Board · Inbox · the six saved views · every board |
+| **Task** | Complete Task ⌘⏎ · Move to Column ▸ · Set Priority ▸ · Set Due Date… · Archive Task |
+| **Help** | Keyboard Shortcuts ⌘/ |
+
+Nothing in `BoardCommands` names an item. `AppMenuSection` is one
+divider-separated block of one menu — a menu needs more than one where macOS
+splits it and SwiftUI gives each half its own placement — `AppCommand.menuSection`
+maps every command to a block in an exhaustive switch, and each placement draws
+`ForEach(AppCommand.menuItems(in:))` behind a single exhaustive `perform(_:on:)`.
+So an item cannot be lost or gained here without the vocabulary saying so, and a
+command added to the enum cannot compile until it has both a block and an action.
+The hand-written list this replaced had a whole block commented out of it at one
+point and nothing noticed; `MenuDeclarationTests` now reads this file as text,
+because a `Commands` body has nothing to enumerate at runtime.
+
+**Order inside a menu is the enum's declaration order**, which is what makes the
+test pinning that order a test of the menu bar. The View menu reads Toggle
+Inspector, Toggle Sidebar because `AppCommand` declares them that way and the
+shortcuts sheet lists them that way; it used to read the other way round, which
+made the pinned order a statement about nothing.
+
+With a hidden title bar there is no Show Toolbar and no Enter Full Screen, so
+the View menu is **only** what this app puts in it — placing the two toggles
+`after: .sidebar` is what makes a View menu exist at all. The rest of the bar is
+the system's: Close and Close All still under File, the standard Cut/Copy/Paste
+and Select All under Edit, and Undo and Redo appearing exactly once each.
+
+**An item is aimed at cards, and disables when none of them can accept it —
+which is not the same as "when nothing is selected".** Being selected is not the
+same as being a fit subject. `AppCommand.applies(to:in:)` answers for one card
+and `isEnabled(for:in:)` for the cards an item would act on: live when *any* of
+them can accept it, and then acting on exactly that subset. Complete and Archive
+ask the store the store's own questions — `canComplete(_:)`, `canArchive(_:)` —
+rather than restating the rule; an archived card refuses a column, a priority and
+a due date as well, because it is off the board. On the Archive surface ⌘A puts
+nothing but archived ids in the selection, and the whole Task menu used to sit
+there fully live: Move to Column really moved a filed card from Backlog to Done,
+behind the user's back, on a surface they are reading as a record. Delete Task
+stays on there — a filed card can still be thrown away.
+
+The **submenu rows** follow the same rule as the items above them: the column the
+cards are already in and the priority they already have are ticked *and* disabled,
+because a row that moves a card to where it already is does nothing. A mixed
+selection is "current" nowhere, so every row stays live.
+
+The title, the enabled state and the action all come off one `applicable(_:)`
+call, so an item cannot promise one thing and do another. Pick three cards with
+one already in Done and the menus read "Delete 3 Tasks", "Complete 2 Tasks",
+"Archive 3 Tasks" — the count is `store.completableCount` / `archivableCount`,
+which is `completeTargets(_:)` / `archiveTargets(_:)` counted, which is the same
+call `complete(_:)` and `archive(_:)` act on. It used to title from
+`selectionCount` and then file an undo step called "Complete Task", singular,
+having moved two.
+
+The View menu's lower half is the same destination list the sidebar draws: the
+board, the Inbox, the saved views and the boards themselves, with a tick against
+wherever the user already is, marked the way every other destination list in this
+app marks it. Every surface of the app is reachable from the menu bar as a
+result, which for a keyboard-only user it previously was not.
+
+**Items aim at the focused card when a surface has the keyboard**, and at
+`store.selection` otherwise: `targets` is `store.commandTargets(focusedTaskID)`
+falling back to `selectedTasks`, so a focused card that is part of the selection
+brings the selection with it and one that is not is aimed at alone. That is also
+why ⌘⌫ and ⌘⏎ are the menu's keys rather than the card's — see **Keyboard on the
+board**.
+
+Some items ask a view for something the menu bar cannot reach itself, because the
+menu bar is outside every window's view tree. `MacWindowState` is where they
+meet: it holds whether the sidebar is showing, which column has the keyboard,
+which card has it, and one flag each for New Board and Set Due Date…. **New Board opens the sidebar's
+own inline naming row** rather than minting a board called "New Board" — a board
+is named as it is made, and the field that names it is a row in a list. **Set Due
+Date… opens a sheet**, not a submenu: the ellipsis in the title promises
+something to type into, and it acts on the cards the item was aimed at — which
+the item *hands over*, because the sheet used to work them out again as
+`store.selection` and ⎋ leaves the keyboard on a card with nothing selected. The
+item stayed live, rightly, opened a sheet titled "Due date", and Set did nothing
+at all. And **⌘N adds to the
+column the user is looking at** when the board has the keyboard, falling back to
+`beginAddingWhereVisible()` otherwise; either way `BoardScrollView` scrolls the
+composer into view, because a composer that opens off the right-hand edge takes
+the focus somewhere the user cannot see. That was the whole of the old
+`beginAdding(in:)` bug: it always targeted the leftmost column.
+
+### Keyboard on the board
+
+A card is focusable — `BoardCard` on the board, `ListCard` on the flat surfaces,
+both in `Sources/Shared/BoardKeyboard.swift` and both wrapped around
+`BoardTaskCard` rather than folded into it.
+
+| key | owner | what it does |
+| --- | --- | --- |
+| ← → | card, board only | focus the next column along, keeping the row and stepping over empty columns |
+| ↑ ↓ | card | focus within the column, clamped at the ends rather than wrapping |
+| ⌥← ⌥→ | card, board only | **move the card** — the whole selection, if the focused card is in it — to the adjacent column, empty or not; focus follows it |
+| ⏎ | card | open the inspector on it |
+| Space | card | complete it. One card *toggles*, because that is what the tick beside it does; several complete, because "reopen three of these and finish the other two" is not something one key can mean |
+| ⌘⏎ | **menu** | Task ▸ Complete Task, one-directional — which is why it disables on a card already in Done, where Space still reopens it |
+| ⌘⌫ | **menu** | Edit ▸ Delete Task, after which focus falls to the card below, or to the one above if there is none |
+| ⌘A ⎋ | card | select everything on the surface · clear the selection |
+| ⌘C ⌘V | card | see **The clipboard** |
+
+**⌘⌫ and ⌘⏎ belong to the menu bar, not to the focused card.** A menu key
+equivalent is dispatched out of `NSApplication.sendEvent` before the responder
+chain is offered the event at all, so a card claiming either would be claiming a
+key it never receives: two owners written down, one in fact, and the written-down
+one is the one the next reader believes. The card publishes
+`MacWindowState.focusedTaskID` instead and the menu acts on that card's
+`commandTargets`; Delete lands focus on `BoardFocusMap.card(after:)` itself,
+before deleting, because the card can no longer do that for itself. Space is
+completion's *other* key and stays the card's, which makes the rule a partition
+of one command's `shortcuts` rather than of the enum: the menu takes the key each
+item **declares** — `shortcuts.first` — and nothing else.
+
+`BoardKeyboard.command(for:among:)` is the one call a card makes for a press, and
+it is where the exclusion lives. It was an `excluding:` argument passed at the
+call site, which meant the whole ownership rule was one defaulted argument that
+an edit could drop — and the suite was blind to it in both directions: dropping
+it gave the card both keys back, and widening the excluded set from "the key the
+item declares" to "every key the command names" took Space off the card
+altogether. Both left all 488 tests green. `KeyOwnershipTests` is what asks.
+
+**Every surface that draws a card, not the board alone.** The Inbox, each saved
+view and the Archive draw the same card through `TaskListView`, and ⌘A, ⌘C, ⌘V, ⎋
+and the arrows were dead on all three while the sheet and this file advertised
+them without qualification. Those surfaces carry the same vocabulary **less the
+four commands that need columns** — `BoardKeyboard.flatCommands` is
+`BoardKeyboard.boardCommands` minus `.columnCommands`, derived rather than
+written out again, so a key added to one arrives at the other. There is nothing
+to move focus across and nowhere to move a card to on a flat list, so ←/→ and
+⌥←/→ refuse there; that is the whole of the difference between the two kinds of
+surface, and `BoardFocusMap(flat:)` is a single column of rows.
+
+Focus is a `@FocusState` owned by whichever surface is drawing, not state in the
+store: it is where the next key press lands, it is not saved, and a second
+surface showing the same card would have its own. Moving it also *selects*, so
+what the keyboard is on is what the inspector is showing. It is *published* as
+`focusedTaskID` for the menu bar, and mirrored back when the menu hands focus on.
+
+`BoardFocusMap` is the rule and `BoardKeyboard.perform(_:on:in:map:today:)` is the
+dispatcher, both held apart from the view as plain values so they can be asked
+rather than clicked at (`Tests/BoardKeyboardTests.swift`). The dispatcher was a
+`private func` on a `View` for most of the phase, where the four behaviours this
+section is *about* — ⌥← calling `move`, ⏎ opening the inspector, Space toggling,
+focus following a deleted card — could be asked a question by nothing but a
+person with a keyboard, and one-line defects in all of them survived the suite.
+It returns an `Outcome` of *did the card take the key* and *where the keyboard is
+now*: a refusal — ← at the leftmost column — is `isHandled: false`, so the key
+goes on to the scroll view and the board still scrolls, and focus stays put. The
+map is built from what is **visible**: a card a query has hidden is not one an
+arrow key can land on.
+
+The focus ring is a 1.5pt ring set 3pt *inside* the 2pt selection ring rather
+than a second colour, so a card that is both selected and focused reads as both,
+and the difference is geometry rather than hue under
+`.accessibilityDifferentiateWithoutColor`. Both differ, not one of them: either
+difference alone is one literal away from being tidied out. The four numbers are
+`Ring` values rather than literals in an overlay, because a constant nothing can
+reach is a constant no test can defend — and they are on **`Metrics`**, as
+`selectionRing` and `focusRing`, rather than statics on `Ring`. A ring follows
+the corner it is drawn on: the pad's card is rounded at 14 and the desk's at 12,
+so one pair of statics fitted to the desk drew the iPad's selection ring 2pt
+inside its own edge. `FocusRingTests` asks both presets, and asks the radius to
+match the card it is drawn on.
+
+And **the card has to be told whether it has the keyboard**. Asking from inside
+answers `false` either way: `\.isFocused` is false there because the element
+AppKit ends up focusing is the card's own `Button` rather than the `focusable()`
+wrapper around it, and a `FocusState.Binding` held as a plain stored property is
+not a dynamic property, so reading it hands back whatever was true when the
+binding was made. The card sat on both for the whole phase and drew no focus ring
+at all, on any surface, while every test of the ring's geometry passed. The
+wrapper that holds the binding *as* `@FocusState.Binding` is the one place that
+can answer, and it passes `isFocused: Bool` down.
+
+**Every one of those actions is also an `.accessibilityAction(named:)` on the
+card** — complete or reopen, archive or restore, delete, Move to Inbox, and one
+"Move to <column>" per column of the card's *own* board, which is not always the
+board on screen. Until now the only way to move a card was a pointer dragging it,
+which is no way at all with VoiceOver or Switch Control; ⌥←/→ and the rotor are
+the same command reached two ways. A card in the Inbox is on no board and so has
+no columns to name: its route is the context menu's board destinations, which is
+not a rotor action, and closing that is 7.1's.
+
+**The rotor acts on the same cards the keys and the menu do** —
+`store.commandTargets(task.id)`, so the whole selection when the card is part of
+it. Complete, delete, archive and each "Move to \<column\>" moved exactly one card
+while the identically named menu item took all three, which is a worse lie to an
+assistive user than to a sighted one: the action's name is the only description
+of what it is about to do, and there is no board to watch not change. The tick
+and the context menu stay singular on purpose — a pointer is aimed at one card.
+
+### The clipboard
+
+⌘C and ⌘V are the *standard* Edit items, made live on a focused card by
+`copyable` / `pasteDestination` rather than declared as items of the app's own —
+an app-declared Copy takes ⌘C away from every text field in the window. A copy
+carries `TaskTransfer`, which is the drag payload: the board's own type *and* the
+plain text `NW-118 Drag-and-drop between columns`, so one ⌘C pastes back as a
+card here and as a line into a commit message. Copying with several cards
+selected copies all of them, in board order.
+
+⌘V makes a card per line of the pasted text where the focused card lives, so a
+list pasted out of a note arrives as a list — and **the whole paste is one undo
+step**, because one act of the user's is one ⌘Z. `store.addTasks(to:titles:)` is
+what makes it one: looping `addTask` gave three pasted lines three ⌘Z's, and
+looping it *inside* an `undoable` would have been worse, because the selection
+change that ends a surface's open editing sessions would then land inside the
+bulk step, where `registerUndo` bails, and the user's half-typed title would fold
+into the paste. The session state moves once, after the step closes.
+
+**Copy Link** is a separate verb on both cards' context menus and puts
+`simplekanban://task/<uuid>` on the pasteboard. It is not a second
+representation on the ⌘C payload: that copy is *the card*, meant to paste back as
+a card or as a line of prose, while the link is a reference to a card that stays
+here. See **System integration** for what happens when one is opened.
+
+A leading task code is stripped: text copied out of this app comes back with one,
+and a new card carrying another card's code in its title would be lying about
+which task it is. **A task code has a letter in it** — `NW-118`, `IN-147`,
+`AL-140`. Digits-dash-digits is a date, and `2024-01 Review the quarter` used to
+arrive as `Review the quarter` with its date silently eaten. An **archived card
+is not a paste destination**: its placement is the column it left, so the cards
+would appear on a board the user is not looking at.
+
+### The shortcuts sheet
+
+Help ▸ Keyboard Shortcuts (⌘/) opens `MacShortcutsSheet`. Seed task `t12`, in the
+Done column, has been called "Keyboard shortcuts sheet" since the first commit;
+the sample data claimed this shipped long before it did.
+
+Every row is read out of `AppCommand`, so the sheet cannot claim a key the app
+does not have. It is a partition of the vocabulary: commands **with** a key are
+rows under their group's heading, including the `.board` group that has no menu
+and the system's Undo and Redo that the menu deliberately does not declare;
+commands with no key are named in a footnote ("In the menus, without a key: …");
+and the unbuilt ones in a second ("Not built yet: …") — empty since Import… and
+Export… were built, and the sentence disappears with it. Both footnotes are
+filtered out of the same list rather than written out, so a command that gains a
+shortcut leaves its sentence on its own. `AppKey` exists for this sheet:
+`KeyEquivalent.leftArrow` is U+F702 and renders as nothing at all, so every key
+carries a glyph a person can read.
+
+The sheet is macOS-only: it is drawn from the menu bar's vocabulary, and only a
+window has one. The phone has no hardware keyboard to teach. The iPad's cards
+carry the same key handling as the desk's — they draw the same `BoardCard` — but
+nothing on iPad advertises it yet.
+
+## The macOS window
+
+The scene is `Window`, not `WindowGroup`. Every piece of per-window state this
+app has — the selection, the surface, the inspector, the open composer — lives in
+the one shared `BoardStore`, so a second window would not be a second view of the
+board but a mirror of the first, scrolling and selecting in lockstep. Making two
+windows genuinely independent means lifting that state out of the store, which is
+a larger change than a parity pass. One window also takes New Window off the File
+menu, which is where ⌘N's ambiguity started.
+
+The frame is still restored: AppKit autosaves it against the scene's id, and
+`.defaultSize` only applies to a window it has never seen.
+`.windowResizability(.contentMinSize)` takes the floor from the content, which is
+what lets it drop from 940pt to 708pt when the sidebar is hidden — pinning
+`.contentSize` instead would also pin the *maximum*, and a board is a surface
+people want as wide as the screen.
+
+`MacRootView` re-injects a `MacWindowState` of its own when the environment has
+none, so the view still stands up in a preview or a test host. It also owns the
+`BoardFocusRelay` the shared board publishes its keyboard focus through, and
+mirrors it onto the window state both ways — the board is `Sources/Shared` and
+cannot name a window, and the menu bar hands focus on as well as reading it. It
+carries File ▸ Import…/Export…'s panels for the same reason: the menu bar is
+outside every window's view tree and the panels have to be presented from inside
+one.
+
+There are two more scenes beside it. `Settings { }` is a root of its own and
+inherits nothing from the window, so the palette, the tint and the appearance
+override are all resolved again in `SettingsWindow`. `MenuBarQuickAdd` is a
+`MenuBarExtra` — a title field, a destination picker that remembers its choice,
+and "Open Board" — so a capture can be made without bringing the app forward.
+
+## The iPad
+
+`TARGETED_DEVICE_FAMILY` has said `1,2` since the first commit and the plist has
+granted the iPad all four orientations, but `RootView` picked its surface with a
+bare `#if os(macOS) … #else PhoneRootView()`, so **an iPad ran the phone layout
+stretched across a 13" display**: one column at a time, a floating tab bar, a
+drawer instead of a sidebar.
+
+**The layout is chosen by the idiom *and* the size class, not by OS and not by
+either one alone.** `RootSurface.resolve(idiom:horizontalSizeClass:)` in
+`SimpleKanbanApp.swift` is the whole decision, and each half answers a different
+question: the **idiom** says which device this is, the **horizontal size class**
+says how much of it this window has. `.pad` needs both.
+
+The size class alone is not the iPad, and shipping it as if it were handed the
+desk's three panes to a phone. A Max- or Plus-class iPhone reports a *regular*
+horizontal size class in landscape, so an iPhone 17 Pro Max at 956×440 drew
+`PadRootView` — the split view's sidebar toggle, the inspector, the board's
+column controls — and never drew the two-up landscape board `PhoneRootView` lays
+out for exactly the devices that have room for it (**Landscape**, below). The
+idiom alone is not the window either: an iPad in Slide Over or a narrow split has
+a phone's width and nowhere to put a sidebar, which is why the size class keeps
+its half of the say. `RootSurfaceTests` walks the four combinations.
+
+**The iPad gets the desk's surface, and it is the same code.** The point of the
+item was to end up with fewer implementations of the board, not three, so the
+board machinery moved out of `Sources/Mac/` into `Sources/Shared/` and both roots
+compose it:
+
+| shared view | was | drawn by |
+| --- | --- | --- |
+| `BoardScrollView` | `MacBoardView` | `MacRootView`, `PadRootView` |
+| `BoardColumnView`, `BoardColumnEditor`, `AddColumnTile` | `MacColumnView` | `BoardScrollView` |
+| `BoardTaskCard`, `BoardCard`, `ListCard` | `MacTaskCard`, `MacBoardCard`, `MacListCard` | the board, the flat lists, `PlatformTaskCard` |
+| `BoardTaskComposer` | `MacTaskComposer` | columns, the Inbox |
+| `BoardSidebar` | `MacSidebar` | `MacRootView`, `PadRootView`'s split view |
+| `BoardToolbar` | `MacToolbar` | both roots |
+| `TaskInspector` | `MacInspector` | `MacRootView`, `PadRootView`'s inspector column |
+| `BoardFocusMap`, `BoardKeyboard`, `CardKeyboard` | `MacBoardFocus.swift` | every card |
+
+Each carries a nested `struct Metrics` with a `.desk` preset and a `.pad` one, and
+**nothing in them branches on `#if os()` to pick a size** (C1). The `.desk`
+presets are the numbers that were literals in `Sources/Mac` an hour before, so
+macOS renders what it rendered. `.pad` is the same drawing at touch sizes: 320pt
+columns instead of 272, 44pt header buttons instead of 22, the 44pt
+`CompletionToggle.Metrics.sheet` tick instead of the 26pt one, and the `.sheet`
+preset of every control the inspector already shared with the phone. Measured on
+a booted iPad Pro with `XCUIElement.frame`, every hittable button, text field and
+search field on the board, the Inbox and a saved view is at least 44×44pt.
+
+Two of those presets are about *placement* rather than size. `ColumnEditorMetrics.arrowEdge`
+is the side the Edit Column popover hangs off: the desk names `.bottom`, because
+a window has room on every side of a column header; the iPad names **none** and
+lets UIKit choose. A column header sits 134pt from the top of a display, and a
+popover pinned above it opened off the screen — the Name field measured at
+y = −4.5 and every colour swatch reported `hittable=false`. And `TaskListMetrics.pad`
+is the flat lists' preset, which lived as a private constant inside `PadRootView`
+until it was pointed out that a preset a view keeps to itself is one no test can
+enumerate.
+
+**The container is a `NavigationSplitView`**, so slide-over, Stage Manager and
+the sidebar's own show/hide behaviour arrive with it rather than being rebuilt;
+the phone's drawer is an overlay and a different thing. The detail column hides
+the navigation bar and draws `BoardToolbar` instead, which is why the bar carries
+a sidebar button on iPad and not on macOS: the menu bar owns that verb on the
+desk, and `toggleSidebar` is `nil` there.
+
+**The inspector is laid out, not presented.** It was `.inspector(isPresented:)`
+on the detail column, which drew the panel over the *whole* column — the toolbar
+included. In portrait with the source list out, the toolbar's **New task** button
+measured 117×44 at x=839 inside a 1032pt window and reported `hittable=false`: the
+surface's primary action was unreachable in one of the two orientations, and a
+card reorder dragged inside Backlog, hundreds of points from where the panel was
+drawn, silently did nothing. `PadRootView.detail` is now the toolbar above an
+`HStack` of the board and the panel — the same three pieces `MacRootView` puts in
+the same order — bound to the same `store.isInspectorOpen` the desk toggles, and
+holding its 348pt column with nothing selected exactly as `MacEmptyInspector`
+does. A sibling cannot cover the toolbar. Re-measured after the change, New task
+is `hittable=true` with the list out and with it hidden, and the reorder lands.
+
+Where there is not room for both, the panel goes **over the board** — never over
+the toolbar, which is the whole point. `PadRootView` measures the row with
+`onGeometryChange` and insets the panel only while a `.pad` column and its
+margins would still fit beside it; below that it is a trailing overlay. An iPad
+mini in portrait with the source list out leaves 166pt of detail beside a 348pt
+panel, and 166pt is half a column.
+
+What the iPad does *not* take from the phone: the tab bar, the column pager, the
+drawer and the detail sheet. Its cards are `BoardTaskCard`, so a tap selects and
+fills the inspector rather than raising a sheet, and `store.sheetID` is never set.
+The Inbox and saved-view surfaces are `TaskListView` under a heading — there is no
+"← Board" button because every destination is a row in the sidebar, which is the
+whole reason the iPad has a split view and the phone has a drawer.
+
+Two things are knowingly left behind. **⌘C and ⌘V are macOS-only**: `copyable`
+and `pasteDestination` are macOS 13 but iOS **27**, and this app deploys to iOS
+26, so `CardPasteboard` puts them behind an availability check and an iPad on 26
+keeps every other key on the card. `onDragSessionUpdated` is the same story
+(macOS 26, iOS 27), so on iOS 26 a lifted card does not dim while it is in the
+air — the drop handlers still clear the highlight. And the **flat lists on iPad
+lose the row swipe actions**, because they draw the desk's card rather than
+`PhoneTaskCard`; the long-press menu carries the same verbs.
+
+**Every menu-bar key is the card's on iPad.** `BoardKeyboard.menuOwnedShortcuts`
+is the set a card must *not* claim, because a menu key equivalent is dispatched
+before the responder chain sees the event — and that is a fact about AppKit. The
+set was built on both platforms from `AppCommand.isMenuItem`, but `BoardCommands`
+is only ever built into the macOS scene: the iPad's `WindowGroup` declares no
+commands, so nothing took those presses first and excluding them left ⌘⌫ and ⌘⏎
+handled by nobody at all. It is `#if os(macOS)` now, and empty elsewhere. The
+other six the menu declares are in no card's vocabulary either way.
+
+## Drag and drop
+
+A card in flight carries `TaskTransfer` — its id, title and code — under the
+app's own exported type, `com.n14395.SimpleKanban.task`, declared in
+`project.yml` under `UTExportedTypeDeclarations` because a type the bundle does
+not declare is registered dynamically and resolves to one that conforms to
+nothing. The payload used to be the id as a bare `String`, which meant a column
+lit up for a URL dragged out of Safari, or for any word dragged out of a text
+field, and then had to decide at drop time that it had not meant it. The
+plain-text representation — `NW-118 Drag-and-drop between columns` — is what a
+card dropped into a text editor leaves behind, and is what ⌘C will put on the
+pasteboard. Checklist rows have their own, `SubtaskTransfer`, which carries the
+task it came from so a row cannot land in the other surface's checklist for a
+different task.
+
+Dragging is off wherever the cards on screen are not in the board's own order —
+`BoardStore.allowsCardDrag`, which is `activeView == nil && !isFiltering`. A drop
+resolves against the unfiltered `tasks` array, because "put this card before that
+one" is an index in it, so it only means what it looks like where the cards on
+screen *are* that array:
+
+- **Under a query** the cards in between are hidden, so a card dropped between
+  two of the few visible ones lands somewhere the user can neither see nor
+  predict, and moves again once the query is cleared.
+- **In a saved view** it is worse. The list draws no columns at all, and Recently
+  updated and the Archive sort by their own timestamps, so a drop would move the
+  card into a column that is nowhere on screen, at a position bearing no relation
+  to the row it was aimed at — silently, and to an archived card as readily as a
+  live one.
+
+The card dims and its tooltip says which of the two it is rather than failing
+silently; a saved view gets its own sentence, because telling someone to clear a
+search they have not typed is not help. `SearchScopingTests` pins the rule.
+
+**Every drag has a way to say the same thing without one.** A long-press lift is
+unreachable to VoiceOver and to Switch Control, so a capability that exists only
+as a drag does not exist for either — and reordering was exactly that on the
+board and in the checklist. Three menus close it:
+
+| what was drag-only | the menu it is on now |
+| --- | --- |
+| a card's place in its column | **Move Up** / **Move Down** on `BoardTaskCard`'s context menu, drawn by `CardReorderItems` |
+| a sub-task's place in the list | **Move Up** / **Move Down** on the checklist row's context menu |
+| a card's column, board or the Inbox | **Move Task ▸**, and one rotor action per column |
+
+`CardReorderItems` is offered only where `allowsCardDrag` is — in a saved view or
+a search result the card would not visibly move, which is the same reason the
+drag is withheld. **Move Down** is said backwards on purpose: `move` refuses a
+`before: nil` into the place a card already is (that is what stops a drop on a
+column sending a card to the bottom of its own), so the card *below* is moved
+above this one instead. The checklist's two items go through `dropOffset(from:to:)`
+— the drop closure's own arithmetic — so the menu and the drag cannot end up with
+two ideas of where a row lands. `CardDropTests` pins both.
+
+**The macOS sidebar rows are drop destinations too.** A card dropped on a board
+row is filed onto that board's landing column — the first column work can start
+in, not its Done — and a card dropped on the Inbox row is unfiled. Both are gated
+on the same `allowsCardDrag`. It is the only pointer route back to the Inbox now
+that the Inbox is not a column, which is why it exists; the keyboard-and-menu
+routes are in **Boards, columns and the Inbox**.
+
+## Gestures and haptics on iOS
+
+**The board pages one column at a time**, which seed task `t4` has described
+since the first commit and which the dots at the top of the phone answered to in
+no way at all. It is a horizontal `ScrollView` with a page per column, held by
+`.scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))` and bound to
+`store.mobileColumnID` through `.scrollPosition`. `.viewAligned` rather than
+`.paging` because a page is not always the viewport: in landscape two columns
+share the screen, and `.paging` would step past one of them. The chevrons stay,
+and **the dots are buttons now** — 44pt tall, named for their column, and marked
+selected — so paging has a target as well as a gesture.
+
+**Reorder within a column is a long press and a drag**, the same
+`.draggable`/`.dropDestination` pair and the same `move(_:to:before:)` the desk
+uses, under the same `allowsCardDrag` guard: where the cards on screen are not in
+the board's own order, there is nothing a drop could mean. The lift is a long
+press and the page turn is a pan, so the two do not compete. The non-drag
+equivalent is **Move Up / Move Down in the long-press menu**, offered only where
+there is somewhere to go. There is no cross-column drag on the phone: the pager
+does not auto-scroll during a drag session, so a lift can only land in its own
+column, and cross-column filing stays on "Move to ▸".
+
+**Board rows give up their swipe actions to pay for paging.** A pan that begins
+on a list row is claimed by whichever recognizer reaches it first, and an
+enclosing scroll view always does. Measured both ways round — a paging
+`ScrollView` and a `TabView(.page)` — the leading swipe never revealed Complete;
+the board simply turned to the next column. Neither SwiftUI nor UIKit exposes the
+failure requirement that would settle it the other way. So `PhoneTaskRowActions`
+withholds both edges where `BoardStore.isColumnPaging` rather than drawing an
+affordance that cannot fire, and every verb they carried is on the long press,
+which is where VoiceOver and Switch Control read them from anyway. **Off the
+board — the Inbox, Search, a saved view, the Archive — nothing competes and both
+swipes are untouched**; that is the same predicate answering "who owns a
+horizontal drag here", which is why it is one property and not two.
+
+**Haptics are `.sensoryFeedback(_:trigger:)` throughout** — no generator to
+prepare, and the system setting is honoured by the API. `.selection` on paging
+and on a tab change; `.selection` on ticking a sub-task; `.success` on a card
+going *into* done, gated to fire once and only on that edge, so it plays wherever
+the tick came from and never on a reopen; `.impact(.light)` on a lift and on a
+drop. Nothing per keystroke.
+
+The drop bump is a counter local to the card rather than `store.draggingID`,
+which the desk card keeps in step through `onDragSessionUpdated` — that is iOS
+27, and this target is iOS 26. A lift with no matching end would leave the store
+saying a card is in flight long after it landed, so the phone's card does not dim
+while dragging either. Both fold into `onDragSessionUpdated` when the target
+moves.
+
+### Landscape
+
+The phone is no longer locked to portrait. `project.yml` grants it portrait and
+both landscapes — no upside-down, matching Apple's own phone apps — and the board
+lays out `verticalSizeClass == .compact ? 2 : 1` columns per screen through
+`containerRelativeFrame(.horizontal, count:span:spacing:)`.
+
+**And a Max-class phone actually reaches it.** The two-up board is for the
+devices with the width to hold two columns, which are precisely the ones that
+report a *regular* horizontal size class in landscape — so while the root asked
+the size class alone, an iPhone 17 Pro Max at 956×440 was handed `PadRootView`
+and this layout never ran on the hardware it was written for. See **The iPad**
+for the rule that replaced it.
+
+A short screen is 402pt tall, and the portrait chrome left **191pt of list** in
+it: one card. So the compact height sheds chrome rather than columns — the serif
+title drops 30 → 22pt and one line, the stack spacing 16 → 9, the column chips
+row goes entirely (the pager directly above already names the column), the pager
+padding 14/10 → 2/0, and the list's top inset falls to 0 and its bottom to 92. That is **277pt of list,
+two columns of two cards**. Portrait is byte-for-byte unchanged: `isShort` is
+false everywhere in it. Each page grows a dot-name-count heading when it shares
+the screen, since the chips row that used to say which column this is has gone.
+
+Two things follow from two columns being visible at once. `mobileColumnID` is the
+**leading** one, because `.scrollPosition(anchor: .center)` lands between pages —
+so with the board scrolled to the end the last column is on screen without its
+dot lit. And the add row, the empty state and the add action all take the
+*page's* column rather than the current one, since the page a finger is over is
+not always the one the pager is on.
+
+The add-column composer is the one place landscape is worse: 402pt minus a
+software keyboard leaves 238pt for a composer around 200pt tall, so its last row
+can be clipped above the visible area. Its Role picker sits **above** the Name
+field for that reason: naming the column raises the keyboard, and with Role below
+it the picker was measured unhittable and every column made in landscape came out
+a Backlog. Role first, then the name, and the sheet dismisses the keyboard
+interactively. Portrait is clean.
 
 ## Persistence
 
 The board is saved as one JSON document — `BoardSnapshot`, written by
 `BoardFile` to `Application Support/SimpleKanban/board.json`. On macOS the app
 is sandboxed, so that resolves inside
-`~/Library/Containers/com.simplekanban.SimpleKanban/Data/`.
+`~/Library/Containers/com.n14395.SimpleKanban/Data/`.
 
 A document rather than a database on purpose: `BoardStore` holds plain value
 types, so the whole board encodes in one pass and the port of the spec's logic
@@ -213,54 +1813,655 @@ is untouched by it. If sync ever matters, this is the layer to replace.
   still sitting at `board.json`, and a write would land on top of it. A file
   that is simply absent is not a failure and leaves nothing behind.
 - **Older files are migrated, not guessed at.** `BoardSnapshot.currentVersion`
-  is 2. The version is read out of the raw JSON *before* anything is decoded,
+  is 6. The version is read out of the raw JSON *before* anything is decoded,
   because synthesised `Codable` throws `keyNotFound` for a key the older shape
   never wrote — a property default does not make a field backward-compatible.
-  `BoardMigration.swift` holds the frozen v1 shapes and the v1 → v2 conversion
-  (string ids become UUIDs, `due` becomes the day it always meant, each rendered
-  sentence is kept as `.legacy`), and the pre-migration bytes are copied to
-  `board.v1-<stamp>.json` first: a migration is the one moment the old shape
-  stops existing anywhere. `Tests/Fixtures/board-v1.json` is a real v1 file kept
-  to migrate against.
+  Only an `Optional` tolerates absence, which is why `archivedAt` is one.
+  `BoardMigration.swift` holds the frozen shapes and **one function per step of
+  a chain**:
+  - **v1 → v2** — string ids become UUIDs, `due` becomes the day it always meant,
+    each rendered sentence is kept as `.legacy`.
+  - **v2 → v3** — nothing written before v3 was archived.
+  - **v3 → v4** — the compiled-in columns become data with UUID ids, keeping their
+    name, short name, dot and order; every legacy string id is mapped — `"inbox"`
+    among them, so nothing is stranded — on the task *and* inside each `.moved`
+    activity entry, which is what `reopen` reads. A card whose column this does
+    not recognise is treated as an Inbox card rather than dropped.
+  - **v4 → v5** — the flat column list becomes a *board's* columns and the Inbox
+    goes global. One board is made, named "Northwind iOS 3.0", dot `.accent`,
+    prefix `"NW"`, adopting the v4 columns whole so no id has to be rewritten, and
+    it becomes the active board. Every card in the old Inbox column becomes
+    unfiled, because the Inbox is not a column any more, and every other card
+    joins the board. "The old Inbox column" is spelled as *a column this board does
+    not have*, which also catches a card left pointing at a column a hand-edited
+    file deleted — an unplaceable card is still the user's, and the Inbox is where
+    it can be found again. Codes are left exactly as they are: renumbering NW-118
+    to IN-118 because the card happened to be in the Inbox would break a label
+    someone may have pasted into a commit message. The board's id is fixed rather
+    than fresh, so migrating the same bytes twice names the same board both times.
+  - **v5 → v6** — `Priority` stops storing the words the interface draws. Its raw
+    values were "High", "Medium" and "Low", so the board file carried English that
+    doubled as UI text and a translated build would have had to rewrite everybody's
+    boards to show a translated priority; they are now `high`, `medium` and `low`,
+    and `Priority.displayName` is the only thing that speaks a language. This is the
+    one step with no frozen shape of its own: nothing else about the file moved, and
+    `Priority.init(stored:)` answers to either spelling, so the current decoder reads
+    a v5 file whole and the step has only the stamp left to do. It is still a step,
+    because the bump is what makes a v5 build *refuse* a v6 file rather than decode
+    no priority in it and quarantine the user's board as corrupt. Note the v1 step
+    reads `priority` as a bare `String` rather than through the decoder, so it goes
+    through `Priority(stored:)` too.
+
+  Those last two were planned as **one** step to v4 — "boards and columns" was a
+  single item — and shipped as two because each half is separately verifiable and
+  a half-migrated file is not: v3 → v4 turns the compiled-in columns into data
+  without moving them, and v4 → v5 hands them to a board and takes the Inbox out
+  of the column list. So the version reached 5 rather than the 4 the plan named,
+  and 7.2's separation of stored values from display strings took it to 6.
+
+  A v1 file therefore walks through exactly the same v4 → v5 code a v4 file does,
+  and adding v7 costs one shape and one function rather than an edit to every
+  decoder — widening an old decoder to reach the current shape instead would make
+  every future field silently rewrite the past. The pre-migration bytes are copied
+  to `board.v<n>-<stamp>.json` first: a migration is the one moment the old shape
+  stops existing anywhere. `Tests/Fixtures/` keeps six real files to migrate
+  against: `board-v1.json`; `board-v1-minted.json`, whose board went on minting
+  codes after it was written and so pins `nextSerial` continuity too;
+  `board-v2.json`; `board-v3.json`; `board-v4.json` — those three generated by
+  round-tripping a real snapshot through this codebase's own encoder rather than
+  typed by hand, and equal field for field to `TestBoard.tasks` — and
+  `board-v5.json`, the v4 one carried forward a step by hand and given all three
+  legacy priority spellings, on the task *and* inside a `prioritySet` activity
+  entry, which is the half a raw-value swap forgets. Drop a newer one in and
+  `MigrationChainTests` picks it up off the bundle with no code change.
 - **Rolling backups.** The live file is copied to `backups/board-<stamp>.json`
   beside the board when the newest backup has aged past 15 minutes, and the ten
   newest are kept. Taken on the debounced path only, never at quit.
+  `backupNow()` is the forced counterpart, used before a restore or a reset: it
+  takes the next second rather than skipping when a backup already exists for
+  this one, because "there was already one this second" is not an answer at the
+  moment the board is about to be replaced.
 - **Failures reach the user.** `BoardFile.write` throws rather than logging —
   `OSLog` is not a user interface, and an app that has silently stopped saving
   looks identical to one that is working. The store keeps the last error, the
   macOS status bar shows it — and when there is none, how long ago the board last
   saved — and a load failure raises an alert at launch naming the file the
-  damaged board was kept as.
+  damaged board was kept as. On iOS there is no status bar, so a write failure
+  takes a dismissible banner in the root's top safe-area inset — an inset rather
+  than an overlay, so it cannot sit on top of the header it is warning about.
+  The launch alert is on `RootView` and has always been on both platforms.
 - **`nextSerial` is saved.** Without it a new session restarts at NW-140 and
   issues codes that collide with tasks an earlier session already created.
+- **The active board is saved; the surface is not.** `activeBoardID` survives a
+  relaunch because which board you are on is where your work is. It is
+  deliberately *not* part of `BoardMutation`, so undoing a board delete brings the
+  board back without dragging you back to it.
 - **Session state is deliberately excluded** — selection, drafts, search query,
-  current tab and drag state belong to a sitting, not to the board.
+  current tab, which surface is showing, the active saved view and drag state
+  belong to a sitting, not to the board.
 
 `BoardStore(file: nil)` is an in-memory store that never touches the file, which
-is what previews and tests should use.
+is what previews and tests use — see **Tests**.
 
 ### Identity and timestamps
 
 A task's `id` is a `UUID`. `code` — "NW-118" — is the human-facing label printed
-on the card: sequential per board, unique only within it, and meant to be read
-out loud. Nothing keys off it, so renumbering or importing a task cannot break a
-reference. v1 files stored string ids (`"t1"`) that nothing referred to, so the
-migration mints fresh UUIDs for them.
+on the card, minted from the destination's prefix and one file-wide counter, and
+meant to be read out loud; see **Codes**. Nothing keys off it, so renumbering or
+importing a task cannot break a reference. v1 files stored string ids (`"t1"`)
+that nothing referred to, so the migration mints fresh UUIDs for them.
 
 Every task also carries `createdAt` and `updatedAt`. `updatedAt` is stamped
-centrally by every mutation, and doubles as the stamp on the search cache; a
-migrated task takes both from its own activity feed, which is the only evidence a
-v1 board carries about when anything happened.
+centrally by every mutation — it is what the detail surfaces show, what
+"Recently updated" sorts on and what the "This week" meter's window is measured
+in, and deliberately not what the search memo keys off, for the
+reason **Search** gives. A migrated task takes both from its own activity feed,
+which is the only evidence a v1 board carries about when anything happened.
 
 ### Accent
 
 `AccentTheme` was fully wired in the design's palette but had no UI. There is a
-swatch row in the macOS sidebar and the iOS drawer now, and the choice is saved
-with the board.
+swatch row in the macOS sidebar, the iOS drawer and Settings ▸ Appearance now,
+and the choice is saved with the board — see **Settings** for why it stays there
+while the appearance override does not.
 
 `SwatchColor` keeps literals as `.rgb(hex, opacity:)` rather than a built
 `Color` — that is what makes a user-created label encodable, since `Color` is
 not `Codable`.
+
+**`palette.onAccent` is what goes on top of `palette.accent`** — a filled
+button's label, the tick inside a completed checkbox, the current chip in a row
+of chips. Seven views wrote it as a literal `.white`, which is a C2 violation and
+also wrong: three of the four accents are dark, saturated colours in either
+scheme and white is right on them, but `.ink` *is* the ink colour, and ink in dark
+mode is 0xEEEAE2. White on it scores 1.2:1 — the toolbar's New task button, the
+completion tick, the phone's pager chips and the due-date presets were all blank
+for anyone using the ink accent after dark. On-accent follows the scheme the
+other way round, and `PaletteSemanticTests` holds all eight accent-by-scheme
+pairs above 4.5:1, which is the only property of a colour pair a test can hold
+and the only one that matters here.
+
+## Settings
+
+One `SettingsView` in `Sources/Shared/`, at `.desk` inside the macOS `Settings { }`
+scene — which is where ⌘, comes from, so `AppCommand` neither declares it nor has
+to — and at `.sheet` on iOS, raised by `store.isShowingSettings`. Five sections:
+**Appearance** (accent, and a light/dark/system override), **Board** (how a column
+orders its cards), **Notifications** (due-date reminders and the time of day they
+arrive), **Labels** (the Phase B manager, opened as a sheet from a row so there is
+one label surface and not two), and **Data** (export, import, the board file,
+restore from a backup, reset to the sample board).
+
+The version is at the bottom of the iOS sheet, in a 44pt row reading
+"Simple Kanban · Version 1.0 (1)"; macOS has the app menu's About window instead,
+which is where **Check for Updates…** lives — see **Packaging, the icon and the
+update check**.
+
+macOS reaches it through ⌘, and nothing else has to be built. **iOS has two doors,
+both of which had to be added**: a Settings row at the foot of the phone's nav
+drawer, which closes the drawer before raising the sheet because a sheet presented
+under an open overlay is one nobody can touch; and a row under Labels in
+`BoardSidebar` for the iPad, which is the whole of that platform's chrome. The
+`#if os(iOS)` around the sidebar's row is about reachability rather than size — a
+second door on macOS would duplicate the app menu's.
+
+### Where each setting lives
+
+The rule is the one `PreferenceTests` enforces: **`BoardSnapshot` is the board —
+what a second machine restoring from an export would need. Everything else is a
+preference and belongs in `UserDefaults`.** A preference in the snapshot costs
+twice: it is a schema change needing a version bump and a migration (C7), and it
+*travels*, so an import reaches across and changes the importing machine.
+
+- **Appearance** — `@AppStorage("SimpleKanbanAppearance")`, an `AppAppearance`.
+  This is the spec's `state.dark`, the one state field dropped during the port,
+  back as a preference. `RootView` resolves `appearance.colorScheme ?? colorScheme`
+  into the palette *and* applies `.preferredColorScheme` below it, because
+  `preferredColorScheme` propagates downwards and the view that sets it does not
+  see it.
+
+  **Anything presented from *outside* that has to resolve the palette itself.**
+  A `ViewModifier` applied to `RootView` sits above the
+  `.environment(\.palette,)` `RootView` publishes below it, so
+  `@Environment(\.palette)` there reads the default *light* palette — and a
+  macOS `Window` scene is outside the board window altogether. Nothing about
+  that shows in light mode; in dark mode the surface opens cream-coloured over a
+  dark board. It has caught the About panel, the first-run picker, the iOS
+  settings sheet and the save-failure banner, so each of the five now builds its
+  own `Palette` from the override and the colour scheme, and
+  `SystemWiringTests` holds the rule: no `ViewModifier` in `SimpleKanbanApp.swift`
+  reads the palette out of the environment.
+- **Sort order** — `UserDefaults`, key `BoardStore.sortOrderKey`, read back only by
+  `BoardStore.restored()` so a preview or a test never picks up the developer's
+  setting, and written only when the store has a file. `.manual` is the board's own
+  order and the only one a card may be dragged under: a drop is an index into the
+  unfiltered `tasks` array and means nothing once something else decides the order,
+  so `allowsCardDrag` is false for the other three. It applies where manual order
+  is the ordering — a board's columns and the Inbox — and not to saved views, which
+  impose orderings of their own.
+- **Reminders** — `UserDefaults`, keys `SimpleKanbanRemindersEnabled`,
+  `SimpleKanbanReminderHour`, `SimpleKanbanReminderMinute`, owned by
+  `NotificationScheduler` rather than read by the view. The scheduler has to *act*
+  on a change — moving the time of day moves every pending request — so the switch
+  and the picker bind to `NotificationScheduler.shared` and it writes the defaults
+  itself. A second copy in `@AppStorage` would set the preference and reschedule
+  nothing.
+- **The accent stays in `BoardSnapshot`.** Moving it would be a v7 migration whose
+  only job is to copy one field into `UserDefaults`, and the migration runs inside
+  `BoardFile.decode` off the main actor, where reaching for app-global state would
+  make the same bytes decode differently on two machines. It is also the one of
+  these that reads naturally as board data: a board restored from a backup comes
+  back looking the way it did. So it is left where it is, deliberately and whole —
+  and an import or a restore never adopts the arriving file's accent, which is what
+  keeps "it travels" from being true of it in practice.
+- **Default column for new tasks and WIP limits are not there.** Both are fields on
+  `Board`/`BoardColumn` — board data, and so a schema change and a migration — and
+  putting either in `UserDefaults` is exactly the mistake the rule above is about.
+
+### Export and import
+
+`.simplekanban` is a JSON document declared by the bundle
+(`UTExportedTypeDeclarations` and `CFBundleDocumentTypes` in `project.yml`,
+`UTType.simpleKanbanBoard` in code) and written through `BoardFile.encoder()` — the
+same encoder `board.json` is written with, so an export and a board file are one
+format: a `board.json` copied off another machine imports directly, and an export
+can be dropped in as a board file. There is a Markdown export beside it, export
+only: it is lossy — ids, timestamps and activity all go — and a round trip through
+it would quietly discard the history the JSON keeps.
+
+**An import merges. It never replaces, and it never picks a winner.**
+
+- **Tasks match on `id`** — which is the reason 3.7 moved ids to UUIDs before there
+  was anything to link them. Byte-identical: skipped, so re-importing the same file
+  is a no-op and leaves no ⌘Z behind. Same id, different card: **both are kept**,
+  the arriving one under a fresh id. A card that is already here in every respect
+  but its id and its code — the copy an earlier import made — is recognised and
+  skipped, so re-importing a file that collided does not grow the board again.
+- **Codes are re-minted only where they would collide.** A code is a label somebody
+  may have pasted into a commit message; nothing already here is renumbered.
+- **Boards match on `id`.** One already here keeps its name, dot and prefix and
+  gains only the columns it is missing: a board is an arrangement the user made. A
+  new board arrives whole, with any column id already in use re-minted — column ids
+  are unique across boards because the store resolves a card's board from its
+  column.
+- **Labels match on `key`**, and the definition already here wins: taking the
+  arriving file's word for `design` would rename every chip on the importing
+  board's cards.
+- **The accent and the active board are not the file's to change.**
+- One undo step, named "Import Board", and the tasks go back through
+  `BoardStore.placed` on the way in, so a card naming a column that did not come
+  with the file lands in the Inbox rather than nowhere.
+
+**Three doors hand the app a file** — the import panel, a `.simplekanban`
+double-clicked in the Finder, and the same tapped in Files — and all three go
+through `SettingsNotice.importing(_:into:)`, so all three claim the sandbox's
+security scope (`BoardImportFile.read`), merge by the same rule, and *say what
+happened*. An import that changed nothing says so; one that failed says the board
+was not touched. The opened-file branch exists because the bundle claims the
+document type: without it the user's own board file arrived at the deep-link
+parser and was told it was not a task link, which is the worst answer available.
+`LSSupportsOpeningDocumentsInPlace` is `true` in `project.yml` — the file is read
+and merged, never edited where it lies, so a copy into the app's Inbox would be
+litter nothing here deletes.
+
+File ▸ Import… and Export… are live on macOS and drive the same panels through
+`store.isImportingBoard` / `store.isExportingBoard`. `BoardTransfer` is attached
+by whichever surface *raised* a panel rather than once at the root: on iOS the
+settings sheet is already presented over the root and a `fileImporter` underneath
+it has nowhere to appear, and on macOS the menu bar belongs to the window, so its
+panel should sheet onto the window rather than onto the Settings pane. Nothing is
+`source: .unbuilt` any more; the case stays in `AppCommandSource` so the next
+unbuilt command is declared rather than omitted.
+
+The macOS build is sandboxed, so `Resources/SimpleKanban.entitlements` grants
+`com.apple.security.files.user-selected.read-write` (it was read-only, which is
+enough to open a file and not to save one). `build.sh --sign` reads the
+entitlements back off the built binary, drops `get-task-allow` and re-applies them,
+so the widened grant needs nothing from the script.
+
+### Restoring a backup
+
+`BoardFile.restore(from:)` shipped with the rolling backups in 1.21 and had no
+caller until now. Settings ▸ Data lists `backups()` newest first with the moment
+each was taken, and a restore is **an edit to the board, not a file move**: one undo
+step named "Restore Backup", through the same `apply` an undo uses, so the caches
+and any open editing session are tidied by the code that knows how.
+
+Before it lands, the board as it stands is written and copied into `backups/` by
+`BoardFile.backupNow()` — the forced counterpart to `backupIfDue`, which
+deliberately will not take two in one second. A restore is the one action that
+leaves the current board reachable only through the undo stack, and an undo stack
+does not survive a quit. If that copy cannot be taken the restore still happens and
+`lastError` says so; it is a courtesy, not a gate.
+
+Nothing here defeats Phase A's per-URL write ordering, which exists for exactly
+this: `scheduleSave()` claims its generation when the restore is queued, so a
+debounced write armed before it is by definition older and is dropped rather than
+silently putting the damaged board back. **Reset to the sample board** takes the
+same forced backup and is undoable the same way.
+
+## System integration
+
+Four things outside the app can now reach a task, and one thing inside it can
+reach the system. All of them hang off two files — `Sources/Store/NotificationScheduler.swift`
+and `Sources/Model/TaskIntents.swift` — and all of them are joined to the app in
+five lines, which `SystemWiringTests` reads out of the source and asserts, because
+a scene has nothing to enumerate at runtime and a modifier commented out of a
+`body` is invisible to everything else.
+
+### Due-date reminders
+
+One local notification per task that has a due date, at a time of day the user
+picks. `BoardStore.scheduleSave()` is the hook — **not** the four mutations that
+touch a due date. Every mutation already comes through that funnel, including the
+bulk commands, a drag into Done, `archiveCompleted`, and undo and redo, and a
+per-call-site hook misses all of them silently. It sits *below* the `guard let
+file` so an in-memory store — a test, a preview — can never reach the machine's
+Notification Centre. Both `NotificationScheduler.reconcile` and
+`TaskSpotlightIndex.reconcile` diff against what they last published, so a
+keystroke that changes no due date sends nothing.
+
+`BoardFile.isRunningTests` gates both reconciles, and this is not belt and
+braces: `xcodebuild test` launches the app as the test host under its real bundle
+identifier, and most suites here are **file-backed** — `TempBoard` hands out a
+throwaway `BoardFile`, not a `nil` one — so "an in-memory store is a test" does
+not cover them. Without the gate a suite run indexes `TestBoard` into the
+developer's Spotlight. `BoardFile` already steps `.default` aside for exactly the
+same reason; `SystemWiringTests` asserts the detection still fires.
+
+**Authorisation is asked for by the diff, not by a call site.** Not at launch: a
+permission prompt on first run, before the user has set a due date or seen the
+board, is how an app gets denied permanently. It is asked the first time a
+reminder *appears* that was not there a moment ago, and only while the answer is
+still `.notDetermined`. `hasBaseline` is what stops the due dates already on the
+board at launch counting as an appearance — remove it and the app prompts on first
+run and is denied for good.
+
+`desired` and `published` are deliberately separate. With permission missing,
+`published` is emptied so revoking in System Settings does not leave a week of
+stale requests queued, while `desired` keeps what the board wants — which is what
+lets granting permission later republish the lot without the board changing again.
+Only the 64 soonest are scheduled: `UNUserNotificationCenter` holds 64 pending
+requests and drops the rest without saying which, so `reconcile` sorts by fire
+date and caps. `TaskNotificationCenter.add` is synchronous because
+`UNNotificationRequest` is not `Sendable` and an `async` version cannot be handed
+one from the main actor at all.
+
+The identifier is the task's UUID, so a reschedule is an add and a cancel is a
+removal, and both are idempotent. A refusal is a standing condition rather than an
+error to report once, so it is stated beside the switch it has silenced, with a
+button to System Settings — asking a second time returns `false` without showing
+the user anything.
+
+### Deep links, Handoff and Spotlight
+
+`simplekanban://task/<uuid>`. The uuid and not the `code`: a code is minted per
+board, is not unique across installs, and is the half a person retypes. `TaskLink`
+parses strictly, so a URL that is not one of ours is never mistaken for a task
+that has gone away.
+
+Four doors arrive at one place. `DeepLinkRouter` is a queue of one, because a link
+can arrive before the scene exists — a notification tapped from the lock screen
+launches the app and the delegate runs while the window is still being built — and
+`.systemEntryPoints()` carries all four: `onOpenURL`, the Handoff activity, the
+Spotlight action type, and a resolve on appear for whatever was already waiting.
+It goes **inside `RootView.body`**, not on `root`: it reads the store out of the
+environment, and a modifier applied after `.environment(store)` sits above it in
+the tree and would never see one.
+
+A link that names nothing has to say so — doing nothing is indistinguishable from
+the app having failed to launch, and leaves the user re-clicking. There are two
+alerts, on separate channels: `failure` for a link, `notice` for an opened file.
+Revealing a task clears the query first, because a link landing on a board
+filtered to something the task does not match opens onto an empty column, which
+reads as the link having failed. `reveal` raises **every** detail surface the app has
+rather than the one this platform was assumed to have: `isInspectorOpen` on both,
+and on iOS also `sheetID`, the column, the tab and closing the drawer. The two do
+not collide — the phone has no inspector and the iPad presents no sheet, and each
+surface reads only the state it has. It used to branch `#if os(iOS)` straight
+into the phone's state, so on an iPad a `simplekanban://` link, a notification
+tap, a Handoff or a Spotlight hit selected the task and then showed **nothing at
+all** whenever the panel was closed. An archived task opens the Archive and skips
+the tab move.
+
+Handoff and Spotlight publish from whichever surface is showing a task:
+`.taskUserActivity(task)` on `TaskInspector` and on `PhoneDetailSheet`. Spotlight
+is keyed on `updatedAt`, so a mutation that does not stamp the task — `archive`,
+`unarchive` — does not re-index; that is correct, because the `!task.isArchived`
+filter removes an archived task from the index and unarchiving re-adds it under a
+stamp the index has never seen. **Copy Link** is on both cards' context menus and
+puts the URL on the pasteboard; ⌘C still copies the card itself, so the two are
+separate verbs rather than two representations of one.
+
+### App Intents and the menu bar extra
+
+`AddTaskIntent` (title, optional board, optional column, optional due date) and
+`ShowTodayIntent`, with `BoardEntity` and `ColumnEntity` queries so Shortcuts
+offers the boards and columns that actually exist. `AppShortcut` collides with the
+app's own `AppShortcut` in `AppCommand.swift`, so every use is written
+`AppIntents.AppShortcut` — do not "simplify" it.
+
+`AddTaskIntent` has `openAppWhenRun = false` and therefore depends entirely on the
+store being registered before any scene exists: `SimpleKanbanApp.init()` builds it
+and calls `TaskIntentBridge.adopt(store)`. On `.onAppear` instead, a cold launch
+driven by an intent would perform before the first render and fail with "still
+starting up". `SystemWiringTests` asserts both the call and its position.
+`ShowTodayIntent` is `openAppWhenRun = true` because it is navigation.
+
+**⌃⌘N was not built as a global hotkey, deliberately.** A true system-wide key
+needs Carbon `RegisterEventHotKey` — a C callback and global mutable registration
+under Swift 6 strict concurrency — or the Accessibility permission, which is a
+very large thing to ask for a text field in a notarized sandboxed build. What
+shipped instead is a `MenuBarExtra` (one field, a persisted destination picker, a
+confirmation line, "Open Board") plus the existing in-app ⌘N — and `AddTaskIntent`
+in the Shortcuts app, which will bind a system-wide key press to it, ⌃⌘N included,
+at no permission cost and maintained by Apple.
+
+The quick-add default destination is the **Inbox**, not Up Next: a capture made
+from another app is precisely the case the Inbox exists for, and deciding which
+board it belongs on is the thing the user is deferring by capturing at all. The
+picker offers every column of every board and remembers the choice; a remembered
+column that has since been deleted falls back to the Inbox rather than erroring.
+
+### Comments were considered and not built
+
+The seed entry that implied them ("Comment added on spacing") was removed in
+Phase A. If comments ever exist they must be a **first-class type separate from
+`ActivityEntry`** — a comment is authored content the user writes and can edit and
+delete, activity is a system log nothing may rewrite, and conflating them means
+either an activity feed the user can edit or comments the user cannot. The reason
+not to build them now is that this is a single-user local app with no sync (6.4 is
+explicitly out of scope), so a comment has no second reader: it is a note addressed
+to nobody, and `TaskItem.note` plus sub-tasks already carry everything a
+note-to-self needs. Real commenting becomes a feature once there is someone to
+comment *to*, which means after sync. So: no `Comment` type, no UI, and if it is
+ever revisited it starts as its own array on `TaskItem` with its own snapshot
+version bump — never as a case on `ActivityEntry.Kind`.
+
+## First run
+
+A first launch is three questions, all answered before any window is drawn: no
+board file on disk, `SimpleKanbanChoseStarter` not yet set, and the process is
+not the test host. When all three hold, `SimpleKanbanApp.init()` builds
+`FirstRun.emptyStore()` — a store with **no tasks, no boards and no labels** —
+and the root covers it with `FirstRunView`: a `fullScreenCover` on iOS, a `sheet`
+on macOS, `interactiveDismissDisabled` and no Skip button.
+
+There is no Skip because the empty board *is* the skip: **Empty Board** is one of
+the five rows. The others are **Personal** (4 columns, 7 cards), **Sprint** (5,
+with In Review), **Content Calendar** (5) and **Sample Board** — the seed this
+app has always shipped, now offered rather than imposed.
+
+Choosing one calls `store.importBoard(template.snapshot)`. Merging a template
+into a board with nothing on it reproduces the template exactly, which is why
+first run needed no new `BoardStore` API and why the choice costs exactly one
+⌘Z: it is an import like any other. `SeedData.starters` is the list, and
+`BoardTemplate` is a board, its columns, its labels and its cards in the shape
+`importBoard` already takes.
+
+Both hooks a harness needs are `DEBUG`-only launch arguments —
+`-SimpleKanbanFirstRun YES` forces the picker, `-SimpleKanbanSkipFirstRun YES`
+suppresses it. **The forced one is pointed at a throwaway file**, not
+`BoardFile.default`: an empty store aimed at somebody's real board would write
+over it on the next flush, which it did once before the file was redirected.
+
+## Packaging, the icon and the update check
+
+**The icon** is drawn rather than drawn *in*: `swift Tools/make-app-icon.swift`
+writes all eleven PNGs and the appiconset's `Contents.json` together, so a slot
+without an image — which `actool` accepts silently — cannot happen by editing one
+and not the other (`PackagingTests.everyAppIconSlotHasItsImage` holds the pairing
+from the other end). The mark is a column header dot over a stack of cream cards
+on the ember gradient, with the three descending columns' dots taken from
+`BoardColumn.backlog/.upNext/.done`'s own swatches. macOS art is inset on Apple's
+824-of-1024 grid and superelliptical; iOS is full-bleed and alpha-free, which the
+App Store requires. At 32pt and below the dots are sub-pixel and the mark
+simplifies to three bars.
+
+**What the bundle declares**, all from `project.yml` rather than written twice:
+`CFBundleShortVersionString` and `CFBundleVersion` come from
+`$(MARKETING_VERSION)` / `$(CURRENT_PROJECT_VERSION)`; `CFBundleIconName` (an iOS
+submission is rejected without it, and the About panel's `UIImage(named:)` only
+resolves an icon that has one); `NSHumanReadableCopyright`, which the macOS About
+panel reads; and `UILaunchScreen: { UIColorName: LaunchBackground }`, so the
+first frame is the board's own background rather than a white flash.
+`PrivacyInfo.xcprivacy` is a bundled resource declaring no tracking, no collected
+data, and a reason for each required-reason API the app touches — `UserDefaults`
+(`CA92.1`) and file timestamps (`C617.1`, which `BoardFile.recentBackups` reads).
+
+**The update check is a `GET` and nothing else.** `UpdateChecker` reads
+`/repos/{SKUpdateRepository}/releases/latest` from api.github.com, compares the
+tag numerically (so 1.10 is newer than 1.9, and a tag it cannot parse is never
+newer), and offers a link. It has no timer, no launch check and no auto-update:
+the only thing that starts it is the About panel's **Check for Updates…**, and
+the panel says what pressing it does before it is pressed
+(`UpdateChecker.disclosure`). That is the whole reason it is not Sparkle — a
+framework, a signing key, an appcast to host and an auto-updater to be trusted,
+for one unauthenticated request for public JSON. The sandbox entitlement it needs
+is `com.apple.security.network.client`; without it the request fails in a way
+nothing on screen can explain.
+
+`SKUpdateRepository` and `SKReleasesPage` live in the plist so a fork changes one
+line — and **`./build.sh --publish` refuses to cut a release when the built app's
+`SKUpdateRepository` and the `origin` remote disagree**, because a release
+published from a repository the installed copies do not poll is a silent,
+permanent failure.
+
+## Tests
+
+`SimpleKanbanTests` is a Swift Testing target — `import Testing`, `@Test`,
+`#expect`, `#require`, no XCTest — and it builds for both destinations off the
+same scheme:
+
+```sh
+xcodebuild test -project SimpleKanban.xcodeproj -scheme SimpleKanban -destination 'platform=macOS'
+xcodebuild test -project SimpleKanban.xcodeproj -scheme SimpleKanban \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+```
+
+Pick a simulator that exists — `xcrun simctl list devices available`. Half the
+view code is behind `#if os(macOS)` / `#if os(iOS)`, so a green macOS run says
+nothing about iOS. macOS runs a few dozen tests more than iOS, from the files
+inside `#if os(macOS)`: `UndoHandoverTests` needs a real window, and
+`BoardKeyboardTests`, `MenuDeclarationTests` and `FocusRingTests` describe a
+pointer-and-keyboard surface the phone does not have.
+
+Two of those are now behind a guard they have outgrown. `BoardFocusMap`,
+`BoardKeyboard` and `BoardTaskCard.Ring` moved to `Sources/Shared` with the board
+in 5.1, so `BoardKeyboardTests` and `FocusRingTests` would compile and pass on
+iOS — an iPad with a hardware keyboard runs exactly that code. The `#if
+os(macOS)` at the top of the file was left where it was rather than changed in
+the same pass; dropping it is a one-line edit and about forty more tests on iOS.
+
+| suite | covers |
+| --- | --- |
+| `CalendarDayTests` | day arithmetic, month/leap/DST boundaries, `Codable` round-trip, stability across time zones |
+| `DueDateTests` | every label and urgency boundary, against an injected `today` |
+| `BoardStoreMutationTests` | move and its Done tick, add, delete and where the selection falls, complete/reopen, discarding an untouched capture, the sub-task reorder offset, the phone's column pager, label toggle, priority, due, `updatedAt` and the header counts |
+| `EditingSessionTests` | one entry per session; none when nothing changed; a blank title or sub-task restored; first naming is not a rename; independence per surface, per task and per sub-task row — driven through the selection and sheet changes that end a session, which is where the scoping actually lives |
+| `DraftTests` | sub-task and label drafts are per (surface, task), and go when the task does |
+| `UndoTests` | every mutation undoes and redoes; a deleted task returns to its own index; a text session is one step while each picker change inside one is its own; keystrokes typed before an interleaved step are still reachable, and a ⌘Z aimed at an older step keeps what is still being typed; the Done tick's sub-task flags come back exactly; a blank title restored before the step opens on the bulk delete as well as the singular one, which is the only place that ordering can go wrong |
+| `UndoHandoverTests` | macOS only — a real `RootView` in a real `NSWindow` hands that window's `UndoManager` to the store. Break the handover and every other undo test still passes while ⌘Z in the shipping app does nothing |
+| `PersistenceTests` | v5 round-trip of every field, `archivedAt` included; the v1 fixtures migrating, including a file with no `version` key at all; corrupt, truncated, wrong-shape and future-version files falling back *and* being quarantined; `nextSerial` continuity; rolling backups; an overtaken write dropped rather than undoing a newer one; the debounce coalescing a burst, and `saveNow()` bypassing it |
+| `SearchTests` | multi-token AND, diacritic folding, the column grouping following the filter, an archived task falling out of every result, and memo invalidation — across two edits in one instant, a delete, and an undo and its redo |
+| `SearchScopingTests` | which surfaces the one query is allowed to act on — the whole truth table of tab × saved view for `mobileAppliesQuery`, the "Filtered" notice, the add row and the column chips; a query typed on Search leaving the Board and Inbox alone; whitespace not counting as a filter; clearing costing no undo step and no write; picking a tab or capturing a card leaving the saved view; and `allowsCardDrag` off in every saved view as well as under a query |
+| `LabelTests` | slug trimming, empty-slug fallback, the 40-character cap, rename keeping the key, delete stripping it from every task |
+| `TransferTests` | the drag payloads — the plain-text and `Codable` forms of a card and a checklist row, and that the exported type identifiers match the ones `project.yml` declares |
+| `SavedViewTests` | every view's badge equalling its list's length whenever nothing is typed, and a query being the only thing that may part them; every predicate at the day either side of every bound it draws — Today carrying overdue, Upcoming strictly ahead, `0...6` for the week — the cap at twenty, the two views that override the board's order and the four that do not, Done left out of four of six, archived tasks in one of six, and a query narrowing a view *after* its cap rather than before |
+| `ColumnTests` | columns as data — add, rename, recolour, reorder and delete, each of them one ⌘Z and one write; a delete relocating its cards and logging it, and being refused rather than ignored when it would leave no Done column or no other one; columns surviving a relaunch, and no columns surviving one too, because no boards is a state rather than damage; and the v3 → v4 step mapping every legacy column id, on the task and inside the activity feed |
+| `ColumnRoleTests` | the role rather than the *word* carrying every Done behaviour — against a board that also holds a `.backlog` column called "Done" — after the real one has been renamed, recoloured, moved and relaunched, and on a Done column the user made through `addColumn` after deleting the seeded one; plus each board's Done being its own while another board has one |
+| `BoardTests` | boards created, renamed, recoloured, reordered and deleted; switching boards changing the columns, the title and every count; the Inbox being the same list whichever board is active and a quick capture never picking one; codes minted from the destination and never changing; a board deleted sending its cards to the Inbox, its neighbour taking over, and the last one going without taking the Inbox with it — after which the empty board list is what a relaunch reads back, and a fresh board can still be made from it; the active board surviving a relaunch while the surface does not; and a v4 file splitting between the default board and the Inbox |
+| `PlacementInvariantTests` | the one rule the model exists to keep — a task is unfiled or on a board in one of its columns, never half of either — checked after every store method that can touch a placement, four ways over: alone, in one long sequence, undone one at a time, and undone in a full drain. Plus the illegal pairs refused rather than stored at all three doors that take a placement from outside — `file` leaving the card where it was, `move` the same, `addTask` landing it in the Inbox and minting an `IN-` code for it; a card whose board and column disagree placed by its column; a file carrying two cards under one id loading with the second dropped; `reopen` reading a card's history against its *own* board, so an id it recognises from elsewhere cannot carry the card to a board nobody was looking at; the bulk move refusing the same pair, which is the fourth door and the only one that does not go through the singular `move`; and a code surviving every journey a card can take |
+| `ArchiveTests` | a filed task leaving `visibleTasks`, every column slice, every board count and every view but the Archive while staying in the file; the surfaces moving off it; `archiveCompleted` as one ⌘Z on one instant, skipping what is already filed; restore putting it back in its own column; filing moving no `updatedAt` while still invalidating the grouping and the search; `complete` and `reopen` refusing an archived task outright, at no undo cost; the rolling seven-day meter, at both ends of its window, against a stamp in the future, and reading `updatedAt` rather than `createdAt`. Plus what the Task menu may do to a selection of filed cards, which the Archive surface's own ⌘A makes one keystroke away: every item on it disabled, nothing for any of them to act on, no step filed and no stamp moved — and the four commands that *do* still apply to a filed card, because reading one, copying its code or throwing it away are things a person does in an archive |
+| `MigrationTests` | the chain — `board-v2.json` arriving as v5 field for field with nothing archived, both v1 fixtures walking the whole way, a v1 board and a v2 board taking the same last step, a v5 file read back without being migrated again, an unarchived board writing no `archivedAt` key at all, and a version-6 file refused and quarantined intact |
+| `MigrationChainTests` | the same chain asked of **every** fixture in the bundle at once, enumerated off disk rather than listed: each reaching the current version, each splitting its cards between the default board and the Inbox, the v3 and v4 fixtures splitting their six cards identically, each link leaving its own mark on a v1 board, the same bytes reaching the same board twice over, no fixture needing repair on the way into the store, the active board written into the file itself, and a file one version newer than *this build* refused and put somewhere safe |
+| `DayRolloverTests` | the day clock built from an instant either side of midnight, and the Today count and each saved view's membership before and after — including the three views that must *not* move, a year end, and the weekly meter's window rolling with it; plus the wake itself — a second either side of the boundary, and the DST days where the next midnight is 23 or 25 hours off rather than 24 |
+| `CommandTests` | the selection as a set — `selectedID` reading as one task or none, a second card ending the session the inspector left on the first, a range following the order the surface draws in, ⌘A following the surface and the query — and the bulk commands: one named step apiece, board order preserved, a mixed selection labelled *on* before it comes off, part of a selection deleted leaving the rest, and a bulk command with nothing to do staying off the Edit menu. Plus the shortcut vocabulary: no two commands claiming one press, ⌘N/⇧⌘N saying what the menu says, the system's own commands listed but not declared, and the board's keys getting no menu item to shadow a text field with |
+| `SelectionTests` | the selection as a set, asked where it can break: a ⇧-click range including both of its ends in either direction, a run of them sweeping from the one anchor, ⌘A leaving the archive out and the anchor on the first row, and clearing taking the anchor with it. Then the bulk commands *counted* rather than inspected — every one of the eight filing exactly one registration whatever the size of the selection, a three-card delete undoing to indices 1, 3 and 5 rather than to the end of the array, and an empty, a stale or an already-satisfied selection registering nothing. Then the session-ending the set had to keep: the card the inspector was on losing its session even when it stays selected while others are added around it, the sheet's session on the same card surviving, and the ended session filing the typing as a ⌘Z of its own. Plus a bulk move of four cards arriving in the order the board had them, every position pinned — two cards is a coin toss, because `Set` hashing is seeded per process; a selection the command applies to only *half* of, where the step is named for what changed rather than for what was aimed at and the rest come out untouched; the menu item titled from that same count; the anchor moving when its card is ⌘-clicked out of the selection; ⌘N putting its surface up before opening the composer; and ⌘F bumping a counter rather than setting a flag |
+| `ShortcutTests` | `AppCommand` as the one vocabulary. No two commands claiming the press *the system will dispatch* — matched on the resolved `KeyEquivalent` and modifier mask, folded to lower case, rather than on the enum's spelling of them; every command titled, uniquely, in title case; the commands with no key named so that adding one is a decision; an unbuilt command holding no key hostage (vacuous now that nothing is unbuilt, and kept for the next one); ⌘N/⇧⌘N and nothing else answering to them; and no shortcut printing a private-use glyph, which is what `AppKey` exists for — `KeyEquivalent.leftArrow` renders as nothing at all. Then the anti-drift claim itself: the sheet's rows and the menu bar's are both generated from `AppCommand.commands(in:)`, every menu row appears in the sheet saying the same thing, and the difference between the two is exactly the board's own keys plus the system's Undo and Redo. `MenuDeclarationTests` then reads `BoardCommands.swift` itself, because a `Commands` body has nothing to enumerate at runtime and a suite that models the menu cannot notice a block commented out of it: every menu item declared into exactly one `AppMenuSection`, each block belonging to one menu and covering that menu's items in order, and the body drawing every block once under the anchor it belongs to |
+| `BoardKeyboardTests` | macOS only — how the arrows move around the board, as a value rather than a view: clamping at the ends, keeping the row sideways, stepping over an empty column while ⌥ lands in it, reading only what is *visible*, and where focus falls after a delete. Plus the key matcher — ⌥ as the whole difference between moving focus and moving the card, Space and ⌘⏎ both reaching completion, a press carrying caps lock still matching, and no two of the board's keys claiming one press. Then what each key *does*, through `BoardKeyboard.perform`: the arrows moving focus and the inspector following it, a refusal at each of the four edges keeping the key and the card it was on, ⌥→ walking a card across the board with focus on it, a card refusing to leave either end, ⏎ opening the detail surface, Space toggling one card both ways and never reopening a selection, ⌘⌫ handing focus to the neighbour and then to nothing, ⌘A and ⎋ — and that nothing the card claims falls through to the dispatcher's `default`. `FocusRingTests` holds the two rings apart: a card can wear both, so they differ in width *and* inset rather than only in colour |
+| `KeyOwnershipTests` | macOS only — one owner per press across the two surfaces that both handle keys. ⌘⌫ and ⌘⏎ reaching no card on either surface while the vocabulary still names them; Space and a bare ⏎ still reaching one; `menuOwnedShortcuts` written out as the eight presses the menu bar puts a key equivalent on and checked against the seven the board keeps; the rule stated over the whole vocabulary rather than over the two keys that collide today; and the converse, so a widened exclusion cannot mute a card — every command a card carries still has a press that reaches it. The split was a single defaulted argument at one call site, and the suite was blind to losing it in either direction |
+| `PaletteSemanticTests` | the semantic colours, asked what a view cannot ask itself: every accent in either scheme keeping its label above 4.5:1 against the accent it is drawn on, and the one accent that follows the colour scheme taking its label with it. `.white` on the dark-mode ink accent scores 1.2:1, which is text that is simply not there |
+| `SaveContractTests` | every public board mutation reaching the disk, one store and one file apiece |
+| `UndoHarnessTests` | every public board mutation registering exactly one named step that undoes cleanly, and the list of the ones that deliberately register nothing — plus how many there are, which is the only thing stopping a new mutation being quietly left out |
+| `CardDropTests` | what a drop is allowed to do, at the seam the two board drop closures call into. A card dropped on a sibling reorders and *nothing else* — same column, same count, same sub-tasks, no move written into its history — because the failure it exists for was a reorder that moved the card to Done, ticked it, moved the week's completed count and closed its outstanding sub-tasks on the way. The contrasting drop, onto a card in Done, still does all of that, so the first cannot pass by the Done behaviour having been deleted. Then a drop on the column a card is already in staying a no-op, and the two menus that say the same things without a drag: `CardReorderItems`' Move Up / Move Down walking a card up and down its column, and the checklist's going through `dropOffset` |
+| `MenuKeyOwnershipByPlatformTests` | the other half of `KeyOwnershipTests`, and in a file that is not `#if os(macOS)` so it can say it: the menu bar takes keys off a card only on the platform that has one. On macOS ⌘⌫ and ⌘⏎ reach no card; on iOS `menuOwnedShortcuts` is empty and both reach the card, because `BoardCommands` is built into the macOS scene alone and nothing on iPad was taking them first. Space, a bare ⏎ and ⌥← are unchanged on both |
+| `RootSurfaceTests` | iOS only — which of the two layouts a window gets. An iPad at regular width takes the desk's; a phone takes the phone's at *every* width it can reach, which is the blocker: a Max-class iPhone in landscape is a regular horizontal size class and drew the iPad's split view; an iPad in Slide Over takes the phone's; and an unresolved size class is not a licence to draw three panes |
+| `PadListMetricTests` | `TaskListMetrics.pad` exists and is named beside its siblings — room under the last card but not the phone's tab-bar's worth, and a row capped and centred rather than stretched across 13 inches |
+| `TouchTargetTests` | every touch `Metrics` preset claims 44pt — the iPad's `.pad` board presets included, since the iPad draws the desk's board at touch sizes — and no pointer preset inflates the desk; the checklist box's overhang; the chip name's ceiling; the swatch rows fitting a 375pt phone, `Board.dotPalette` staying the size and shape that row is drawn against, and every swatch on offer — board dot and label tone alike — carrying a name rather than a position. See **Touch targets** for what this suite can and cannot see |
+| `ExportImportTests` | the export document — every field through an encode and a decode, the bytes matching what `BoardFile` writes so an export and a `board.json` are one format, and the exporter being handed the whole board rather than the visible one. Then the **merge**, which is where an import destroys work: both sets of tasks kept, an id collision keeping *both* cards under two ids, a code collision re-minted on the arriving card, the serial climbing above both files so the next code is free, the label vocabulary growing without being rewritten, the arriving board landing beside the one already here, a column id already in use re-minted, a board already here keeping its name and gaining only the columns it is missing, the placement invariant holding after a stranger's file is folded in, the same file twice costing nothing and no ⌘Z — collision included — and neither the accent nor the active board being the file's to change. Plus a corrupt, newer or older file each answered properly, the Markdown export's shape, and the board type matching what `project.yml` declares |
+| `BackupRestoreTests` | `BoardFile.restore(from:)` and the caller it waited for — an older backup migrated on the way in, a damaged or newer one failing loudly rather than restoring an empty board, a restore replacing the live board as one ⌘Z that comes off cleanly, the board as it stood copied aside before it goes, a restore that could not read its backup costing nothing at all, and the race Phase A's per-URL write ordering exists for: a debounced write armed *before* a restore — from this store, and from a second store over the same path, where nothing can reach in and cancel it — dropped rather than landing on top of the restored board |
+| `NotificationTests` | due-date reminders against a fake `TaskNotificationCenter` and a throwaway defaults suite, never the machine's own — one request per due date and no more, a change rescheduling under the same identifier rather than adding a second, completing, reopening, archiving, deleting and undoing a delete each cancelling or restoring, no due date scheduling nothing however much the card is edited, a day already gone scheduling nothing, and the 64 nearest kept when the board wants more than the system will hold. Then the identifier: the task's id through every rename, move, archive and delete, and never anything that changes. Then permission: asked on the first due date *set* rather than at launch, never twice, never after a refusal, nothing published while it is refused or the switch is off, and everything the board wanted published the moment it arrives |
+| `DeepLinkTests` | `simplekanban://task/<uuid>` — round-tripping the id, matched without regard to case, and six URLs that are not ours naming nothing; a link selecting its task and opening the surface it lives on, switching boards, opening the Archive, and clearing a query that would hide it; a link to a task that has gone and a malformed one each saying so, in different words, rather than failing silently; a link arriving before the scene, consumed by the resolve that reads it, and the same link twice counting twice. Then the *other* thing `onOpenURL` is handed: a `.simplekanban` file opened from the Finder or from Files, merged as one undoable "Import Board" and reported on its own channel, and a file that is not a board saying so and leaving the board alone rather than being rejected as a broken link. Plus the scheme and the activity type declared in the bundle, without which nothing is ever handed to `onOpenURL` and every other probe here still passes |
+| `PreferenceTests` | the line between the board and the person looking at it — the exact key set the board document is allowed to carry, at the top level and on a task and a board; every preference the settings surface offers set at once and the file not moving a byte, read back after a relaunch; the accent being the one setting on that screen that *is* board data, so the probe cannot pass by the store having stopped saving; session state changing nothing while the active board does; an in-memory store leaving no preference behind on the machine it ran on; and an imported file unable to reach across and change this machine's |
+| `IntentTests` | `AddTaskIntent` and `ShowTodayIntent` through `TaskIntentBridge` — no destination landing in the Inbox under an `IN-` code, a named column and a named board each landing where they say and minting from that board's prefix, a due date reaching the card, a column no board has refused rather than guessed at, and the entity queries offering what the board actually has, each column named with its board. All of it on the one store the app is holding, because a second store would be a board of its own written over the real one |
+| `SystemWiringTests` | the handovers every other Phase F suite passes without: the scheduler reconciled from the board, `.systemEntryPoints()` attached to a view, a store adopted into the intent bridge — **from the app's `init()`**, not a view's `.onAppear`, because an intent can perform before any scene exists — both detail surfaces publishing their task for Handoff, the settings surface reachable, and exactly one store over the real file. Read out of the source the way `MenuDeclarationTests` reads the menu: a scene has nothing to enumerate at runtime, and a modifier commented out of a `body` is invisible to everything else. This is `UndoHandoverTests`' question asked of the other joins. The three that were open at the end of Phase F were wrapped in `withKnownIssue` rather than deleted or left red — Swift Testing fails a block that *stops* failing, so wiring one up told the next agent to take the wrapper off in the same run, which is what happened |
+| `DragReorderTests` | the card-to-card drop as a property rather than as an example, which is what the iPad needs: for **every** ordered pair of cards sharing a place — each column of each board, and the Inbox — the drop `BoardTaskCard` and `PhoneTaskCard` make must leave the card in that place, not change its completion, and not touch its sub-tasks, with the place holding the same set of cards afterwards. Then that it genuinely reorders — the card lands immediately ahead of the one it was dropped on, in every pair — so the first claim cannot be satisfied by a `move` that does nothing. Then the contrast, over every pair of *different* places, including a card into Done still being ticked; the column's own drop closure resolving to that column for every card on the board and staying a no-op on the column a card is already in; a drag refused under a query, under a sort and inside a saved view; and an archived card unreachable by either closure |
+| `ScaleTests` | 7.4 — five hundred cards on six boards, thirty columns, twenty-four labels and eleven thousand activity entries, and what each hot path costs on it. Nothing asserts a wall-clock time: every bound is a *ratio* between two timings taken in the same process on the same data, which cancels the machine out and leaves the shape of the algorithm. See **Scale** |
+| `FirstRunTests` | 7.5 — a first launch starting on nothing at all rather than on the sample; the picker never standing in front of the test host; the sample offered rather than first; the three starters carrying none of the sample's cards; and then the property over all five templates — folded into the empty board a first launch actually builds, each one satisfies the placement invariant, resolves every label key it wears, mints no duplicate code, has a landing column and a Done column, survives a relaunch card for card, and takes a card added, dated, completed and archived on it. Choosing is one ⌘Z |
+| `PackagingTests` | 7.6 — what the *built* bundle carries, read off `Bundle.main`, which under `xcodebuild test` is the app: a marketing version and a numeric build; the version the About panel shows being the one in the plist rather than a second copy of it; `PrivacyInfo.xcprivacy` present, declaring no tracking and no collection, and naming a reason for each required-reason API it touches; the copyright line the macOS About panel reads; `UILaunchScreen` naming a colour rather than being the empty dict that flashes white; every UTI, document type, URL scheme and activity type the code assumes; and the update check's repository, releases page and version comparison |
+| `LocalizationTests` | 7.2 — mostly the one property with nothing to observe at runtime, so it reads the source (`SourceTree.swift`, anchored on `#filePath`). Three narrow rules rather than one broad one: every `String(localized:)` carries a translator comment, `Text(verbatim:)` never carries typed words, and the model and store layers — which have no `LocalizedStringKey` position to sit in — hold no prose that is not going into the catalogue. `Text("Delete Task")` is not a violation and is not flagged; a check that flagged two hundred correct call sites would be switched off within the week. Then two that read the *build* instead: the catalogue is compiled into the app at all, and the words that reach `Text` through a view helper are in it — which is the one thing no source scan can see, and is exactly how seven helpers came to take their title as `String` and put five English words on every screen in every language |
+| `StarterTemplateTests` | 7.5 from the template's side — five starters offered with the sample among them rather than first; each with a column work can start in and one it finishes in; no two sharing a column id; every card on its own board under a unique code with that board's prefix; every label a card wears shipped by the template that wears it; choosing one filling an empty board with exactly it; and the picker never standing in front of a test host. `UpdateVersionTests` sits beside it: 1.10 newer than 1.9, a `v` prefix that is part of the tag and not of the version, a pre-release suffix ignored, an unparseable tag never newer, and the releases page declared in the bundle |
+| `AccessibilityContrastTests` / `AccessibilityAdaptationTests` | 7.1 as arithmetic — every secondary tone's contrast on every surface it is drawn on, the due chip at each urgency in both schemes, the three priority marks being three *shapes*, one glyph per tint the chip distinguishes and none for the neutral one, Reduce Motion taking the animation and not the change, and the chrome scale never shrinking anything. Plus the one rule about how the code reads the setting: Differentiate Without Colour is never read negated, because which way round that flag is tested lives in a view body where no value test can reach it. See **Accessibility** |
+
+`SaveContractTests` and `UndoHarnessTests` are hand-written registries, not
+reflection: each names every public mutation and asks the same two questions of
+it. **Adding a mutation means adding it to both, and bumping the count
+`UndoHarnessTests` asserts** — that number is the registry's only defence against
+being forgotten, since a mutation nobody listed passes by not being asked.
+
+**Every test uses `BoardStore(file: nil)`, or a `BoardFile` in a temp directory
+of its own** — `TestSupport.swift` vends one and tears it down, and everything
+file-backed goes through it. Never `BoardFile.default`: that is the user's real
+board, so a test that writes there destroys their work, and one that merely reads
+it is a test whose result depends on whose machine it runs on. Nothing asserts
+against `Date.now` either — the board the suites work from is written out in
+literals, because `SeedData` is derived from today and an assertion about it
+would mean something different tomorrow.
+
+Phase F added two more of the same shape, because it added two more places a
+test can reach the machine it is running on. **A notification test is handed a
+fake `TaskNotificationCenter`**, never `NotificationScheduler.shared` — that one
+holds `SystemNotificationCenter`, which is the real Notification Centre and
+would leave a week of reminders queued on the developer's Mac. And **a
+preference test writes to a throwaway `UserDefaults` suite**; the two settings
+that go to `.standard` — the appearance override and the sort order — are read,
+changed and put back by `PreferenceTests.BorrowedDefaults`, because
+`xcodebuild test` launches the app as the test host under its real bundle
+identifier and `.standard` there is the developer's own preferences.
+
+## Scale
+
+7.4 asked for numbers before any optimisation, so `ScaleBoard` builds a board
+nothing here had been run at — 500 cards on 6 boards, 30 columns, 24 labels,
+10,985 activity entries, **2.9MB** of pretty-printed JSON — from a fixed seed, so
+two runs build byte-identical boards and a timing that moves is the code moving.
+
+Measured on Apple Silicon, Debug (`-Onone`), which is what the suite runs as:
+
+| path | measured | against | after |
+| --- | --- | --- | --- |
+| `subscript(id:)`, once per card | 43.4ms | 53µs through a `[TaskItem.ID: Int]` index — **814x** | **6.4x** |
+| the same, 100 cards → 500 | **25.8x** | a theoretical 25x: it was quadratic | **5.0x**, which is linear |
+| `labels(for:)`, every card's chips | 2.7ms | 590µs through a `[String: LabelDef]` — **4.6x** | **1.1x** |
+| `visibleTasks(in:)` × 30 columns | 8µs | 224µs for the one pass that fills the memo — **0.04x** | unchanged |
+| a search keystroke, warm | 1.33ms | 3.00ms cold — the haystack memo is **2.26x** | unchanged |
+| encoding the board | 51.8ms | 10.4ms at 100 cards — linear, as "the whole board re-encodes" implies | left alone |
+| `saveNow()` | 54.1ms | the encode is **96%** of it; the atomic write is 4% | left alone |
+| reading it back | 69.5ms | 1.34x the write — decoding allocates what encoding walks | left alone |
+
+Two of the four paths 7.4 names were already fixed in Phase A: the per-column
+grouping is memoised on the query, the card count, a revision counter and the
+sort order, and the folded search text is memoised per card on that same counter.
+The other two were fixed on this evidence, and every bound in `ScaleTests` now
+pins a win rather than tolerating a cost.
+
+**`BoardStore.position(of:)`** is the id index, and it is a memo rather than a
+maintained structure because `tasks` is written from twenty places and a map
+updated at each of them would be wrong the first time somebody added a
+twenty-first. Two checks make a memo safe here: a **hit** is believed only while
+the position still holds the task it was recorded against, and a **miss** only
+while the map was built at the current revision and card count. A mutation that
+reorders the array therefore costs a rebuild, never a wrong card — which is the
+only failure that would matter, because a card body resolving to some other
+card's contents looks like the board scrambling itself. `tasks` is read on every
+path, cached or not, so a view that only ever hits the memo still registers its
+dependency on the board. The remaining 6.4x over a bare dictionary is that
+checking, plus the `@Observable` read.
+
+**`label(forKey:)`** is a `[String: LabelDef]` dropped by `labels`' own `didSet`.
+The asymmetry is deliberate: a renamed definition is still findable at its key,
+so nothing about a stale label entry gives it away and it has to be invalidated
+rather than checked — while `tasks` cannot have a property observer at all,
+because one costs the array a copy on every in-place write and the store writes
+into `tasks` in loops.
+
+**What was measured and deliberately left alone.** The save path is *not* worth
+an incremental or binary format: encoding is 96% of it and already off the main
+actor for the debounced write. `saveNow()` — at quit and at backgrounding — is
+the only place the 52ms is paid on the main thread, and if that ever matters the
+thing to move is quit-time saving, not the format. Reading the board back costs
+69.5ms once, at launch, against no deadline.
 
 ## Debug launch hooks
 
@@ -268,14 +2469,110 @@ not `Codable`.
 without scripting taps:
 
 ```sh
-xcrun simctl launch <device> com.simplekanban.SimpleKanban -SimpleKanbanOpenSheet NW-118
-xcrun simctl launch <device> com.simplekanban.SimpleKanban -SimpleKanbanOpenDrawer YES
-xcrun simctl launch <device> com.simplekanban.SimpleKanban -SimpleKanbanTab search
+xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenSheet NW-118
+xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenDrawer YES
+xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanTab search
+xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenSettings YES
+xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanFirstRun YES
+xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanSkipFirstRun YES
 ```
 
 The sheet argument takes either a task's `code` or its UUID, matched
-case-insensitively. `SeedData` exposes the seed ids as named statics
+case-insensitively. The last two are about the starter picker, which otherwise
+stands between every one of the others and the board it means to drive: forcing it
+also redirects the session to a throwaway file, so a forced first run cannot write
+an empty board over a real one. `SeedData` exposes the seed ids as named statics
 (`SeedData.dragAndDropTaskID` and friends) so a test can address one directly.
+
+## Language and direction
+
+Every user-facing sentence goes through `String(localized:comment:)` or
+`Text(_:comment:)` and lands in `Resources/Localizable.xcstrings`, the String
+Catalog `SWIFT_EMIT_LOC_STRINGS` extracts into (517 keys). **The catalogue is
+part of the change**: refreshing it after adding strings means building *both*
+platforms and merging the compiler's output from both, because half the view code
+is behind `#if os(iOS)` and syncing from macOS alone marks every iOS-only string
+stale — 131 of them, the first time this was done.
+
+```sh
+for dest in 'platform=macOS' 'generic/platform=iOS Simulator'; do
+  xcodebuild -project SimpleKanban.xcodeproj -scheme SimpleKanban \
+    -destination "$dest" -derivedDataPath "/tmp/sk-dd-${dest##*/}" build
+done
+# xcstringstool is Xcode's own and is not on the default PATH.
+find /tmp/sk-dd-* -name '*.stringsdata' -path '*SimpleKanban.build*' | grep -v Tests \
+  | sed 's/^/--stringsdata /' | xargs \
+  "$(xcode-select -p)/usr/bin/xcstringstool" sync Resources/Localizable.xcstrings
+```
+
+The catalog carries an `en` value for every key, equal to the key. That is a
+no-op at runtime — the key is the value in the source language — but it is what
+makes Xcode compile an `en.lproj/Localizable.strings` into the bundle, and
+without a compiled table the accented and right-to-left pseudolanguages have
+nothing to work on. Strings left in `state: "new"` are dropped from that table,
+so a freshly synced key has to be promoted before it can be seen in a pseudolocale.
+
+**A title only extracts if the parameter it is passed to is a key.** This is the
+trap the whole area has, because nothing about it is visible on screen: the
+compiler extracts a literal that is converted to `LocalizedStringKey` — including
+one handed to a *helper* of your own that takes one — and extracts nothing at all
+from a literal passed to a `String` parameter, which is a finished string rather
+than a key. Seven small view helpers (`sectionHeader`, `field`, `columnField`,
+`fieldName`, `stepButton`, `attributeCard`) took their title as `String`, so
+"Boards", "Short", "Previous column", "Next column" and "No due date" reached the
+screen in English whatever the language was. They now take `LocalizedStringKey`.
+`??` has the same edge: `.accessibilityValue(text ?? "No due date")` picks the
+`StringProtocol` overload and never looks in the catalogue, so the fallback is
+built with `String(localized:)` before it gets there.
+
+Two `LocalizationTests` cases read the *compiled* table out of the app the suite
+is hosted in, because that is the only place the difference shows: one asserts the
+catalogue is in the target at all — it sat in none for a while, and every
+`String(localized:)` in the app quietly returned its own key — and one asserts
+that the words those helpers draw are in it.
+
+115 of the 517 keys have no `comment:` for the translator. All of them are in view
+files, and most are `Button`/`Label` titles, whose initialisers have no comment
+parameter — adding one means rewriting the control with an explicit
+`label: { Text(_:comment:) }`. `String(localized:)` *does* take one, and the
+suite holds that at zero.
+
+**Stored values are not display strings.** The rule the file format has to keep is
+that nothing on disk is a word the interface draws, because a board written in one
+language has to read in another. `ActivityEntry` stores a `Kind` and renders the
+sentence at display time; `Priority` stores `high`/`medium`/`low` and answers
+`displayName` separately (v5 → v6, above); `PhoneTab`, `SavedView`, `BoardSortOrder`
+and `ColumnRole` all key on a slug and name themselves in a `switch`. `LabelDef.key`
+is the same rule for user content: the key is the stable slug tasks store, the
+`name` is what the chip draws.
+
+**Seed copy is translated once, at seed time, and never again.** `BoardColumn`'s
+four workflow columns, `LabelDef.seed`'s five labels and every title, note and
+sub-task in `SeedData` are `String(localized:)`, so a fresh install comes up in the
+user's language. The moment that board exists it is *their* board: nothing
+retranslates it, because a card whose title changed itself when the phone's
+language did would be the app editing somebody's work. `SeedData.defaultBoard.name`
+is the deliberate exception — a made-up product name is a proper noun everywhere.
+
+**Right to left.** There are no absolute x-offsets left in the tree
+(`grep -rn '\.offset(x:' Sources/` comes back empty), so the layout mirrors on its
+own: leading/trailing padding, `HStack`, `ZStack(alignment: .leading)` and the
+drawer's `.transition(.move(edge: .leading))` all follow `layoutDirection`. The one
+value that does not is a *shadow* offset — `.shadow(x:)` is a raw coordinate and
+mirrors nothing — so the drawer panel's reads `layoutDirection` and flips by hand.
+Left alone it cast the shadow underneath the panel instead of onto the board:
+measured across the panel's inner edge, 17 levels of luma in English against 5 in
+Arabic.
+
+Sub-task progress is `String(localized: "\(done)/\(total)")` rather than an
+interpolated literal for a bidi reason: `2/3` is two numbers around a neutral
+separator, so a right-to-left paragraph can reorder it into `3/2`. Going through a
+key gives a translator somewhere to put the marks that stop it.
+
+`.textCase(.uppercase)` in `sectionLabelStyle` and `LabelChip` uses the environment
+locale, so Turkish gets `İŞ` rather than `IS` and scripts with no case are left
+alone. `LabelChip` holds a translated name to one line at `maxNameWidth` and
+truncates, so a longer word cannot reflow the row.
 
 ## Naming
 
@@ -285,7 +2582,17 @@ project, target and scheme are `SimpleKanban` (no space, so command-line
 invocations stay quote-free); the built app is `Simple Kanban.app`.
 
 The wordmark shown in the iOS navigation drawer is in
-`Sources/IOS/PhoneNavDrawer.swift`.
+`Sources/IOS/PhoneNavDrawer.swift`. It is read off `CFBundleDisplayName` and drawn
+with `Text(verbatim:)`: a product name is spelled the same in every language, and
+a literal in a `Text` would have offered it to a translator as though it were not.
+
+A **board's** name is data rather than a literal. `"Northwind iOS 3.0"` used to be
+typed into four view files; it now survives in exactly two places, and
+`grep -rn "Northwind" Sources/` is the check that keeps it that way:
+`SeedData.defaultBoard`, the board a fresh install is seeded with, and the v4 → v5
+migration, which has to name the board it makes for a file written before boards
+existed. Every title, sidebar row and drawer row reads `store.activeBoard?.name` —
+`Optional`, because deleting the last board is allowed.
 
 ## Fonts
 

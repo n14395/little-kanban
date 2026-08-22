@@ -1,0 +1,383 @@
+{
+  "accentTheme" : "ember",
+  "labels" : [
+    {
+      "dark" : {
+        "background" : {
+          "rgb" : {
+            "_0" : 15236184,
+            "opacity" : 0.2
+          }
+        },
+        "foreground" : {
+          "rgb" : {
+            "_0" : 15840411,
+            "opacity" : 1
+          }
+        }
+      },
+      "key" : "design",
+      "light" : {
+        "background" : {
+          "rgb" : {
+            "_0" : 12735279,
+            "opacity" : 0.12
+          }
+        },
+        "foreground" : {
+          "rgb" : {
+            "_0" : 10370591,
+            "opacity" : 1
+          }
+        }
+      },
+      "name" : "Design"
+    },
+    {
+      "dark" : {
+        "background" : {
+          "rgb" : {
+            "_0" : 5291690,
+            "opacity" : 0.18
+          }
+        },
+        "foreground" : {
+          "rgb" : {
+            "_0" : 8903625,
+            "opacity" : 1
+          }
+        }
+      },
+      "key" : "ios",
+      "light" : {
+        "background" : {
+          "rgb" : {
+            "_0" : 2060131,
+            "opacity" : 0.13
+          }
+        },
+        "foreground" : {
+          "rgb" : {
+            "_0" : 1530448,
+            "opacity" : 1
+          }
+        }
+      },
+      "name" : "iOS"
+    },
+    {
+      "dark" : {
+        "background" : {
+          "ink" : {
+            "opacity" : 0.1
+          }
+        },
+        "foreground" : {
+          "ink" : {
+            "opacity" : 0.65
+          }
+        }
+      },
+      "key" : "api",
+      "light" : {
+        "background" : {
+          "ink" : {
+            "opacity" : 0.08
+          }
+        },
+        "foreground" : {
+          "ink" : {
+            "opacity" : 0.6
+          }
+        }
+      },
+      "name" : "API"
+    },
+    {
+      "dark" : {
+        "background" : {
+          "rgb" : {
+            "_0" : 15751770,
+            "opacity" : 0.18
+          }
+        },
+        "foreground" : {
+          "rgb" : {
+            "_0" : 16097440,
+            "opacity" : 1
+          }
+        }
+      },
+      "key" : "bug",
+      "light" : {
+        "background" : {
+          "rgb" : {
+            "_0" : 12462120,
+            "opacity" : 0.12
+          }
+        },
+        "foreground" : {
+          "rgb" : {
+            "_0" : 10691106,
+            "opacity" : 1
+          }
+        }
+      },
+      "name" : "Bug"
+    },
+    {
+      "dark" : {
+        "background" : {
+          "rgb" : {
+            "_0" : 15118140,
+            "opacity" : 0.18
+          }
+        },
+        "foreground" : {
+          "rgb" : {
+            "_0" : 15715204,
+            "opacity" : 1
+          }
+        }
+      },
+      "key" : "polish",
+      "light" : {
+        "background" : {
+          "rgb" : {
+            "_0" : 13208086,
+            "opacity" : 0.15
+          }
+        },
+        "foreground" : {
+          "rgb" : {
+            "_0" : 9067782,
+            "opacity" : 1
+          }
+        }
+      },
+      "name" : "Polish"
+    }
+  ],
+  "nextSerial" : 100,
+  "tasks" : [
+    {
+      "activity" : [
+        {
+          "id" : "AC710000-0000-4000-8000-000000000001",
+          "kind" : {
+            "captured" : {
+
+            }
+          },
+          "when" : 776999400
+        }
+      ],
+      "code" : "NW-120",
+      "columnID" : "inbox",
+      "createdAt" : 776999400,
+      "id" : "7E570000-0000-4000-8000-000000000001",
+      "labelKeys" : [
+
+      ],
+      "note" : "Captured from the menu bar.",
+      "priority" : "Medium",
+      "subtasks" : [
+
+      ],
+      "title" : "Widget on the home screen",
+      "updatedAt" : 776999400
+    },
+    {
+      "activity" : [
+        {
+          "id" : "AC710000-0000-4000-8000-000000000002",
+          "kind" : {
+            "created" : {
+
+            }
+          },
+          "when" : 776992800
+        }
+      ],
+      "code" : "NW-121",
+      "columnID" : "backlog",
+      "createdAt" : 776992800,
+      "due" : "2026-08-20",
+      "id" : "7E570000-0000-4000-8000-000000000002",
+      "labelKeys" : [
+        "design",
+        "ios"
+      ],
+      "note" : "Card follows the pointer with a lifted shadow.",
+      "priority" : "High",
+      "subtasks" : [
+        {
+          "done" : true,
+          "id" : "5B7A0000-0000-4000-8000-000000000001",
+          "text" : "Lift and shadow states"
+        },
+        {
+          "done" : false,
+          "id" : "5B7A0000-0000-4000-8000-000000000002",
+          "text" : "Column drop targets"
+        },
+        {
+          "done" : false,
+          "id" : "5B7A0000-0000-4000-8000-000000000003",
+          "text" : "Keyboard fallback"
+        }
+      ],
+      "title" : "Drag and drop between columns",
+      "updatedAt" : 776992800
+    },
+    {
+      "activity" : [
+        {
+          "id" : "AC710000-0000-4000-8000-000000000003",
+          "kind" : {
+            "created" : {
+
+            }
+          },
+          "when" : 776991000
+        }
+      ],
+      "code" : "NW-122",
+      "columnID" : "backlog",
+      "createdAt" : 776991000,
+      "id" : "7E570000-0000-4000-8000-000000000003",
+      "labelKeys" : [
+        "polish"
+      ],
+      "note" : "",
+      "priority" : "Low",
+      "subtasks" : [
+
+      ],
+      "title" : "Café menu polish",
+      "updatedAt" : 776991000
+    },
+    {
+      "activity" : [
+        {
+          "id" : "AC710000-0000-4000-8000-000000000004",
+          "kind" : {
+            "created" : {
+
+            }
+          },
+          "when" : 776988000
+        }
+      ],
+      "code" : "NW-123",
+      "columnID" : "next",
+      "createdAt" : 776988000,
+      "due" : "2026-09-01",
+      "id" : "7E570000-0000-4000-8000-000000000004",
+      "labelKeys" : [
+        "api"
+      ],
+      "note" : "Buffer mutations locally and replay on reconnect.",
+      "priority" : "Medium",
+      "subtasks" : [
+        {
+          "done" : false,
+          "id" : "5B7A0000-0000-4000-8000-000000000004",
+          "text" : "Mutation log"
+        }
+      ],
+      "title" : "Offline queue for edits",
+      "updatedAt" : 776988000
+    },
+    {
+      "activity" : [
+        {
+          "id" : "AC710000-0000-4000-8000-000000000005",
+          "kind" : {
+            "moved" : {
+              "columnID" : "doing",
+              "columnName" : "In Progress"
+            }
+          },
+          "when" : 776980000
+        },
+        {
+          "id" : "AC710000-0000-4000-8000-000000000006",
+          "kind" : {
+            "created" : {
+
+            }
+          },
+          "when" : 776970000
+        }
+      ],
+      "code" : "NW-124",
+      "columnID" : "doing",
+      "createdAt" : 776970000,
+      "id" : "7E570000-0000-4000-8000-000000000005",
+      "labelKeys" : [
+        "api",
+        "bug"
+      ],
+      "note" : "",
+      "priority" : "High",
+      "subtasks" : [
+
+      ],
+      "title" : "Sync engine",
+      "updatedAt" : 776980000
+    },
+    {
+      "activity" : [
+        {
+          "id" : "AC710000-0000-4000-8000-000000000007",
+          "kind" : {
+            "moved" : {
+              "columnID" : "done",
+              "columnName" : "Done"
+            }
+          },
+          "when" : 776960000
+        },
+        {
+          "id" : "AC710000-0000-4000-8000-000000000008",
+          "kind" : {
+            "moved" : {
+              "columnID" : "next",
+              "columnName" : "Up Next"
+            }
+          },
+          "when" : 776950000
+        },
+        {
+          "id" : "AC710000-0000-4000-8000-000000000009",
+          "kind" : {
+            "created" : {
+
+            }
+          },
+          "when" : 776940000
+        }
+      ],
+      "code" : "NW-125",
+      "columnID" : "done",
+      "createdAt" : 776940000,
+      "id" : "7E570000-0000-4000-8000-000000000006",
+      "labelKeys" : [
+        "design"
+      ],
+      "note" : "",
+      "priority" : "Medium",
+      "subtasks" : [
+        {
+          "done" : true,
+          "id" : "5B7A0000-0000-4000-8000-000000000005",
+          "text" : "Palette"
+        }
+      ],
+      "title" : "Warm neutral palette",
+      "updatedAt" : 776960000
+    }
+  ],
+  "version" : 2
+}

@@ -59,7 +59,12 @@ final class DayClock {
 
     /// A second past the boundary, so a wake that fires early by rounding does
     /// not read the day it is trying to leave.
-    private func secondsUntilNextMidnight(_ now: Date = .now, calendar: Calendar = .current) -> TimeInterval {
+    ///
+    /// Both parameters exist so this can be asked about an instant other than
+    /// now: it is the one piece of arithmetic in the clock, and the days it has
+    /// to get right — a DST spring forward, a year end — are days a test cannot
+    /// wait for.
+    func secondsUntilNextMidnight(_ now: Date = .now, calendar: Calendar = .current) -> TimeInterval {
         let startOfToday = calendar.startOfDay(for: now)
         guard let midnight = calendar.date(byAdding: .day, value: 1, to: startOfToday) else { return 3_600 }
         return max(1, midnight.timeIntervalSince(now) + 1)
