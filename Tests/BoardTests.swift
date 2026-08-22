@@ -171,7 +171,9 @@ import Testing
         let fresh = try #require(store.sheetTask)
         #expect(fresh.isUnfiled)
         #expect(fresh.boardID == nil)
-        #expect(store.tab == .inbox)
+        // The Inbox comes up over the board rather than replacing it, so the
+        // card the sheet is about is in a list that is already showing.
+        #expect(store.isInboxOpen)
     }
 
     @Test func theInboxAndEachBoardCountOnlyTheirOwn() {
@@ -191,10 +193,12 @@ import Testing
         #expect(store.inboxCount == 1)
     }
 
-    @Test func theInboxTabShowsUnfiledCardsAndTheBoardTabDoesNot() {
+    /// The phone's list is the board's; the Inbox is a panel over it with a list
+    /// of its own, and the two do not draw each other's cards.
+    @Test func theInboxPanelShowsUnfiledCardsAndTheBoardTabDoesNot() {
         let store = Self.store()
-        store.selectTab(.inbox)
-        #expect(store.mobileTasks(today: TestBoard.dueDay).map(\.code) == ["IN-142"])
+        store.showInbox()
+        #expect(store.inboxTasks.map(\.code) == ["IN-142"])
         #expect(store.surface == .board, "a tab is not a surface any more")
         store.selectTab(.board)
         store.mobileColumnID = Self.alphaTodo.id

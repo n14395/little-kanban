@@ -332,6 +332,17 @@
         }
       }
     },
+    "A month" : {
+      "comment" : "Setting: the trash keeps items for 30 days",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A month"
+          }
+        }
+      }
+    },
     "A new board has been started, and saving is paused so the old file is not written over. Continuing will replace it." : {
       "comment" : "Alert body when the damaged board could not be moved aside",
       "localizations" : {
@@ -361,6 +372,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "A two-week cycle, with a review column before Done."
+          }
+        }
+      }
+    },
+    "A week" : {
+      "comment" : "Setting: the trash keeps items for 7 days",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A week"
           }
         }
       }
@@ -646,6 +668,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Adds a task to Simple Kanban. With no column given it goes to the Inbox."
+          }
+        }
+      }
+    },
+    "After a month" : {
+      "comment" : "Setting: archive finished cards after 30 days",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After a month"
+          }
+        }
+      }
+    },
+    "After a week" : {
+      "comment" : "Setting: archive finished cards after 7 days",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After a week"
+          }
+        }
+      }
+    },
+    "After two weeks" : {
+      "comment" : "Setting: archive finished cards after 14 days",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After two weeks"
           }
         }
       }
@@ -1440,6 +1495,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Columns"
+          }
+        }
+      }
+    },
+    "Comfortable" : {
+      "comment" : "Setting: cards show their description and chips",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comfortable"
+          }
+        }
+      }
+    },
+    "Compact" : {
+      "comment" : "Setting: cards show their title only",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compact"
           }
         }
       }
@@ -2953,6 +3030,17 @@
         }
       }
     },
+    "Monday to Sunday" : {
+      "comment" : "Setting: a week starts on Monday",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monday to Sunday"
+          }
+        }
+      }
+    },
     "Money" : {
       "comment" : "Personal template label",
       "localizations" : {
@@ -3178,6 +3266,17 @@
         }
       }
     },
+    "Never" : {
+      "comment" : "Setting: finished cards are never archived",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Never"
+          }
+        }
+      }
+    },
     "New Board" : {
       "comment" : "Default name for the board made from the empty board surface\nFile menu item that adds a board\nUndo action name for adding a board",
       "localizations" : {
@@ -3314,6 +3413,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No boards"
+          }
+        }
+      }
+    },
+    "No date" : {
+      "comment" : "Setting: new tasks have no due date",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No date"
           }
         }
       }
@@ -5096,6 +5206,17 @@
         }
       }
     },
+    "Sunday to Saturday" : {
+      "comment" : "Setting: a week starts on Sunday",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sunday to Saturday"
+          }
+        }
+      }
+    },
     "Switch Board…" : {
       "localizations" : {
         "en" : {
@@ -5323,6 +5444,17 @@
         }
       }
     },
+    "The board I'm on" : {
+      "comment" : "Setting: new tasks go to the current board",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The board I'm on"
+          }
+        }
+      }
+    },
     "The board could not be saved." : {
       "comment" : "Status bar text for a write failure with no message",
       "localizations" : {
@@ -5407,6 +5539,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The demo board this app was designed around. Good for a look round."
+          }
+        }
+      }
+    },
+    "The next seven days" : {
+      "comment" : "Setting: a week is a rolling seven days",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The next seven days"
           }
         }
       }
@@ -5521,11 +5664,23 @@
       }
     },
     "This week" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "This week"
+          }
+        }
+      }
+    },
+    "Three months" : {
+      "comment" : "Setting: the trash keeps items for 90 days",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Three months"
           }
         }
       }
@@ -5585,7 +5740,7 @@
       }
     },
     "Today" : {
-      "comment" : "Due chip, due today\nDue date preset\nSaved view: tasks due today or overdue",
+      "comment" : "Due chip, due today\nDue date preset\nSaved view: tasks due today or overdue\nSetting: new tasks are due today",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5638,7 +5793,7 @@
       }
     },
     "Tomorrow" : {
-      "comment" : "Due date preset",
+      "comment" : "Due date preset\nSetting: new tasks are due tomorrow",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6064,6 +6219,7 @@
       }
     },
     "shipped" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

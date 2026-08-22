@@ -22,24 +22,35 @@ import Testing
 
     // MARK: The tabs that ignore it
 
-    @Test func theBoardAndInboxTabsIgnoreAQueryTypedOnSearch() {
+    @Test func theBoardTabIgnoresAQueryTypedOnSearch() {
         let store = TestBoard.store()
         store.tab = .search
         store.query = "cafe"
         #expect(codes(store) == ["NW-122"])
 
-        // Switching away must not carry the filter with it. A filtered Inbox
-        // would be empty here, which is exactly what the user saw.
+        // Switching away must not carry the filter with it. A filtered board
+        // would be missing most of its cards here, which is exactly what the
+        // user saw.
         store.tab = .board
         store.mobileColumnID = backlog
         #expect(codes(store) == ["NW-121", "NW-122"])
-        store.tab = .inbox
-        #expect(codes(store) == ["NW-120"])
 
         // …and coming back to Search finds the query where it was left.
         store.tab = .search
         #expect(store.query == "cafe")
         #expect(codes(store) == ["NW-122"])
+    }
+
+    /// The Inbox is a slide-over rather than a tab, and it draws `inboxTasks`
+    /// directly — so a query typed on Search cannot reach it whatever the tab
+    /// underneath happens to be.
+    @Test func theInboxPanelIgnoresTheQueryWhicheverTabIsUnderIt() {
+        let store = TestBoard.store()
+        store.query = "cafe"
+        for tab in PhoneTab.allCases {
+            store.tab = tab
+            #expect(store.inboxTasks.map(\.code) == ["NW-120"])
+        }
     }
 
     @Test func theBoardTabIgnoresEvenAQueryThatMatchesNothing() {
@@ -48,8 +59,6 @@ import Testing
         store.tab = .board
         store.mobileColumnID = backlog
         #expect(codes(store) == ["NW-121", "NW-122"])
-        store.tab = .inbox
-        #expect(codes(store) == ["NW-120"])
         store.tab = .search
         #expect(codes(store) == [])
     }
@@ -151,31 +160,34 @@ import Testing
     // MARK: Picking a place
 
     /// Picking a tab leaves the saved view, because `mobileTasks` lets a view
-    /// outrank the tab — so without this, tapping "Inbox" showed Today.
+    /// outrank the tab — so without this, tapping "Board" showed Today.
     @Test func pickingATabLeavesTheSavedViewBehind() {
         let store = TestBoard.store()
         store.activeView = .today
-        store.selectTab(.inbox)
-        #expect(store.tab == .inbox)
+        store.mobileColumnID = backlog
+        store.selectTab(.board)
+        #expect(store.tab == .board)
         #expect(store.activeView == nil)
-        #expect(store.mobileTasks(today: today).map(\.code) == ["NW-120"])
+        #expect(store.mobileTasks(today: today).map(\.code) == ["NW-121", "NW-122"])
 
         // Including the tab the user is already on: the view is what they are
         // asking to leave.
         store.activeView = .highPriority
-        store.selectTab(.inbox)
+        store.selectTab(.board)
         #expect(store.activeView == nil)
     }
 
-    @Test func aQuickCaptureLeavesTheSavedViewBehindToo() {
+    /// The Inbox is a panel over the board now, and raising it leaves the saved
+    /// view for the same reason picking a tab does — the card a quick capture
+    /// makes lands in the Inbox, and a filter it is unlikely to match is not
+    /// where the user should be left looking.
+    @Test func aQuickCaptureRaisesTheInboxAndLeavesTheSavedViewBehind() {
         let store = TestBoard.store()
         store.activeView = .today
         store.quickCapture()
-        #expect(store.tab == .inbox)
-        // The card lands in the Inbox, so being left looking at a filter it is
-        // unlikely to match would hide it.
+        #expect(store.isInboxOpen)
         #expect(store.activeView == nil)
-        #expect(store.mobileTasks(today: today).count == 2)
+        #expect(store.inboxTasks.count == 2)
     }
 
     // MARK: Clearing

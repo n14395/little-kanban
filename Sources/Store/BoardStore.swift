@@ -2,15 +2,22 @@ import Observation
 import SwiftUI
 
 /// The three tabs in the iOS tab bar.
+/// The two places the phone's list can be, which is what the tab bar switches
+/// between.
+///
+/// **The Inbox used to be the third.** It is now a slide-over that comes up over
+/// the board — see ``PhoneInboxSheet`` — so it is a toggle rather than a
+/// destination, the same shape it has on the other two platforms, and the same
+/// `isInboxOpen` drives all three. A tab is somewhere you *go*, and going to the
+/// Inbox meant leaving the board to look at the cards you keep beside it.
 enum PhoneTab: String, CaseIterable, Identifiable, Sendable {
-    case board, inbox, search
+    case board, search
 
     var id: String { rawValue }
 
     var label: String {
         switch self {
         case .board: String(localized: "Board", comment: "Phone tab showing the active board")
-        case .inbox: Board.inboxName
         case .search: String(localized: "Search", comment: "Phone tab showing the search results")
         }
     }
@@ -25,9 +32,11 @@ enum PhoneTab: String, CaseIterable, Identifiable, Sendable {
 /// filed nowhere are the ones you reach for while working on the board; a
 /// surface that replaced the board made you leave it to see them.
 ///
-/// The phone is the exception and keeps a tab, because a phone shows one thing
-/// at a time and has nowhere to put a panel. `PhoneTab` is that, and it is why
-/// `visibleTaskIDs` still asks which tab is up.
+/// **On all three platforms**, now that the phone's is a slide-over rather than
+/// a tab: a panel beside the board on the desk and the iPad, a panel over it on
+/// the phone, and `isInboxOpen` either way. The phone used to be the exception —
+/// it shows one thing at a time and had nowhere to put a panel *beside*
+/// anything — and the answer turned out to be over the top rather than instead.
 ///
 /// Session state — where the user is looking rather than anything about the
 /// board — so it is out of `BoardSnapshot` and out of `BoardMutation`.
@@ -442,9 +451,10 @@ final class BoardStore {
     var isInboxDropTarget: Bool = false
 
     /// Whether the Inbox panel is out, beside the board. Session state like the
-    /// inspector, and closed to begin with: the sidebar row says how many cards
-    /// are in there, which is enough until somebody wants them.
-    var isInboxOpen: Bool = BoardStore.inboxOpensAtLaunch
+    /// inspector, and closed to begin with unless the setting says otherwise:
+    /// the sidebar row says how many cards are in there, which is enough until
+    /// somebody wants them. See ``Preferences/opensInboxAtLaunch``.
+    var isInboxOpen: Bool = BoardStore.inboxOpensAtLaunch || Preferences.opensInboxAtLaunch
 
     /// The panel starts shut, and a harness cannot click it open: a simulator
     /// takes no synthetic taps from outside, and driving the host Mac's pointer
@@ -638,6 +648,7 @@ final class BoardStore {
             )
             store.applyStoredPreferences()
             store.sweepTrash()
+            store.sweepDone()
             return store
         }
 
@@ -671,6 +682,7 @@ final class BoardStore {
         // again when it is looked at, for the session that stays open across the
         // boundary.
         store.sweepTrash()
+        store.sweepDone()
         // Whatever the JSON said is now what the records should say: either
         // this is the upgrade that first fills them, or SwiftData failed to
         // read and is being given the board back.
@@ -678,11 +690,55 @@ final class BoardStore {
         return store
     }
 
+    /// Hands the scheduler the whole list, which is the only argument it takes.
+    ///
+    /// Named rather than inline because a *setting* can change what it would
+    /// want from the same board — the day-before switch adds a request per card
+    /// — and a switch flipped in Settings has no save behind it to ride on. The
+    /// scheduler calls this back through `wantsRebuild`.
+    func reconcileReminders() {
+        let scheduler = NotificationScheduler.shared
+        scheduler.wantsRebuild = { [weak self] in self?.reconcileReminders() }
+        scheduler.reconcile(
+            NotificationScheduler.reminders(
+                from: tasks, isComplete: isDone, alsoTheDayBefore: scheduler.remindsTheDayBefore
+            )
+        )
+    }
+
     private func applyStoredPreferences() {
         if let raw = UserDefaults.standard.string(forKey: Self.sortOrderKey),
            let order = BoardSortOrder(rawValue: raw) {
             sortOrder = order
         }
+        // Which board was on screen is already board data — `activeBoardID` is
+        // in the snapshot — so what this restores is the *view* standing in
+        // front of it, which is session state and was lost at every quit.
+        if Preferences.resumesLastPlace,
+           let raw = Preferences.defaults.string(forKey: Preferences.lastSurfaceKey),
+           let view = SavedView(rawValue: raw) {
+            surface = .view(view)
+        }
+    }
+
+    /// Archives what has sat in Done longer than the setting allows.
+    ///
+    /// The same shape as ``sweepTrash()`` and for the same reason: it is a
+    /// promise being kept rather than anything the user did, so it is not
+    /// undoable and writes no activity of its own beyond the archive each card
+    /// already logs. `updatedAt` is the clock it reads, which is when the card
+    /// last moved — reaching Done stamps it, and so does anything done to it
+    /// since, so a finished card that is still being edited is not swept out
+    /// from under the person editing it.
+    func sweepDone(now: Date = .now, after rule: AutoArchive = Preferences.autoArchive) {
+        guard let days = rule.days else { return }
+        let today = CalendarDay(now)
+        let stale = tasks.filter {
+            !$0.isArchived && isDone($0) && today - CalendarDay($0.updatedAt) >= days
+        }
+        guard !stale.isEmpty else { return }
+        for task in stale { performArchive(task.id, at: now) }
+        scheduleSave()
     }
 
     init(
@@ -829,9 +885,7 @@ final class BoardStore {
         // developer's own. A test that wants to drive the scheduler injects a
         // fake `TaskNotificationCenter` instead of coming through here.
         if !BoardFile.isRunningTests {
-            NotificationScheduler.shared.reconcile(
-                NotificationScheduler.reminders(from: tasks, isComplete: isDone)
-            )
+            reconcileReminders()
             TaskSpotlightIndex.shared.reconcile(tasks)
         }
         let pending = snapshot
@@ -1065,7 +1119,7 @@ final class BoardStore {
     /// the copy the whole "restore is undoable" promise falls back on once the
     /// session that could undo it has ended.
     private func keepACopy(with file: BoardFile) {
-        guard file.backupNow() == nil else { return }
+        guard file.backupNow(keeping: Preferences.backupsKept.count) == nil else { return }
         lastError = .save(message: String(
             localized: "A copy of the board could not be kept before it was replaced.",
             comment: "Status shown when the safety backup taken before a restore or a reset failed"
@@ -1562,18 +1616,15 @@ final class BoardStore {
     /// ordering. The query narrows all of them, because a card the search has
     /// hidden is not one ⌘A can have meant.
     ///
-    /// The panel's cards count because the panel is *beside* the board rather
-    /// than instead of it: with it open they are as visible as any card in a
-    /// column, and a Select All that skipped them would be lying about what it
-    /// selected.
+    /// The Inbox's cards count whenever it is out, because it is drawn *with*
+    /// the board rather than instead of it — beside it on the desk and the iPad,
+    /// over it on the phone — and a Select All that skipped what is on screen
+    /// would be lying about what it selected. It used to skip them on the
+    /// phone's Inbox tab, which was a tab standing in for the board; there is no
+    /// such tab now.
     func visibleTaskIDs(today: CalendarDay) -> [TaskItem.ID] {
         switch surface {
         case .board:
-            #if os(iOS)
-            // The phone shows one thing at a time, and the Inbox is one of the
-            // things — it has no room for a panel, so it kept its tab.
-            if tab == .inbox { return visibleInboxTasks.map(\.id) }
-            #endif
             let onTheBoard = columns.flatMap { visibleTasks(in: $0.id).map(\.id) }
             return isInboxOpen ? visibleInboxTasks.map(\.id) + onTheBoard : onTheBoard
         case .view(let view):
@@ -1904,29 +1955,52 @@ final class BoardStore {
     /// today that shipped last month stays outside the window. The button beside
     /// the meter moves it in neither direction.
     func weeklyShippedCount(today: CalendarDay) -> Int {
-        tasks.count { isDone($0) && Self.isWithinWeek($0, of: today) }
+        tasks.count { isDone($0) && Self.isWithinWeek($0, of: today, week: weekMeaning) }
     }
 
     /// Shipped over touched, across that same week: how much of what the user
     /// worked on has landed. Both halves move, so the meter reads as progress
     /// rather than creeping toward full as the board grows.
     func weeklyProgressFraction(today: CalendarDay) -> Double {
-        let touched = tasks.count { Self.isWithinWeek($0, of: today) }
+        let touched = tasks.count { Self.isWithinWeek($0, of: today, week: weekMeaning) }
         guard touched > 0 else { return 0 }
         return Double(weeklyShippedCount(today: today)) / Double(touched)
     }
 
-    /// The rolling seven days ending today. `updatedAt` is resolved to a
+    /// What a week means here — see ``WeekMeaning``. On the store rather than
+    /// read globally, for `trashRetention`'s reason.
+    var weekMeaning: WeekMeaning = Preferences.weekMeaning
+
+    /// The week ending today — rolling seven days, or everything since the week
+    /// began, depending on ``WeekMeaning``. `updatedAt` is resolved to a
     /// calendar day first, so the window turns over at midnight rather than at
     /// whatever time of day the app was last launched.
-    private static func isWithinWeek(_ task: TaskItem, of today: CalendarDay) -> Bool {
-        (0...6).contains(today - CalendarDay(task.updatedAt))
+    private static func isWithinWeek(
+        _ task: TaskItem, of today: CalendarDay, week: WeekMeaning = .fallback
+    ) -> Bool {
+        week.containsBehind(CalendarDay(task.updatedAt), from: today)
     }
 
     // MARK: - Saved views
 
-    /// Where the user is looking. Session state — see `BoardSurface`.
-    var surface: BoardSurface = .board
+    /// Where the user is looking. Session state — see `BoardSurface` — and
+    /// written down as it changes, so ``Preferences/resumesLastPlace`` has
+    /// something to read at the next launch. The key is written whatever the
+    /// setting says: turning it on should resume where you were, not where you
+    /// were the first time you turned it on.
+    var surface: BoardSurface = .board {
+        didSet {
+            guard surface != oldValue else { return }
+            lastSurfaceName = activeView?.rawValue
+            Preferences.remember(surface: lastSurfaceName)
+        }
+    }
+
+    /// What was written down for the next launch — the saved view standing in
+    /// front of the board, or `nil` for the board itself. Published so a test
+    /// can read the decision without reading `UserDefaults`, which every other
+    /// suite is reading at the same time.
+    private(set) var lastSurfaceName: String?
 
     /// Which saved view has replaced the board, or `nil` for the board itself.
     ///
@@ -1958,6 +2032,11 @@ final class BoardStore {
     /// hidden rather than switched off, so coming back to the board brings it
     /// back with no second click — closing it was never what picking Today
     /// meant.
+    ///
+    /// **The panel's question, and so not the phone's.** A panel stands beside
+    /// the board and has nothing to stand beside on a saved view; the phone's
+    /// slide-over is drawn *over* whatever is there and is reachable from all of
+    /// it, so `PhoneInboxSheet` reads `isInboxOpen` directly.
     var isInboxShowing: Bool { isInboxOpen && showsInboxToggle }
 
     /// The sidebar row and the View menu, which are the same switch twice.
@@ -1996,7 +2075,10 @@ final class BoardStore {
         // is on, and the tab under it. `selectTab` also sets `surface`, which
         // is what the iPad's detail pane reads, so the two agree.
         if let columnID = task.columnID { mobileColumnID = columnID }
-        selectTab(task.isUnfiled ? .inbox : .board)
+        // An unfiled card has had the Inbox raised for it already, by the
+        // `showInbox()` above — which on the phone is the slide-over coming up
+        // over the board. The tab underneath it is still the board's.
+        selectTab(.board)
         #endif
     }
 
@@ -2021,7 +2103,7 @@ final class BoardStore {
     }
 
     private func members(of view: SavedView, today: CalendarDay) -> [TaskItem] {
-        var members = tasks.filter { view.matches($0, today: today, isDone: isDone($0)) }
+        var members = tasks.filter { view.matches($0, today: today, isDone: isDone($0), week: weekMeaning) }
         if let sort = view.sort { members = Self.stableSorted(members, by: sort) }
         if let limit = view.limit { members = Array(members.prefix(limit)) }
         return members
@@ -2379,12 +2461,19 @@ final class BoardStore {
     /// that are already about the trash.
     var trashedItems: [TrashedItem] {
         let now = Date.now
-        return trash.filter { !$0.isExpired(at: now) }.sorted { $0.trashedAt > $1.trashedAt }
+        let days = trashRetention.days
+        return trash.filter { !$0.isExpired(at: now, days: days) }.sorted { $0.trashedAt > $1.trashedAt }
     }
 
     var trashCount: Int { trashedItems.count }
 
-    /// Drops what the thirty days have run out on.
+    /// How long the Trash keeps things. Held on the store rather than read from
+    /// `Preferences` at each use so a test can set it without reaching into
+    /// global state that every other suite is reading at the same time — the
+    /// same bargain `undoManager` and `sortOrder` make.
+    var trashRetention: TrashRetention = Preferences.trashRetention
+
+    /// Drops what the days have run out on.
     ///
     /// Deliberately **not** undoable and deliberately not an activity: it is the
     /// promise being kept rather than anything the user did, and a ⌘Z that could
@@ -2393,7 +2482,8 @@ final class BoardStore {
     /// longer offered.
     func sweepTrash() {
         let now = Date.now
-        let kept = trash.filter { !$0.isExpired(at: now) }
+        let days = trashRetention.days
+        let kept = trash.filter { !$0.isExpired(at: now, days: days) }
         guard kept.count != trash.count else { return }
         trash = kept
         scheduleSave()
@@ -2875,13 +2965,25 @@ final class BoardStore {
     /// bulk add has one open. Separated from `addTask` so `addTasks` can make
     /// several inside one step and still move the session state exactly once,
     /// after it closes.
+    /// What a new card's due date starts as. On the store for the reason
+    /// `trashRetention` is: a preference read from a global at each use is one
+    /// a parallel test cannot set without changing what every other suite sees.
+    var defaultDueDate: DefaultDueDate = Preferences.defaultDueDate
+
+    /// `today` is a parameter rather than a read of the clock so a test can
+    /// mint a card on whatever day it likes — the same bargain `DayClock` makes
+    /// everywhere else. It is only consulted when ``DefaultDueDate`` is set to
+    /// something, which it is not by default.
     private func mintTask(
-        to placement: TaskPlacement, title: String, log kind: ActivityEntry.Kind
+        to placement: TaskPlacement, title: String, log kind: ActivityEntry.Kind,
+        today: CalendarDay = CalendarDay(.now)
     ) -> TaskItem.ID {
+        let startsDue = defaultDueDate.day(from: today)
         let placement = isPlaceable(placement) ? placement : .inbox
         var task = TaskItem(
             code: BoardSnapshot.code(prefix: codePrefix(for: placement), forSerial: nextSerial),
             title: title,
+            due: startsDue,
             priority: .medium,
             activity: [ActivityEntry(kind)]
         )
@@ -2933,11 +3035,20 @@ final class BoardStore {
     /// text field nobody can see and the command reads as broken. It adds to
     /// the board's landing column, falling back to the Inbox — and opening the
     /// panel that draws it — when there is no board left to land on.
-    func beginAddingWhereVisible() {
-        #if os(iOS)
-        // The phone, on the Inbox tab, is already looking at the Inbox.
-        if tab == .inbox { return beginAdding(in: .inbox) }
-        #endif
+    ///
+    /// **The Inbox being out does not change where it lands**, on any of the
+    /// three platforms: beside the board on the desk and the iPad, over it on
+    /// the phone, the board is still what the user is working on. Every surface
+    /// that draws the Inbox draws an add row of its own, and that row is how you
+    /// capture into it. The phone's Inbox tab used to be the exception, and it
+    /// was one because the tab stood *instead* of the board rather than with it.
+    func beginAddingWhereVisible(to destination: NewTaskDestination = Preferences.newTaskDestination) {
+        // The setting wins over what is on screen, which is the whole of what
+        // it is for: a capture habit files later rather than placing now.
+        if destination == .inbox {
+            showInbox()
+            return beginAdding(in: .inbox)
+        }
         guard let column = activeBoard?.landingColumn else {
             showInbox()
             return beginAdding(in: .inbox)
@@ -3693,16 +3804,13 @@ final class BoardStore {
         dot: Board.inboxDot, role: .backlog
     )
 
-    /// The name the "+ Add task to …" row shows.
-    var mobileColumnName: String {
-        tab == .inbox ? Board.inboxName : mobileColumn.name
-    }
+    /// The name the "+ Add task to …" row shows. The board's, always: the Inbox
+    /// is a slide-over now and carries its own add row, which knows where it is
+    /// without having to ask.
+    var mobileColumnName: String { mobileColumn.name }
 
-    /// Where a phone-side add lands: the Inbox on the Inbox tab, otherwise the
-    /// column the pager is on.
-    var mobileAddPlacement: TaskPlacement {
-        tab == .inbox ? .inbox : placement(forColumn: mobileColumnID)
-    }
+    /// Where a phone-side add lands: the column the pager is on.
+    var mobileAddPlacement: TaskPlacement { placement(forColumn: mobileColumnID) }
 
     /// Wraps around at both ends, matching the spec's modulo step.
     func stepMobileColumn(by delta: Int) {
@@ -3715,7 +3823,7 @@ final class BoardStore {
     /// What the phone list shows: a saved view if one is open, otherwise the
     /// current tab's slice of the board.
     ///
-    /// **The Board and Inbox tabs ignore the query outright.** One `query` is
+    /// **The Board tab ignores the query outright.** One `query` is
     /// bound by both platforms and by every tab, but `PhoneHeader` only puts the
     /// field on screen for Search — so filtering the Board through it left a
     /// board that had silently lost most of its cards with nothing on screen to
@@ -3726,7 +3834,6 @@ final class BoardStore {
         if let activeView { return tasks(in: activeView, today: today) }
         switch tab {
         case .board: return boardTasks(in: mobileColumnID)
-        case .inbox: return inboxTasks
         case .search: return visibleTasks
         }
     }
@@ -3747,15 +3854,18 @@ final class BoardStore {
     var showsMobileAddRow: Bool { activeView == nil && tab != .search }
 
     /// Whether a card names its column. It does wherever the list is flat —
-    /// Search, Inbox and every saved view — and does not on the Board tab,
-    /// where the pager directly above has just said which column this is (4.8).
+    /// Search and every saved view — and does not on the Board tab, where the
+    /// pager directly above has just said which column this is (4.8). The
+    /// Inbox's slide-over draws its own rows and does not ask: every card in it
+    /// is unfiled, so a chip on each would say "Inbox" under a panel titled
+    /// Inbox.
     var showsMobileColumnChips: Bool { activeView != nil || tab != .board }
 
     /// Picks a tab, which is picking a place, so it leaves whatever saved view
     /// was standing in for the board.
     ///
     /// The alternative is the view outranking the tab — which is what
-    /// `mobileTasks` does when both are set — and that means tapping "Inbox"
+    /// `mobileTasks` does when both are set — and that means tapping "Board"
     /// and being shown Today. Going through here rather than assigning `tab`
     /// keeps the two from disagreeing.
     func selectTab(_ tab: PhoneTab) {
@@ -3766,15 +3876,19 @@ final class BoardStore {
         self.tab = tab
     }
 
-    /// The floating "+" button: jump to Inbox and start a new capture there.
+    /// The floating "+" button: raise the Inbox and start a new capture in it.
     ///
     /// The task is created untitled and its sheet opens with the title field
     /// focused, so the capture is finished by typing rather than by editing a
-    /// placeholder afterwards. It leaves a saved view for the same reason
-    /// `selectTab` does: the card lands in the Inbox, and a filter it is
+    /// placeholder afterwards. `showInbox()` leaves a saved view for the same
+    /// reason `selectTab` does: the card lands in the Inbox, and a filter it is
     /// unlikely to match is not where the user should be left looking.
     func quickCapture() {
-        selectTab(.inbox)
+        // The card lands in the Inbox, so the Inbox comes up — which on this
+        // platform is the slide-over. The detail sheet opens over the top of it
+        // to be typed into, and closing that leaves the new card in a list that
+        // is already showing rather than on a board it is not on.
+        showInbox()
         addTask(to: .inbox, title: "", fromPhone: true, log: .captured)
     }
 

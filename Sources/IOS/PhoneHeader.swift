@@ -81,12 +81,13 @@ struct PhoneHeader: View {
     }
 
     /// What is on screen, named. The board's own name — this was the product
-    /// name written out as a literal in four files (4.7) — except on the Inbox,
-    /// which belongs to no board and so cannot borrow one's name, and on a store
-    /// with no boards left, which is a state deleting the last one reaches.
+    /// name written out as a literal in four files (4.7) — except on a store
+    /// with no boards left, which is a state deleting the last one reaches. The
+    /// Inbox used to be the other exception, borrowing no board's name because
+    /// it is on none; it is a panel over this header now rather than under it,
+    /// and carries its own title.
     private var title: String {
-        if store.tab == .inbox, store.activeView == nil { return Board.inboxName }
-        return store.activeBoard?.name ?? String(
+        store.activeBoard?.name ?? String(
             localized: "No Board", comment: "Phone header title when every board has been deleted"
         )
     }
@@ -345,12 +346,15 @@ struct PhoneHeader: View {
 /// part of the spec's pager that said where you were and offered no way to go
 /// anywhere — so each is now the button for its column, which is also the
 /// non-gesture way to page for a reader who cannot swipe (7.1).
+/// Drawn in portrait only — see `PhoneRootView`. On its side the phone puts two
+/// columns on screen under headings of their own, which say what the dots say
+/// and say it by name; this row would be a second answer in the dimension that
+/// shape has least of. It carried a compact-height preset of its own until then,
+/// and that preset is gone with the case it was for rather than left behind as a
+/// branch nothing can take.
 struct PhoneColumnPager: View {
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
-    @Environment(\.verticalSizeClass) private var verticalSizeClass
-
-    private var isShort: Bool { verticalSizeClass == .compact }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -365,8 +369,8 @@ struct PhoneColumnPager: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.top, isShort ? 2 : 14)
-        .padding(.bottom, isShort ? 0 : 10)
+        .padding(.top, 14)
+        .padding(.bottom, 10)
     }
 
     /// The drawn capsules keep the design's size; the target around each is a

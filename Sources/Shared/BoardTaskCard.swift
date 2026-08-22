@@ -57,6 +57,10 @@ struct BoardTaskCard: View {
     @Environment(\.palette) private var palette
     @Environment(\.dayClock) private var dayClock
     @Environment(BoardStore.self) private var store
+    /// How much of a card to draw. `@AppStorage` rather than a read of
+    /// `Preferences`, because the board has to redraw the moment it changes and
+    /// a plain read is a value nothing is watching.
+    @AppStorage(CardDensity.storageKey) private var density = CardDensity.fallback
     /// Where a click says which card the board should show whole. Optional
     /// because the phone's card and a preview have no board around them.
     @Environment(BoardFocusRelay.self) private var relay: BoardFocusRelay?
@@ -402,7 +406,7 @@ struct BoardTaskCard: View {
                     .strikethrough(isDone, color: palette.ink(0.45))
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                if !task.note.isEmpty {
+                if !task.note.isEmpty, density.showsDetail {
                     Text(task.note)
                         .font(SimpleKanbanFont.ui(metrics.noteSize, .medium, relativeTo: .caption))
                         .lineSpacing(1.5)
@@ -411,12 +415,18 @@ struct BoardTaskCard: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
+                // Compact keeps the *due* chip and drops the rest. A date is
+                // the one thing on a card that changes on its own, and a card
+                // that stopped saying it was overdue to save a line would be a
+                // card hiding the only thing it had to say. See ``CardDensity``.
                 HStack(spacing: 8) {
-                    PriorityDot(priority: task.priority, namesPriority: true)
+                    if density.showsDetail {
+                        PriorityDot(priority: task.priority, namesPriority: true)
+                    }
                     if let due = task.due {
                         DueChip(due: due, today: dayClock.today, role: store.role(of: task))
                     }
-                    if task.hasSubtasks {
+                    if task.hasSubtasks, density.showsDetail {
                         SubtaskCountBadge(text: task.subtaskProgressText)
                     }
                     Spacer(minLength: 0)

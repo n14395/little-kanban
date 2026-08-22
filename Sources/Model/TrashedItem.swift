@@ -71,6 +71,8 @@ struct TrashedItem: Identifiable, Hashable, Codable, Sendable {
     /// How long a thrown-away thing is kept. Thirty days, as a count of days
     /// rather than a number of seconds, because the interval is what the user
     /// was promised and calendars are not uniform — see ``expiry(from:)``.
+    /// What the Trash keeps things for when nobody has said otherwise. The
+    /// setting is ``TrashRetention``; this is its `.month`.
     static let retentionDays = 30
 
     var kind: Kind {
@@ -105,15 +107,23 @@ struct TrashedItem: Identifiable, Hashable, Codable, Sendable {
     ///
     /// Falls back to the arithmetic only if the calendar refuses, which it does
     /// not for an offset this size.
-    func expiry(from calendar: Calendar = .current) -> Date {
-        calendar.date(byAdding: .day, value: Self.retentionDays, to: trashedAt)
-            ?? trashedAt.addingTimeInterval(TimeInterval(Self.retentionDays) * 86_400)
+    /// `days` is a **setting** now — see ``TrashRetention`` — and is passed in
+    /// rather than read here: this type is decoded off the main actor inside
+    /// `BoardFile`, and a model that reaches for app-global state makes the
+    /// same bytes mean different things on two machines. `retentionDays` is
+    /// still the default, so a caller that has no opinion gets the promise the
+    /// empty list makes.
+    func expiry(from calendar: Calendar = .current, days: Int = TrashedItem.retentionDays) -> Date {
+        calendar.date(byAdding: .day, value: days, to: trashedAt)
+            ?? trashedAt.addingTimeInterval(TimeInterval(days) * 86_400)
     }
 
-    /// Whether the thirty days are up. Asked with an explicit `now` so a test
-    /// can stand on either side of the boundary without waiting a month.
-    func isExpired(at now: Date = .now, calendar: Calendar = .current) -> Bool {
-        expiry(from: calendar) <= now
+    /// Whether the days are up. Asked with an explicit `now` so a test can
+    /// stand on either side of the boundary without waiting a month.
+    func isExpired(
+        at now: Date = .now, calendar: Calendar = .current, days: Int = TrashedItem.retentionDays
+    ) -> Bool {
+        expiry(from: calendar, days: days) <= now
     }
 
     /// How many days the row has left, counted in **calendar days rather than
@@ -129,9 +139,11 @@ struct TrashedItem: Identifiable, Hashable, Codable, Sendable {
     /// feature being used for the first time. Counting the days themselves says
     /// 30 today, 29 tomorrow, and 0 on the day it goes, which is what "days
     /// left" means to a person reading it.
-    func daysLeft(at now: Date = .now, calendar: Calendar = .current) -> Int {
+    func daysLeft(
+        at now: Date = .now, calendar: Calendar = .current, days: Int = TrashedItem.retentionDays
+    ) -> Int {
         let today = calendar.startOfDay(for: now)
-        let last = calendar.startOfDay(for: expiry(from: calendar))
+        let last = calendar.startOfDay(for: expiry(from: calendar, days: days))
         return max(0, calendar.dateComponents([.day], from: today, to: last).day ?? 0)
     }
 }

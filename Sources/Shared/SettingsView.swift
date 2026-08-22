@@ -105,6 +105,19 @@ struct SettingsView: View {
     @Environment(BoardStore.self) private var store
 
     @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
+    @AppStorage(CardDensity.storageKey) private var density = CardDensity.fallback
+    @AppStorage(NewTaskDestination.storageKey) private var newTasks = NewTaskDestination.fallback
+    @AppStorage(DefaultDueDate.storageKey) private var defaultDue = DefaultDueDate.fallback
+    @AppStorage(AutoArchive.storageKey) private var autoArchive = AutoArchive.fallback
+    @AppStorage(WeekMeaning.storageKey) private var weekMeaning = WeekMeaning.fallback
+    @AppStorage(TrashRetention.storageKey) private var trashRetention = TrashRetention.fallback
+    @AppStorage(BackupsKept.storageKey) private var backupsKept = BackupsKept.fallback
+    @AppStorage(Preferences.resumeKey) private var resumesLastPlace = false
+    @AppStorage(Preferences.inboxAtLaunchKey) private var opensInboxAtLaunch = false
+    #if os(macOS)
+    @AppStorage(Preferences.menuBarExtraKey) private var showsMenuBarExtra = true
+    @State private var launchesAtLogin = LaunchAtLogin.isOn
+    #endif
     /// The switch is this device's intent; whether it takes is `store.isSyncing`.
     /// Changing it needs a relaunch, which `syncExplanation` says rather than
     /// pretending the container can be swapped underneath a running store.
@@ -211,6 +224,9 @@ struct SettingsView: View {
                 .tabItem { Label("Notifications", systemImage: "bell") }
             pane(syncSection)
                 .tabItem { Label("Sync", systemImage: "icloud") }
+            #if os(macOS)
+            pane(systemSection)
+            #endif
             pane(labelsSection)
                 .tabItem { Label("Labels", systemImage: "tag") }
             pane(dataSection)
@@ -244,6 +260,9 @@ struct SettingsView: View {
                 boardSection
                 notificationsSection
                 syncSection
+                #if os(macOS)
+                systemSection
+                #endif
                 labelsSection
                 dataSection
             }
@@ -316,6 +335,75 @@ struct SettingsView: View {
                     }
                 }
             }
+            rule
+            row {
+                choice(String(localized: "Card detail", comment: "Settings row: how much a card shows"),
+                       value: density.label,
+                       note: String(localized: "Compact keeps the title and the due date and drops the rest.",
+                                    comment: "Settings note under the card detail row")) {
+                    ForEach(CardDensity.allCases) { option in
+                        pick(option.label, isCurrent: option == density) { density = option }
+                    }
+                }
+            }
+            rule
+            row {
+                choice(String(localized: "New tasks go to", comment: "Settings row: where a new task lands"),
+                       value: newTasks.label) {
+                    ForEach(NewTaskDestination.allCases) { option in
+                        pick(option.label, isCurrent: option == newTasks) { newTasks = option }
+                    }
+                }
+            }
+            rule
+            row {
+                choice(String(localized: "New tasks are due", comment: "Settings row: a new task's due date"),
+                       value: defaultDue.label) {
+                    ForEach(DefaultDueDate.allCases) { option in
+                        pick(option.label, isCurrent: option == defaultDue) { defaultDue = option }
+                    }
+                }
+            }
+            rule
+            row {
+                choice(String(localized: "Archive finished cards",
+                              comment: "Settings row: when Done cards are archived"),
+                       value: autoArchive.label,
+                       note: String(localized: "Done is the one column that only grows.",
+                                    comment: "Settings note under the auto-archive row")) {
+                    ForEach(AutoArchive.allCases) { option in
+                        pick(option.label, isCurrent: option == autoArchive) {
+                            autoArchive = option
+                            store.sweepDone()
+                        }
+                    }
+                }
+            }
+            rule
+            row {
+                choice(String(localized: "A week means", comment: "Settings row: what this week means"),
+                       value: weekMeaning.label,
+                       note: String(localized: "What Due this week counts, and where the week turns over.",
+                                    comment: "Settings note under the week row")) {
+                    ForEach(WeekMeaning.allCases) { option in
+                        pick(option.label, isCurrent: option == weekMeaning) { weekMeaning = option }
+                    }
+                }
+            }
+            rule
+            row {
+                Toggle(isOn: $resumesLastPlace) {
+                    Text("Reopen the view I was on")
+                        .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                }
+            }
+            rule
+            row {
+                Toggle(isOn: $opensInboxAtLaunch) {
+                    Text("Open the Inbox with the board")
+                        .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                }
+            }
         }
     }
 
@@ -334,6 +422,29 @@ struct SettingsView: View {
                 DatePicker(selection: $scheduler.reminderTime, displayedComponents: .hourAndMinute) {
                     Text("At")
                         .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                }
+                .disabled(!scheduler.isEnabled)
+                .opacity(scheduler.isEnabled ? 1 : 0.4)
+            }
+            rule
+            row {
+                Toggle(isOn: $scheduler.remindsTheDayBefore) {
+                    Text("Also remind me the day before")
+                        .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                }
+                .disabled(!scheduler.isEnabled)
+                .opacity(scheduler.isEnabled ? 1 : 0.4)
+            }
+            rule
+            row {
+                Toggle(isOn: $scheduler.nagsWhileOverdue) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Tell me daily while anything is overdue")
+                            .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                        Text("One notice with a count, not one per card.")
+                            .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                            .foregroundStyle(palette.inkText(0.45))
+                    }
                 }
                 .disabled(!scheduler.isEnabled)
                 .opacity(scheduler.isEnabled ? 1 : 0.4)
@@ -425,6 +536,46 @@ struct SettingsView: View {
         )
     }
 
+    #if os(macOS)
+    /// The two things this app asks of the Mac rather than of the board.
+    ///
+    /// Login registration is read back from `SMAppService` rather than from the
+    /// stored key, because System Settings can revoke it and a switch that
+    /// reads on while nothing happens at login is worse than no switch at all.
+    private var systemSection: some View {
+        section(String(localized: "System", comment: "Settings section heading")) {
+            row {
+                Toggle(isOn: Binding(get: { launchesAtLogin }, set: { wanted in
+                    LaunchAtLogin.set(wanted)
+                    launchesAtLogin = LaunchAtLogin.isOn
+                })) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Open at login")
+                            .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                        if LaunchAtLogin.needsApproval {
+                            Text("Waiting to be allowed in System Settings ▸ General ▸ Login Items.")
+                                .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                                .foregroundStyle(palette.inkText(0.45))
+                        }
+                    }
+                }
+            }
+            rule
+            row {
+                Toggle(isOn: $showsMenuBarExtra) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Show the menu bar item")
+                            .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                        Text("Quick capture from any app, without leaving it.")
+                            .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                            .foregroundStyle(palette.inkText(0.45))
+                    }
+                }
+            }
+        }
+    }
+    #endif
+
     private var labelsSection: some View {
         section(String(localized: "Labels", comment: "Settings section heading")) {
             action(
@@ -440,6 +591,31 @@ struct SettingsView: View {
 
     private var dataSection: some View {
         section(String(localized: "Data", comment: "Settings section heading")) {
+            row {
+                choice(String(localized: "The Trash keeps things for",
+                              comment: "Settings row: how long deleted items are kept"),
+                       value: trashRetention.label) {
+                    ForEach(TrashRetention.allCases) { option in
+                        pick(option.label, isCurrent: option == trashRetention) {
+                            trashRetention = option
+                            store.sweepTrash()
+                        }
+                    }
+                }
+            }
+            rule
+            row {
+                choice(String(localized: "Backups to keep",
+                              comment: "Settings row: how many board backups are retained"),
+                       value: backupsKept.label,
+                       note: String(localized: "Each one is a whole copy of the board.",
+                                    comment: "Settings note under the backup count row")) {
+                    ForEach(BackupsKept.allCases) { option in
+                        pick(option.label, isCurrent: option == backupsKept) { backupsKept = option }
+                    }
+                }
+            }
+            rule
             transferRows
             rule
             boardFileRow

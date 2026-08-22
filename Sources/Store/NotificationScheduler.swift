@@ -26,10 +26,38 @@ enum NotificationAuthorization: Hashable, Sendable {
 /// scheduler can tell "nothing has changed" from "the title moved" by comparing
 /// what it published last with what it has been handed now.
 struct TaskReminder: Hashable, Sendable {
+    /// Which of a task's reminders this is. A task can want two — one the day
+    /// before and one on the day — and they are separate requests with separate
+    /// identifiers, so the centre can hold both and drop either.
+    enum Occasion: Hashable, Sendable {
+        case onTheDay
+        case theDayBefore
+    }
+
     var id: UUID
     var title: String
     var code: String
     var day: CalendarDay
+    var occasion: Occasion = .onTheDay
+
+    /// What the notification centre files this under. The on-the-day request
+    /// keeps the bare task id it has always had, so an app updating into this
+    /// does not orphan a week of already-scheduled reminders.
+    var identifier: String {
+        switch occasion {
+        case .onTheDay: id.uuidString
+        case .theDayBefore: "\(id.uuidString)-eve"
+        }
+    }
+
+    /// The day the notification actually fires, which is the day before the due
+    /// date for the early one.
+    var firesOn: CalendarDay {
+        switch occasion {
+        case .onTheDay: day
+        case .theDayBefore: day.adding(days: -1)
+        }
+    }
 }
 
 /// The half of `UNUserNotificationCenter` this app uses, behind a protocol so a
@@ -77,6 +105,35 @@ final class NotificationScheduler {
         }
     }
 
+    /// A second reminder the day before. Off by default: two notifications for
+    /// one card is a lot to opt somebody into, and the value of the early one
+    /// depends entirely on whether a day's warning is any use to the work.
+    var remindsTheDayBefore: Bool {
+        didSet {
+            guard remindsTheDayBefore != oldValue else { return }
+            defaults.set(remindsTheDayBefore, forKey: Keys.dayBefore)
+            // The *set* of wanted requests changes, not their triggers, and the
+            // store hands the whole list every reconcile — but a switch flipped
+            // in Settings has no reconcile behind it, so this asks for one.
+            wantsRebuild?()
+        }
+    }
+
+    /// A single daily notice while anything is overdue. One request, not one
+    /// per card: a nag that arrives five times says nothing the first one did
+    /// not, and the 64-request cap is not worth spending on repetition.
+    var nagsWhileOverdue: Bool {
+        didSet {
+            guard nagsWhileOverdue != oldValue else { return }
+            defaults.set(nagsWhileOverdue, forKey: Keys.overdueNag)
+            wantsRebuild?()
+        }
+    }
+
+    /// How the object asks the board for a fresh list when a *setting* changes
+    /// what it would want from one. Set by whoever owns the reconcile loop.
+    @ObservationIgnored var wantsRebuild: (() -> Void)?
+
     /// The hour and minute reminders fire at, on the day the task is due.
     /// Default 9am: a reminder is only useful before the day has been spent.
     var reminderHour: Int {
@@ -105,8 +162,15 @@ final class NotificationScheduler {
     /// they part company whenever authorisation is missing: the board goes on
     /// saying what it wants, and the moment permission arrives that want is
     /// published without the board having to change again.
-    @ObservationIgnored private var desired: [UUID: TaskReminder] = [:]
-    @ObservationIgnored private var published: [UUID: TaskReminder] = [:]
+    @ObservationIgnored private var desired: [String: TaskReminder] = [:]
+    @ObservationIgnored private var published: [String: TaskReminder] = [:]
+    /// How many cards are past their date, counted at the last reconcile. What
+    /// the overdue notice says, and whether there is one at all.
+    @ObservationIgnored private var overdueCount = 0
+    /// The count last published, or `nil` when no notice is scheduled.
+    @ObservationIgnored private var publishedOverdue: Int?
+    /// The one repeating request, told apart from the per-task ones.
+    private static let overdueIdentifier = "com.n14395.SimpleKanban.overdue"
     /// False until the first reconcile has been seen. See the type's note.
     @ObservationIgnored private var hasBaseline = false
 
@@ -117,6 +181,8 @@ final class NotificationScheduler {
         static let enabled = "SimpleKanbanRemindersEnabled"
         static let hour = "SimpleKanbanReminderHour"
         static let minute = "SimpleKanbanReminderMinute"
+        static let dayBefore = "SimpleKanbanRemindsTheDayBefore"
+        static let overdueNag = "SimpleKanbanNagsWhileOverdue"
     }
 
     init(
@@ -128,6 +194,8 @@ final class NotificationScheduler {
         self.defaults = defaults
         self.calendar = calendar
         self.isEnabled = defaults.object(forKey: Keys.enabled) as? Bool ?? true
+        self.remindsTheDayBefore = defaults.object(forKey: Keys.dayBefore) as? Bool ?? false
+        self.nagsWhileOverdue = defaults.object(forKey: Keys.overdueNag) as? Bool ?? false
         self.reminderHour = defaults.object(forKey: Keys.hour) as? Int ?? 9
         self.reminderMinute = defaults.object(forKey: Keys.minute) as? Int ?? 0
         guard let center else { return }
@@ -141,10 +209,18 @@ final class NotificationScheduler {
     /// archived, not already done. The store hands the whole list every time —
     /// the diff is this object's job, and a whole list is the only thing that
     /// stays right across a bulk archive, an undo, and a board switch.
-    static func reminders(from tasks: [TaskItem], isComplete: (TaskItem) -> Bool) -> [TaskReminder] {
-        tasks.compactMap { task in
-            guard let day = task.due, !task.isArchived, !isComplete(task) else { return nil }
-            return TaskReminder(id: task.id, title: task.displayTitle, code: task.code, day: day)
+    static func reminders(
+        from tasks: [TaskItem], isComplete: (TaskItem) -> Bool, alsoTheDayBefore: Bool = false
+    ) -> [TaskReminder] {
+        tasks.flatMap { task -> [TaskReminder] in
+            guard let day = task.due, !task.isArchived, !isComplete(task) else { return [] }
+            let onTheDay = TaskReminder(
+                id: task.id, title: task.displayTitle, code: task.code, day: day
+            )
+            guard alsoTheDayBefore else { return [onTheDay] }
+            var early = onTheDay
+            early.occasion = .theDayBefore
+            return [early, onTheDay]
         }
     }
 
@@ -155,12 +231,19 @@ final class NotificationScheduler {
         // pending requests and drops the rest without saying which, so a board
         // with more due dates than that has to choose for itself. The nearest
         // are the ones worth having.
-        let due = reminders
-            .compactMap { reminder in fireDate(for: reminder.day).map { (reminder, $0) } }
+        let dated = reminders
+            .compactMap { reminder in fireDate(for: reminder.firesOn).map { (reminder, $0) } }
+        // What is already past is what is overdue — the same list, read the
+        // other way. Only the on-the-day ones count: a card is not overdue the
+        // day before it is due.
+        overdueCount = dated
+            .filter { $0.0.occasion == .onTheDay && $0.1 <= now }
+            .count
+        let due = dated
             .filter { $0.1 > now }
             .sorted { $0.1 < $1.1 }
             .prefix(Self.pendingLimit)
-        let next = Dictionary(due.map { ($0.0.id, $0.0) }, uniquingKeysWith: { first, _ in first })
+        let next = Dictionary(due.map { ($0.0.identifier, $0.0) }, uniquingKeysWith: { first, _ in first })
         let appeared = next.keys.contains { desired[$0] == nil }
         desired = next
         defer { flush() }
@@ -215,7 +298,7 @@ final class NotificationScheduler {
 
         let stale = published.filter { target[$0.key] != $0.value }.keys
         if !stale.isEmpty {
-            center.removePending(identifiers: stale.map(\.uuidString))
+            center.removePending(identifiers: Array(stale))
         }
         let fresh = target.filter { published[$0.key] != $0.value }.values
         for reminder in fresh {
@@ -223,29 +306,75 @@ final class NotificationScheduler {
             center.add(request)
         }
         published = target
+        flushOverdueNotice()
+    }
+
+    /// The daily overdue notice, kept outside `desired`/`published` on purpose.
+    /// It is not a task's reminder: it repeats, it names a count rather than a
+    /// card, and it exists or does not exist rather than being diffed.
+    private func flushOverdueNotice() {
+        guard let center else { return }
+        let allowed = isEnabled && nagsWhileOverdue && authorization == .authorized
+        // Diffed on the *count*, the way the per-task requests are diffed on
+        // their contents: the body names a number, so a board whose overdue
+        // pile has not changed has nothing to say again. `nil` is "no notice",
+        // which is what a board with nothing overdue wants.
+        let wanted: Int? = (allowed && overdueCount > 0) ? overdueCount : nil
+        guard wanted != publishedOverdue else { return }
+        defer { publishedOverdue = wanted }
+        guard let count = wanted else {
+            center.removePending(identifiers: [Self.overdueIdentifier])
+            return
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = String(localized: "Overdue", comment: "Title of the daily overdue notification")
+        content.body = String(localized: "\(count) cards are past their date.",
+                              comment: "Body of the daily overdue notification; the placeholder is a count")
+        content.sound = .default
+        content.threadIdentifier = "com.n14395.SimpleKanban.due"
+
+        var components = DateComponents()
+        components.hour = reminderHour
+        components.minute = reminderMinute
+        center.add(UNNotificationRequest(
+            identifier: Self.overdueIdentifier,
+            content: content,
+            trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
+        ))
     }
 
     /// Drops what the centre holds and sends it again, which is what a change
     /// to the time of day means: every request's trigger moved.
     private func republish() {
         guard !published.isEmpty else { return flush() }
-        center?.removePending(identifiers: published.keys.map(\.uuidString))
+        center?.removePending(identifiers: Array(published.keys))
         published = [:]
+        // The notice's trigger carries the same hour and minute, so it is stale
+        // for the same reason and has to be re-sent rather than diffed away.
+        publishedOverdue = nil
         flush()
     }
 
     private func request(for reminder: TaskReminder) -> UNNotificationRequest? {
+        let firesOn = reminder.firesOn
         var components = DateComponents()
-        components.year = reminder.day.year
-        components.month = reminder.day.month
-        components.day = reminder.day.day
+        components.year = firesOn.year
+        components.month = firesOn.month
+        components.day = firesOn.day
         components.hour = reminderHour
         components.minute = reminderMinute
 
         let content = UNMutableNotificationContent()
         content.title = reminder.title
-        content.body = String(localized: "\(reminder.code) is due today.",
-                              comment: "Body of the reminder for a task due today; the placeholder is a task code like NW-118")
+        content.body = switch reminder.occasion {
+        case .onTheDay:
+            String(localized: "\(reminder.code) is due today.",
+                   comment: "Body of the reminder for a task due today; the placeholder is a task code like NW-118")
+        case .theDayBefore:
+            String(localized: "\(reminder.code) is due tomorrow.",
+                   comment: "Body of the reminder for a task due tomorrow; the placeholder is a task code like NW-118")
+        }
         content.sound = .default
         content.threadIdentifier = "com.n14395.SimpleKanban.due"
         content.userInfo = [NotificationRelay.taskIDKey: reminder.id.uuidString]
@@ -254,7 +383,7 @@ final class NotificationScheduler {
         content.targetContentIdentifier = TaskLink.url(for: reminder.id).absoluteString
 
         return UNNotificationRequest(
-            identifier: reminder.id.uuidString,
+            identifier: reminder.identifier,
             content: content,
             trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
         )

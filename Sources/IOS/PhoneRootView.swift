@@ -3,7 +3,7 @@
 import SwiftUI
 
 /// The iPhone screen: header, optional pager, task list, floating tab bar,
-/// plus the drawer and detail sheet overlays.
+/// plus the drawer, the Inbox slide-over and the detail sheet over the top.
 struct PhoneRootView: View {
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
@@ -38,7 +38,13 @@ struct PhoneRootView: View {
                 // No columns means no board — the user can delete the last one —
                 // and a pager with nothing to step through is two dead arrows.
                 if store.isColumnPaging {
-                    PhoneColumnPager()
+                    // Portrait only. Turned on its side the phone shows two
+                    // columns at once, each under its own name and count, so
+                    // the dots are a second and vaguer copy of what the
+                    // headings have already said — and the strip is 44pt of
+                    // the one dimension a phone in landscape has least of. The
+                    // swipe is unchanged, and so is every route in the header.
+                    if !isShort { PhoneColumnPager() }
                     columnPages
                 } else {
                     taskList(tasks)
@@ -58,13 +64,38 @@ struct PhoneRootView: View {
         // drawer up, every card was still enumerable. What actually keeps a
         // reader out of the board is the drawer's own `.isModal`; this is worth
         // keeping for the three bars it does take, and is not the whole of it.
-        .accessibilityHidden(store.isNavDrawerOpen)
+        .accessibilityHidden(store.isNavDrawerOpen || store.isInboxOpen)
+        // The drawer's other way in. The hamburger was the only one, and a
+        // panel that slides out from the leading edge is one every other iOS
+        // app opens by pulling from that edge. `PadRootView` takes the same
+        // modifier for its source list.
+        //
+        // Guarded rather than unconditional, because two of the three things
+        // that can be over the board are *overlays in this tree* — the drawer
+        // and the Inbox — so the pan still lands here with either up, and would
+        // otherwise re-open what is already open or open a second panel behind
+        // the first. The detail sheet is the third: a real presentation, out of
+        // this recognizer's reach, and named anyway so the rule reads as one.
+        .leadingEdgeSwipe {
+            guard !store.isNavDrawerOpen, !store.isInboxOpen, store.sheetID == nil else { return }
+            store.isNavDrawerOpen = true
+        }
         .overlay {
             if store.isNavDrawerOpen {
                 PhoneNavDrawer()
             }
         }
+        // Under the drawer rather than over it: the drawer is the way to a
+        // *board*, and a board list half-covered by the Inbox is the wrong way
+        // round. Both up at once is reachable — the drawer's Inbox row opens
+        // this one — and that row closes the drawer on its way.
+        .overlay {
+            if store.isInboxOpen {
+                PhoneInboxSheet()
+            }
+        }
         .motionAnimation(.timingCurve(0.32, 0.72, 0, 1, duration: 0.28), value: store.isNavDrawerOpen)
+        .motionAnimation(.timingCurve(0.32, 0.72, 0, 1, duration: 0.28), value: store.isInboxOpen)
         // 5.8's `.selection` half: paging and the tab bar are the same act —
         // picking where you are — and both are one tap or one swipe, never a
         // keystroke. The card owns the other two, because both are things that
@@ -124,10 +155,15 @@ struct PhoneRootView: View {
         }
     }
 
+    /// The phone on its side — `PhoneHeader`'s name for the same test, and a
+    /// size class rather than an orientation for the same reason: Slide Over
+    /// and Split View arrive at that shape without the device having turned.
+    private var isShort: Bool { verticalSizeClass == .compact }
+
     /// How many columns share the screen. Two only where there is width for
     /// them, which on a phone is landscape — the shape 5.5 unlocks.
     private var columnsPerScreen: Int {
-        verticalSizeClass == .compact && store.pagerColumns.count > 1 ? 2 : 1
+        isShort && store.pagerColumns.count > 1 ? 2 : 1
     }
 
     @ViewBuilder private func page(_ column: BoardColumn) -> some View {
@@ -192,22 +228,20 @@ struct PhoneRootView: View {
     /// held sideways.
     private var listMetrics: TaskListMetrics {
         var metrics = TaskListMetrics.sheet
-        if verticalSizeClass == .compact {
+        if isShort {
             metrics.topInset = 0
             metrics.bottomInset = 92
         }
         return metrics
     }
 
-    /// `showsMobileColumnChips`, minus the one list where the chip has nothing
-    /// left to say. Every card on the Inbox tab is unfiled, and the chip names
-    /// the Inbox for an unfiled card, so the whole list would read "INBOX" under
-    /// a tab already labelled Inbox. A saved view still gets them: it can hold
-    /// cards from any board and the Inbox at once, which is when the chip earns
-    /// its room (4.8).
+    /// A saved view always gets the chips: it can hold cards from any board and
+    /// the Inbox at once, which is when a chip earns its room (4.8). The Inbox's
+    /// own list used to be the exception here and is no longer this view's to
+    /// draw — ``PhoneInboxSheet`` makes the same call for itself, where the
+    /// reason for it is local.
     private var showsPlaceChips: Bool {
-        guard store.activeView == nil else { return true }
-        return store.showsMobileColumnChips && store.tab != .inbox
+        store.activeView != nil || store.showsMobileColumnChips
     }
 
     /// The empty cases, which all rendered as blank space (4.3). Which kind of
@@ -228,8 +262,6 @@ struct PhoneRootView: View {
             // An unqueried Search lists the whole board, so reaching this means
             // there is no board yet rather than no result.
             return .board(metrics: .sheet, add: store.addTaskToCurrentMobileColumn)
-        case .inbox:
-            return .inbox(metrics: .sheet, add: store.addTaskToCurrentMobileColumn)
         case .board:
             // Deleting the last board is allowed, so the Board tab has to have
             // something to say when there is no board to draw — and has to

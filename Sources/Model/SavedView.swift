@@ -91,7 +91,12 @@ enum SavedView: String, CaseIterable, Identifiable, Codable, Sendable {
     /// `isDone` is asked of the caller rather than read off the task: which
     /// column counts as Done is the board's answer, not a fact about a task —
     /// see `ColumnRole`.
-    func matches(_ task: TaskItem, today: CalendarDay, isDone: Bool) -> Bool {
+    /// `week` is what "due this week" is measured against — see
+    /// ``WeekMeaning``. Defaulted to the rolling seven days this view has always
+    /// meant, so a caller with no opinion, and every test, reads as before.
+    func matches(
+        _ task: TaskItem, today: CalendarDay, isDone: Bool, week: WeekMeaning = .fallback
+    ) -> Bool {
         guard task.isArchived == (self == .archive) else { return false }
         guard !excludesDone || !isDone else { return false }
 
@@ -114,7 +119,7 @@ enum SavedView: String, CaseIterable, Identifiable, Codable, Sendable {
             return task.priority == .high
         case .dueThisWeek:
             guard let due = task.due else { return false }
-            return (0...6).contains(DueDate.daysAway(due, from: today))
+            return week.containsAhead(due, from: today)
         case .recentlyUpdated, .archive:
             // Both are defined entirely by their ordering and their cap.
             return true

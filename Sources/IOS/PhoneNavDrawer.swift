@@ -98,19 +98,19 @@ struct PhoneNavDrawer: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
 
-            // Everything below the title scrolls, summary card and accent
-            // picker included. Pinning those two to the bottom left the rows
-            // between them and the title in whatever height was left over: on
-            // a 402x874 phone that was 481pt for 620pt of rows, so the Archive
-            // row was clipped and "Manage labels" sat 59pt past the fold with
-            // no indicator to say so.
+            // Everything below the title scrolls, rather than the rows being
+            // given whatever height was left after something pinned to the
+            // bottom: on a 402x874 phone that was 481pt for 620pt of rows, so
+            // the Archive row was clipped and "Manage labels" sat 59pt past
+            // the fold with no indicator to say so.
+            //
+            // **The drawer is a list of places and nothing else.** It carried a
+            // "this week, N shipped" card and the accent switcher under the
+            // rows; the desk's source list gave both up for the same reason,
+            // and the accent is still in Settings, which `settingsRow` opens.
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     lists
-                    weeklySummary.padding(.top, 24)
-                    AccentPicker(metrics: .drawer)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 18)
                     settingsRow
                         .padding(.horizontal, 12)
                         .padding(.top, 14)
@@ -442,48 +442,31 @@ struct PhoneNavDrawer: View {
         store.isNavDrawerOpen = false
     }
 
+    /// The drawer's Inbox row raises the slide-over and closes the drawer on
+    /// its way out. Both at once is a board list half-covered by the Inbox,
+    /// which is the wrong way round: the drawer is the way to a *board*.
     private func showInbox() {
-        store.selectTab(.inbox)
+        store.isInboxOpen = true
         store.isNavDrawerOpen = false
     }
 
     /// Both calls, in this order: `selectBoard` says which board and clears any
-    /// saved view standing in for it, `selectTab` says the phone is looking at a
-    /// board rather than at the Inbox it may have been on.
+    /// saved view standing in for it, `selectTab` says the phone's list is the
+    /// board's rather than the search results it may have been showing.
     private func show(_ board: Board) {
         store.selectBoard(board.id)
         store.selectTab(.board)
         store.isNavDrawerOpen = false
     }
 
-    /// Which row is highlighted. A saved view has replaced the list, so while
-    /// one is open neither the Inbox nor any board is what is on screen.
-    private var isShowingInbox: Bool {
-        store.activeView == nil && store.tab == .inbox
-    }
+    /// Which row is highlighted. The Inbox is a panel over the board now rather
+    /// than a place instead of it, so this row marks itself while the panel is
+    /// up and the board row underneath goes on marking the board that is still
+    /// there behind it — which is the truth about both.
+    private var isShowingInbox: Bool { store.isInboxOpen }
 
     private func isActive(_ board: Board) -> Bool {
-        store.activeView == nil && store.tab != .inbox && board.id == store.activeBoardID
-    }
-
-    private var weeklySummary: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("This week")
-                .sectionLabelStyle(tracking: 0.08, opacity: Palette.readableInk)
-                .padding(.bottom, 8)
-            HStack(alignment: .firstTextBaseline, spacing: 7) {
-                Text("\(store.weeklyShippedCount(today: dayClock.today))")
-                    .font(SimpleKanbanFont.serif(34))
-                Text("shipped")
-                    .font(SimpleKanbanFont.ui(13, .semibold, relativeTo: .footnote))
-                    .foregroundStyle(palette.inkText(0.5))
-            }
-            ProgressMeter(fraction: store.weeklyProgressFraction(today: dayClock.today), height: 6)
-                .padding(.top, 11)
-        }
-        .padding(16)
-        .background(palette.ink(0.045), in: .rect(cornerRadius: 16))
-        .padding(.horizontal, 16)
+        store.activeView == nil && board.id == store.activeBoardID
     }
 }
 

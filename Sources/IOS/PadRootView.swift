@@ -56,6 +56,14 @@ struct PadRootView: View {
             detail
         }
         .navigationSplitViewStyle(.balanced)
+        // The source list's other way in, and the same gesture the phone's
+        // drawer answers. A split view looks like it should bring this with it
+        // — `UISplitViewController` has `presentsWithGesture` — and measured on
+        // an iPad Pro 13" in portrait it does not: a pull from x=0 across the
+        // board left the list where it was. What claims that pan is the board's
+        // own horizontal scroll view, which is exactly what `leadingEdgeSwipe`
+        // is built to outrank.
+        .leadingEdgeSwipe(perform: revealSidebar)
         .trashToast(metrics: .sheet)
         .environment(focusRelay)
         .background(palette.appBackground.ignoresSafeArea())
@@ -216,6 +224,17 @@ struct PadRootView: View {
     private func toggleSidebar() {
         Motion.run(.easeOut(duration: 0.2), reduceMotion: reduceMotion) {
             columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
+        }
+    }
+
+    /// A pull from the edge only ever means *show me the list*. It is not the
+    /// button's other half: in landscape the list is already beside the board,
+    /// and a gesture that put it away would be the swipe undoing itself on the
+    /// one shape where the edge and the list are the same place.
+    private func revealSidebar() {
+        guard columnVisibility != .all else { return }
+        Motion.run(.easeOut(duration: 0.2), reduceMotion: reduceMotion) {
+            columnVisibility = .all
         }
     }
 

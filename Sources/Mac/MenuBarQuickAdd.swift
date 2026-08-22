@@ -20,8 +20,13 @@ import SwiftUI
 struct MenuBarQuickAdd: Scene {
     let store: BoardStore
 
+    /// Whether the status item is in the menu bar at all. On by default,
+    /// because it is this app's one route in from another app; a setting
+    /// because a menu bar is finite and not everybody spends theirs here.
+    @AppStorage(Preferences.menuBarExtraKey) private var isShowing = true
+
     var body: some Scene {
-        MenuBarExtra("Simple Kanban", systemImage: "checklist") {
+        MenuBarExtra("Simple Kanban", systemImage: "checklist", isInserted: $isShowing) {
             MenuBarQuickAddView()
                 .environment(store)
         }

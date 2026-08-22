@@ -280,7 +280,23 @@ struct ChecklistView: View {
                 .contentShape(.accessibility, Rectangle())
                 .padding(.vertical, -metrics.fieldOverhang)
                 .accessibilityLabel("Add new sub-task")
-                .onSubmit { store.commitSubtaskDraft(for: scope, task: task.id) }
+                .onSubmit {
+                    store.commitSubtaskDraft(for: scope, task: task.id)
+                    // Return **ends editing** — that is what it is for, and the
+                    // rows above rely on it: theirs clears `focusedRow`. This
+                    // one field is the exception, because a checklist is
+                    // written as a list: the draft moves down under the
+                    // sub-task it just made, and the next one is typed straight
+                    // into it. Losing the keyboard there costs a click a line.
+                    //
+                    // Asked for on the far side of a yield, for the reason
+                    // `focusWhenReady` gives: inside the submit handler is
+                    // inside the turn that is about to resign the field.
+                    Task { @MainActor in
+                        await Task.yield()
+                        isDraftFocused = true
+                    }
+                }
                 .onKeyPress(.escape) {
                     // Only ours to swallow when there is something to clear —
                     // otherwise Escape belongs to whatever is presenting us.
