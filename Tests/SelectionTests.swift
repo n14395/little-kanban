@@ -20,6 +20,44 @@ private func registrations(_ undo: RecordingUndoManager, _ body: () -> Void) -> 
 /// of them measure from.
 @MainActor
 @Suite struct SelectionTests {
+    // MARK: The selection follows the keyboard
+
+    /// A plain click, and the mouse *down* half of it. Focus arrives on the
+    /// pressed card before its `Button` fires, so the selection has to arrive
+    /// with it or the two rings sit on two different cards for the length of
+    /// the press — and for good, on a drag, which never fires that `Button`.
+    @Test func focusArrivingOnACardTakesTheSelectionWithIt() {
+        #expect(BoardKeyboard.selectionFollows(
+            focusOnto: column[1], selection: [column[0]], held: .none
+        ))
+        // Nothing picked at all is the same answer: the card focus landed on.
+        #expect(BoardKeyboard.selectionFollows(focusOnto: column[1], selection: [], held: .none))
+    }
+
+    /// ⌘ and ⇧ mean "as well as what is already picked". Collapsing onto the
+    /// pressed card on mouse down would throw the rest away before the click
+    /// meaning to add to it had been delivered.
+    @Test func aHeldModifierLeavesTheSelectionForTheClickToSettle() {
+        for held in [CardClick.extend, .range] {
+            #expect(!BoardKeyboard.selectionFollows(
+                focusOnto: column[1], selection: [column[0]], held: held
+            ))
+            #expect(!BoardKeyboard.selectionFollows(
+                focusOnto: column[1], selection: [], held: held
+            ))
+        }
+    }
+
+    /// Reaching a card that is already picked — arrowing through a multi-
+    /// selection, or picking one of them up to drag — is not a decision to drop
+    /// the others.
+    @Test func focusLandingInsideAMultiSelectionDoesNotCollapseIt() {
+        let picked: Set<TaskItem.ID> = [column[0], column[1], column[2]]
+        #expect(!BoardKeyboard.selectionFollows(focusOnto: column[1], selection: picked, held: .none))
+        // And the card outside it still takes the lot.
+        #expect(BoardKeyboard.selectionFollows(focusOnto: column[3], selection: picked, held: .none))
+    }
+
     /// A column as a surface draws it — the order a ⇧-click means, which is
     /// neither the board array's nor a set's.
     private let column = [TestBoard.palette, TestBoard.cafe, TestBoard.dragDrop, TestBoard.offline]

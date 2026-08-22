@@ -46,19 +46,22 @@ struct BoardScrollView: View {
     private var columns: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal) {
-                HStack(alignment: .top, spacing: 12) {
+                HStack(alignment: .top, spacing: Self.columnSpacing) {
                     ForEach(Array(store.columns.enumerated()), id: \.element.id) { index, column in
                         BoardColumnView(
                             column: column, index: index, metrics: metrics, focus: $focus
                         )
                         .frame(maxHeight: .infinity, alignment: .top)
+                        .padding(.horizontal, Self.revealInset)
                         .id(column.id)
                     }
                     AddColumnTile(isComposing: $isAddingColumn, metrics: metrics)
                         .frame(maxHeight: .infinity, alignment: .top)
+                        .padding(.horizontal, Self.revealInset)
                         .id(Self.addColumnID)
                 }
-                .padding(16)
+                .padding(.vertical, Self.stripPadding)
+                .padding(.horizontal, Self.stripInset)
                 .frame(maxHeight: .infinity, alignment: .top)
             }
             .scrollBounceBehavior(.basedOnSize)
@@ -77,23 +80,79 @@ struct BoardScrollView: View {
                     proxy.scrollTo(Self.addColumnID, anchor: .trailing)
                 }
             }
-            // Focus moving off the right-hand edge has to bring the board with
-            // it, for the same reason.
+            // Which column ⌘N adds to, kept in step with wherever focus is by
+            // whatever route — a click included. This one is bookkeeping and
+            // moves nothing.
             .onChange(of: focus) { _, id in
-                let columnID = id.flatMap { store[$0]?.columnID }
-                // Only when the column itself changes: ↑ and ↓ stay where they
-                // are, and re-centring a column that is already on screen under
-                // every key press is a board that will not sit still.
-                guard columnID != relay?.focusedColumnID else { return }
-                relay?.focusedColumnID = columnID
-                guard let columnID else { return }
-                Motion.run(.easeOut(duration: 0.16), reduceMotion: reduceMotion) {
-                    proxy.scrollTo(columnID, anchor: .center)
+                relay?.focusedColumnID = id.flatMap { store[$0]?.columnID }
+            }
+            // Focus moving off the right-hand edge has to bring the board
+            // with it — as far as whoever moved it asked for. See
+            // ``BoardReveal``: a key wants the column in the middle, a click
+            // wants it merely whole.
+            .onChange(of: reveal) { previous, reveal in
+                guard let reveal, let columnID = store[reveal.task]?.columnID else { return }
+                switch reveal.manner {
+                case .centred:
+                    // Only when the column itself changes: ↑ and ↓ stay where
+                    // they are, and re-centring a column that is already on
+                    // screen under every key press is a board that will not sit
+                    // still. Asked of the card revealed *before* this one
+                    // rather than of a remembered column, which is a second
+                    // piece of state that could disagree with this one.
+                    guard columnID != previous.flatMap({ store[$0.task]?.columnID }) else { return }
+                    scroll { proxy.scrollTo(columnID, anchor: .center) }
+                case .intoView:
+                    // `anchor: nil` is the minimum scroll that makes the column
+                    // whole, and no scroll at all when it is whole already —
+                    // which is the entire behaviour a click is allowed. The
+                    // margin either side of it comes from `revealInset`.
+                    scroll { proxy.scrollTo(columnID) }
                 }
             }
             .onDisappear { relay?.focusedColumnID = nil }
         }
     }
+
+    /// Flattened: `relay` is itself optional, so the chain is a double optional
+    /// and `onChange` would be comparing one.
+    private var reveal: BoardReveal? { relay?.reveal ?? nil }
+
+    /// One animation for every reveal, so the two manners cannot drift into
+    /// moving the board at different speeds.
+    private func scroll(_ body: () -> Void) {
+        Motion.run(.easeOut(duration: 0.16), reduceMotion: reduceMotion, body)
+    }
+
+    /// The gap the design puts between two columns, and the board's own margin
+    /// at either end of the strip. What the board must still measure once the
+    /// reveal inset has been taken out of both.
+    static let gutter: CGFloat = 12
+    static let stripPadding: CGFloat = 16
+
+    /// How much board is brought into view either side of a column that is
+    /// scrolled to.
+    ///
+    /// `scrollTo` has no notion of a margin: with no anchor it moves the
+    /// minimum that makes the target whole, which leaves a revealed column
+    /// flush against the window's edge with nothing beside it — technically
+    /// visible and reading as still cut off. So each column is scrolled to
+    /// *wrapped in this much padding*, which is what the identifier is attached
+    /// to, and the wrapper is what has to fit.
+    ///
+    /// It costs the layout nothing: the padding is taken back out of the
+    /// `HStack`'s spacing and the strip's own margin, so the columns sit
+    /// exactly where they did — `gutter` apart and `stripPadding` from the
+    /// ends. The wrappers overlap each other by twice this, which is empty
+    /// space either way and hit-tests as nothing.
+    static let revealInset: CGFloat = 16
+
+    /// The spacing and the margin that are actually spent, once each column has
+    /// taken `revealInset` of its own. Both go *negative* as the inset passes
+    /// the thing it is taken out of, which is allowed and is the point: what has
+    /// to hold is that the two add back up, and `BoardRevealTests` asks that.
+    static var columnSpacing: CGFloat { gutter - revealInset * 2 }
+    static var stripInset: CGFloat { stripPadding - revealInset }
 
     private static let addColumnID = "add-column"
 

@@ -158,26 +158,23 @@ final class DeepLinkRouter {
     /// iPad and then showed nothing at all whenever the inspector was closed.
     /// The two do not collide: the phone has no inspector to open, the iPad
     /// presents no sheet, and each surface reads the one piece of state it has.
+    ///
+    /// Getting to the card's board is `showPlace(of:)`, which the board menu
+    /// also goes through — this is that plus the two things only an arrival
+    /// from outside needs: the card selected, and a detail surface opened on it.
+    /// An archived card is the one place they part company, having no board to
+    /// be taken to.
     private func reveal(_ task: TaskItem, in store: BoardStore) {
         store.clearQuery()
         if task.isArchived {
             store.activeView = .archive
-        } else if let boardID = task.boardID {
-            store.selectBoard(boardID)
         } else {
-            // Unfiled, so the card is in the panel — which means putting the
-            // board back as well, since the panel stands beside it.
-            store.showInbox()
+            store.showPlace(of: task.id)
         }
         store.select(task.id)
         // The desk and the iPad: the panel beside the board.
         store.isInspectorOpen = true
         #if os(iOS)
-        // And the phone: the column the pager is on, the tab under it, and the
-        // sheet. `selectTab` also sets `surface`, which is what the iPad's
-        // detail pane reads, so the two agree about where the user is.
-        if let columnID = task.columnID, !task.isArchived { store.mobileColumnID = columnID }
-        if !task.isArchived { store.selectTab(task.isUnfiled ? .inbox : .board) }
         store.isNavDrawerOpen = false
         store.sheetID = task.id
         #endif

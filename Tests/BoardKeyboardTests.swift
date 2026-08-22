@@ -483,6 +483,27 @@ import Testing
 /// width *or* inset; both are cheap, and either one alone is one edit away from
 /// being tidied out.
 @Suite struct FocusRingTests {
+    /// The ordinary selected card. Both rings land on it now — the selection
+    /// follows the keyboard onto whatever it is on — so a second ring inside
+    /// the first would be one border drawn twice.
+    @Test func aCardThatIsTheWholeSelectionWearsOneRing() {
+        #expect(!BoardTaskCard.drawsFocusRing(isFocused: true, isSelected: true, selectionCount: 1))
+        // And the selection ring alone on a card the keyboard is not on.
+        #expect(!BoardTaskCard.drawsFocusRing(isFocused: false, isSelected: true, selectionCount: 1))
+    }
+
+    /// The two states where focus is not the same fact as selection, and the
+    /// inner ring is the only thing that marks it.
+    @Test func theFocusRingReturnsWhereTheSelectionRingCannotSayIt() {
+        // Inside a multi-selection every card wears the outer ring alike; this
+        // is the one the arrows move from and ⇧ sweeps from.
+        #expect(BoardTaskCard.drawsFocusRing(isFocused: true, isSelected: true, selectionCount: 3))
+        // And where a ⌘-click has taken the focused card out of the selection,
+        // which would otherwise leave the keyboard on a card marked nothing.
+        #expect(BoardTaskCard.drawsFocusRing(isFocused: true, isSelected: false, selectionCount: 1))
+        #expect(BoardTaskCard.drawsFocusRing(isFocused: true, isSelected: false, selectionCount: 0))
+    }
+
     /// Asked of every preset rather than of one pair of statics. The rings used
     /// to be constants on `Ring` fitted to the desk's 12pt corner, so the pad's
     /// card — rounded at 14 — wore a selection ring 2pt inside its own edge.

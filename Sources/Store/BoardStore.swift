@@ -1825,6 +1825,35 @@ final class BoardStore {
         isInboxOpen = true
     }
 
+    /// Puts the place a card lives on screen: its board, or the Inbox panel.
+    ///
+    /// Navigation and nothing else — it does not select the card or open a
+    /// detail surface, because both callers already have one open and it is
+    /// already showing this card. `reveal` adds those two on top for somebody
+    /// arriving from outside the app; the board menu needs only this half,
+    /// having been clicked from inside the panel it wants left standing.
+    ///
+    /// An archived card has no place on screen to be taken to — it is on the
+    /// Archive view, which is not a board — so this leaves the user where they
+    /// are rather than opening a board the card is not drawn on.
+    func showPlace(of id: TaskItem.ID) {
+        guard let task = self[id], !task.isArchived else { return }
+        if let boardID = task.boardID {
+            selectBoard(boardID)
+        } else {
+            // Unfiled, so the card is in the panel — which means putting the
+            // board back as well, since the panel stands beside it.
+            showInbox()
+        }
+        #if os(iOS)
+        // And the phone, which shows one place at a time: the column the pager
+        // is on, and the tab under it. `selectTab` also sets `surface`, which
+        // is what the iPad's detail pane reads, so the two agree.
+        if let columnID = task.columnID { mobileColumnID = columnID }
+        selectTab(task.isUnfiled ? .inbox : .board)
+        #endif
+    }
+
     /// A saved view's tasks: its predicate, its ordering and its cap, and then
     /// the search query on top of all three. Searching narrows a view rather
     /// than replacing it.
@@ -1865,6 +1894,26 @@ final class BoardStore {
             if areInOrder(rhs.element, lhs.element) { return false }
             return lhs.offset < rhs.offset
         }.map(\.element)
+    }
+
+    // MARK: - Dragging
+
+    /// Puts the board back to how it looks when nothing is being carried: the
+    /// card at full strength, and no highlight on wherever it was going to land.
+    ///
+    /// Called when the drag is *finished with*, which on macOS is a good deal
+    /// later than the mouse coming up. `dropDestination` hands its closure
+    /// decoded items, so SwiftUI takes the drop, plays the drag image into
+    /// place, and only then loads the payload off the pasteboard and runs the
+    /// handler. Clearing this at mouse-up drew the card back at full strength
+    /// in the column it was leaving, where it sat for a tenth of a second
+    /// before the move landed and took it away — the card flashing back to
+    /// where it came from, which is what a drag is supposed to look like when
+    /// it *fails*. See ``CardDragSession`` for which phase calls this.
+    func endDrag() {
+        draggingID = nil
+        dropTargetColumnID = nil
+        isInboxDropTarget = false
     }
 
     // MARK: - Moving
@@ -1976,8 +2025,7 @@ final class BoardStore {
         // A card dropped on itself has nothing to sit in front of.
         let target = beforeID == id ? nil : beforeID
         guard tasks[index].placement != placement || target != nil || toTheEnd else {
-            draggingID = nil
-            dropTargetColumnID = nil
+            endDrag()
             return
         }
 
@@ -2011,8 +2059,7 @@ final class BoardStore {
             tasks.append(moved)
         }
 
-        draggingID = nil
-        dropTargetColumnID = nil
+        endDrag()
         scheduleSave()
     }
 

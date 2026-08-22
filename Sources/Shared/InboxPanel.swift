@@ -54,7 +54,11 @@ struct InboxPanel: View {
     /// `BoardScrollView`'s reason: ↑ and ↓ cross rows, and a row cannot see its
     /// neighbours.
     @FocusState private var focus: TaskItem.ID?
+    @Environment(BoardFocusRelay.self) private var relay: BoardFocusRelay?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Flattened, for the reason ``BoardScrollView`` gives.
+    private var reveal: BoardReveal? { relay?.reveal ?? nil }
 
     var metrics: Metrics = .desk
     /// The gap the window's traffic lights need when the panel is what they
@@ -144,13 +148,17 @@ struct InboxPanel: View {
                 .padding(.bottom, metrics.list.bottomInset)
             }
             .scrollBounceBehavior(.basedOnSize)
-            // The panel is as tall as the board, so focus arriving on a card
+            // The panel is as tall as the board, so a key landing on a card
             // near the bottom has to bring the card with it — the same reason
-            // `BoardColumnView` carries this.
-            .onChange(of: focus) { _, id in
-                guard let id, tasks.contains(where: { $0.id == id }) else { return }
+            // `BoardColumnView` carries this, and the same reason a click is
+            // not one of the routes that does.
+            .onChange(of: reveal) { _, reveal in
+                guard let reveal, tasks.contains(where: { $0.id == reveal.task }) else { return }
                 Motion.run(.easeOut(duration: 0.16), reduceMotion: reduceMotion) {
-                    proxy.scrollTo(id, anchor: .center)
+                    switch reveal.manner {
+                    case .centred: proxy.scrollTo(reveal.task, anchor: .center)
+                    case .intoView: proxy.scrollTo(reveal.task)
+                    }
                 }
             }
         }

@@ -46,7 +46,9 @@ struct BoardDestinationMenu: View {
 
     var body: some View {
         Menu {
-            BoardDestinationItems(task: task)
+            // The pill is only ever drawn on a surface that has the card open,
+            // so picking a board here goes there: see `BoardDestinationItems`.
+            BoardDestinationItems(task: task, follows: true)
         } label: {
             HStack(spacing: metrics.spacing) {
                 Circle()
@@ -89,15 +91,26 @@ struct BoardDestinationMenu: View {
 /// Choosing the ticked one does nothing rather than re-filing: filing a card
 /// onto the board it is already on sends it to that board's landing column,
 /// which is a move nobody asked for and the two ticked menus were quietly
-/// making.
+/// making. It is also why `follows` cannot take you to the board you are on —
+/// nothing moved, so there is nothing to follow.
 struct BoardDestinationItems: View {
     @Environment(BoardStore.self) private var store
 
     let task: TaskItem
+    /// Whether picking a destination also *goes* there.
+    ///
+    /// It does from the pill, which is drawn on the detail surfaces and nowhere
+    /// else: the card stays open in front of you as it moves, and leaving the
+    /// board it went to off screen means the panel and the board behind it
+    /// disagree about where the card is. It does not from the two card context
+    /// menus, where filing is done from the board, a card at a time — being
+    /// thrown onto another board after each one is a worse answer than the
+    /// card simply leaving.
+    var follows: Bool = false
 
     var body: some View {
         Button {
-            if !task.isUnfiled { store.unfile(task.id) }
+            if !task.isUnfiled { pick { store.unfile(task.id) } }
         } label: {
             label(Board.inboxName, isCurrent: task.isUnfiled)
         }
@@ -108,12 +121,20 @@ struct BoardDestinationItems: View {
         ForEach(store.boards) { board in
             let isCurrent = board.id == task.boardID
             Button {
-                if !isCurrent { store.file(task.id, onto: board.id) }
+                if !isCurrent { pick { store.file(task.id, onto: board.id) } }
             } label: {
                 label(board.name, isCurrent: isCurrent)
             }
             .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
         }
+    }
+
+    /// Files the card, and then follows it if this menu follows. Afterwards
+    /// rather than before: where the card lives is read back off the card, so
+    /// the move has to have happened for there to be anywhere to go.
+    private func pick(_ file: () -> Void) {
+        file()
+        if follows { store.showPlace(of: task.id) }
     }
 
     @ViewBuilder private func label(_ name: String, isCurrent: Bool) -> some View {

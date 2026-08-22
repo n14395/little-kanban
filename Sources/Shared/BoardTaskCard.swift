@@ -57,6 +57,9 @@ struct BoardTaskCard: View {
     @Environment(\.palette) private var palette
     @Environment(\.dayClock) private var dayClock
     @Environment(BoardStore.self) private var store
+    /// Where a click says which card the board should show whole. Optional
+    /// because the phone's card and a preview have no board around them.
+    @Environment(BoardFocusRelay.self) private var relay: BoardFocusRelay?
     /// The lift under the pointer is the one piece of motion a card has, and a
     /// board of them lifting as the pointer crosses is exactly the drift a
     /// reader with a vestibular disorder asked to be spared. The shadow still
@@ -107,7 +110,34 @@ struct BoardTaskCard: View {
         var inset: CGFloat
     }
 
+    /// Whether the keyboard's ring is drawn, given what the selection ring is
+    /// already saying about the same card.
+    ///
+    /// **Only where it adds something.** The two rings are one card's now — the
+    /// selection follows the keyboard onto it, however focus arrived; see
+    /// ``BoardKeyboard/selectionFollows(focusOnto:selection:held:)`` — so on the
+    /// ordinary selected card the inner ring was drawing a second border round
+    /// the first and saying the same thing twice.
+    ///
+    /// It is still drawn in the two states where focus and selection are not
+    /// the same fact. A card focused inside a **multi-selection** is the one the
+    /// arrows will move from and ⇧ will sweep from, which nothing else on screen
+    /// marks — every card in the selection wears the outer ring alike. And a
+    /// card focused while **not selected at all**, which is where a ⌘-click that
+    /// took a card out of the selection leaves it: without this the card holding
+    /// the keyboard would carry no mark whatsoever.
+    nonisolated static func drawsFocusRing(
+        isFocused: Bool, isSelected: Bool, selectionCount: Int
+    ) -> Bool {
+        isFocused && !(isSelected && selectionCount == 1)
+    }
+
     private var isSelected: Bool { store.isSelected(task.id) }
+    private var drawsFocusRing: Bool {
+        Self.drawsFocusRing(
+            isFocused: isFocused, isSelected: isSelected, selectionCount: store.selectionCount
+        )
+    }
     private var isDragging: Bool { store.draggingID == task.id }
     private var isDone: Bool { store.isDone(task) }
 
@@ -269,6 +299,10 @@ struct BoardTaskCard: View {
             store.isInspectorOpen = true
         }
         focus?.wrappedValue = task.id
+        // The click landed on a card that was on screen, so this asks for the
+        // least the board can do: show the column it is in whole, and nothing
+        // at all when it is whole already. See ``BoardReveal``.
+        relay?.reveal = .intoView(task.id)
     }
 
     /// The cards a ⇧-click may sweep across: this card's own column on the
@@ -408,9 +442,10 @@ struct BoardTaskCard: View {
         }
         .overlay { ring(metrics.selectionRing, isDrawn: isSelected) }
         // The keyboard's ring, drawn inside the selection's rather than in
-        // place of it: thinner and set in, so the difference survives being
-        // read in grey. See `Ring`.
-        .overlay { ring(metrics.focusRing, isDrawn: isFocused) }
+        // place of it — thinner and set in, so the difference survives being
+        // read in grey — and only where the two are not the same fact. See
+        // `drawsFocusRing`.
+        .overlay { ring(metrics.focusRing, isDrawn: drawsFocusRing) }
     }
 }
 
@@ -440,6 +475,12 @@ enum CardClick {
 /// session, so a card that is picked up and dropped nowhere stops looking as
 /// though it is still in the air.
 ///
+/// The lift ends at `dataTransferCompleted` rather than at `ended`, which is
+/// the whole reason this reads phases at all rather than watching for a mouse
+/// up: the two are around a tenth of a second apart on macOS, and a card
+/// undimmed in the gap flashes back into the column it is leaving. `endDrag`
+/// has the long version.
+///
 /// Behind an availability check rather than a `#if`: `onDragSessionUpdated` is
 /// macOS 26 but iOS **27**, and this app deploys to iOS 26. An iPad on 26 drags
 /// and drops exactly as it does now — the drop handlers clear both — and simply
@@ -468,9 +509,30 @@ private struct CardDragSession: ViewModifier {
             switch session.phase {
             case .initial:
                 store.draggingID = id
-            case .ended:
-                store.draggingID = nil
-                store.dropTargetColumnID = nil
+            case .ended(let operation):
+                // *Not* where the lift ends when the card was taken. The mouse
+                // coming up is only where the drag image starts flying home;
+                // the payload is loaded off the pasteboard after that, and the
+                // drop handler that moves the card runs later still. Undimming
+                // here put the card back at full strength in the column it was
+                // leaving for the tenth of a second before the move landed.
+                //
+                // Only an operation that carries something is worth waiting
+                // for. The rest — the drop refused, the drop nowhere, the drag
+                // to the Trash — are the end of it, and the card stops looking
+                // lifted with the snap back.
+                switch operation {
+                case .copy, .move: break
+                default: store.endDrag()
+                }
+            case .dataTransferCompleted:
+                // The payload has been handed over, which is the beat the drop
+                // handler runs on. `performMove` has almost always cleared this
+                // already; what is left for this to catch is a drop that went
+                // through without moving the card — refused by the handler,
+                // aimed at the place the card already was, or taken by another
+                // app altogether.
+                store.endDrag()
             default:
                 break
             }

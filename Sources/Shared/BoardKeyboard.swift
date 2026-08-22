@@ -227,6 +227,37 @@ enum BoardKeyboard {
         command(key: press.key, modifiers: press.modifiers, among: commands)
     }
 
+    /// Whether focus arriving on a card should bring the selection with it.
+    ///
+    /// It should, nearly always: every focus move in ``perform(_:on:in:map:today:)``
+    /// selects what it lands on, because what the keyboard is on is what the
+    /// inspector should be showing. The rule is stated here rather than only
+    /// there because **focus does not only arrive by key** — AppKit moves the
+    /// first responder on mouse *down*, through the responder chain, before any
+    /// `Button` has fired.
+    ///
+    /// Which is the defect this answers. Selecting in the card's own action
+    /// left the two rings driven by two different events half a click apart:
+    /// the focus ring on the card being pressed and the selection ring still on
+    /// the last one, for as long as the mouse was held. A **drag** never
+    /// completes that action at all, so the two never came back together — the
+    /// card being carried wore one ring and the card left behind wore the
+    /// other, until some later click happened to land.
+    ///
+    /// Two of the three answers are still "leave the selection alone", and both
+    /// are cases where the user is working *with* a selection rather than
+    /// moving through one. `held` is ⌘ or ⇧: those mean "as well as what is
+    /// already picked", and collapsing onto this card on mouse down would throw
+    /// that away before the click meaning to add to it had been delivered. A
+    /// card already *in* the selection is the same judgement from the other
+    /// side — reaching it with the keyboard, or picking it up to drag, is not a
+    /// decision to drop the rest.
+    nonisolated static func selectionFollows(
+        focusOnto id: TaskItem.ID, selection: Set<TaskItem.ID>, held: CardClick
+    ) -> Bool {
+        held == .none && !selection.contains(id)
+    }
+
     /// Performs one command against the card that has the keyboard.
     ///
     /// `map` is what the surface is drawing — the board's columns, or a flat
@@ -372,6 +403,50 @@ final class BoardFocusRelay {
     /// The column that card is in, which is where ⌘N adds. On a board scrolled
     /// right the leftmost column is not where the user is looking.
     var focusedColumnID: BoardColumn.ID?
+
+    /// The card to bring into view, and how far to go about it.
+    ///
+    /// Separate from `focusedTaskID`, which every route writes and which is
+    /// read for other reasons: what the board does about focus arriving depends
+    /// on *how* it arrived, and only the route that moved it knows that.
+    ///
+    /// Raised rather than cleared, and read on change: two scroll views watch
+    /// it — the column, which brings the card up vertically, and the strip,
+    /// which brings its column across — and a one-shot either of them consumed
+    /// would leave the other with nothing.
+    var reveal: BoardReveal?
+}
+
+/// A request to bring a card into view, and how much of the board to move doing
+/// it.
+///
+/// The distinction is the whole of it. A **key** can put focus on a card in a
+/// column that is entirely off screen — arrowing onto something invisible is
+/// arrowing into nothing — so it asks for the card in the middle, where there
+/// is board on both sides to carry on arrowing through. A **click** has already
+/// landed on a card the user could see, so scrolling to centre it moved the
+/// board out from under the pointer at the moment it was being aimed: the most
+/// a click may ask for is that the column it landed in be shown *whole*, and
+/// for a column that is whole already, nothing at all.
+struct BoardReveal: Equatable {
+    enum Manner: Equatable {
+        /// Just inside the edge, and no further. Nothing happens when the
+        /// target is on screen entire.
+        case intoView
+        /// In the middle of what is on screen.
+        case centred
+    }
+
+    var task: TaskItem.ID
+    var manner: Manner
+
+    static func intoView(_ task: TaskItem.ID) -> BoardReveal {
+        BoardReveal(task: task, manner: .intoView)
+    }
+
+    static func centred(_ task: TaskItem.ID) -> BoardReveal {
+        BoardReveal(task: task, manner: .centred)
+    }
 }
 
 /// A board card that the keyboard can reach: focusable, and carrying the keys
@@ -471,6 +546,9 @@ private struct CardKeyboard: ViewModifier {
                     command, on: task, in: store, map: map, today: dayClock.today
                 )
                 focus = outcome.focus
+                // The key moved it, so the card it landed on may be off the
+                // bottom of its column or off the edge of the board.
+                relay?.reveal = outcome.focus.map(BoardReveal.centred)
                 // A refusal — ← at the leftmost column — is `ignored` rather
                 // than handled, so the scroll view still gets the key.
                 return outcome.isHandled ? .handled : .ignored
@@ -483,18 +561,38 @@ private struct CardKeyboard: ViewModifier {
             // up again when that card leaves the tree, which is what a surface
             // change is.
             .onChange(of: hasFocus) { _, isMine in
-                if isMine { relay?.focusedTaskID = task.id }
+                guard isMine else { return }
+                relay?.focusedTaskID = task.id
+                takeSelection()
             }
             // And back the other way, because the menu hands focus on as well
             // as reading it: ⌘⌫ names the neighbour of the card it deleted, and
             // the card it names has to take the keyboard or the surface is left
             // with none and the next arrow press goes nowhere.
             .onChange(of: relay?.focusedTaskID) { _, id in
-                if id == task.id, !hasFocus { focus = task.id }
+                if id == task.id, !hasFocus {
+                    focus = task.id
+                    relay?.reveal = .centred(task.id)
+                }
             }
             .onDisappear {
                 if relay?.focusedTaskID == task.id { relay?.focusedTaskID = nil }
             }
+    }
+
+    /// The selection follows the keyboard onto this card — see
+    /// ``BoardKeyboard/selectionFollows(focusOnto:selection:held:)``, which is
+    /// where the rule and the reasons for it are.
+    ///
+    /// The modifier is read here, off `NSEvent`, because it is a fact about the
+    /// moment focus arrived rather than about the card: the same read
+    /// `BoardTaskCard.click()` makes, a beat later, to decide what the click
+    /// itself meant.
+    private func takeSelection() {
+        guard BoardKeyboard.selectionFollows(
+            focusOnto: task.id, selection: store.selection, held: CardClick.modifier
+        ) else { return }
+        store.select(task.id)
     }
 }
 

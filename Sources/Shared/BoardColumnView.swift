@@ -84,6 +84,7 @@ struct BoardColumnView: View {
 
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
+    @Environment(BoardFocusRelay.self) private var relay: BoardFocusRelay?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// The strip is 272pt at a pointer and 320 under a finger, around a heading
@@ -287,11 +288,18 @@ struct BoardColumnView: View {
             }
             .scrollBounceBehavior(.basedOnSize)
             .frame(minHeight: 40)
-            // A column is taller than the window as often as not, so focus
-            // arriving on a card near the bottom has to bring the card with it.
-            .onChange(of: focus) { _, id in
-                guard let id, tasks.contains(where: { $0.id == id }) else { return }
-                Motion.run(.easeOut(duration: 0.16), reduceMotion: reduceMotion) { proxy.scrollTo(id, anchor: .center) }
+            // A column is taller than the window as often as not, so a key
+            // landing on a card near the bottom has to bring the card with it.
+            // A click asks for less: the card it landed on shown whole, and
+            // nothing when it is whole already. See ``BoardReveal``.
+            .onChange(of: reveal) { _, reveal in
+                guard let reveal, tasks.contains(where: { $0.id == reveal.task }) else { return }
+                Motion.run(.easeOut(duration: 0.16), reduceMotion: reduceMotion) {
+                    switch reveal.manner {
+                    case .centred: proxy.scrollTo(reveal.task, anchor: .center)
+                    case .intoView: proxy.scrollTo(reveal.task)
+                    }
+                }
             }
             .onChange(of: isComposing) { _, composing in
                 guard composing else { return }
@@ -299,6 +307,9 @@ struct BoardColumnView: View {
             }
         }
     }
+
+    /// Flattened, for the reason ``BoardScrollView`` gives.
+    private var reveal: BoardReveal? { relay?.reveal ?? nil }
 
     /// The composer's row, which has no task to be identified by.
     private static let composerID = "composer"

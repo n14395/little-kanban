@@ -593,6 +593,22 @@ nobody asked for and two of the four menus were quietly making. A surface that
 already has a menu of its own — the two card context menus — nests
 `BoardDestinationItems` instead of drawing the pill.
 
+**Picking a board from the pill goes to that board.** The pill is only drawn
+where a card is already open — the inspector, the phone's sheet — so the card
+stays in front of you as it moves, and a card sent somewhere off screen would
+leave the panel and the board behind it disagreeing about where it is. The Inbox
+is the same journey: it is a panel beside the board rather than a place of its
+own, so going there opens it and puts the board back under it. Both are
+`BoardStore.showPlace(of:)`, which `reveal` — the deep link, the notification
+tap, the Handoff, the Spotlight hit — now goes through as well; an arrival from
+outside the app is that plus the two things only it needs, the card selected and
+a detail surface opened on it. It is `follows` rather than something `file` and
+`unfile` do for everyone: the two card context menus file from the *board*, a
+card at a time, and being thrown onto another board after each one is a worse
+answer than the card simply leaving. Nor does the ticked destination follow —
+nothing moved, so there is nothing to follow — and neither does an archived card,
+which lives on the Archive view and is drawn on no board at all.
+
 **Deleting a board sends its cards — archived ones included — to the Inbox** and
 records `.unfiled` on each, rather than deleting them silently. It is one ⌘Z, and
 neither surface asks first, matching delete everywhere else here. Deleting the
@@ -1595,18 +1611,79 @@ goes on to the scroll view and the board still scrolls, and focus stays put. The
 map is built from what is **visible**: a card a query has hidden is not one an
 arrow key can land on.
 
+**A key brings the board with it; a click brings only as much as it has to.**
+A card can be off the bottom of its column or off the right-hand edge of the
+board, so arrowing onto one has to scroll it into view — otherwise ← and ↓ walk
+the focus somewhere the user cannot see. Clicking cannot be in that position:
+the click has already landed on a card that was on screen. The scroll views
+watched `focus` itself for most of a phase, which made those the same event, and
+clicking a card in the second column slid the board 250pt to centre that column
+— the card moving out from under the pointer at the moment it was aimed at.
+
+So the route that moved focus says how far to go, as a `BoardReveal` on
+`BoardFocusRelay`, and `BoardScrollView`, `BoardColumnView` and `InboxPanel`
+watch that instead:
+
+| manner | who asks | what the board does |
+| --- | --- | --- |
+| `.centred` | the arrow keys, and the menu handing focus to the neighbour of a card it deleted | puts the column in the middle, so there is board on both sides to carry on arrowing through |
+| `.intoView` | a click | shows the column **whole** — the minimum scroll, and none at all when it is whole already |
+
+It is a *raise* rather than a one-shot because two scroll views read every one of
+them, the column bringing the card up and the strip bringing its column across,
+and a flag either of them cleared would leave the other with nothing. The strip
+still ignores a `.centred` reveal that stays in the same column, so ↑ and ↓ do
+not re-centre a column that is already on screen under every press — compared
+against the *previously revealed card's* column rather than against a remembered
+one, which is a value `onChange` hands over and not a second piece of state that
+can disagree.
+
+**`scrollTo` has no notion of a margin**, and without one a revealed column
+arrives flush against the window's edge with nothing beside it — technically
+visible, and reading as still cut off. So a column is scrolled to *wrapped in
+`BoardScrollView.revealInset`*, 16pt of padding that the identifier is attached
+to, and the wrapper is what has to fit. The wrapper is free: the padding is taken
+straight back out of the `HStack`'s spacing and the strip's own margin —
+`columnSpacing` and `stripInset`, both of which go negative at this inset — so
+the columns sit exactly where they always did, `gutter` apart and `stripPadding`
+from the ends. The wrappers overlap each other by twice the inset, which is empty
+space either way and hit-tests as nothing.
+
+Focus moved by anything else — Tab under Full Keyboard Access, a VoiceOver cursor
+— scrolls only as far as the system scrolls it, which for VoiceOver is all the
+way and for Tab is nothing on this board.
+
+`BoardRevealTests` pins the wiring and the arithmetic; nothing can pin the
+pixels, because `scrollTo` goes to a `ScrollViewProxy` that keeps no record of
+having been called. The behaviour was measured against the built app through the
+accessibility API instead — `AXPress` on a card and a key posted to the process,
+neither of which touches the host's pointer or keyboard. In a 372pt board with
+272pt columns: a click on a column already whole moved it 0pt, a click on one
+clipped at either edge left it exactly 16pt from the edge it came in past, and
+→ left the next column centred to the point.
+
 The focus ring is a 1.5pt ring set 3pt *inside* the 2pt selection ring rather
-than a second colour, so a card that is both selected and focused reads as both,
-and the difference is geometry rather than hue under
-`.accessibilityDifferentiateWithoutColor`. Both differ, not one of them: either
-difference alone is one literal away from being tidied out. The four numbers are
-`Ring` values rather than literals in an overlay, because a constant nothing can
-reach is a constant no test can defend — and they are on **`Metrics`**, as
-`selectionRing` and `focusRing`, rather than statics on `Ring`. A ring follows
-the corner it is drawn on: the pad's card is rounded at 14 and the desk's at 12,
-so one pair of statics fitted to the desk drew the iPad's selection ring 2pt
-inside its own edge. `FocusRingTests` asks both presets, and asks the radius to
-match the card it is drawn on.
+than a second colour, so a card wearing both reads as both, and the difference is
+geometry rather than hue under `.accessibilityDifferentiateWithoutColor`. Both
+differ, not one of them: either difference alone is one literal away from being
+tidied out. The four numbers are `Ring` values rather than literals in an
+overlay, because a constant nothing can reach is a constant no test can defend —
+and they are on **`Metrics`**, as `selectionRing` and `focusRing`, rather than
+statics on `Ring`. A ring follows the corner it is drawn on: the pad's card is
+rounded at 14 and the desk's at 12, so one pair of statics fitted to the desk
+drew the iPad's selection ring 2pt inside its own edge. `FocusRingTests` asks
+both presets, and asks the radius to match the card it is drawn on.
+
+**The inner ring is drawn only where it says something the outer one cannot** —
+`BoardTaskCard.drawsFocusRing(isFocused:isSelected:selectionCount:)`. Once the
+selection follows the keyboard onto whatever card it lands on (below), the
+ordinary picked card is both selected *and* focused, and a ring inside a ring was
+one border drawn twice. Two states are left where the pair are not the same fact,
+and both keep it: a focused card **inside a multi-selection**, which is the one
+the arrows move from and ⇧ sweeps from while every card in the selection wears
+the outer ring alike; and a focused card **not selected at all**, which is where
+a ⌘-click taking a card out of the selection leaves it — without the inner ring
+the card holding the keyboard would carry no mark whatsoever.
 
 And **the card has to be told whether it has the keyboard**. Asking from inside
 answers `false` either way: `\.isFocused` is false there because the element
@@ -1617,6 +1694,26 @@ binding was made. The card sat on both for the whole phase and drew no focus rin
 at all, on any surface, while every test of the ring's geometry passed. The
 wrapper that holds the binding *as* `@FocusState.Binding` is the one place that
 can answer, and it passes `isFocused: Bool` down.
+
+**The selection follows the keyboard onto a card, however focus got there.** Two
+rings only read as one state when they move together, and they did not: the
+selection moved in the card's `Button` action, which fires on mouse *up*, while
+AppKit moves the first responder through the responder chain on mouse *down*.
+Every click therefore had a window — as long as the mouse was held — with the
+focus ring on the card being pressed and the selection ring still on the last
+one. A **drag** never completes that action at all, so the two never came back
+together: the card being carried wore the inner ring and the card left behind
+wore the outer, until some later click happened to land. The rule the arrows
+already kept — every focus move selects what it lands on, because what the
+keyboard is on is what the inspector is showing — is now stated once, as
+`BoardKeyboard.selectionFollows(focusOnto:selection:held:)`, and applied wherever
+focus arrives. It declines in the two cases where the user is working *with* a
+selection rather than moving through one: a held ⌘ or ⇧ means "as well as what is
+already picked", so collapsing onto the pressed card on mouse down would throw
+that away before the click meaning to add to it had been delivered; and a card
+already in the selection is the same judgement from the other side, since
+arrowing into a multi-selection or picking one of its cards up to drag is not a
+decision to drop the rest.
 
 **Every one of those actions is also an `.accessibilityAction(named:)` on the
 card** — complete or reopen, archive or restore, delete, Move to Inbox, and one
@@ -1934,6 +2031,25 @@ in, not its Done — and a card dropped on the Inbox row is unfiled. Both are ga
 on the same `allowsCardDrag`. It is the only pointer route back to the Inbox now
 that the Inbox is not a column, which is why it exists; the keyboard-and-menu
 routes are in **Boards, columns and the Inbox**.
+
+**A lift ends when the payload lands, not when the mouse comes up.** A card in
+flight is drawn at 40% — `BoardStore.draggingID`, kept by `CardDragSession` off
+`onDragSessionUpdated` — and a drop on macOS is not one moment but four: the
+mouse comes up, the drag image goes, the session reports `ended`, and *then*
+SwiftUI finishes loading the payload off the pasteboard and calls the
+`dropDestination` handler that moves the card. The last two are around a tenth
+of a second apart. Undimming at `ended` therefore drew the card back at full
+strength **in the column it was leaving**, where it sat until the move landed —
+a card flashing back to where it came from, which is what a drag is supposed to
+look like when it *fails*. So `ended` now only ends the lift for an operation
+that carries nothing — the drop refused, the drop nowhere, the drag to the
+Trash, all of which are the end of it — and everything else waits for
+`dataTransferCompleted`, the phase that fires on the same beat as the handler.
+In the ordinary case `performMove` gets there first: it moves the card and ends
+the lift in one mutation, so the two can never be a frame apart. Every route
+goes through `BoardStore.endDrag()` for that reason, and `DragLiftTests` pins
+both halves — the store's, by calling it, and the view's, by reading which phase
+the source listens to, since a drag session cannot be started from a test.
 
 ## Gestures and haptics on iOS
 
@@ -2752,9 +2868,9 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `MigrationChainTests` | the same chain asked of **every** fixture in the bundle at once, enumerated off disk rather than listed: each reaching the current version, each splitting its cards between the default board and the Inbox, the v3 and v4 fixtures splitting their six cards identically, each link leaving its own mark on a v1 board, the same bytes reaching the same board twice over, no fixture needing repair on the way into the store, the active board written into the file itself, and a file one version newer than *this build* refused and put somewhere safe |
 | `DayRolloverTests` | the day clock built from an instant either side of midnight, and the Today count and each saved view's membership before and after — including the three views that must *not* move, a year end, and the weekly meter's window rolling with it; plus the wake itself — a second either side of the boundary, and the DST days where the next midnight is 23 or 25 hours off rather than 24 |
 | `CommandTests` | the selection as a set — `selectedID` reading as one task or none, a second card ending the session the inspector left on the first, a range following the order the surface draws in, ⌘A following the surface and the query — and the bulk commands: one named step apiece, board order preserved, a mixed selection labelled *on* before it comes off, part of a selection deleted leaving the rest, and a bulk command with nothing to do staying off the Edit menu. Plus the shortcut vocabulary: no two commands claiming one press, ⌘N/⇧⌘N saying what the menu says, the system's own commands listed but not declared, and the board's keys getting no menu item to shadow a text field with |
-| `SelectionTests` | the selection as a set, asked where it can break: a ⇧-click range including both of its ends in either direction, a run of them sweeping from the one anchor, ⌘A leaving the archive out and the anchor on the first row, and clearing taking the anchor with it. Then the bulk commands *counted* rather than inspected — every one of the eight filing exactly one registration whatever the size of the selection, a three-card delete undoing to indices 1, 3 and 5 rather than to the end of the array, and an empty, a stale or an already-satisfied selection registering nothing. Then the session-ending the set had to keep: the card the inspector was on losing its session even when it stays selected while others are added around it, the sheet's session on the same card surviving, and the ended session filing the typing as a ⌘Z of its own. Plus a bulk move of four cards arriving in the order the board had them, every position pinned — two cards is a coin toss, because `Set` hashing is seeded per process; a selection the command applies to only *half* of, where the step is named for what changed rather than for what was aimed at and the rest come out untouched; the menu item titled from that same count; the anchor moving when its card is ⌘-clicked out of the selection; ⌘N putting its surface up before opening the composer; and ⌘F bumping a counter rather than setting a flag |
+| `SelectionTests` | the selection as a set, asked where it can break: a ⇧-click range including both of its ends in either direction, a run of them sweeping from the one anchor, ⌘A leaving the archive out and the anchor on the first row, and clearing taking the anchor with it. Then the bulk commands *counted* rather than inspected — every one of the eight filing exactly one registration whatever the size of the selection, a three-card delete undoing to indices 1, 3 and 5 rather than to the end of the array, and an empty, a stale or an already-satisfied selection registering nothing. Then the session-ending the set had to keep: the card the inspector was on losing its session even when it stays selected while others are added around it, the sheet's session on the same card surviving, and the ended session filing the typing as a ⌘Z of its own. Plus a bulk move of four cards arriving in the order the board had them, every position pinned — two cards is a coin toss, because `Set` hashing is seeded per process; a selection the command applies to only *half* of, where the step is named for what changed rather than for what was aimed at and the rest come out untouched; the menu item titled from that same count; the anchor moving when its card is ⌘-clicked out of the selection; ⌘N putting its surface up before opening the composer; ⌘F bumping a counter rather than setting a flag; and the rule that keeps the two rings on one card — focus arriving takes the selection with it, unless a ⌘ or ⇧ is held for the click that has not landed yet, or the card it landed on was already part of a multi-selection |
 | `ShortcutTests` | `AppCommand` as the one vocabulary. No two commands claiming the press *the system will dispatch* — matched on the resolved `KeyEquivalent` and modifier mask, folded to lower case, rather than on the enum's spelling of them; every command titled, uniquely, in title case; the commands with no key named so that adding one is a decision; an unbuilt command holding no key hostage (vacuous now that nothing is unbuilt, and kept for the next one); ⌘N/⇧⌘N and nothing else answering to them; and no shortcut printing a private-use glyph, which is what `AppKey` exists for — `KeyEquivalent.leftArrow` renders as nothing at all. Then the anti-drift claim itself: the sheet's rows and the menu bar's are both generated from `AppCommand.commands(in:)`, every menu row appears in the sheet saying the same thing, and the difference between the two is exactly the board's own keys plus the system's Undo and Redo. `MenuDeclarationTests` then reads `BoardCommands.swift` itself, because a `Commands` body has nothing to enumerate at runtime and a suite that models the menu cannot notice a block commented out of it: every menu item declared into exactly one `AppMenuSection`, each block belonging to one menu and covering that menu's items in order, and the body drawing every block once under the anchor it belongs to |
-| `BoardKeyboardTests` | macOS only — how the arrows move around the board, as a value rather than a view: clamping at the ends, keeping the row sideways, stepping over an empty column while ⌥ lands in it, reading only what is *visible*, and where focus falls after a delete. Plus the key matcher — ⌥ as the whole difference between moving focus and moving the card, Space and ⌘⏎ both reaching completion, a press carrying caps lock still matching, and no two of the board's keys claiming one press. Then what each key *does*, through `BoardKeyboard.perform`: the arrows moving focus and the inspector following it, a refusal at each of the four edges keeping the key and the card it was on, ⌥→ walking a card across the board with focus on it, a card refusing to leave either end, ⏎ opening the detail surface, Space toggling one card both ways and never reopening a selection, ⌘⌫ handing focus to the neighbour and then to nothing, ⌘A and ⎋ — and that nothing the card claims falls through to the dispatcher's `default`. `FocusRingTests` holds the two rings apart: a card can wear both, so they differ in width *and* inset rather than only in colour |
+| `BoardKeyboardTests` | macOS only — how the arrows move around the board, as a value rather than a view: clamping at the ends, keeping the row sideways, stepping over an empty column while ⌥ lands in it, reading only what is *visible*, and where focus falls after a delete. Plus the key matcher — ⌥ as the whole difference between moving focus and moving the card, Space and ⌘⏎ both reaching completion, a press carrying caps lock still matching, and no two of the board's keys claiming one press. Then what each key *does*, through `BoardKeyboard.perform`: the arrows moving focus and the inspector following it, a refusal at each of the four edges keeping the key and the card it was on, ⌥→ walking a card across the board with focus on it, a card refusing to leave either end, ⏎ opening the detail surface, Space toggling one card both ways and never reopening a selection, ⌘⌫ handing focus to the neighbour and then to nothing, ⌘A and ⎋ — and that nothing the card claims falls through to the dispatcher's `default`. `FocusRingTests` holds the two rings apart — a card can wear both, so they differ in width *and* inset rather than only in colour — and pins when the inner one is drawn at all: not on the card that is the whole selection, and back again inside a multi-selection or on a focused card ⌘-clicked out of one |
 | `KeyOwnershipTests` | macOS only — one owner per press across the two surfaces that both handle keys. ⌘⌫ and ⌘⏎ reaching no card on either surface while the vocabulary still names them; Space and a bare ⏎ still reaching one; `menuOwnedShortcuts` written out as the eight presses the menu bar puts a key equivalent on and checked against the seven the board keeps; the rule stated over the whole vocabulary rather than over the two keys that collide today; and the converse, so a widened exclusion cannot mute a card — every command a card carries still has a press that reaches it. The split was a single defaulted argument at one call site, and the suite was blind to losing it in either direction |
 | `PaletteSemanticTests` | the semantic colours, asked what a view cannot ask itself: every accent in either scheme keeping its label above 4.5:1 against the accent it is drawn on, and the one accent that follows the colour scheme taking its label with it. `.white` on the dark-mode ink accent scores 1.2:1, which is text that is simply not there |
 | `SaveContractTests` | every public board mutation reaching the disk, one store and one file apiece |
@@ -2772,6 +2888,8 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `IntentTests` | `AddTaskIntent` and `ShowTodayIntent` through `TaskIntentBridge` — no destination landing in the Inbox under an `IN-` code, a named column and a named board each landing where they say and minting from that board's prefix, a due date reaching the card, a column no board has refused rather than guessed at, and the entity queries offering what the board actually has, each column named with its board. All of it on the one store the app is holding, because a second store would be a board of its own written over the real one |
 | `SystemWiringTests` | the handovers every other Phase F suite passes without: the scheduler reconciled from the board, `.systemEntryPoints()` attached to a view, a store adopted into the intent bridge — **from the app's `init()`**, not a view's `.onAppear`, because an intent can perform before any scene exists — both detail surfaces publishing their task for Handoff, the settings surface reachable, and exactly one store over the real file. Read out of the source the way `MenuDeclarationTests` reads the menu: a scene has nothing to enumerate at runtime, and a modifier commented out of a `body` is invisible to everything else. This is `UndoHandoverTests`' question asked of the other joins. The three that were open at the end of Phase F were wrapped in `withKnownIssue` rather than deleted or left red — Swift Testing fails a block that *stops* failing, so wiring one up told the next agent to take the wrapper off in the same run, which is what happened |
 | `DragReorderTests` | the card-to-card drop as a property rather than as an example, which is what the iPad needs: for **every** ordered pair of cards sharing a place — each column of each board, and the Inbox — the drop `BoardTaskCard` and `PhoneTaskCard` make must leave the card in that place, not change its completion, and not touch its sub-tasks, with the place holding the same set of cards afterwards. Then that it genuinely reorders — the card lands immediately ahead of the one it was dropped on, in every pair — so the first claim cannot be satisfied by a `move` that does nothing. Then the contrast, over every pair of *different* places, including a card into Done still being ticked; the column's own drop closure resolving to that column for every card on the board and staying a no-op on the column a card is already in; a drag refused under a query, under a sort and inside a saved view; and an archived card unreachable by either closure |
+| `DragLiftTests` | when a card stops looking as though it is being carried, which the reported flash was a hundred milliseconds late for. `BoardStore.endDrag()` taking the lift off the card *and* the highlight off both places one can be — the column and the Inbox panel — and a move, including the drop that lands where the card already is, going through it. Then the half no unit test can drive, read off the source the way `DragReorderTests` reads the drop closures: nothing in the session handler ends a lift by hand, a drop carrying a card falls through the `ended` arm untouched, and the arm that ends the lift is `dataTransferCompleted` |
+| `BoardRevealTests` | how far the board moves when focus arrives, and who decides. Every surface that scrolls a card into view — the strip, the column, the Inbox panel — read off the source: none of them hangs a `scrollTo` off `focus`, which is what made a click scroll the board; each answers **both** manners, centring what a key revealed and giving a click's reveal no anchor at all, so the rule cannot be met by dropping the scroll and stranding the arrow keys nor by answering a click with the centring that was the complaint; and the two routes that raise one are the keyboard, only ever centred, and the card's click, only ever into view. The scroll counts per file are asserted too, so a new one cannot be added without this being read. Then the arithmetic that keeps the reveal margin free: the inset plus what is left of the spacing is the gutter, and the inset plus what is left of the strip's margin is the strip's margin — both remainders being negative at the current inset, which is why it is asked as a sum |
 | `ScaleTests` | 7.4 — five hundred cards on six boards, thirty columns, twenty-four labels and eleven thousand activity entries, and what each hot path costs on it. Nothing asserts a wall-clock time: every bound is a *ratio* between two timings taken in the same process on the same data, which cancels the machine out and leaves the shape of the algorithm. See **Scale** |
 | `FirstRunTests` | 7.5 — a first launch starting on nothing at all rather than on the sample; the picker never standing in front of the test host; the sample offered rather than first; the three starters carrying none of the sample's cards; and then the property over all five templates — folded into the empty board a first launch actually builds, each one satisfies the placement invariant, resolves every label key it wears, mints no duplicate code, has a landing column and a Done column, survives a relaunch card for card, and takes a card added, dated, completed and archived on it. Choosing is one ⌘Z |
 | `PackagingTests` | 7.6 — what the *built* bundle carries, read off `Bundle.main`, which under `xcodebuild test` is the app: a marketing version and a numeric build; the version the About panel shows being the one in the plist rather than a second copy of it; `PrivacyInfo.xcprivacy` present, declaring no tracking and no collection, and naming a reason for each required-reason API it touches; the copyright line the macOS About panel reads; `UILaunchScreen` naming a colour rather than being the empty dict that flashes white; every UTI, document type, URL scheme and activity type the code assumes; and the update check's repository, releases page and version comparison |

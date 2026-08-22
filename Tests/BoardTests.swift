@@ -243,6 +243,54 @@ import Testing
         #expect(store[Self.captured]?.columnID == Self.betaTodo.id)
     }
 
+    // MARK: Following a card to where it went
+
+    /// The board menu on a detail surface goes where it sends the card, so the
+    /// panel and the board behind it cannot disagree about where it is.
+    @Test func filingACardFromADetailSurfaceOpensTheBoardItWentTo() {
+        let store = Self.store()
+        store.select(Self.onAlpha)
+        store.selectSurface(.view(.today))
+
+        store.file(Self.onAlpha, onto: Self.betaID)
+        store.showPlace(of: Self.onAlpha)
+
+        #expect(store.activeBoardID == Self.betaID)
+        // A saved view was standing in for the board, and the card is not on it.
+        #expect(store.activeView == nil)
+        // The card stays open in front of the user as it moves.
+        #expect(store.selectedID == Self.onAlpha)
+    }
+
+    /// The Inbox is a panel beside the board rather than a place of its own, so
+    /// going there is opening it — and putting the board back under it.
+    @Test func sendingACardToTheInboxOpensThePanelBesideTheBoard() {
+        let store = Self.store()
+        store.isInboxOpen = false
+        store.selectSurface(.view(.today))
+
+        store.unfile(Self.onAlpha)
+        store.showPlace(of: Self.onAlpha)
+
+        #expect(store.isInboxOpen)
+        #expect(store.surface == .board)
+        #expect(store.isInboxShowing)
+    }
+
+    /// An archived card is on the Archive view, which is not a board, so there
+    /// is nowhere to take the user that the card is drawn on.
+    @Test func followingAnArchivedCardLeavesTheUserWhereTheyAre() {
+        let store = Self.store()
+        store.isInboxOpen = false
+        store.file(Self.captured, onto: Self.betaID)
+        store.archive(Self.captured)
+
+        store.showPlace(of: Self.captured)
+
+        #expect(store.activeBoardID == Self.alphaID)
+        #expect(!store.isInboxOpen)
+    }
+
     // MARK: Codes
 
     @Test func aCodeIsMintedFromTheDestinationBoardsPrefix() {
