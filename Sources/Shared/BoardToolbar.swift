@@ -209,7 +209,7 @@ struct BoardToolbar: View {
                             return .handled
                         }
                         .fieldHitArea(minHeight: metrics.fieldHit) { isTitleFocused = true }
-                        .onAppear { isTitleFocused = true }
+                        .focusWhenReady($isTitleFocused)
                         .accessibilityLabel("Board name")
                         // Only while this is still the board being renamed.
                         // Escape and a board switch both clear it first, so a

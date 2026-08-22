@@ -19,7 +19,8 @@ import Testing
     /// and column mutation below would be comparing the seed against itself and
     /// would be incapable of failing.
     private func board(_ store: BoardStore) -> BoardMutation {
-        BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0, boards: store.boards)
+        BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0,
+                      boards: store.boards, trash: store.trash)
     }
 
     // MARK: 1 — text typed before an interleaved step is recoverable

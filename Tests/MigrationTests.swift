@@ -32,7 +32,6 @@ import Testing
 
         #expect(result.failure == nil)
         #expect(result.migratedFromVersion == 2)
-        #expect(snapshot.version == 6)
         #expect(snapshot.version == BoardSnapshot.currentVersion)
         #expect(snapshot.nextSerial == BoardSnapshot.baseSerial)
         #expect(snapshot.accentTheme == .ember)
@@ -145,7 +144,7 @@ import Testing
         let read = try #require(result.snapshot)
         #expect(result.failure == nil)
         #expect(result.migratedFromVersion == nil)
-        #expect(read.version == 6)
+        #expect(read.version == BoardSnapshot.currentVersion)
         #expect(read.tasks == written.tasks)
         #expect(read.tasks.last?.archivedAt == TestBoard.at(1_500))
         #expect(read.tasks.dropLast().allSatisfy { $0.archivedAt == nil })
@@ -165,7 +164,7 @@ import Testing
             generation: temp.file.nextWriteGeneration()
         )
         #expect(try temp.text().contains("archivedAt") == false)
-        #expect(try temp.text().contains("\"version\" : 6"))
+        #expect(try temp.text().contains("\"version\" : \(BoardSnapshot.currentVersion)"))
 
         let filed = TestBoard.tasks(archiving: [TestBoard.palette: 900])
         try temp.file.write(
@@ -177,7 +176,7 @@ import Testing
 
     // MARK: The version after this one
 
-    @Test func aVersionSevenFileIsRefusedAndPutSomewhereSafe() throws {
+    @Test func aVersionEightFileIsRefusedAndPutSomewhereSafe() throws {
         // 99 is already covered; the version one past the current one is what
         // matters, because it is what an off-by-one in the "newer than me"
         // guard would wave through and then mis-decode. The file has to
@@ -189,7 +188,7 @@ import Testing
                               nextSerial: 100, accentTheme: .ember)
             )) as? [String: Any]
         )
-        object["version"] = 7
+        object["version"] = BoardSnapshot.currentVersion + 1
         let bytes = try JSONSerialization.data(withJSONObject: object)
         try temp.put(bytes)
 
@@ -200,9 +199,9 @@ import Testing
             Issue.record("expected .newerVersion, got \(String(describing: result.failure))")
             return
         }
-        #expect(version == 7)
+        #expect(version == BoardSnapshot.currentVersion + 1)
         let moved = try #require(quarantinedAt)
-        #expect(moved.lastPathComponent.hasPrefix("board.from-newer-version-7-"))
+        #expect(moved.lastPathComponent.hasPrefix("board.from-newer-version-\(BoardSnapshot.currentVersion + 1)-"))
         // Moved aside, not deleted, and the board's own URL is now free for a
         // fresh board to be written to without landing on the user's work.
         #expect(FileManager.default.fileExists(atPath: moved.path(percentEncoded: false)))
@@ -211,15 +210,15 @@ import Testing
     }
 
     @MainActor
-    @Test func aStoreOverAVersionSevenFileSaysSoAndDoesNotWriteOverIt() throws {
+    @Test func aStoreOverAVersionEightFileSaysSoAndDoesNotWriteOverIt() throws {
         let temp = TempBoard()
-        try temp.put(#"{ "version": 7, "tasks": [], "labels": [], "nextSerial": 100, "accentTheme": "ember" }"#)
+        try temp.put(#"{ "version": 8, "tasks": [], "labels": [], "nextSerial": 100, "accentTheme": "ember" }"#)
         let store = BoardStore.restored(file: temp.file)
         guard case .newerVersion(let version, _) = store.loadFailure else {
             Issue.record("expected .newerVersion, got \(String(describing: store.loadFailure))")
             return
         }
-        #expect(version == 7)
+        #expect(version == 8)
         #expect(store.lastError != nil)
         #expect(store.quarantinedBoardURL != nil)
         #expect(store.isSaveBlocked == false)      // the original is out of the way

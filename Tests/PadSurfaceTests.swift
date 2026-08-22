@@ -77,7 +77,7 @@ import UIKit
         #else
         #expect(BoardKeyboard.menuOwnedShortcuts.isEmpty,
                 "iOS builds no menu bar of ours, so nothing takes these presses first")
-        #expect(board(KeyEquivalentBox(key: .delete, modifiers: .command)) == .deleteTask)
+        #expect(board(KeyEquivalentBox(key: .delete, modifiers: .command)) == .trashTask)
         #expect(board(KeyEquivalentBox(key: .return, modifiers: .command)) == .completeTask)
         #endif
     }

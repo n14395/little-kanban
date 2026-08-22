@@ -187,7 +187,7 @@ enum BoardKeyboard {
     /// `pasteDestination`, which is what keeps ⌘C working in every text field
     /// in the app.
     ///
-    /// `deleteTask` is listed because the card knows how to perform it and can
+    /// `trashTask` is listed because the card knows how to perform it and can
     /// be asked to, not because it answers to ⌘⌫; that key and ⌘⏎ are the menu
     /// bar's, and ``command(for:among:)`` is what makes sure no card claims
     /// them. Space is `completeTask`'s other key and stays here.
@@ -196,7 +196,7 @@ enum BoardKeyboard {
     /// `BoardKeyMatchTests` reads it from outside the main actor.
     nonisolated static let boardCommands: [AppCommand] = [
         .focusPreviousColumn, .focusNextColumn, .focusCardAbove, .focusCardBelow,
-        .moveCardLeft, .moveCardRight, .openTask, .completeTask, .deleteTask,
+        .moveCardLeft, .moveCardRight, .openTask, .completeTask, .trashTask,
         .selectAll, .deselect,
     ]
 
@@ -313,11 +313,11 @@ enum BoardKeyboard {
                 store.complete(targets)
             }
             return stay(true)
-        case .deleteTask:
+        case .trashTask:
             // Worked out before the delete, while the card is still on the
             // surface to have a neighbour.
             let next = map.card(after: task.id)
-            store.deleteTasks(store.commandTargets(task.id))
+            store.trashTasks(store.commandTargets(task.id))
             return Outcome(isHandled: true, focus: next)
         case .selectAll:
             store.selectAllVisible(today: today)

@@ -14,7 +14,8 @@ import Testing
     private let done = BoardColumn.done.id
 
     private func board(_ store: BoardStore) -> BoardMutation {
-        BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0, boards: store.boards)
+        BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0,
+                      boards: store.boards, trash: store.trash)
     }
 
     // MARK: What archiving takes away
@@ -526,7 +527,7 @@ import Testing
         let store = store()
         let card = try #require(store[TestBoard.cafe])
         let live = AppCommand.allCases.filter { $0.needsSelection && $0.applies(to: card, in: store) }
-        #expect(Set(live) == [.deleteTask, .copyTask, .deselect, .openTask])
+        #expect(Set(live) == [.trashTask, .copyTask, .deselect, .openTask])
     }
 
     /// The rule has to live in the store, not in the menu that usually asks it.

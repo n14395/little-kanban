@@ -32,6 +32,10 @@ struct ActivityEntry: Identifiable, Hashable, Codable, Sendable {
         case subtasksCompletedOnDone(count: Int)
         case archived
         case unarchived
+        /// Taken back out of the trash. Distinct from `unarchived`: the archive
+        /// is a place a card is *filed*, and the trash is a place it was on its
+        /// way out of the app from.
+        case restoredFromTrash
         /// Taken off a board and back into the global Inbox. Distinct from
         /// `moved`, which names a column: the Inbox is not one, and its name is
         /// the app's rather than the user's, so it is rendered rather than stored.
@@ -87,6 +91,8 @@ struct ActivityEntry: Identifiable, Hashable, Codable, Sendable {
             String(localized: "Archived", comment: "Activity feed: the task was filed away")
         case .unarchived:
             String(localized: "Restored from the archive", comment: "Activity feed: the task was taken back out of the archive")
+        case .restoredFromTrash:
+            String(localized: "Restored from the trash", comment: "Activity feed: the task was taken back out of the trash")
         case .unfiled:
             String(localized: "Moved to the Inbox", comment: "Activity feed: the task was taken off its board")
         case .subtasksCompletedOnDone(let count):

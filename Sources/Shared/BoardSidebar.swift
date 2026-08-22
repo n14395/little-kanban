@@ -27,6 +27,10 @@ struct BoardSidebar: View {
         var rowRadius: CGFloat
         /// The floor under a row, which the pointer never needed.
         var rowHit: CGFloat
+        /// The slot every row symbol is drawn in, so a column of them lines up
+        /// on one edge whatever each glyph measures — a calendar is half again
+        /// as wide as a sun, and left to themselves the labels stagger.
+        var rowGlyph: CGFloat
         /// What a row that has become a text field claims — see ``FieldHitArea``.
         var fieldHit: CGFloat
         var sectionSpacing: CGFloat
@@ -35,12 +39,12 @@ struct BoardSidebar: View {
 
         static let desk = Metrics(
             width: 232, trafficLightInset: 16, rowFont: 13, rowVerticalPadding: 7,
-            rowRadius: 9, rowHit: 0, fieldHit: 0, sectionSpacing: 22,
+            rowRadius: 9, rowHit: 0, rowGlyph: 14, fieldHit: 0, sectionSpacing: 22,
             dots: .desk, labelManager: .desk
         )
         static let pad = Metrics(
             width: nil, trafficLightInset: 0, rowFont: 15, rowVerticalPadding: 10,
-            rowRadius: 11, rowHit: 44, fieldHit: 44, sectionSpacing: 24,
+            rowRadius: 11, rowHit: 44, rowGlyph: 17, fieldHit: 44, sectionSpacing: 24,
             dots: .sheet, labelManager: .sheet
         )
     }
@@ -245,9 +249,9 @@ struct BoardSidebar: View {
         // the way back.
         Button(role: .destructive) {
             if editing == .rename(board.id) { cancelField() }
-            store.deleteBoard(board.id)
+            store.trashBoard(board.id)
         } label: {
-            Label("Delete Board", systemImage: "trash")
+            Label("Trash Board", systemImage: "trash")
         }
     }
 
@@ -293,18 +297,35 @@ struct BoardSidebar: View {
     /// The count is the view's own membership rather than what the list is
     /// currently showing: it is deliberately not narrowed by the search, which
     /// would make the badge report the query instead of the view.
+    ///
+    /// The symbol is `SavedView.symbol` — the same glyph the view's empty state
+    /// and the phone's drawer already drew, so a row and the surface it opens
+    /// carry one mark rather than each picking their own. The rows above this
+    /// section wear a coloured dot instead, which is the truer split: a board's
+    /// mark says *which* board and is the user's to change, while a view's says
+    /// what the view is for and is the same on every install.
     private func viewRow(_ view: SavedView) -> some View {
         let isActive = store.activeView == view
+        let count = store.count(of: view, today: dayClock.today)
 
         return Button {
             store.selectSurface(isActive ? .board : .view(view))
         } label: {
             HStack(spacing: 8) {
+                Image(systemName: view.symbol)
+                    .imageScale(.small)
+                    // Dimmer than the label it stands beside, the way the two
+                    // rows under Labels already are, so the column of glyphs
+                    // does not read as loud as the words. The active row takes
+                    // the accent whole rather than half.
+                    .foregroundStyle(isActive ? palette.accent : palette.inkText(0.5))
+                    .frame(width: metrics.rowGlyph)
+                    .accessibilityHidden(true)
                 Text(view.label)
                     .font(SimpleKanbanFont.ui(metrics.rowFont, isActive ? .bold : .semibold, relativeTo: .subheadline))
                     .foregroundStyle(isActive ? palette.accent : palette.ink(0.66))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                CountPill(count: store.count(of: view, today: dayClock.today))
+                CountPill(count: count)
             }
             .padding(.vertical, metrics.rowVerticalPadding)
             .padding(.horizontal, 10)
@@ -313,9 +334,18 @@ struct BoardSidebar: View {
             .hoverBackground(isActive ? .clear : palette.ink(0.05), radius: metrics.rowRadius)
         }
         .buttonStyle(.bare)
-        .accessibilityLabel(view.label)
-        .accessibilityValue(Text(verbatim: "\(store.count(of: view, today: dayClock.today))"))
-        .accessibilityAddTraits(isActive ? [.isSelected] : [])
+        // Substituted rather than named, now that the row has a symbol in it:
+        // an `Image` among siblings inside a button's label is published as an
+        // element of its own whatever else is asked of it, `accessibilityHidden`
+        // included — the same reason the two rows under Labels are substituted.
+        // The name, the count as the value and the trait are all as they were.
+        .accessibilityRepresentation {
+            Button(view.label) {
+                store.selectSurface(isActive ? .board : .view(view))
+            }
+                .accessibilityValue(Text(verbatim: "\(count)"))
+                .accessibilityAddTraits(isActive ? [.isSelected] : [])
+        }
     }
 
     /// Renaming, recolouring and deleting a label are board-wide edits, so they
@@ -327,6 +357,7 @@ struct BoardSidebar: View {
                 Image(systemName: "tag")
                     .imageScale(.small)
                     .foregroundStyle(palette.inkText(0.5))
+                    .frame(width: metrics.rowGlyph)
                     .accessibilityHidden(true)
                 Text("Manage labels")
                     .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
@@ -365,6 +396,7 @@ struct BoardSidebar: View {
                 Image(systemName: "gearshape")
                     .imageScale(.small)
                     .foregroundStyle(palette.inkText(0.5))
+                    .frame(width: metrics.rowGlyph)
                     .accessibilityHidden(true)
                 Text("Settings")
                     .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
@@ -408,12 +440,17 @@ struct BoardSidebar: View {
         #if os(macOS)
         Button { capture = Capture(id: store.captureToInbox()) } label: {
             Image(systemName: "plus")
-                .symbolSize(23, weight: .semibold, relativeTo: .title3)
+                .symbolSize(19, weight: .semibold, relativeTo: .title3)
                 .foregroundStyle(palette.onAccent)
                 // The one control in the list that is a target rather than a
                 // row, so it takes a square of its own rather than the row
                 // height — and grows with the type inside it like the rest.
-                .frame(width: chrome(52), height: chrome(52))
+                //
+                // 44 is where it stops shrinking: the touch minimum, which is
+                // not this surface's rule — the desk is the only place this is
+                // drawn — but is a floor worth landing on rather than passing
+                // through, and the glyph keeps its share of the disc.
+                .frame(width: chrome(44), height: chrome(44))
                 .background(palette.accent, in: .circle)
                 .shadow(color: palette.shadow(0.2), radius: 5, y: 2)
         }
@@ -521,7 +558,7 @@ struct BoardSidebar: View {
                 cancelField()
                 return .handled
             }
-            .onAppear { isFieldFocused = true }
+            .focusWhenReady($isFieldFocused)
             // Only while this is still the row being edited. Opening a field on
             // another row files this one first, and this one's parting focus
             // change would otherwise land its draft on the other row's name.

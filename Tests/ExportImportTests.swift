@@ -351,13 +351,15 @@ import UniformTypeIdentifiers
 
     @Test func anImportIsOneUndoStepAndComesOffCleanly() throws {
         let (store, undo) = TestBoard.undoing(tasks: TestBoard.tasks(on: SeedData.defaultBoard))
-        let before = BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0, boards: store.boards)
+        let before = BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0,
+                      boards: store.boards, trash: store.trash)
 
         step(undo) { store.importBoard(ForeignBoard.snapshot(includingCollision: true)) }
         #expect(undo.undoActionName == "Import Board")
 
         undo.undo()
-        let after = BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0, boards: store.boards)
+        let after = BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0,
+                      boards: store.boards, trash: store.trash)
         #expect(after == before)
     }
 

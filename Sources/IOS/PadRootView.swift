@@ -56,6 +56,7 @@ struct PadRootView: View {
             detail
         }
         .navigationSplitViewStyle(.balanced)
+        .trashToast(metrics: .sheet)
         .environment(focusRelay)
         .background(palette.appBackground.ignoresSafeArea())
         .motionAnimation(.easeOut(duration: 0.16), value: store.surface)

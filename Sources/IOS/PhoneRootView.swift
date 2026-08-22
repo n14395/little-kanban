@@ -48,6 +48,7 @@ struct PhoneRootView: View {
             PhoneTabBar()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .trashToast(metrics: .phone)
         .background(palette.appBackground.ignoresSafeArea())
         // The drawer is a scrim over the board, so to a sighted user the board
         // is gone. This takes the header, the pager and the tab bar out of the

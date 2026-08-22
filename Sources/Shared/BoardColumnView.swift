@@ -241,9 +241,9 @@ struct BoardColumnView: View {
             // so this asks for no confirmation either — but it can be refused,
             // and a refusal has to say why.
             Button(role: .destructive) {
-                refusal = store.deleteColumn(column.id)
+                refusal = store.trashColumn(column.id)
             } label: {
-                Label("Delete Column", systemImage: "trash")
+                Label("Trash Column", systemImage: "trash")
             }
         } label: {
             Image(systemName: "ellipsis")
@@ -375,8 +375,8 @@ private struct BoardColumnEditor: View {
         .onAppear {
             name = column.name
             short = column.short
-            focus = .name
         }
+        .focusWhenReady($focus, .name)
         // Clicking away is a commit, the way the label manager's rename is. An
         // empty name is refused by the store and the fields simply fall back to
         // what is stored the next time this is opened.
@@ -409,8 +409,13 @@ private struct BoardColumnEditor: View {
 
 /// The trailing tile of the column strip: how a board grows a column.
 ///
-/// The role is chosen here and nowhere else, so a board can be given the second
-/// Done column that changing an existing column's role would otherwise need.
+/// It names the column and nothing else. A column added here is a `.backlog`
+/// one, and the four role segments that used to sit under the field are gone —
+/// so **the phone's drawer is now the only place a role is chosen**, which
+/// makes it the only way to give a board the second Done column that changing
+/// an existing column's role would otherwise need. `BoardStore` still has no
+/// `setColumnRole`, so `deleteColumn`'s refusal to remove the last Done column
+/// now suggests something a pointer cannot do at all.
 struct AddColumnTile: View {
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
@@ -421,7 +426,6 @@ struct AddColumnTile: View {
     var metrics: BoardColumnView.Metrics = .desk
 
     @State private var name = ""
-    @State private var role: ColumnRole = .backlog
     @FocusState private var isFocused: Bool
     private var chrome = ChromeScale()
 
@@ -478,84 +482,59 @@ struct AddColumnTile: View {
     }
 
     private var composer: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            TextField("Column name, then ⏎", text: $name)
-                .accessibilityLabel("Column name")
-                .textFieldStyle(.plain)
-                .font(SimpleKanbanFont.ui(12.5, .extraBold, relativeTo: .footnote))
-                .foregroundStyle(palette.ink)
-                .focused($isFocused)
-                .fieldHitArea(minHeight: metrics.rowHit) { isFocused = true }
-                .onSubmit { create() }
-                .onKeyPress(.escape) {
-                    cancel()
-                    return .handled
-                }
-            rolePicker
-        }
-        .padding(12)
-        .background {
-            RoundedRectangle(cornerRadius: 16)
-                .fill(palette.card)
-                .shadow(color: palette.shadow(0.1), radius: 1, y: 1)
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(palette.accent.opacity(0.35), lineWidth: 2)
-        }
-        .onAppear { isFocused = true }
-    }
-
-    /// What the column is *for*, which is the one thing about it the board
-    /// behaves on: only `.done` carries anything, and picking it wrong is worth
-    /// one control at the moment of creation.
-    private var rolePicker: some View {
-        HStack(spacing: 4) {
-            ForEach(ColumnRole.allCases, id: \.self) { option in
-                let isCurrent = option == role
-                Button { role = option } label: {
-                    Text(Self.roleName(option))
-                        .font(SimpleKanbanFont.ui(11, .bold, relativeTo: .caption))
-                        .foregroundStyle(isCurrent ? palette.ink : palette.inkText(0.5))
-                        .lineLimit(1)
-                        .padding(.vertical, 6)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: metrics.rowHit)
-                        .background {
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(isCurrent ? palette.card : .clear)
-                                .shadow(color: isCurrent ? palette.shadow(0.16) : .clear, radius: 1.5, y: 1)
-                        }
-                }
-                .buttonStyle(.bare)
-                .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
+        TextField("Column name, then ⏎", text: $name)
+            .accessibilityLabel("Column name")
+            .textFieldStyle(.plain)
+            .font(SimpleKanbanFont.ui(12.5, .extraBold, relativeTo: .footnote))
+            .foregroundStyle(palette.ink)
+            .focused($isFocused)
+            .fieldHitArea(minHeight: metrics.rowHit) { isFocused = true }
+            .onSubmit { create() }
+            .onKeyPress(.escape) {
+                cancel()
+                return .handled
             }
-        }
-        .padding(3)
-        .background(palette.ink(0.06), in: .rect(cornerRadius: 10))
-    }
-
-    private static func roleName(_ role: ColumnRole) -> String {
-        switch role {
-        case .backlog:
-            String(localized: "Backlog", comment: "Column role: work that has not started")
-        case .active:
-            String(localized: "Doing", comment: "Column role: work in flight")
-        case .done:
-            String(localized: "Done", comment: "Column role: work that is complete")
-        }
+            .padding(12)
+            .background {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(palette.card)
+                    .shadow(color: palette.shadow(0.1), radius: 1, y: 1)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(palette.accent.opacity(0.35), lineWidth: 2)
+            }
+            .focusWhenReady($isFocused)
+            // The tile is a button that becomes a field, and it is a field only
+            // while the field is being used: clicking away puts the button
+            // back. Unlike the *task* composer, which holds a half-typed title
+            // against a stray click, because there the row it leaves behind is
+            // harmless — a column half-named is a control sitting where a
+            // button should be, at the end of the strip, for the session.
+            .onChange(of: isFocused) { _, focused in
+                guard !focused else { return }
+                Task { @MainActor in
+                    // A turn before it acts, and the loss re-checked on the far
+                    // side of it. The strip scrolls this tile into view in the
+                    // same turn the composer opens in — see `BoardScrollView` —
+                    // and a close that fired on any momentary loss would be a
+                    // field that shuts as it appears.
+                    await Task.yield()
+                    guard !isFocused, isComposing else { return }
+                    cancel()
+                }
+            }
     }
 
     /// A name with nothing in it is refused by the store, and the field stays
     /// open rather than closing on a column that was never made.
     private func create() {
-        guard store.addColumn(named: name, role: role) != nil else { return }
+        guard store.addColumn(named: name) != nil else { return }
         cancel()
     }
 
     private func cancel() {
         name = ""
-        role = .backlog
         isComposing = false
     }
 }

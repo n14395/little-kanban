@@ -111,7 +111,7 @@ private struct MenuBarQuickAddView: View {
         .environment(\.palette, palette)
         .tint(palette.accent)
         .foregroundStyle(palette.ink)
-        .onAppear { isFieldFocused = true }
+        .focusWhenReady($isFieldFocused)
     }
 
     /// The Inbox and every column of every board, because the extra outlives

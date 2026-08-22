@@ -253,7 +253,7 @@ struct PhoneDetailSheet: View {
 
     /// Only on a task opened from the Archive. Without it the sheet is a dead
     /// end for an archived card: every other route out of the archive is a
-    /// gesture on the row behind it, and Delete is the only verb on screen.
+    /// gesture on the row behind it, and Trash is the only verb on screen.
     @ViewBuilder private var restoreRow: some View {
         if task.isArchived {
             Button { store.unarchive(task.id) } label: {
@@ -276,11 +276,11 @@ struct PhoneDetailSheet: View {
     /// net. `deleteTask` closes the sheet itself by clearing `sheetID`.
     private var deleteRow: some View {
         Button(role: .destructive) {
-            store.deleteTask(task.id)
+            store.trashTask(task.id)
         } label: {
             HStack(spacing: 7) {
                 Image(systemName: "trash")
-                Text("Delete Task")
+                Text("Trash Task")
             }
             .font(SimpleKanbanFont.ui(14.5, .bold, relativeTo: .subheadline))
             .foregroundStyle(destructiveTone.foreground)

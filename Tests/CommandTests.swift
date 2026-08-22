@@ -258,7 +258,7 @@ import Testing
     }
 
     @Test func aCommandThatActsOnATaskDisablesWithNothingSelected() {
-        #expect(AppCommand.deleteTask.needsSelection)
+        #expect(AppCommand.trashTask.needsSelection)
         #expect(AppCommand.completeTask.needsSelection)
         #expect(AppCommand.archiveTask.needsSelection)
         #expect(AppCommand.newTask.needsSelection == false)
@@ -266,8 +266,8 @@ import Testing
     }
 
     @Test func aBulkCommandSaysHowManyCardsItIsAimedAt() {
-        #expect(AppCommand.deleteTask.title(selectionCount: 1) == "Delete Task")
-        #expect(AppCommand.deleteTask.title(selectionCount: 3) == "Delete 3 Tasks")
+        #expect(AppCommand.trashTask.title(selectionCount: 1) == "Trash Task")
+        #expect(AppCommand.trashTask.title(selectionCount: 3) == "Trash 3 Tasks")
         // A submenu reads the same whatever it is aimed at.
         #expect(AppCommand.moveToColumn.title(selectionCount: 3) == AppCommand.moveToColumn.title)
         // And a command that only ever acts on one ignores the count.

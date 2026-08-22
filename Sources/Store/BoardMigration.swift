@@ -6,10 +6,11 @@ import Foundation
 // added beside them. Reusing `TaskItem` here instead would mean every future
 // field silently rewrote the past.
 //
-// The migrations form a chain — v1 → v2 → v3 → v4 → v5 → v6, one function per
-// step — so a v1 file and a v5 file reach the present through the same code, and
-// adding v7 costs one shape and one function rather than an edit to every
-// decoder. v6 is the one step with no shape of its own; see `migrate(v5:)`.
+// The migrations form a chain — v1 → v2 → v3 → v4 → v5 → v6 → v7, one function
+// per step — so a v1 file and a v6 file reach the present through the same code,
+// and adding v8 costs one shape and one function rather than an edit to every
+// decoder. v6 and v7 are the two steps with no shape of their own; see
+// `migrate(v5:)` and `migrate(v6:)`.
 //
 // Decoding is deliberately forgiving about fields v1 gave a default and strict
 // about the four it always required. A board with an unrecognised priority is
@@ -509,8 +510,33 @@ extension BoardSnapshot {
     /// step has only the stamp left to do. It is still a step. Without the bump
     /// a v5 build handed a v6 file would decode no priority at all and set the
     /// user's board aside as corrupt; with it, it refuses the file and says why.
+    ///
+    /// Stamps **6** rather than `currentVersion`: this is one step of a chain,
+    /// and a step that jumps to whatever the present happens to be is a step
+    /// that silently absorbs the next one. `migrate(v6:)` carries it the rest of
+    /// the way.
     static func migrate(v5: BoardSnapshot) -> BoardSnapshot {
         var snapshot = v5
+        snapshot.version = 6
+        return snapshot
+    }
+
+    /// Version 6 → 7.
+    ///
+    /// v7 adds the trash — the tasks, columns and boards the user has thrown
+    /// away and can still get back, which is `BoardSnapshot.trash`. Purely
+    /// additive, and defaulted, so the current decoder reads a v6 file whole and
+    /// this step is another bare stamp: a v6 file simply has an empty trash,
+    /// which is the truth about it.
+    ///
+    /// The bump is the point, and it is the same argument `migrate(v5:)` makes
+    /// from the other side. Swift's `Codable` ignores keys it does not know, so
+    /// a v6 build handed a v7 file would read the board *perfectly*, notice
+    /// nothing, and write it back with the trash silently dropped — the user's
+    /// deleted work thrown away for good by a downgrade. With the bump that
+    /// build refuses the file and says why.
+    static func migrate(v6: BoardSnapshot) -> BoardSnapshot {
+        var snapshot = v6
         snapshot.version = BoardSnapshot.currentVersion
         return snapshot
     }

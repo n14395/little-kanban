@@ -70,19 +70,32 @@ struct SettingsView: View {
         var controlRadius: CGFloat
         var accent: AccentPicker.Metrics
         var labelManager: LabelManagerView.Metrics
+        var trash: TrashView.Metrics
         /// Whether the surface draws its own header. The desk's pane sits in a
         /// window that already has a title bar and a close button.
         var showsHeader: Bool
+        /// Whether the sections are tabs of a window or a single scroll.
+        ///
+        /// The desk's are tabs, which is what a macOS settings window is: a
+        /// toolbar of subjects, one on screen at a time, the window sized to
+        /// whichever is showing. The sheet's are not, and this is not a
+        /// concession — a phone settings sheet is a scroll everywhere on the
+        /// system, and a seven-item tab bar on a 402pt screen collapses into a
+        /// "More" menu that hides most of what it is for. Same sections either
+        /// way; only how they are reached differs.
+        var usesTabs: Bool
 
         static let desk = Metrics(
-            width: 460, minHeight: 520, padding: 20, sectionSpacing: 22, rowSpacing: 8,
+            width: 520, minHeight: 460, padding: 20, sectionSpacing: 22, rowSpacing: 8,
             panelRadius: 12, titleSize: 15, rowFont: 12.5, noteFont: 11.5, rowHit: 0,
-            controlRadius: 8, accent: .desk, labelManager: .desk, showsHeader: false
+            controlRadius: 8, accent: .desk, labelManager: .desk, trash: .desk,
+            showsHeader: false, usesTabs: true
         )
         static let sheet = Metrics(
             width: nil, minHeight: nil, padding: 18, sectionSpacing: 26, rowSpacing: 10,
             panelRadius: 14, titleSize: 17, rowFont: 15, noteFont: 13, rowHit: 44,
-            controlRadius: 10, accent: .drawer, labelManager: .sheet, showsHeader: true
+            controlRadius: 10, accent: .drawer, labelManager: .sheet, trash: .sheet,
+            showsHeader: true, usesTabs: false
         )
     }
 
@@ -120,18 +133,11 @@ struct SettingsView: View {
             if metrics.showsHeader {
                 header.hairline(.bottom, color: palette.ink(0.08))
             }
-            ScrollView {
-                VStack(alignment: .leading, spacing: metrics.sectionSpacing) {
-                    appearanceSection
-                    boardSection
-                    notificationsSection
-                    syncSection
-                    labelsSection
-                    dataSection
-                }
-                .padding(metrics.padding)
+            if metrics.usesTabs {
+                tabs
+            } else {
+                scroll
             }
-            .scrollBounceBehavior(.basedOnSize)
         }
         .frame(width: metrics.width)
         .frame(minHeight: metrics.minHeight)
@@ -181,6 +187,74 @@ struct SettingsView: View {
             Button("Restore") { restore(backup) }
         } message: { backup in
             Text("Everything on the board is replaced by the board as it stood \(Self.stamp(backup)). A copy of the board as it is now is kept first, and ⌘Z takes the restore back.")
+        }
+    }
+
+    /// The desk: one subject at a time, chosen from the window's toolbar.
+    ///
+    /// **Trash leads**, ahead of the six that were here before it. It is the one
+    /// tab that is about the user's own work rather than about how the app
+    /// behaves — everything else in this window is a preference, and a preference
+    /// can wait; a card thrown away on Tuesday cannot wait past the thirtieth
+    /// day. Putting it first is also the only way somebody who does not already
+    /// know the feature exists will find out that a thrown-away board is still
+    /// gettable back.
+    private var tabs: some View {
+        TabView {
+            pane(trashSection)
+                .tabItem { Label("Trash", systemImage: "trash") }
+            pane(appearanceSection)
+                .tabItem { Label("Appearance", systemImage: "paintbrush") }
+            pane(boardSection)
+                .tabItem { Label("Board", systemImage: "square.grid.2x2") }
+            pane(notificationsSection)
+                .tabItem { Label("Notifications", systemImage: "bell") }
+            pane(syncSection)
+                .tabItem { Label("Sync", systemImage: "icloud") }
+            pane(labelsSection)
+                .tabItem { Label("Labels", systemImage: "tag") }
+            pane(dataSection)
+                .tabItem { Label("Data", systemImage: "externaldrive") }
+        }
+    }
+
+    /// One tab's worth. Scrolling inside the pane rather than resizing the
+    /// window past it: Data and Trash both grow with what the user has — a
+    /// backup list, thirty days of thrown-away cards — and a settings window
+    /// that grows to a thousand points because somebody deleted a lot of columns
+    /// is a window that has stopped being a settings window.
+    private func pane(_ content: some View) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: metrics.sectionSpacing) {
+                content
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(metrics.padding)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+    }
+
+    /// The sheet: every section in one scroll, in the order they were always in,
+    /// with Trash at the head for the reason `tabs` gives.
+    private var scroll: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: metrics.sectionSpacing) {
+                trashSection
+                appearanceSection
+                boardSection
+                notificationsSection
+                syncSection
+                labelsSection
+                dataSection
+            }
+            .padding(metrics.padding)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+    }
+
+    private var trashSection: some View {
+        section(String(localized: "Trash", comment: "Settings section heading")) {
+            TrashView(metrics: metrics.trash)
         }
     }
 
@@ -482,11 +556,21 @@ struct SettingsView: View {
 
     // MARK: Building blocks
 
+    /// A titled panel of rows — or, in the tabbed window, an untitled one.
+    ///
+    /// The heading is what separates one section from the next in a single
+    /// scroll, and there is nothing for it to separate once each section is a
+    /// tab of its own: the toolbar has just said the word, and the window title
+    /// says it again above that. Three copies of "Appearance" stacked down the
+    /// left of a pane is how a settings window looks when it was a scroll last
+    /// week.
     private func section<Content: View>(
         _ title: String, @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: metrics.rowSpacing) {
-            Text(title).sectionLabelStyle(opacity: Palette.readableInk)
+            if !metrics.usesTabs {
+                Text(title).sectionLabelStyle(opacity: Palette.readableInk)
+            }
             VStack(spacing: 0) { content() }
                 .background {
                     RoundedRectangle(cornerRadius: metrics.panelRadius)

@@ -67,7 +67,8 @@ import Testing
     /// The whole board including its columns, so a column mutation is visible to
     /// an "exactly as it was" assertion.
     private func board(_ store: BoardStore) -> BoardMutation {
-        BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0, boards: store.boards)
+        BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0,
+                      boards: store.boards, trash: store.trash)
     }
 
     /// The migrated board's columns. They were a flat `BoardSnapshot.columns`
@@ -347,7 +348,7 @@ import Testing
         store.saveNow()
 
         let read = try temp.snapshot()
-        #expect(read.version == 6)
+        #expect(read.version == BoardSnapshot.currentVersion)
         #expect(columns(of: read) == store.columns)
         #expect(columns(of: read).map(\.name) == ["Triage", "Building", "Shipped", "Blocked"])
         #expect(columns(of: read).map(\.role) == [.backlog, .active, .done, .active])

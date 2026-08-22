@@ -222,9 +222,9 @@ struct BoardTaskCard: View {
             }
             Divider()
             Button(role: .destructive) {
-                store.deleteTask(task.id)
+                store.trashTask(task.id)
             } label: {
-                Label("Delete Task", systemImage: "trash")
+                Label("Trash Task", systemImage: "trash")
             }
         }
         .accessibilityElement(children: .combine)
@@ -250,8 +250,8 @@ struct BoardTaskCard: View {
                 store.archive(targets)
             }
         }
-        .accessibilityAction(named: Text("Delete task")) {
-            store.deleteTasks(targets)
+        .accessibilityAction(named: Text("Trash task")) {
+            store.trashTasks(targets)
         }
         .modifier(MoveActions(task: task))
     }

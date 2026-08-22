@@ -38,7 +38,7 @@ import Testing
         let read = try #require(result.snapshot)
         #expect(result.failure == nil)
         #expect(result.migratedFromVersion == nil)
-        #expect(read.version == 6)
+        #expect(read.version == BoardSnapshot.currentVersion)
         #expect(read.nextSerial == 137)
         #expect(read.accentTheme == .pine)
         #expect(read.labels == LabelDef.seed)
@@ -66,7 +66,7 @@ import Testing
 
         #expect(result.migratedFromVersion == 1)
         #expect(result.failure == nil)
-        #expect(snapshot.version == 6)
+        #expect(snapshot.version == BoardSnapshot.currentVersion)
         #expect(snapshot.accentTheme == .pine)
         #expect(snapshot.nextSerial == 100)
         #expect(snapshot.labels.map(\.key) == ["design", "ios", "api", "bug", "polish", "release-1-2"])
@@ -150,7 +150,7 @@ import Testing
         #expect(result.failure == nil)
         #expect(temp.siblings().contains { $0.hasPrefix("board.corrupt-") } == false)
         #expect(result.migratedFromVersion == 1)
-        #expect(snapshot.version == 6)
+        #expect(snapshot.version == BoardSnapshot.currentVersion)
         #expect(snapshot.tasks.map(\.code) == ["NW-136", "NW-118", "NW-104", "NW-113", "NW-90"])
         #expect(snapshot.nextSerial == 100)
     }

@@ -29,6 +29,7 @@ import UserNotifications
     /// preference, which belongs in `@AppStorage` and must not be here at all.
     static let boardKeys: Set<String> = [
         "version", "tasks", "boards", "labels", "nextSerial", "accentTheme", "activeBoardID",
+        "trash",
     ]
 
     @Test func theBoardDocumentCarriesExactlyTheKeysItIsAllowedTo() throws {

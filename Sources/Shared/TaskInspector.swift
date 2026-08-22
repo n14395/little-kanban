@@ -164,7 +164,7 @@ struct TaskInspector: View {
             // No confirmation: the delete happens and ⌘Z is the way back.
             // Both roots re-read `selectedTask`, so the panel follows the
             // selection onto the neighbouring card instead of holding this one.
-            Button(role: .destructive) { store.deleteTask(task.id) } label: {
+            Button(role: .destructive) { store.trashTask(task.id) } label: {
                 Image(systemName: "trash")
                     .font(.callout.weight(.semibold))
                     .imageScale(.small)
@@ -174,8 +174,8 @@ struct TaskInspector: View {
             }
             .buttonStyle(.bare)
             .hoverBackground(palette.ink(0.08), radius: metrics.headerButtonRadius)
-            .help("Delete task")
-            .accessibilityLabel("Delete task")
+            .help("Trash task")
+            .accessibilityLabel("Trash task")
             Button { close() } label: {
                 Image(systemName: "xmark")
                     .symbolSize(11, weight: .semibold, relativeTo: .caption)

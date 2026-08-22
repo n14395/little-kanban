@@ -178,7 +178,7 @@ struct AppShortcut: Hashable, Sendable {
 /// group with these two is what settles it.
 enum AppCommand: String, CaseIterable, Identifiable, Sendable {
     case newTask, newBoard, importBoard, exportBoard
-    case undo, redo, deleteTask, find
+    case undo, redo, trashTask, find
     case toggleInspector, toggleSidebar
     case completeTask, moveToColumn, setPriority, setDueDate, archiveTask
     case copyTask, pasteTask, selectAll, deselect, openTask
@@ -191,7 +191,7 @@ enum AppCommand: String, CaseIterable, Identifiable, Sendable {
     var group: AppCommandGroup {
         switch self {
         case .newTask, .newBoard, .importBoard, .exportBoard: .file
-        case .undo, .redo, .deleteTask, .find: .edit
+        case .undo, .redo, .trashTask, .find: .edit
         case .toggleInspector, .toggleSidebar: .view
         case .completeTask, .moveToColumn, .setPriority, .setDueDate, .archiveTask: .task
         case .copyTask, .pasteTask, .selectAll, .deselect, .openTask,
@@ -215,7 +215,7 @@ enum AppCommand: String, CaseIterable, Identifiable, Sendable {
     /// means nothing to a card in the Archive.
     var needsSelection: Bool {
         switch self {
-        case .deleteTask, .completeTask, .moveToColumn, .setPriority, .setDueDate,
+        case .trashTask, .completeTask, .moveToColumn, .setPriority, .setDueDate,
              .archiveTask, .copyTask, .deselect, .openTask, .moveCardLeft, .moveCardRight:
             true
         default:
@@ -227,7 +227,7 @@ enum AppCommand: String, CaseIterable, Identifiable, Sendable {
     /// so has a plural title to offer.
     var actsOnWholeSelection: Bool {
         switch self {
-        case .deleteTask, .completeTask, .moveToColumn, .setPriority, .setDueDate,
+        case .trashTask, .completeTask, .moveToColumn, .setPriority, .setDueDate,
              .archiveTask, .copyTask:
             true
         default:
@@ -259,7 +259,7 @@ enum AppCommand: String, CaseIterable, Identifiable, Sendable {
             store.canArchive(task.id)
         case .moveToColumn, .setPriority, .setDueDate, .moveCardLeft, .moveCardRight:
             !task.isArchived
-        case .deleteTask, .copyTask, .deselect, .openTask:
+        case .trashTask, .copyTask, .deselect, .openTask:
             // All four read or dispose of a card wherever it is, the Archive
             // included: a filed card can still be opened, copied and deleted.
             true
@@ -306,7 +306,7 @@ enum AppCommand: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .newTask, .newBoard: .new
         case .importBoard, .exportBoard: .importExport
-        case .deleteTask, .find: .edit
+        case .trashTask, .find: .edit
         case .toggleInspector, .toggleSidebar: .view
         case .completeTask, .moveToColumn, .setPriority, .setDueDate: .task
         case .archiveTask: .filing
@@ -328,7 +328,7 @@ enum AppCommand: String, CaseIterable, Identifiable, Sendable {
         case .importBoard, .exportBoard, .setDueDate, .archiveTask, .moveToColumn, .setPriority: []
         case .undo: [AppShortcut("z", .command)]
         case .redo: [AppShortcut("z", [.command, .shift])]
-        case .deleteTask: [AppShortcut(.delete, .command)]
+        case .trashTask: [AppShortcut(.delete, .command)]
         case .find: [AppShortcut("f", .command)]
         case .toggleInspector: [AppShortcut("i", [.command, .option])]
         case .toggleSidebar: [AppShortcut("s", [.command, .control])]
@@ -366,8 +366,8 @@ enum AppCommand: String, CaseIterable, Identifiable, Sendable {
             String(localized: "Undo", comment: "Edit menu item, provided by the system")
         case .redo:
             String(localized: "Redo", comment: "Edit menu item, provided by the system")
-        case .deleteTask:
-            String(localized: "Delete Task", comment: "Edit menu item that deletes the selected task")
+        case .trashTask:
+            String(localized: "Trash Task", comment: "Edit menu item that puts the selected task in the trash")
         case .find:
             String(localized: "Find", comment: "Edit menu item that puts the cursor in the search field")
         case .toggleInspector:
@@ -419,8 +419,8 @@ enum AppCommand: String, CaseIterable, Identifiable, Sendable {
     func title(selectionCount count: Int) -> String {
         guard count > 1, actsOnWholeSelection else { return title }
         switch self {
-        case .deleteTask:
-            return String(localized: "Delete \(count) Tasks", comment: "Menu item that deletes several selected tasks")
+        case .trashTask:
+            return String(localized: "Trash \(count) Tasks", comment: "Menu item that puts several selected tasks in the trash")
         case .completeTask:
             return String(localized: "Complete \(count) Tasks", comment: "Menu item that completes several selected tasks")
         case .archiveTask:

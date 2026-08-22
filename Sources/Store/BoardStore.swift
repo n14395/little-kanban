@@ -185,6 +185,85 @@ enum ColumnRefusal: LocalizedError, Equatable, Sendable {
     }
 }
 
+/// The card that says something has just been thrown away.
+///
+/// **Session state, and firmly not board state**: it is not in `BoardSnapshot`,
+/// not in `BoardMutation`, and a relaunch does not bring it back. What happened
+/// is already recorded — the thing is in the trash — and this is only the app
+/// saying so out loud for a few seconds.
+///
+/// The `id` is what makes a *repeat* land. Trashing two cards with the same
+/// title in a row produces two announcements reading the same words, and a view
+/// keyed on the text alone would treat the second as "no change" and leave the
+/// first one's dismissal timer running — so the second card would vanish early
+/// or not appear at all.
+struct TrashAnnouncement: Identifiable, Equatable, Sendable {
+    let id = UUID()
+    let text: String
+
+    /// One thing, by name. The name is the card's title, the column's or the
+    /// board's — see ``TrashedItem/name``.
+    init(name: String) {
+        text = String(localized: "Moved \(name) to the trash",
+                      comment: "Confirmation shown after something is thrown away")
+    }
+
+    /// Several cards at once, which have no one name between them.
+    init(taskCount: Int) {
+        text = String(localized: "Moved \(taskCount) tasks to the trash",
+                      comment: "Confirmation shown after several tasks are thrown away at once")
+    }
+}
+
+/// Why something could not come back out of the trash.
+///
+/// Only three answers, and two of them mean the row is stale rather than that
+/// the restore was wrong — the surface having been left open while another
+/// window, or a ⌘Z, moved the ground. `nil` from `restoreFromTrash` means it
+/// happened.
+///
+/// There is deliberately **no case for a card whose board or column has gone**.
+/// A card is the user's, and refusing to hand one back over a missing column
+/// would be holding it hostage to a container it never belonged to in the first
+/// place; it lands in the Inbox instead, which is what happens to every other
+/// card that cannot find its column. A *column* is different: it is nothing but
+/// a place on a board, so a board that is not there is a genuine refusal.
+enum TrashRefusal: LocalizedError, Equatable, Sendable {
+    /// Nothing in the trash under that id — already restored, already deleted,
+    /// or swept by the thirty days while the surface was open.
+    case gone
+    /// The column's board has been deleted since. Restoring the board first is
+    /// a real route, which is why this says so rather than just failing.
+    case boardIsGone
+    /// Something with that id is on the board already, so putting this back
+    /// would make two of it.
+    case alreadyThere
+
+    var errorDescription: String? {
+        switch self {
+        case .gone:
+            String(localized: "That item is no longer in the trash.",
+                   comment: "Explanation when a restore names a trashed item that has since gone")
+        case .boardIsGone:
+            String(localized: "The board that column was on has been deleted.",
+                   comment: "Explanation when a trashed column cannot be restored")
+        case .alreadyThere:
+            String(localized: "That is already on the board.",
+                   comment: "Explanation when a restore would make a second copy of something")
+        }
+    }
+
+    var recoverySuggestion: String? {
+        switch self {
+        case .gone, .alreadyThere:
+            nil
+        case .boardIsGone:
+            String(localized: "Restore the board first, then the column can go back on it.",
+                   comment: "How to get past the refusal to restore a column whose board is gone")
+        }
+    }
+}
+
 /// The part of the board an undo restores.
 ///
 /// Session state — the selection, drafts, the query, the drag — is deliberately
@@ -220,6 +299,17 @@ struct BoardMutation: Equatable, Sendable {
     /// was open. The cost is known: undoing a board delete brings the board back
     /// without going back to it.
     var boards: [Board]
+    /// What has been thrown away and not yet thrown away for good.
+    ///
+    /// In here so that trashing is one ⌘Z like every other mutation: without it
+    /// an undone trash would put the card back on the board *and* leave a copy
+    /// of it sitting in the trash, which is one card the user now has twice.
+    /// Restoring and emptying are the same story from the other end.
+    ///
+    /// Required, with no default, for the reason `boards` is: a mutation built
+    /// without it claims an empty trash, and against a store that has one that
+    /// reads as a change nobody made.
+    var trash: [TrashedItem]
 }
 
 /// Board state and every mutation the design defines.
@@ -242,6 +332,29 @@ final class BoardStore {
     /// are on is where your work is. `nil` only on a board list emptied down to
     /// nothing; every other path keeps it naming a board that exists.
     private(set) var activeBoardID: Board.ID?
+
+    /// What has been thrown away, newest last, still inside its thirty days —
+    /// see ``TrashedItem`` and ``sweepTrash()``.
+    ///
+    /// **Local to this device.** It rides in `board.json`, which is written on
+    /// every save whether or not CloudKit is on, but it has no record type in
+    /// the sync schema: the two questions "what is on my board" and "what did I
+    /// throw away here" are not the same question, and a trash that arrived from
+    /// another Mac would offer to restore a card this one has never seen. What
+    /// crosses devices is the board — a card trashed on one simply leaves the
+    /// board on both. See `restored(file:sync:)`, which reads the file for this
+    /// even when the board itself came from the records.
+    private(set) var trash: [TrashedItem] = []
+
+    /// The card on screen saying what has just been thrown away, or `nil`.
+    ///
+    /// Written by the three trash verbs and cleared by whichever surface drew
+    /// it once its few seconds are up — the timer is the view's, because how
+    /// long a message stays on screen is a fact about the screen. Also cleared
+    /// by `apply`, so a ⌘Z takes the sentence away with the act it describes;
+    /// a card still reading "Moved Ship the thing to the trash" over a board
+    /// that has Ship the thing back on it is the app contradicting itself.
+    var trashAnnouncement: TrashAnnouncement?
     /// Ordered — the label picker lists them in creation order, and new labels
     /// take their colour from the palette by current count.
     private(set) var labels: [LabelDef] { didSet { labelsByKey = nil } }
@@ -515,9 +628,16 @@ final class BoardStore {
             let store = BoardStore(
                 tasks: synced.tasks, boards: synced.boards, activeBoardID: synced.activeBoardID,
                 labels: synced.labels, accentTheme: synced.accentTheme,
-                nextSerial: synced.nextSerial, file: file, sync: sync
+                nextSerial: synced.nextSerial,
+                // The board came from the records; the trash is this device's
+                // and only ever lived in the file — see `BoardStore.trash`. The
+                // file is written on every save whether sync is on or not, so it
+                // is there to be read even on the path where the records won.
+                trash: file.load().snapshot?.trash ?? [],
+                file: file, sync: sync
             )
             store.applyStoredPreferences()
+            store.sweepTrash()
             return store
         }
 
@@ -537,6 +657,7 @@ final class BoardStore {
                 labels: snapshot.labels,
                 accentTheme: snapshot.accentTheme,
                 nextSerial: snapshot.nextSerial,
+                trash: snapshot.trash,
                 file: file,
                 sync: sync
             )
@@ -545,6 +666,11 @@ final class BoardStore {
         }
         store.adopt(result)
         store.applyStoredPreferences()
+        // An app left closed for a season must not open on a trash full of
+        // things it promised to have thrown away a month ago. The surface sweeps
+        // again when it is looked at, for the session that stays open across the
+        // boundary.
+        store.sweepTrash()
         // Whatever the JSON said is now what the records should say: either
         // this is the upgrade that first fills them, or SwiftData failed to
         // read and is being given the board back.
@@ -566,12 +692,19 @@ final class BoardStore {
         labels: [LabelDef] = LabelDef.seed,
         accentTheme: AccentTheme = .ember,
         nextSerial: Int = BoardSnapshot.baseSerial,
+        trash: [TrashedItem] = [],
         file: BoardFile? = nil,
         sync: BoardSyncStore? = nil
     ) {
         self.sync = sync
         self.tasks = Self.placed(tasks, on: boards)
         self.boards = boards
+        // Kept exactly as handed over. An initialiser that quietly dropped rows
+        // would be a value constructor with a policy in it, and the policy —
+        // thirty days — belongs at the two moments that are about the trash:
+        // `restored(file:sync:)` on the way in, and the surface on the way to
+        // being looked at. See `sweepTrash()`.
+        self.trash = trash
         self.activeBoardID = boards.contains { $0.id == activeBoardID } ? activeBoardID : boards.first?.id
         self.labels = labels
         self.accentTheme = accentTheme
@@ -643,7 +776,7 @@ final class BoardStore {
 
     private var snapshot: BoardSnapshot {
         BoardSnapshot(tasks: tasks, boards: boards, labels: labels, nextSerial: nextSerial,
-                      accentTheme: accentTheme, activeBoardID: activeBoardID)
+                      accentTheme: accentTheme, activeBoardID: activeBoardID, trash: trash)
     }
 
     /// Takes on what the load found: a failure to show, and whether saving has
@@ -950,12 +1083,21 @@ final class BoardStore {
     /// `accentTheme` and `activeBoardID` are deliberately not adopted. The first
     /// is a preference the user set on this machine, and the second is where
     /// they are looking — neither is the arriving file's to change.
+    ///
+    /// The **trash is not adopted either**, and it is the clearest case of the
+    /// three. An import is somebody else's file, and their thrown-away boards
+    /// are not things this user should be offered back. A backup is this user's
+    /// own file from an earlier moment, which sounds like the opposite — but
+    /// taking its trash would resurrect the things they have permanently deleted
+    /// since, which is the one act in the app that is meant to stick. Either way
+    /// what is carried across is the *board*; the trash stays this session's.
     private func adoptContent(_ content: BoardSnapshot) {
         apply(BoardMutation(
             tasks: Self.placed(content.tasks, on: content.boards),
             labels: content.labels,
             nextSerial: content.nextSerial,
-            boards: content.boards
+            boards: content.boards,
+            trash: trash
         ))
         scheduleSave()
     }
@@ -979,7 +1121,7 @@ final class BoardStore {
     var canRedo: Bool { undoManager?.canRedo ?? false }
 
     private var mutation: BoardMutation {
-        BoardMutation(tasks: tasks, labels: labels, nextSerial: nextSerial, boards: boards)
+        BoardMutation(tasks: tasks, labels: labels, nextSerial: nextSerial, boards: boards, trash: trash)
     }
 
     /// Runs `body` as one undoable step named `name`.
@@ -1194,6 +1336,10 @@ final class BoardStore {
         labels = state.labels
         nextSerial = state.nextSerial
         boards = state.boards
+        trash = state.trash
+        // See `trashAnnouncement`: the message describes an act this is
+        // reversing, so it goes with it.
+        trashAnnouncement = nil
         // The restore may have taken away the board being looked at — undoing
         // the creation of one, say — and a surface reading `activeBoard` must
         // never be shown nothing while there is still a board to show.
@@ -2221,6 +2367,204 @@ final class BoardStore {
             return next.id
         }
         return tasks[..<index].last { $0.columnID == columnID && !$0.isArchived }?.id
+    }
+
+    // MARK: - The trash
+
+    /// What the Trash shows: newest first, and never anything past its thirty
+    /// days even if the app has been sitting open across the boundary.
+    ///
+    /// Filtered rather than swept, because reading a list must not write to the
+    /// file. ``sweepTrash()`` is the write, and it happens at the two moments
+    /// that are already about the trash.
+    var trashedItems: [TrashedItem] {
+        let now = Date.now
+        return trash.filter { !$0.isExpired(at: now) }.sorted { $0.trashedAt > $1.trashedAt }
+    }
+
+    var trashCount: Int { trashedItems.count }
+
+    /// Drops what the thirty days have run out on.
+    ///
+    /// Deliberately **not** undoable and deliberately not an activity: it is the
+    /// promise being kept rather than anything the user did, and a ⌘Z that could
+    /// reach back into a bin the app has already emptied is a ⌘Z that undoes the
+    /// passage of time. It still saves, so the file stops carrying what is no
+    /// longer offered.
+    func sweepTrash() {
+        let now = Date.now
+        let kept = trash.filter { !$0.isExpired(at: now) }
+        guard kept.count != trash.count else { return }
+        trash = kept
+        scheduleSave()
+    }
+
+    /// Throws a task away — off the board, into the trash, out again in thirty
+    /// days unless it is restored first.
+    ///
+    /// No confirmation, exactly as the delete it replaces had none: the trash
+    /// *is* the safety net now, with ⌘Z still behind it, and a dialog in front
+    /// of a reversible act is one the user learns to dismiss without reading.
+    @discardableResult
+    func trashTask(_ id: TaskItem.ID) -> TaskItem? {
+        var removed: TaskItem?
+        undoable(String(localized: "Trash Task", comment: "Undo action name for putting a task in the trash")) {
+            removed = deleteTask(id)
+            if let removed { keep(.task(removed)) }
+        }
+        if let removed { announce(TrashAnnouncement(name: removed.displayTitle)) }
+        return removed
+    }
+
+    /// The same for a selection, as one step. The order is the board's, so a
+    /// trash of three cards lists them in the trash the way the board had them.
+    func trashTasks(_ ids: Set<TaskItem.ID>) {
+        let targets = ordered(ids)
+        guard !targets.isEmpty else { return }
+        let name = targets.count > 1
+            ? String(localized: "Trash Tasks", comment: "Undo action name for trashing several tasks at once")
+            : String(localized: "Trash Task", comment: "Undo action name for putting a task in the trash")
+        var removed: [TaskItem] = []
+        undoable(name) {
+            for id in targets {
+                restoreEmptiedFields(on: id)
+                if let gone = discard(id) {
+                    keep(.task(gone))
+                    removed.append(gone)
+                }
+            }
+        }
+        // One card for the lot. A selection of four that announced per task
+        // would draw four in a row, each replacing the last too quickly to
+        // read, and the last one would name a card at random.
+        guard let first = removed.first else { return }
+        announce(removed.count == 1
+                 ? TrashAnnouncement(name: first.displayTitle)
+                 : TrashAnnouncement(taskCount: removed.count))
+    }
+
+    /// Throws a column away. Its cards are not thrown away with it — they move
+    /// to the first column left, exactly as they always have, and each says so
+    /// in its own history. What goes in the trash is the column.
+    ///
+    /// Refused for the same two reasons `deleteColumn` refuses, and nothing is
+    /// kept when it is: a refusal means the board did not change.
+    @discardableResult
+    func trashColumn(_ id: BoardColumn.ID) -> ColumnRefusal? {
+        guard let boardIndex = boardIndex(ofColumn: id),
+              let position = boards[boardIndex].columns.firstIndex(where: { $0.id == id })
+        else { return .unknownColumn }
+        let boardID = boards[boardIndex].id
+        let column = boards[boardIndex].columns[position]
+        var refusal: ColumnRefusal?
+        undoable(String(localized: "Trash Column", comment: "Undo action name for putting a column in the trash")) {
+            refusal = deleteColumn(id)
+            guard refusal == nil else { return }
+            keep(.column(column, boardID: boardID, position: position))
+        }
+        // A refusal changed nothing, so there is nothing to say about it — the
+        // caller shows the reason instead.
+        if refusal == nil { announce(TrashAnnouncement(name: column.name)) }
+        return refusal
+    }
+
+    /// Throws a board away. Its cards go to the global Inbox as they always
+    /// have; what goes in the trash is the board, with its columns inside it.
+    @discardableResult
+    func trashBoard(_ id: Board.ID) -> Board? {
+        guard let position = boards.firstIndex(where: { $0.id == id }) else { return nil }
+        var removed: Board?
+        undoable(String(localized: "Trash Board", comment: "Undo action name for putting a board in the trash")) {
+            removed = deleteBoard(id)
+            if let removed { keep(.board(removed, position: position)) }
+        }
+        if let removed { announce(TrashAnnouncement(name: removed.name)) }
+        return removed
+    }
+
+    /// Raises the card. Outside the undo step on purpose: it is not part of what
+    /// ⌘Z reverses, and a step that captured it would put the message back on
+    /// screen on redo.
+    private func announce(_ announcement: TrashAnnouncement) {
+        trashAnnouncement = announcement
+    }
+
+    /// Files one thing in the trash. Called from inside an open step, which is
+    /// what makes the removal and the keeping one ⌘Z.
+    private func keep(_ contents: TrashedItem.Contents) {
+        trash.append(TrashedItem(contents: contents))
+        scheduleSave()
+    }
+
+    /// Puts a trashed thing back, and takes the row out of the trash.
+    ///
+    /// **What "back" means differs by kind, and none of it is a guess.** A card
+    /// goes back to the placement it carried, unless the board or column it
+    /// names has since gone, in which case it lands in the Inbox — the same
+    /// answer `placed(_:on:)` gives every card whose column cannot be found, and
+    /// better than refusing to give the user their card back over a column. A
+    /// column and a board go back where they sat, clamped to a list that has
+    /// changed length since.
+    ///
+    /// `nil` means it happened. A column whose board is gone is the one case
+    /// that cannot be honoured, because there is nowhere to put it and inventing
+    /// a board to hold it would be inventing a board.
+    @discardableResult
+    func restoreFromTrash(_ id: TrashedItem.ID) -> TrashRefusal? {
+        guard let index = trash.firstIndex(where: { $0.id == id }) else { return .gone }
+        let item = trash[index]
+        var refusal: TrashRefusal?
+        undoable(String(localized: "Restore from Trash", comment: "Undo action name for taking something back out of the trash")) {
+            switch item.contents {
+            case .task(let task):
+                var restored = task
+                if !isPlaceable(task.placement) { restored.placement = .inbox }
+                restored.activity.insert(ActivityEntry(.restoredFromTrash), at: 0)
+                tasks.append(restored)
+                select(restored.id)
+            case .column(let column, let boardID, let position):
+                guard let boardIndex = boards.firstIndex(where: { $0.id == boardID }) else {
+                    refusal = .boardIsGone
+                    return
+                }
+                guard !boards[boardIndex].columns.contains(where: { $0.id == column.id }) else {
+                    refusal = .alreadyThere
+                    return
+                }
+                boards[boardIndex].columns.insert(
+                    column, at: min(position, boards[boardIndex].columns.count)
+                )
+            case .board(let board, let position):
+                guard !boards.contains(where: { $0.id == board.id }) else {
+                    refusal = .alreadyThere
+                    return
+                }
+                boards.insert(board, at: min(position, boards.count))
+            }
+            trash.remove(at: index)
+            scheduleSave()
+        }
+        return refusal
+    }
+
+    /// Throws one trashed thing away for good, before its thirty days are up.
+    /// This is the only delete in the app with a confirmation in front of it,
+    /// and the only one that earns one: there is nothing behind it.
+    func deleteFromTrash(_ id: TrashedItem.ID) {
+        guard trash.contains(where: { $0.id == id }) else { return }
+        undoable(String(localized: "Delete from Trash", comment: "Undo action name for permanently deleting one trashed item")) {
+            trash.removeAll { $0.id == id }
+            scheduleSave()
+        }
+    }
+
+    /// The lot, in one step.
+    func emptyTrash() {
+        guard !trash.isEmpty else { return }
+        undoable(String(localized: "Empty Trash", comment: "Undo action name for permanently deleting everything in the trash")) {
+            trash.removeAll()
+            scheduleSave()
+        }
     }
 
     // MARK: - Archiving

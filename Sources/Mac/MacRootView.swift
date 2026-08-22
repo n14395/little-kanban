@@ -97,6 +97,7 @@ struct MacRootView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .trashToast()
 
                 MacStatusBar()
             }

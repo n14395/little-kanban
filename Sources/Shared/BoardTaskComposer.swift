@@ -61,7 +61,7 @@ struct BoardTaskComposer: View {
                 RoundedRectangle(cornerRadius: metrics.cornerRadius)
                     .strokeBorder(palette.accent.opacity(0.35), lineWidth: 2)
             }
-            .onAppear { isFocused = true }
+            .focusWhenReady($isFocused)
             // Clicking away is the third way out, alongside ⏎ and Escape.
             // Only an empty draft goes: losing a half-typed title to a stray
             // click costs the user more than a stray open row does.

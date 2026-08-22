@@ -108,7 +108,7 @@ import Testing
         // shortcut; comparing the whole set would make the arrows stop working
         // for anyone who had left caps lock on.
         #expect(command(.upArrow, [.capsLock, .numericPad]) == .focusCardAbove)
-        #expect(command(.delete, [.command, .capsLock]) == .deleteTask)
+        #expect(command(.delete, [.command, .capsLock]) == .trashTask)
     }
 
     /// Two commands on one key is the drift `AppCommand` exists to stop, and
@@ -239,7 +239,7 @@ import Testing
     /// it. `deleteTask` is the exception it is listed as — the card knows how to
     /// perform it and the menu is what asks.
     @Test func everyCommandACardCarriesStillHasAPressThatReachesIt() {
-        for command in BoardKeyboard.boardCommands where command != .deleteTask {
+        for command in BoardKeyboard.boardCommands where command != .trashTask {
             let reached = command.shortcuts.contains { shortcut in
                 board(shortcut.key.keyEquivalent, shortcut.modifiers.eventModifiers) == command
             }
@@ -427,21 +427,21 @@ import Testing
     }
 
     /// ⌘⌫ hands the keyboard on before the card it is on leaves the board.
-    @Test func deletingHandsFocusToTheNeighbourAndThenToNothing() {
+    @Test func trashingHandsFocusToTheNeighbourAndThenToNothing() {
         let (store, undo) = TestBoard.undoing()
 
         step(undo) {
-            #expect(run(.deleteTask, on: TestBoard.dragDrop, in: store)
+            #expect(run(.trashTask, on: TestBoard.dragDrop, in: store)
                     == .init(isHandled: true, focus: TestBoard.cafe))
         }
         #expect(store[TestBoard.dragDrop] == nil)
 
         // Last card in its column, and focus has nowhere to fall.
         step(undo) {
-            #expect(run(.deleteTask, on: TestBoard.sync, in: store)
+            #expect(run(.trashTask, on: TestBoard.sync, in: store)
                     == .init(isHandled: true, focus: nil))
         }
-        #expect(undo.actionNames == ["Delete Task", "Delete Task"])
+        #expect(undo.actionNames == ["Trash Task", "Trash Task"])
     }
 
     // MARK: ⌘A and ⎋

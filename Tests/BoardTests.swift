@@ -79,7 +79,8 @@ import Testing
     /// The whole board including its boards, so a board mutation is visible to
     /// an "exactly as it was" assertion.
     private func board(_ store: BoardStore) -> BoardMutation {
-        BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0, boards: store.boards)
+        BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0,
+                      boards: store.boards, trash: store.trash)
     }
 
     // MARK: The invariant

@@ -1,0 +1,235 @@
+import SwiftUI
+
+/// The Trash: what has been thrown away, how long is left on it, and the two
+/// things that can still be done about it.
+///
+/// A tab of Settings rather than a place on the board, because it is not part of
+/// the work — it is where the work goes when it stops being work. See
+/// ``TrashedItem`` for what is kept and why the three kinds are not the same
+/// shape.
+///
+/// **Restore is the ordinary button and Delete is the guarded one**, which is
+/// the reverse of the rest of the app. Everywhere else a delete happens and ⌘Z
+/// is the safety net; here there is nothing behind it, and "Delete" in a window
+/// whose whole subject is second chances is the one press that has to mean it.
+/// So Delete asks, and it is the only confirmation in the app that is not about
+/// throwing away the entire board.
+struct TrashView: View {
+    struct Metrics {
+        var rowFont: CGFloat
+        var noteFont: CGFloat
+        var rowHit: CGFloat
+        var buttonHit: CGFloat
+        var rowRadius: CGFloat
+        var glyph: CGFloat
+        var spacing: CGFloat
+
+        static let desk = Metrics(
+            rowFont: 12.5, noteFont: 11.5, rowHit: 0, buttonHit: 0,
+            rowRadius: 8, glyph: 15, spacing: 10
+        )
+        static let sheet = Metrics(
+            rowFont: 15, noteFont: 13, rowHit: 44, buttonHit: 44,
+            rowRadius: 10, glyph: 18, spacing: 12
+        )
+    }
+
+    @Environment(\.palette) private var palette
+    @Environment(BoardStore.self) private var store
+
+    var metrics: Metrics = .desk
+
+    /// Which row's Delete is being confirmed. The item rather than a flag, so
+    /// the warning can name what it is about to destroy — "Delete this?" over a
+    /// list of seven is a question the user cannot answer.
+    @State private var confirmingDelete: TrashedItem?
+    @State private var isConfirmingEmpty = false
+    /// A restore that could not be honoured. Carried as the refusal itself so
+    /// the alert can say both halves — what stopped it, and the way past.
+    @State private var refusal: TrashRefusal?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: metrics.spacing) {
+            if store.trashedItems.isEmpty {
+                empty
+            } else {
+                list
+                emptyTrashButton
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // The one write the surface makes on its own: what the thirty days have
+        // run out on goes when the user comes to look, so the list they are
+        // reading and the file underneath it agree. See `BoardStore.sweepTrash`.
+        .onAppear { store.sweepTrash() }
+        .alert(
+            "Delete this for good?",
+            isPresented: Binding(
+                get: { confirmingDelete != nil },
+                set: { if !$0 { confirmingDelete = nil } }
+            ),
+            presenting: confirmingDelete
+        ) { item in
+            Button("Cancel", role: .cancel) { confirmingDelete = nil }
+            Button("Delete", role: .destructive) {
+                store.deleteFromTrash(item.id)
+                confirmingDelete = nil
+            }
+        } message: { item in
+            Text("\(item.name) goes for good, now rather than in \(item.daysLeft()) days. ⌘Z takes it back, and nothing else does.")
+        }
+        .alert("Empty the trash?", isPresented: $isConfirmingEmpty) {
+            Button("Cancel", role: .cancel) {}
+            Button("Empty Trash", role: .destructive) { store.emptyTrash() }
+        } message: {
+            Text("All \(store.trashCount) items go for good, now rather than when their thirty days are up. ⌘Z takes them back, and nothing else does.")
+        }
+        .alert(
+            refusal?.errorDescription ?? "",
+            isPresented: Binding(get: { refusal != nil }, set: { if !$0 { refusal = nil } }),
+            presenting: refusal
+        ) { _ in
+            Button("OK") { refusal = nil }
+        } message: { refusal in
+            if let suggestion = refusal.recoverySuggestion { Text(suggestion) }
+        }
+    }
+
+    // MARK: The list
+
+    private var list: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(store.trashedItems.enumerated()), id: \.element.id) { index, item in
+                if index > 0 { rule }
+                row(item)
+            }
+        }
+        .background {
+            RoundedRectangle(cornerRadius: metrics.rowRadius + 4)
+                .fill(palette.card)
+                .shadow(color: palette.shadow(0.05), radius: 6, y: 2)
+        }
+    }
+
+    private func row(_ item: TrashedItem) -> some View {
+        HStack(spacing: metrics.spacing) {
+            Image(systemName: item.kind.symbol)
+                .imageScale(.small)
+                .foregroundStyle(palette.inkText(0.45))
+                .frame(width: metrics.glyph)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.name)
+                    .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                    .foregroundStyle(palette.ink)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Text(subtitle(item))
+                    .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                    .foregroundStyle(palette.inkText(0.45))
+                    .multilineTextAlignment(.leading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            rowButton(String(localized: "Restore", comment: "Trash row button that puts a thrown-away thing back")) {
+                refusal = store.restoreFromTrash(item.id)
+            }
+            rowButton(
+                String(localized: "Delete", comment: "Trash row button that throws something away for good"),
+                isDestructive: true
+            ) {
+                confirmingDelete = item
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(minHeight: metrics.rowHit)
+        // One element per row, with the two buttons put back as actions: a row
+        // published as four siblings makes a reader swipe four times to pass
+        // something they are not interested in, and the name — the one part
+        // that says which row this is — is only the second of the four.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(item.name)
+        .accessibilityValue(subtitle(item))
+        .accessibilityActions {
+            Button(String(localized: "Restore", comment: "Trash row button that puts a thrown-away thing back")) {
+                refusal = store.restoreFromTrash(item.id)
+            }
+            Button(String(localized: "Delete", comment: "Trash row button that throws something away for good")) {
+                confirmingDelete = item
+            }
+        }
+    }
+
+    /// What kind of thing it was, and how long is left. Both halves matter: the
+    /// kind because a board and a card can carry the same name, and the countdown
+    /// because it is the promise the trash makes.
+    private func subtitle(_ item: TrashedItem) -> String {
+        let days = item.daysLeft()
+        let left = days == 0
+            ? String(localized: "deleted today", comment: "Trash row: the last day before something is thrown away for good")
+            : days == 1
+                ? String(localized: "1 day left", comment: "Trash row: how long is left before something is thrown away for good")
+                : String(localized: "\(days) days left", comment: "Trash row: how long is left before something is thrown away for good")
+        if let code = item.code {
+            return "\(item.kind.label) · \(code) · \(left)"
+        }
+        return "\(item.kind.label) · \(left)"
+    }
+
+    private func rowButton(
+        _ title: String, isDestructive: Bool = false, perform: @escaping () -> Void
+    ) -> some View {
+        Button(action: perform) {
+            Text(title)
+                .font(SimpleKanbanFont.ui(metrics.noteFont, .bold, relativeTo: .caption))
+                .foregroundStyle(isDestructive ? palette.accent : palette.ink(0.66))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .frame(minHeight: metrics.buttonHit)
+                .background(palette.ink(0.06), in: .rect(cornerRadius: 7))
+        }
+        .buttonStyle(.bare)
+        // The row carries both of these as actions; a reader meeting them twice
+        // is a reader reading the same button twice.
+        .accessibilityHidden(true)
+    }
+
+    private var rule: some View {
+        Rectangle().fill(palette.ink(0.06)).frame(height: 1)
+    }
+
+    // MARK: The two ends of the list
+
+    private var empty: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("The trash is empty")
+                .font(SimpleKanbanFont.ui(metrics.rowFont, .bold, relativeTo: .subheadline))
+                .foregroundStyle(palette.ink(0.66))
+            Text("Tasks, columns and boards you throw away are kept here for 30 days, then deleted.")
+                .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                .foregroundStyle(palette.inkText(0.45))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 16)
+        .background {
+            RoundedRectangle(cornerRadius: metrics.rowRadius + 4)
+                .fill(palette.card)
+                .shadow(color: palette.shadow(0.05), radius: 6, y: 2)
+        }
+    }
+
+    private var emptyTrashButton: some View {
+        Button { isConfirmingEmpty = true } label: {
+            Text("Empty Trash")
+                .font(SimpleKanbanFont.ui(metrics.rowFont, .bold, relativeTo: .subheadline))
+                .foregroundStyle(palette.accent)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .frame(minHeight: metrics.buttonHit)
+                .background(palette.accentSoft, in: .rect(cornerRadius: metrics.rowRadius))
+        }
+        .buttonStyle(.bare)
+    }
+}

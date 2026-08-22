@@ -29,8 +29,68 @@ struct BoardSnapshot: Codable, Sendable {
     /// glance. Optional so a file whose boards have been hand-edited still
     /// reads; the store falls back to the first board.
     var activeBoardID: Board.ID?
+    /// What the user has thrown away and can still get back — see
+    /// ``TrashedItem``. Since v7, and defaulted so a hand-written or
+    /// half-migrated file still reads.
+    ///
+    /// Kept in the file rather than worked out from the board, because it is
+    /// precisely the things that are *not* on the board any more.
+    var trash: [TrashedItem] = []
 
-    static let currentVersion = 6
+    static let currentVersion = 7
+
+    enum CodingKeys: String, CodingKey {
+        case version, tasks, boards, labels, nextSerial, accentTheme, activeBoardID, trash
+    }
+
+    /// Written out rather than synthesised, for one field.
+    ///
+    /// A synthesised `init(from:)` throws `keyNotFound` for a key the file does
+    /// not carry, **and a property default does not save you** — which is fine
+    /// for the fields every version wrote and wrong for `trash`, which v6 and
+    /// everything before it had never heard of. Without this the v5 and v6
+    /// branches of `decode(_:)` would route a perfectly good file into the
+    /// current decoder and get a `keyNotFound` back, and the user's board would
+    /// be quarantined as corrupt by a feature they have not used yet.
+    ///
+    /// Only `trash` is lenient. Everything else stays strict on purpose: a board
+    /// file with no `tasks` key is not a board file with no tasks, it is not a
+    /// board file, and reading it as an empty board would write that emptiness
+    /// straight back over the user's work.
+    ///
+    /// This is the same shape `BoardSnapshotV4` uses for the same reason, and
+    /// the price of it is the same: a field added here has to be added below.
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decode(Int.self, forKey: .version)
+        tasks = try container.decode([TaskItem].self, forKey: .tasks)
+        boards = try container.decode([Board].self, forKey: .boards)
+        labels = try container.decode([LabelDef].self, forKey: .labels)
+        nextSerial = try container.decode(Int.self, forKey: .nextSerial)
+        accentTheme = try container.decode(AccentTheme.self, forKey: .accentTheme)
+        activeBoardID = try container.decodeIfPresent(Board.ID.self, forKey: .activeBoardID)
+        trash = try container.decodeIfPresent([TrashedItem].self, forKey: .trash) ?? []
+    }
+
+    init(
+        version: Int = BoardSnapshot.currentVersion,
+        tasks: [TaskItem],
+        boards: [Board] = SeedData.boards,
+        labels: [LabelDef],
+        nextSerial: Int,
+        accentTheme: AccentTheme,
+        activeBoardID: Board.ID? = nil,
+        trash: [TrashedItem] = []
+    ) {
+        self.version = version
+        self.tasks = tasks
+        self.boards = boards
+        self.labels = labels
+        self.nextSerial = nextSerial
+        self.accentTheme = accentTheme
+        self.activeBoardID = activeBoardID
+        self.trash = trash
+    }
 
     /// The serial a fresh board starts minting from.
     static let baseSerial = 100
@@ -191,9 +251,14 @@ struct BoardFile: Sendable {
     /// Decodes board bytes of any shipped version.
     ///
     /// The `version` is read out of the raw JSON *before* anything is decoded,
-    /// because synthesised `Codable` throws `keyNotFound` for a field the older
-    /// shape never wrote — a default does not save you. Routing on the version
+    /// because a decoder throws `keyNotFound` for a field the older shape never
+    /// wrote — and a property default does not save you. Routing on the version
     /// first is what keeps a v1 file out of the current decoder.
+    ///
+    /// The two versions that *do* come through the current decoder — v5 and v6,
+    /// which share this shape — get there because `init(from:)` above is written
+    /// rather than synthesised, and reads `trash` leniently. That is the only
+    /// leniency there is; every other absent key is still a refusal.
     ///
     /// Each older version is decoded by the shape that wrote it and then walked
     /// forward one step at a time, so a v1 file passes through exactly the same
@@ -204,24 +269,41 @@ struct BoardFile: Sendable {
         switch try version(of: data) {
         case BoardSnapshot.currentVersion:
             return (try decoder.decode(BoardSnapshot.self, from: data), nil)
+        case 6:
+            // v6 and v7 are the same shape: v7 only *adds* the trash, and the
+            // field is defaulted, so the current decoder reads a v6 file whole
+            // and gets an empty trash — which is the truth about it. The bump
+            // still has to happen; see `migrate(v6:)` for what a v6 build would
+            // otherwise do to a v7 file.
+            return (BoardSnapshot.migrate(v6: try decoder.decode(BoardSnapshot.self, from: data)), 6)
         case 5:
-            // v5 and v6 are the same shape. What changed is how `Priority`
+            // v5 and v6 are the same shape too. What changed is how `Priority`
             // spells itself on disk, which `Priority.init(stored:)` absorbs, so
             // the current decoder reads a v5 file — but the bump still has to
             // happen, because the reverse is not true and a v5 build must
             // refuse this file rather than lose every priority in it.
-            return (BoardSnapshot.migrate(v5: try decoder.decode(BoardSnapshot.self, from: data)), 5)
+            return (
+                BoardSnapshot.migrate(v6: BoardSnapshot.migrate(v5: try decoder.decode(BoardSnapshot.self, from: data))),
+                5
+            )
         case 4:
             let v4 = try decoder.decode(BoardSnapshotV4.self, from: data)
-            return (BoardSnapshot.migrate(v5: BoardSnapshot.migrate(v4: v4)), 4)
+            return (BoardSnapshot.migrate(v6: BoardSnapshot.migrate(v5: BoardSnapshot.migrate(v4: v4))), 4)
         case 3:
             let v3 = try decoder.decode(BoardSnapshotV3.self, from: data)
-            return (BoardSnapshot.migrate(v5: BoardSnapshot.migrate(v4: BoardSnapshot.migrate(v3: v3))), 3)
+            return (
+                BoardSnapshot.migrate(
+                    v6: BoardSnapshot.migrate(v5: BoardSnapshot.migrate(v4: BoardSnapshot.migrate(v3: v3)))
+                ),
+                3
+            )
         case 2:
             let v2 = try decoder.decode(BoardSnapshotV2.self, from: data)
             return (
                 BoardSnapshot.migrate(
-                    v5: BoardSnapshot.migrate(v4: BoardSnapshot.migrate(v3: BoardSnapshot.migrate(v2: v2)))
+                    v6: BoardSnapshot.migrate(
+                        v5: BoardSnapshot.migrate(v4: BoardSnapshot.migrate(v3: BoardSnapshot.migrate(v2: v2)))
+                    )
                 ),
                 2
             )
@@ -229,8 +311,10 @@ struct BoardFile: Sendable {
             let v1 = try decoder.decode(BoardSnapshotV1.self, from: data)
             return (
                 BoardSnapshot.migrate(
-                    v5: BoardSnapshot.migrate(
-                        v4: BoardSnapshot.migrate(v3: BoardSnapshot.migrate(v2: BoardSnapshot.migrate(v1: v1)))
+                    v6: BoardSnapshot.migrate(
+                        v5: BoardSnapshot.migrate(
+                            v4: BoardSnapshot.migrate(v3: BoardSnapshot.migrate(v2: BoardSnapshot.migrate(v1: v1)))
+                        )
                     )
                 ),
                 1

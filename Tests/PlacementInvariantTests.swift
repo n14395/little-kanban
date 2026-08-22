@@ -100,7 +100,8 @@ import Testing
     }
 
     private func board(_ store: BoardStore) -> BoardMutation {
-        BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0, boards: store.boards)
+        BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0,
+                      boards: store.boards, trash: store.trash)
     }
 
     // MARK: The property

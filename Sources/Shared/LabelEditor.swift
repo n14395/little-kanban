@@ -145,8 +145,10 @@ struct LabelPickerList: View {
         .presentationBackground(palette.card)
         .defaultFocus($isFieldFocused, true)
         // `defaultFocus` alone does not always take in a popover, whose window
-        // becomes key a beat after its content appears.
-        .onAppear { isFieldFocused = true }
+        // becomes key a beat after its content appears. The fallback was an
+        // `onAppear`, which is the assignment this app has since watched fail
+        // three times over — see ``SwiftUICore/View/focusWhenReady(_:)``.
+        .focusWhenReady($isFieldFocused)
     }
 
     private func row(for label: LabelDef) -> some View {

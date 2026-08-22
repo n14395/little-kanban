@@ -171,7 +171,7 @@ struct BoardCommands: Commands {
         switch command {
         case .newTask: newTask()
         case .newBoard: newBoard()
-        case .deleteTask: delete(ids)
+        case .trashTask: trash(ids)
         case .find: store.focusSearch()
         case .toggleInspector: store.isInspectorOpen.toggle()
         case .toggleSidebar: window.isSidebarVisible.toggle()
@@ -342,11 +342,11 @@ struct BoardCommands: Commands {
     /// ⌘⌫. Focus follows the card off the board, which the card can no longer
     /// do for itself now that the menu takes the press first. Worked out before
     /// the delete, while the card is still there to have a neighbour.
-    private func delete(_ ids: Set<TaskItem.ID>) {
+    private func trash(_ ids: Set<TaskItem.ID>) {
         if let focused = window.focusedTaskID, ids.contains(focused) {
             window.focusedTaskID = BoardFocusMap(store).card(after: focused)
         }
-        store.deleteTasks(ids)
+        store.trashTasks(ids)
     }
 }
 

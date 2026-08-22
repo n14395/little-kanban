@@ -147,7 +147,7 @@ import Testing
     /// one.
     @Test func everyCommandThatActsOnATaskSaysItNeedsOne() {
         #expect(Set(AppCommand.allCases.filter(\.needsSelection))
-                == [.deleteTask, .completeTask, .moveToColumn, .setPriority, .setDueDate,
+                == [.trashTask, .completeTask, .moveToColumn, .setPriority, .setDueDate,
                     .archiveTask, .copyTask, .deselect, .openTask, .moveCardLeft, .moveCardRight])
 
         // Acting on the whole selection without needing one is incoherent.
@@ -166,9 +166,9 @@ import Testing
     /// A menu item aimed at three cards has to say so, rather than promising to
     /// delete one and taking all three.
     @Test func aBulkCommandSaysHowManyCardsItIsAimedAt() {
-        #expect(AppCommand.deleteTask.title(selectionCount: 0) == "Delete Task")
-        #expect(AppCommand.deleteTask.title(selectionCount: 1) == "Delete Task")
-        #expect(AppCommand.deleteTask.title(selectionCount: 3) == "Delete 3 Tasks")
+        #expect(AppCommand.trashTask.title(selectionCount: 0) == "Trash Task")
+        #expect(AppCommand.trashTask.title(selectionCount: 1) == "Trash Task")
+        #expect(AppCommand.trashTask.title(selectionCount: 3) == "Trash 3 Tasks")
         #expect(AppCommand.completeTask.title(selectionCount: 2) == "Complete 2 Tasks")
         #expect(AppCommand.archiveTask.title(selectionCount: 2) == "Archive 2 Tasks")
         #expect(AppCommand.copyTask.title(selectionCount: 2) == "Copy 2 Tasks")
@@ -194,7 +194,7 @@ import Testing
         #expect(AppCommand.moveCardLeft.shortcuts.first?.display == "⌥←")
         #expect(AppCommand.focusCardBelow.shortcuts.first?.display == "↓")
         #expect(AppCommand.deselect.shortcuts.first?.display == "⎋")
-        #expect(AppCommand.deleteTask.shortcuts.first?.display == "⌘⌫")
+        #expect(AppCommand.trashTask.shortcuts.first?.display == "⌘⌫")
     }
 
     /// Completion is the one command with two presses — ⌘⏎ from the menu, and
@@ -291,7 +291,7 @@ import Testing
     /// which menu it belongs on and whether anything already owns its key.
     @Test func theVocabularyIsWhatWeThinkItIs() {
         #expect(AppCommand.commands(in: .file) == [.newTask, .newBoard, .importBoard, .exportBoard])
-        #expect(AppCommand.commands(in: .edit) == [.undo, .redo, .deleteTask, .find])
+        #expect(AppCommand.commands(in: .edit) == [.undo, .redo, .trashTask, .find])
         #expect(AppCommand.commands(in: .view) == [.toggleInspector, .toggleSidebar])
         #expect(AppCommand.commands(in: .task)
                 == [.completeTask, .moveToColumn, .setPriority, .setDueDate, .archiveTask])

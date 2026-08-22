@@ -179,7 +179,7 @@ private struct ReorderableCard: ViewModifier {
     }
 }
 
-/// Complete and Delete on a task row, reachable three ways: a leading swipe, a
+/// Complete and Trash on a task row, reachable three ways: a leading swipe, a
 /// trailing swipe, and a long press.
 ///
 /// The context menu is not a duplicate for its own sake — a swipe is unreachable
@@ -273,9 +273,9 @@ struct PhoneTaskRowActions: ViewModifier {
 
     private var deletion: some View {
         Button(role: .destructive) {
-            store.deleteTask(task.id)
+            store.trashTask(task.id)
         } label: {
-            Label("Delete", systemImage: "trash")
+            Label("Trash", systemImage: "trash")
         }
     }
 }

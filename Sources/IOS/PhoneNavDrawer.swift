@@ -33,6 +33,10 @@ struct PhoneNavDrawer: View {
             panel
                 .containerRelativeFrame(.horizontal) { width, _ in width * 0.84 }
                 .transition(.move(edge: .leading))
+                // `@AccessibilityFocusState`, not the keyboard's — this moves
+                // the VoiceOver cursor into the drawer, and `focusWhenReady` is
+                // about a text field taking key input. The two are different
+                // focuses and only one of them has the run-loop problem.
                 .onAppear { isTitleFocused = true }
         }
         // What actually keeps a reader inside the drawer. `PhoneRootView`'s
@@ -307,8 +311,8 @@ struct PhoneNavDrawer: View {
                 Label("Edit Board…", systemImage: "pencil")
             }
             reorderButtons(for: board)
-            Button(role: .destructive) { store.deleteBoard(board.id) } label: {
-                Label("Delete Board", systemImage: "trash")
+            Button(role: .destructive) { store.trashBoard(board.id) } label: {
+                Label("Trash Board", systemImage: "trash")
             }
         }
     }
@@ -643,9 +647,9 @@ struct PhoneBoardEditor: View {
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(28)
         .presentationBackground(palette.sheet)
+        .focusWhenReady($isNameFocused, when: focusesName)
         .onAppear {
             draft = board?.name ?? ""
-            if focusesName { isNameFocused = true }
             // `addColumn` and `moveColumn` are defined over the *active* board —
             // a column has no board of its own to name, only the board that
             // holds it. Editing a board the phone is not on would otherwise add
@@ -918,10 +922,10 @@ struct PhoneBoardEditor: View {
     /// has to say why.
     private func deleteColumnButton(_ column: BoardColumn) -> some View {
         Button(role: .destructive) {
-            refusal = store.deleteColumn(column.id)
+            refusal = store.trashColumn(column.id)
             if refusal == nil { expandedColumnID = nil }
         } label: {
-            Text("Delete Column")
+            Text("Trash Column")
                 .font(SimpleKanbanFont.ui(13.5, .bold, relativeTo: .subheadline))
                 .foregroundStyle(destructiveTone.foreground)
                 .padding(.horizontal, 14)
@@ -1095,18 +1099,18 @@ struct PhoneBoardEditor: View {
         }
     }
 
-    /// No confirmation, matching the task row's Delete: the act is undoable, and
+    /// No confirmation, matching the task row's Trash: the act is undoable, and
     /// the line under the button says the one thing a person would want a
     /// confirmation for — that the cards on it are not going with it.
     private var deleteRow: some View {
         VStack(alignment: .leading, spacing: 7) {
             Button(role: .destructive) {
-                store.deleteBoard(boardID)
+                store.trashBoard(boardID)
                 dismiss()
             } label: {
                 HStack(spacing: 7) {
                     Image(systemName: "trash")
-                    Text("Delete Board")
+                    Text("Trash Board")
                 }
                 .font(SimpleKanbanFont.ui(14.5, .bold, relativeTo: .subheadline))
                 .foregroundStyle(destructiveTone.foreground)
