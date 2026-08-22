@@ -272,8 +272,14 @@ struct BoardCommands: Commands {
         }
         .disabled(store.activeBoard == nil)
 
-        row(Board.inboxName, isCurrent: store.surface == .inbox) {
-            store.selectSurface(.inbox)
+        // The *panel*, which is a switch rather than a destination: it stands
+        // beside the board, so there is nowhere to go to reach it. Named apart
+        // from the Inbox view below it, which is a destination and does replace
+        // the board — two rows called "Inbox" in one menu would be a coin toss.
+        row(String(localized: "Inbox Panel",
+                   comment: "View menu item that shows the Inbox beside the board"),
+            isCurrent: store.isInboxOpen) {
+            store.toggleInbox()
         }
 
         Divider()

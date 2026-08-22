@@ -214,7 +214,7 @@ import UserNotifications
         store.isNavDrawerOpen.toggle()
         store.isShowingShortcuts.toggle()
         store.tab = .search
-        store.selectSurface(.inbox)
+        store.showInbox()
         store.query = "palette"
         store.mobileColumnID = BoardColumn.backlog.id
         store.select(TestBoard.offline)

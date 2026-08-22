@@ -188,6 +188,34 @@ targets:
         - SimpleKanbanTests
       gatherCoverageData: false
 
+  # A target of its own, and a scheme of its own, deliberately. Drag and drop
+  # is the one interaction in this app that no unit test can reach: the store
+  # calls behind it pass whether or not anything is wired to them, and a
+  # screenshot cannot press. It runs on an iOS **simulator** only — driving the
+  # host Mac's pointer fights whoever is using the machine, which is a lesson
+  # this project learned the hard way and wrote down in the README.
+  #
+  #     xcodebuild test -scheme SimpleKanbanUITests \
+  #       -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M4)'
+  #
+  # Out of the main scheme so `-scheme SimpleKanban` keeps running exactly the
+  # unit suites it always has, on both platforms, with no simulator needed.
+  SimpleKanbanUITests:
+    type: bundle.ui-testing
+    supportedDestinations: [iOS]
+    sources:
+      - path: UITests
+    dependencies:
+      - target: SimpleKanban
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.n14395.SimpleKanbanUITests
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: P52946XHRJ
+        TARGETED_DEVICE_FAMILY: "1,2"
+        TEST_TARGET_NAME: SimpleKanban
+
   SimpleKanbanTests:
     type: bundle.unit-test
     supportedDestinations: [macOS, iOS]
@@ -207,3 +235,14 @@ targets:
         # different place on each platform.
         TEST_HOST[sdk=macosx*]: "$(BUILT_PRODUCTS_DIR)/Simple Kanban.app/Contents/MacOS/Simple Kanban"
         TEST_HOST[sdk=iphone*]: "$(BUILT_PRODUCTS_DIR)/Simple Kanban.app/Simple Kanban"
+
+schemes:
+  SimpleKanbanUITests:
+    build:
+      targets:
+        SimpleKanban: [run, test]
+        SimpleKanbanUITests: [test]
+    test:
+      targets:
+        - SimpleKanbanUITests
+      gatherCoverageData: false

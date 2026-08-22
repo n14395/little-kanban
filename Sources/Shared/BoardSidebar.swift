@@ -1,7 +1,11 @@
 import SwiftUI
 
-/// The source list: the Inbox, the boards, saved views, and the weekly ship
-/// count.
+/// The source list: the Inbox, the boards, saved views and labels.
+///
+/// Rows and nothing else. The weekly ship count and the accent swatches used to
+/// sit under them; the count now lives only in the phone's drawer, and the
+/// accent is Settings' — where the rest of what is global to the app already
+/// was.
 ///
 /// Every row is a real destination. The Inbox leads them, above the boards
 /// rather than inside them, because it is global — a card is in it by being on
@@ -26,19 +30,18 @@ struct BoardSidebar: View {
         /// What a row that has become a text field claims — see ``FieldHitArea``.
         var fieldHit: CGFloat
         var sectionSpacing: CGFloat
-        var accent: AccentPicker.Metrics
         var dots: DotPicker.Metrics
         var labelManager: LabelManagerView.Metrics
 
         static let desk = Metrics(
             width: 232, trafficLightInset: 16, rowFont: 13, rowVerticalPadding: 7,
             rowRadius: 9, rowHit: 0, fieldHit: 0, sectionSpacing: 22,
-            accent: .desk, dots: .desk, labelManager: .desk
+            dots: .desk, labelManager: .desk
         )
         static let pad = Metrics(
             width: nil, trafficLightInset: 0, rowFont: 15, rowVerticalPadding: 10,
             rowRadius: 11, rowHit: 44, fieldHit: 44, sectionSpacing: 24,
-            accent: .drawer, dots: .sheet, labelManager: .sheet
+            dots: .sheet, labelManager: .sheet
         )
     }
 
@@ -71,6 +74,10 @@ struct BoardSidebar: View {
     /// The row a card is being dragged over. Local rather than the store's
     /// `dropTargetColumnID`: neither of these is a column.
     @State private var dropTarget: DropTarget?
+    /// The card the capture popover is filling in. Local rather than the
+    /// store's: it is which popover is open, not anything about the board, and
+    /// `BoardStore` already holds one surface's worth of that too many.
+    @State private var capture: Capture?
 
     private var managingLabels: Binding<Bool> { isManagingLabels ?? $ownManagingLabels }
 
@@ -85,18 +92,24 @@ struct BoardSidebar: View {
     }
 
     private enum DropTarget: Hashable {
-        case inbox
         case board(Board.ID)
     }
+
+    /// The card the capture popover is filling in. A one-field box because
+    /// `popover(item:)` wants something `Identifiable`, and tracking the card
+    /// rather than a flag beside it is what lets the popover close itself when
+    /// the card stops existing.
+    private struct Capture: Identifiable { let id: TaskItem.ID }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             trafficLightInset
 
-            inboxRow
-                .padding(.horizontal, 8)
-
-            sectionHeader("Boards", topPadding: metrics.sectionSpacing)
+            // The Inbox was the row above this one until it stopped being a
+            // destination. It is a toggle for a panel that stands beside the
+            // board, so it belongs beside the board's name — see
+            // `BoardToolbar.inboxToggle`, which took its drop target with it.
+            sectionHeader("Boards", topPadding: 0)
             VStack(spacing: 2) {
                 ForEach(Array(store.boards.enumerated()), id: \.element.id) { index, board in
                     boardRow(board, index: index)
@@ -122,11 +135,10 @@ struct BoardSidebar: View {
             settingsRow
                 .padding(.horizontal, 8)
 
+            // The rows sit at the top of the column; capture sits at the foot of
+            // it, under everything it is not one of.
             Spacer(minLength: 0)
-            weeklySummary
-            AccentPicker(metrics: metrics.accent)
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
+            captureButton
         }
         .padding(.top, 14)
         .padding(.bottom, 12)
@@ -149,37 +161,6 @@ struct BoardSidebar: View {
 
     // MARK: Destinations
 
-    private var inboxRow: some View {
-        let isActive = store.surface == .inbox
-
-        return Button { store.selectSurface(.inbox) } label: {
-            destinationRow(
-                dot: Board.inboxDot, count: store.inboxCount,
-                isActive: isActive, isDropTarget: isDropTarget(.inbox)
-            ) {
-                rowName(Board.inboxName, isActive: isActive)
-            }
-        }
-        .buttonStyle(.bare)
-        // The count is what the row is worth, not part of what it is called:
-        // gathered into the name it came out as "Inbox 4", which is a row whose
-        // name changes every time a card is filed.
-        .accessibilityLabel(Board.inboxName)
-        .accessibilityValue(Text(verbatim: "\(store.inboxCount)"))
-        .accessibilityAddTraits(isActive ? [.isSelected] : [])
-        // The way back for a card that was filed by mistake. On the board it is
-        // the only way back by pointer: the Inbox is no longer a column, so
-        // there is no column to drop it on.
-        .dropDestination(for: TaskTransfer.self) { items, _ in
-            guard store.allowsCardDrag, let dropped = items.first, store[dropped.id] != nil
-            else { return false }
-            store.unfile(dropped.id)
-            return true
-        } isTargeted: { targeted in
-            setDropTarget(.inbox, targeted: targeted)
-        }
-    }
-
     private func boardRow(_ board: Board, index: Int) -> some View {
         let isActive = store.surface == .board && store.activeBoardID == board.id
         let isRenaming = editing == .rename(board.id)
@@ -201,7 +182,7 @@ struct BoardSidebar: View {
                     }
                 }
                 .buttonStyle(.bare)
-                // Name and count stated separately — see `inboxRow`. Stated
+                // Name and count stated separately — see `BoardToolbar`. Stated
                 // rather than substituted, because the row's context menu is
                 // the only route rename, recolour and delete have to a reader.
                 .accessibilityLabel(board.name)
@@ -362,7 +343,7 @@ struct BoardSidebar: View {
         // Substituted rather than named, because this row has a symbol in it:
         // an `Image` among siblings inside a button's label is published as an
         // element of its own whatever else is asked of it, `accessibilityHidden`
-        // included. The count is the row's value either way — see `inboxRow`.
+        // included. The count is the row's value either way.
         .accessibilityRepresentation {
             Button(String(localized: "Manage labels",
                           comment: "Accessibility name of the sidebar row that opens the label manager")) {
@@ -403,6 +384,84 @@ struct BoardSidebar: View {
             }
         }
         #endif
+    }
+
+    // MARK: Capture
+
+    /// Quick capture, at the foot of the list: one press makes a card in the
+    /// Inbox and opens the whole inspector on it in a popover — a title, a
+    /// description, a due date, labels, a checklist, and the board menu to file
+    /// it with once the user knows where it goes.
+    ///
+    /// The inspector rather than a one-line composer because the two are for
+    /// different moments. A composer belongs at the head of the column it is
+    /// adding to, where the destination is already decided and only the title is
+    /// missing. This one is the opposite: the thing is worth writing down and
+    /// nothing else about it is settled yet, so it opens with everything on
+    /// offer and defaults the one decision it has to make — the Inbox, which is
+    /// where a card is by being nowhere.
+    ///
+    /// macOS only. `PadRootView` draws this same list, but a popover that size
+    /// wants touch metrics and its own width, and the iPad's toolbar already
+    /// carries New task.
+    @ViewBuilder private var captureButton: some View {
+        #if os(macOS)
+        Button { capture = Capture(id: store.captureToInbox()) } label: {
+            Image(systemName: "plus")
+                .symbolSize(23, weight: .semibold, relativeTo: .title3)
+                .foregroundStyle(palette.onAccent)
+                // The one control in the list that is a target rather than a
+                // row, so it takes a square of its own rather than the row
+                // height — and grows with the type inside it like the rest.
+                .frame(width: chrome(52), height: chrome(52))
+                .background(palette.accent, in: .circle)
+                .shadow(color: palette.shadow(0.2), radius: 5, y: 2)
+        }
+        .buttonStyle(.bare)
+        .help("Capture a task in the Inbox")
+        .accessibilityLabel("Capture a task")
+        .padding(.horizontal, 16)
+        .padding(.top, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // Out to the side rather than up: the button is at the bottom-left of
+        // the window, so above it is the list it was just put under.
+        .popover(item: capturing, arrowEdge: .trailing) { capture in
+            if let task = store[capture.id] {
+                TaskInspector(task: task, container: .popover(dismiss: endCapture))
+                    // A popover sizes itself to its content, and the panel's
+                    // content is a `ScrollView` — which will take whatever it is
+                    // given. Height is the popover's to decide, so it decides.
+                    .frame(height: 540)
+            }
+        }
+        #endif
+    }
+
+    /// The popover's presentation, written through a binding so that every way
+    /// out of it goes through one place.
+    ///
+    /// Light dismissal — clicking away, Escape — is the reason it cannot simply
+    /// be `$capture`: a capture nobody typed into has to be dropped again, and
+    /// SwiftUI reports that dismissal by writing `nil` here and nowhere else.
+    private var capturing: Binding<Capture?> {
+        Binding(
+            // Deleting the card from inside the popover takes the popover with
+            // it. There is nothing left to fill in, and an empty box hanging off
+            // the button is not an answer.
+            get: { capture.flatMap { store[$0.id] == nil ? nil : $0 } },
+            set: { next in
+                guard next == nil else { capture = next; return }
+                endCapture()
+            }
+        )
+    }
+
+    /// Closes the popover, and takes the card with it when the user gave it
+    /// nothing — see `BoardStore.discardIfUntouched`. Pressing ✕ and clicking
+    /// away are the same act and land here alike.
+    private func endCapture() {
+        if let capture { store.discardIfUntouched(capture.id) }
+        capture = nil
     }
 
     // MARK: Row furniture
@@ -542,25 +601,4 @@ struct BoardSidebar: View {
             .padding(.bottom, 6)
     }
 
-    private var weeklySummary: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("This week")
-                .sectionLabelStyle(tracking: 0.08, opacity: Palette.readableInk)
-                .padding(.bottom, 8)
-
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("\(store.weeklyShippedCount(today: dayClock.today))")
-                    .font(SimpleKanbanFont.serif(30))
-                Text("shipped")
-                    .font(SimpleKanbanFont.ui(12, .semibold, relativeTo: .caption))
-                    .foregroundStyle(palette.inkText(0.5))
-            }
-
-            ProgressMeter(fraction: store.weeklyProgressFraction(today: dayClock.today), height: 5)
-                .padding(.top, 10)
-        }
-        .padding(12)
-        .background(palette.ink(0.045), in: .rect(cornerRadius: 12))
-        .padding(.horizontal, 12)
-    }
 }

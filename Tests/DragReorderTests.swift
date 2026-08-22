@@ -272,27 +272,37 @@ import Testing
         #expect(seen == Set(expected.keys), "a card drop closure has moved file: found \(seen)")
     }
 
-    /// And the sidebar's two, which are the only drops that legitimately resolve
-    /// somewhere other than where the pointer is: a row is a *destination*, so
-    /// the Inbox row unfiles and a board row files onto that board's landing
-    /// column. Pinned here so a copy-paste between the four closures shows up.
-    @Test func theSidebarsDropsFileRatherThanReorder() {
+    /// And the drops that legitimately resolve somewhere other than where the
+    /// pointer is, because a destination is a *place* rather than an insertion
+    /// point: the source list's board row files onto that board's landing
+    /// column, and the toolbar's Inbox button and the Inbox panel take a card
+    /// back out of whatever board it was on.
+    ///
+    /// Three closures that all mean "put it there" and none of which may quietly
+    /// become "put it next to that", which a copy-paste between them would do.
+    /// The Inbox has two of them because it has two faces: the panel when it is
+    /// out, and the button when it is not — and with the panel shut the button
+    /// is the only way back by pointer.
+    @Test func everyDestinationDropNamesThePlaceRatherThanTheCard() {
         guard SourceTree.isReachable else { return }
-        guard let sidebar = SourceTree.files().first(where: { $0.path == "Shared/BoardSidebar.swift" })
-        else {
-            Issue.record("BoardSidebar.swift has moved")
-            return
+        let expected = [
+            "Shared/BoardSidebar.swift": "store.file(dropped.id, onto: board.id)",
+            "Shared/BoardToolbar.swift": "store.unfile(dropped.id)",
+            "Shared/InboxPanel.swift": "store.unfile(dropped.id)",
+        ]
+        var seen: Set<String> = []
+        for file in SourceTree.files() {
+            guard let call = expected[file.path] else { continue }
+            let drops = file.calls(headed: #"dropDestination\(for: TaskTransfer\.self\)"#)
+            #expect(drops.count == 1, "\(file.path) has \(drops.count) card drop destinations")
+            guard let drop = drops.first else { continue }
+            let body = file.block(after: drop.offset + drop.text.count)
+            #expect(body.contains(call), "\(file.path)'s drop does not call \(call): \(body)")
+            #expect(body.contains("store.allowsCardDrag"),
+                    "\(file.path) accepts a card while the board is not in its own order")
+            seen.insert(file.path)
         }
-
-        let drops = sidebar.calls(headed: #"dropDestination\(for: TaskTransfer\.self\)"#)
-        #expect(drops.count == 2, "the sidebar has \(drops.count) card drop destinations")
-        let bodies = drops.map { sidebar.block(after: $0.offset + $0.text.count) }
-        #expect(bodies.contains { $0.contains("store.unfile(dropped.id)") },
-                "no sidebar row takes a card back to the Inbox")
-        #expect(bodies.contains { $0.contains("store.file(dropped.id, onto: board.id)") },
-                "no sidebar row files a card onto its board")
-        #expect(bodies.allSatisfy { $0.contains("store.allowsCardDrag") },
-                "a sidebar drop accepts a card while the board is not in its own order")
+        #expect(seen == Set(expected.keys), "a destination drop has moved file: found \(seen)")
     }
 
     // MARK: When a drag is not allowed at all

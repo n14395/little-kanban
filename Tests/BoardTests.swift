@@ -194,7 +194,7 @@ import Testing
         let store = Self.store()
         store.selectTab(.inbox)
         #expect(store.mobileTasks(today: TestBoard.dueDay).map(\.code) == ["IN-142"])
-        #expect(store.surface == .inbox)
+        #expect(store.surface == .board, "a tab is not a surface any more")
         store.selectTab(.board)
         store.mobileColumnID = Self.alphaTodo.id
         #expect(store.mobileTasks(today: TestBoard.dueDay).map(\.code) == ["AL-140"])

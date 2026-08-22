@@ -13,6 +13,9 @@ import SwiftUI
 /// and the Inbox is the first item in that menu. Which is the truer split
 /// anyway — the menu answers *which board*, and a card in the Inbox is on none;
 /// this answers *where on it*, and the Inbox is not a place on a board.
+///
+/// The same split is why this control goes away entirely once the menu above it
+/// reads Inbox: there is no board, so there is no second question left to ask.
 struct MoveToPicker: View {
     struct Metrics {
         var containerRadius: CGFloat
@@ -37,13 +40,22 @@ struct MoveToPicker: View {
 
     @Environment(\.palette) private var palette
 
-    /// The board whose columns are offered. `nil` when there is no board at all
-    /// — the user can delete the last one — and there is then nothing to offer,
-    /// so the control draws nothing rather than an empty track.
+    /// The board whose columns are offered — the card's own, and never a
+    /// stand-in for it.
+    ///
+    /// `nil` says there is nothing to offer, and the control then draws nothing
+    /// rather than an empty track. Two things say it: a card in the Inbox, which
+    /// is on no board, and no boards at all, which the user can reach by
+    /// deleting the last one.
+    ///
+    /// The Inbox case used to fall back to whichever board was on screen, so
+    /// that filing a captured card was one tap on a column rather than a board
+    /// and then a column. It read as a lie about where the card was — a row of
+    /// columns it was not in, none of them marked — and the menu above files it
+    /// in one go anyway.
     let board: Board?
-    /// The task's column, or `nil` for a card in the Inbox — which is on no
-    /// board, so no segment reads as current and every one of them is a way to
-    /// file it.
+    /// The task's column. `nil` for a card in the Inbox, which `board` will be
+    /// `nil` for too, so nothing is drawn to mark.
     let currentColumnID: BoardColumn.ID?
     var metrics: Metrics = .desk
     let onSelect: (TaskPlacement) -> Void

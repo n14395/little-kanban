@@ -118,7 +118,9 @@ struct PhoneHeader: View {
                         Label("Back to Board", systemImage: "square.grid.2x2")
                     }
                 }
-                ForEach(SavedView.allCases) { view in
+                // Not `allCases`: the Inbox is a tab on this surface — see
+                // `SavedView.phone`.
+                ForEach(SavedView.phone) { view in
                     Button { store.activeView = view } label: {
                         Label(view.label, systemImage: view.symbol)
                     }

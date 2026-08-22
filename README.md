@@ -80,6 +80,7 @@ Sources/
   IOS/                 PhoneRootView — header, pager, cards, tab bar, drawer, detail
                        sheet; PadRootView — the desk's three panes in a split view
   Shared/              The board itself — scroller, column, card, composer, keyboard map
+                       — plus InboxPanel, the global Inbox standing beside it
                        — plus the sidebar, the toolbar, the inspector, chips (label, due,
                        column, count), checklist, completion toggle, label manager, empty
                        states, activity feed, flat task list,
@@ -98,6 +99,9 @@ Tests/                 Swift Testing suites — model, store, boards, columns an
                        localisation rules, five hundred cards, and the joins between all
                        of those and the app
   Fixtures/            board-v1*.json … board-v5.json — real older boards, kept to migrate against
+UITests/               XCUITest, iOS simulator only, on a scheme of its own — the drag
+                       between the Inbox panel and the board, which is the one
+                       interaction no unit test can reach
 Resources/
   Fonts/               Manrope + Instrument Serif (OFL), registered on first use
   Assets.xcassets      AccentColor; AppIcon — one iOS slot and ten macOS renditions,
@@ -184,13 +188,18 @@ Deliberate departures from a literal transcription:
   nothing, an empty saved view and an unselected inspector had no appearance at
   all. Each says which kind of empty it is and offers the one thing worth doing
   about it; see **Empty states**.
-- **The Inbox is a destination, not the board's first column.** The design
-  draws it as one, and with a single board that reads fine. The Inbox is global
-  — a quick capture must never have to pick a board first — so drawing it inside
-  one board's strip would say it belonged to that board, and it would have to be
-  drawn identically inside every other. It sits above the board list in the
-  sidebar and the drawer instead, and the board strip is the active board's own
-  columns; see **Boards, columns and the Inbox**.
+- **The Inbox is a panel beside the board, and a row under Views — but never the
+  board's first column.** The design draws it as a column, and with a single
+  board that reads fine. The Inbox is global — a quick capture must never have
+  to pick a board first — so drawing it inside one board's strip would say it
+  belonged to that board, and it would have to be drawn identically inside every
+  other. It was a destination for a while, which was worse in the other
+  direction: picking it took the board away, and the one list you reach for
+  *while* working on a board was the one list you had to leave the board to see.
+  It is now two things that do not get in each other's way: `InboxPanel`, a
+  column-wide strip between the source list and the board for working *with* the
+  Inbox, and a `SavedView` row at the head of Views for reading it full width.
+  See **The Inbox is global**.
 - **"Move to" is the board's columns, and the board menu above it is everything
   else.** The spec's control lists the workflow only (`COLS` rather than
   `ALL_COLS`), which on the phone — where it is the only route off a board —
@@ -199,12 +208,20 @@ Deliberate departures from a literal transcription:
   above the picker on both surfaces and lists the Inbox first. That is the truer
   split: the menu answers *which board*, and a card in the Inbox is on none;
   the picker answers *where on it*, and the Inbox is not a place on a board.
+  Which is why **the picker disappears once the menu reads Inbox** — there is no
+  board left for the segments to be the columns of. They used to fall back to
+  whichever board was on screen, so that filing a captured card was one tap on a
+  column rather than a board and then a column; it read as a lie about where the
+  card was — a row of columns it was not in, none of them marked — and the menu
+  above files it in one go regardless.
 - **A card away from its place says where it is.** The design only ever draws a
   card under its own heading. The saved views, the iOS Search tab and the iOS
   Inbox tab all draw cards from anywhere, where the column is the one thing the
   card no longer says, so those carry a column chip — and an unfiled card gets
   an "Inbox" chip rather than none, because absence is not readable in a list
-  that mixes the two; see **Saved views and the archive**.
+  that mixes the two. The Inbox panel is the exception and drops the chip: every
+  card in it is in the Inbox, so the chip would say nothing; see **Saved views
+  and the archive**.
 - **Work can be filed away rather than only finished or deleted.** The design's
   Done column is where cards go and stay, so a board in use for a month is
   mostly history. The Archive keeps them in the file and off the board; see
@@ -600,9 +617,147 @@ unfiled ones, and both exclude the archive the same way the header total does.
 **There is one Inbox and it belongs to no board.** This is a decided design point
 rather than a convenience: a quick capture must never have to pick a board first,
 and a per-board Inbox would mean choosing one before you know what you have
-caught. It is a sidebar destination above the board list on macOS and a tab on
-iOS, reachable whichever board is active — and it is why the board strip no
-longer opens with an Inbox column; see **deliberate departures** above.
+caught. It sits above the board list in the source list on
+macOS and the iPad, and is a tab on the phone, reachable whichever board is
+active — and it is why the board strip no longer opens with an Inbox column; see
+**deliberate departures** above.
+
+#### The panel
+
+`BoardSurface` has **two** cases — `.board` and `.view(SavedView)`. The Inbox is
+not one of them: it is `store.isInboxOpen`, a toggle like the inspector.
+
+**The switch is a toolbar button, in front of the board's name** — a tray glyph
+with the Inbox count beside it, marked when the panel is out the way the
+inspector button at the other end of the bar is. It sits before the title because
+that is the order the two are in on screen: the panel opens to the left of
+everything the bar says. It was a row at the top of the source list until the
+Inbox stopped being a destination, and it took that row's drop target with it —
+with the panel shut, this button is the only way back by pointer for a card filed
+by mistake, because the Inbox is not a column and there is no column to drop it
+on. The View menu carries the same switch a third time.
+
+The **Inbox view** in the source list is the other half of the same idea and does
+not compete with it: the panel is for moving cards onto the board while looking
+at the board, the view is for reading the Inbox with the whole window. Picking the
+view hides the panel, because the panel stands beside a board that is no longer
+there — and dragging is off on it, as it is on every saved view.
+
+**It is only there beside a board.** `store.showsInboxToggle` is
+`surface == .board`, and `isInboxShowing` is that *and* `isInboxOpen` — one
+predicate for the button and the panel both, so a button cannot outlive the thing
+it opens. On Today there is nothing for it to show, so it is not there to be
+clicked.
+
+It is laid out **left of the toolbar**, so it starts at the top of the window
+beside the traffic lights and the board's name begins where the panel ends. On
+macOS that means the 68pt gap the lights need moves to whichever view is leftmost
+— the source list, the panel, or the toolbar itself — and `MacRootView.floor`
+grows the window's minimum width by a column when the panel is out, or opening it
+would squeeze the board below the width one column needs.
+
+**Getting it to slide out from the right place took two different fixes**, one
+per platform, and the same underlying fact: `.transition(.move(edge: .leading))`
+offsets a view by its own width from where it sits, and *nothing clips it on the
+way*. The panel's travel therefore takes it a column's width to the left of the
+board — straight across the source list.
+
+- **macOS** draws the source list **above** the panel (`.zIndex(1)`). They are
+  siblings in one `HStack`, so `HStack` order alone put the panel on top: it
+  sailed in from the far left of the window over the boards, the saved views and
+  the labels. With the list above, the panel emerges from behind it and stops at
+  its edge — which is the whole of the effect the animation is meant to have.
+- **The iPad** cannot use that: the source list is a `NavigationSplitView`
+  column and the panel is in the detail column, so they are in different
+  containers and `zIndex` has nothing to say. The detail column `.clipped()`s
+  instead, and holds its own leading edge.
+
+Both were caught by copying the repo, slowing the animation to 2.5s, driving the
+toggle from a `.task`, and screenshotting mid-flight. At 0.16s a still cannot
+land in the middle of it, and neither defect is visible in a static frame.
+
+`isInboxShowing` is `isInboxOpen && surface == .board`, because the panel stands
+beside the *board* and a saved view has taken the board's place. It is hidden
+rather than switched off, so coming back from Today does not cost a second click:
+picking Today was never a decision about the Inbox.
+
+The panel is exactly a column wide (`InboxPanel.Metrics.width` **is**
+`BoardColumnView.Metrics.width`, asserted, not copied) and its cards keep a
+column's gutter and gap, so a card in the panel sits on the same grid as a card
+in the column beside it. It is not a `BoardColumnView` — the Inbox has no name to
+rename, no dot, no role and no delete — and its cards drop the column chip the
+flat surfaces carry, because inside the Inbox every card is in the Inbox. It
+takes drops, like the source-list row: a panel you can see and cannot drop onto
+reads as broken.
+
+**The iPad waits rather than overlapping.** The inspector, when there is no room,
+draws on top of the board; the panel cannot borrow that trick, because it sits
+above the toolbar and an overlay there is the defect `PadRootView` already
+documents — the New task button drawn over and unhittable. So `hasRoomForTheInbox`
+hides it until there is room for it *and* a column. That check reads `detailWidth`,
+the whole detail column, and not `rowWidth`, which excludes the panel: measuring
+the room for a panel off a width the panel is subtracted from is a feedback loop —
+it fits, so it appears, so the row shrinks, so it no longer fits. That loop is
+what shipped in the first draft, and the panel simply never appeared.
+
+#### Dragging between the panel and the board
+
+Both ways, which is the reason the Inbox is a panel at all: a card caught in the
+Inbox goes onto the board without leaving the board, and a card filed by mistake
+comes back the same way. The board's columns already took `TaskTransfer` drops;
+the panel takes them too, anywhere in it, and its cards are draggable because
+they are the same `BoardTaskCard` a column draws.
+
+**The panel's card stack is a column's `ScrollView` + `LazyVStack`, not
+`TaskListView`'s `List`.** That is the whole of what had to change, and it is not
+a style preference: a `List` handles drags inside its own bounds, so a card
+dropped anywhere in the panel except squarely on top of another card never
+reached the panel's drop destination behind it. Dragging *out* of the panel
+worked the whole time, which is what made it look finished. The list is still
+right for the flat surfaces — it is where `swipeActions` come from, and the phone
+needs those; the panel is desk and iPad only, so it loses nothing.
+
+`isInboxDropTarget` lights the panel, and lives on the store rather than in the
+panel because a drop destination nested inside another takes the hover from its
+parent — without it the highlight blinked off every time the pointer crossed one
+of the panel's own cards. `unfile` refuses a card already in the Inbox: dropping
+one back where it came from is a reorder that missed its neighbour, not a move,
+and would otherwise cost a ⌘Z and leave "Moved to Inbox" in the history of a card
+that never went anywhere.
+
+**`UITests/InboxDragTests` is the only thing that can check any of this.** The
+store calls behind a drag are unit-tested and pass whether or not anything on
+screen is wired to them; what a drag exercises is the wiring, and which container
+gets the gesture first. It is a separate target with a **separate scheme**, so
+`-scheme SimpleKanban` still runs exactly the unit suites it always has:
+
+    xcrun simctl uninstall <device> com.n14395.SimpleKanban
+    xcodebuild test -scheme SimpleKanbanUITests \
+      -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M4)'
+
+The uninstall is the fixture: the board is seeded on first launch and the
+simulator keeps it, so a second run measures the board the first run left behind.
+That is not hypothetical — it is how these two tests first appeared to fail while
+the drags were working perfectly.
+
+**⌘A takes the panel's cards too** when it is out. They are as visible as any card
+in a column, and a Select All that skipped them would be lying about what it
+selected.
+
+The panel starts shut, which no harness can click open — a simulator takes no
+synthetic taps from outside, and driving the host Mac's pointer is a fight with
+whoever is using it rather than a verification. So there is a DEBUG launch
+argument beside `FirstRun`'s pair:
+
+    xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanShowInbox YES
+
+`-SimpleKanbanHideInspector YES` is its pair, for the same reason: on an iPad in
+portrait the inspector is holding the room the panel needs, and a UI test that
+wants a column beside the panel has to close it.
+
+**The phone keeps its tab.** It shows one thing at a time and has nowhere to put a
+panel, so `PhoneTab.inbox` stays exactly as it was — which is why `visibleTaskIDs`
+still asks which tab is up before it asks anything else.
 
 A task is therefore either *unfiled* or *on a board in one of its columns*, and
 never half of either. That invariant lives in one type:
@@ -999,6 +1154,7 @@ out of `BoardSnapshot` and out of `BoardMutation`.
 
 | View | Predicate |
 | --- | --- |
+| Inbox | `isUnfiled` — on no board at all |
 | Today | due, and `.today` **or** `.overdue` |
 | Upcoming | due, and more than a day away |
 | High priority | `priority == .high` |
@@ -1006,8 +1162,26 @@ out of `BoardSnapshot` and out of `BoardMutation`.
 | Recently updated | newest `updatedAt` first, capped at 20 |
 | Archive | `archivedAt != nil`, newest filing first |
 
+**Two of the seven are places rather than filters** — the Inbox and the Archive —
+and they are in this list anyway because what a person does with them is
+identical: pick the row, read the list. The predicate that names each is simply
+exact rather than approximate. The Inbox is the only one with a second face: the
+panel that stands beside the board. The two are the same cards in the same order,
+which is why it is one of the views `sort` leaves alone — two lists of one set of
+cards that disagreed about their order would be a bug people can see, and
+`SavedViewTests` asserts they agree.
+
+**The phone leaves the Inbox out of both its lists** (`SavedView.phone` and
+`.phoneFilters`). It has a tab for it and a drawer row above the boards already,
+and a third route to one place on the smallest screen is noise rather than
+convenience. The desk and the iPad list all seven, because there the row and the
+panel are genuinely different things: one replaces the board, the other stands
+beside it. The View menu names them apart for the same reason — **Inbox Panel**
+is the toggle, **Inbox** under it is the destination.
+
 All except Recently updated and the Archive exclude Done; all except the Archive
-exclude archived tasks. **Today includes overdue on purpose** — work that
+exclude archived tasks — including a card that was in the Inbox when it was filed
+away, which is what the shared `isArchived == (self == .archive)` guard is for. **Today includes overdue on purpose** — work that
 slipped past its date must not vanish from the one list a person checks daily.
 There is one spelling of that count, `count(of: .today, today:)`, and nothing
 else — a second name for one number is how the badge and the list drifted apart
@@ -1069,7 +1243,8 @@ invalidate and the board stops matching text it no longer shows. Filing is the
 normally, `deleteLabel` included, because taking a chip off a card is a visible
 change to that card.
 
-The **"This week" meter** is a rolling seven-day window on `updatedAt`: shipped
+The **"This week" meter** — the iOS drawer's; the macOS source list carried one
+too and no longer does — is a rolling seven-day window on `updatedAt`: shipped
 (in Done, touched in the last seven days) over touched (in the last seven days).
 It was `doneCount / tasks.count` over all tasks ever, which only climbed and
 stopped meaning anything after the first fortnight. The accessors say so —
@@ -1986,9 +2161,11 @@ which is the only evidence a v1 board carries about when anything happened.
 ### Accent
 
 `AccentTheme` was fully wired in the design's palette but had no UI. There is a
-swatch row in the macOS sidebar, the iOS drawer and Settings ▸ Appearance now,
-and the choice is saved with the board — see **Settings** for why it stays there
-while the appearance override does not.
+swatch row in Settings ▸ Appearance and in the iOS drawer now, and the choice is
+saved with the board — see **Settings** for why it stays there while the
+appearance override does not. The macOS source list carried a third copy under
+its rows and no longer does: the list is destinations, and the accent is global
+to the app rather than a place to go.
 
 `SwatchColor` keeps literals as `.rgb(hex, opacity:)` rather than a built
 `Color` — that is what makes a user-created label encodable, since `Color` is

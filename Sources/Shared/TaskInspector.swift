@@ -46,11 +46,25 @@ struct TaskInspector: View {
         )
     }
 
+    /// Where the panel is being shown, which decides two things: what its ✕
+    /// does, and whether it rules a seam down its leading edge.
+    ///
+    /// `.column` is the detail pane. It has the board to its left, so it rules
+    /// the line the design draws between the two, and closing it means putting
+    /// the pane away. `.popover` carries its own way out — closing the *pane*
+    /// from inside a popover would put away something the user cannot see and
+    /// leave the popover standing — and rules nothing, having nothing beside it.
+    enum Container {
+        case column
+        case popover(dismiss: () -> Void)
+    }
+
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
 
     let task: TaskItem
     var metrics: Metrics = .desk
+    var container: Container = .column
 
     /// The panel is a 336pt box around type that grows, so it grows too — see
     /// ``ChromeScale``. Capped harder than the board's columns are: the panel
@@ -89,7 +103,7 @@ struct TaskInspector: View {
         .scrollBounceBehavior(.basedOnSize)
         .frame(width: chrome.scaling(metrics.width, cap: Self.widthCap))
         .background(palette.panel)
-        .hairline(.leading, color: palette.ink(0.08))
+        .hairline(.leading, color: isColumn ? palette.ink(0.08) : .clear)
         .transition(.opacity)
         // What Handoff carries to the other device, and what Spotlight offers
         // back. The inspector is the macOS answer to "the task that is open".
@@ -123,6 +137,18 @@ struct TaskInspector: View {
         .onChange(of: store.pendingTitleFocusID) { _, _ in claimPendingFocus() }
     }
 
+    private var isColumn: Bool {
+        if case .column = container { true } else { false }
+    }
+
+    /// The header's ✕. See ``Container``.
+    private func close() {
+        switch container {
+        case .column: store.isInspectorOpen = false
+        case .popover(let dismiss): dismiss()
+        }
+    }
+
     /// A task created without a title opens with the title field ready.
     private func claimPendingFocus() {
         guard store.pendingTitleFocusID == task.id else { return }
@@ -150,7 +176,7 @@ struct TaskInspector: View {
             .hoverBackground(palette.ink(0.08), radius: metrics.headerButtonRadius)
             .help("Delete task")
             .accessibilityLabel("Delete task")
-            Button { store.isInspectorOpen = false } label: {
+            Button { close() } label: {
                 Image(systemName: "xmark")
                     .symbolSize(11, weight: .semibold, relativeTo: .caption)
                     .foregroundStyle(palette.inkText(0.5))
@@ -210,12 +236,16 @@ struct TaskInspector: View {
     /// without this a card could only ever move inside the board it was already
     /// on — and a card in the Inbox is on none. The menu is also the only way
     /// back to the Inbox, which is why it is not the picker's first segment.
+    ///
+    /// Which is also why the second question can go unasked. The card's own
+    /// board and nothing else: set the menu to Inbox and the columns underneath
+    /// go, because there is no board left for them to be the columns of.
     private var status: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Status").sectionLabelStyle(size: 10.5, opacity: Palette.readableInk)
             BoardDestinationMenu(task: task, metrics: metrics.destination)
             MoveToPicker(
-                board: store.board(for: task) ?? store.activeBoard,
+                board: store.board(for: task),
                 currentColumnID: task.columnID, metrics: metrics.moveTo
             ) { placement in
                 store.move(task.id, to: placement)

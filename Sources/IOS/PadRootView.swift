@@ -37,6 +37,11 @@ struct PadRootView: View {
     /// orientation and Stage Manager, and the panel is a column only while
     /// there is a column's worth left for the board.
     @State private var rowWidth: CGFloat = 0
+    /// The whole detail column, panel included — which `rowWidth` is not, since
+    /// the panel is that row's sibling. Measuring the room for the panel off a
+    /// width the panel is subtracted from is a feedback loop: it fits, so it
+    /// appears, so the row shrinks, so it no longer fits. Measured once, here.
+    @State private var detailWidth: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var chrome = ChromeScale()
 
@@ -87,7 +92,16 @@ struct PadRootView: View {
     /// orientations. An `HStack` under the toolbar is what macOS does with the
     /// same three pieces — see `MacRootView` — and it cannot cover a sibling.
     private var detail: some View {
-        VStack(spacing: 0) {
+        HStack(spacing: 0) {
+            // Full height of the detail column, toolbar row included, so the
+            // panel starts where the source list stops — the same place it
+            // starts on the desk.
+            if store.isInboxShowing, hasRoomForTheInbox {
+                InboxPanel(metrics: .pad)
+                    .transition(.move(edge: .leading))
+            }
+
+            VStack(spacing: 0) {
             BoardToolbar(metrics: .pad, toggleSidebar: toggleSidebar)
             HStack(spacing: 0) {
                 surface
@@ -112,10 +126,21 @@ struct PadRootView: View {
                 }
             }
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { rowWidth = $0 }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailWidth = $0 }
+        // The Inbox panel's `.move(edge: .leading)` takes it a column's width
+        // to the left of where it sits, and the split view does not clip its
+        // detail column — so without this the panel slides in from the far left
+        // of the *window*, across the source list, and out the same way. The
+        // desk answers the same thing by drawing the source list above the
+        // panel; here the two are in different containers, so `zIndex` has
+        // nothing to say and the column has to hold its own edge.
+        .clipped()
         .background(palette.window)
         .motionAnimation(.easeOut(duration: 0.16), value: store.isInspectorOpen)
+        .motionAnimation(.easeOut(duration: 0.16), value: store.isInboxShowing)
         .motionAnimation(.easeOut(duration: 0.16), value: store.selection)
         .toolbar(.hidden, for: .navigationBar)
     }
@@ -139,15 +164,29 @@ struct PadRootView: View {
         rowWidth <= 0 || rowWidth - inspectorWidth >= boardFloor
     }
 
-    /// The three things the main area can be, exactly as on the desk: the Inbox
-    /// is one of them rather than a column of the board, because it is global.
+    /// Whether the Inbox panel fits without taking the board's last column.
+    ///
+    /// The inspector answers this by moving on top of the board when it will
+    /// not fit; the Inbox cannot borrow that trick, because it sits *above* the
+    /// toolbar and an overlay there is exactly the defect the panel's own
+    /// comment describes — the New task button drawn over and unhittable. So it
+    /// waits instead: an iPad in portrait with the source list and the
+    /// inspector out has no room for a third column, and the row in the source
+    /// list is still how you reach the Inbox.
+    private var hasRoomForTheInbox: Bool {
+        guard detailWidth > 0 else { return true }
+        let beside = store.isInspectorOpen ? inspectorWidth : 0
+        return detailWidth - beside - chrome(InboxPanel.Metrics.pad.width) >= boardFloor
+    }
+
+    /// The two things the main area can be, exactly as on the desk. The Inbox
+    /// is not one of them: it is global, and it now stands beside the board in
+    /// a panel of its own rather than taking the board's place.
     @ViewBuilder
     private var surface: some View {
         switch store.surface {
         case .board:
             BoardScrollView(metrics: .pad)
-        case .inbox:
-            inboxList
         case .view(let view):
             savedViewList(view)
         }
@@ -180,33 +219,6 @@ struct PadRootView: View {
     }
 
     // MARK: The flat surfaces
-
-    /// Everything filed nowhere. Composable, unlike a saved view: a card is
-    /// *in* the Inbox rather than merely matching it.
-    private var inboxList: some View {
-        let tasks = store.visibleInboxTasks
-        let isComposing = store.addingPlacement == .inbox
-
-        return VStack(spacing: 0) {
-            header(symbol: "tray", title: Board.inboxName, count: tasks.count) {
-                store.beginAdding(in: .inbox)
-            }
-            if isComposing {
-                BoardTaskComposer(placement: .inbox, metrics: .pad)
-                    .frame(maxWidth: Self.listMetrics.maxRowWidth)
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, Self.listMetrics.horizontalPadding)
-                    .padding(.top, Self.listMetrics.topInset)
-            }
-            if tasks.isEmpty, !isComposing {
-                inboxEmptyState
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                list(tasks)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
 
     private func savedViewList(_ view: SavedView) -> some View {
         // Resolved once and handed to both, so the count above the list is the
@@ -267,17 +279,6 @@ struct PadRootView: View {
         .padding(.horizontal, 20)
         .frame(minHeight: 60)
         .hairline(.bottom, color: palette.ink(0.07))
-    }
-
-    @ViewBuilder
-    private var inboxEmptyState: some View {
-        if store.isFiltering {
-            EmptyStateView.noResults(query: store.query, metrics: .sheet) {
-                store.clearQuery()
-            }
-        } else {
-            EmptyStateView.inbox(metrics: .sheet) { store.beginAdding(in: .inbox) }
-        }
     }
 
     @ViewBuilder

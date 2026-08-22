@@ -136,7 +136,12 @@ struct BoardTaskCard: View {
             store.move(dropped.id, onto: task.id)
             return true
         } isTargeted: { targeted in
-            if targeted, store.allowsCardDrag { store.dropTargetColumnID = task.columnID }
+            guard store.allowsCardDrag else { return }
+            if targeted { store.dropTargetColumnID = task.columnID }
+            // An unfiled card is in the Inbox panel, which is not a column and
+            // so cannot be named by the line above. Without this the panel goes
+            // dark the moment the pointer crosses one of its own cards.
+            if task.isUnfiled { store.isInboxDropTarget = targeted }
         }
         .contextMenu {
             // In the Archive the verb is Restore, and only Restore. Ticking a

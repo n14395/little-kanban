@@ -59,6 +59,9 @@ struct BoardToolbar: View {
     @State private var draft = ""
     @FocusState private var isTitleFocused: Bool
     @FocusState private var isSearchFocused: Bool
+    /// Lit while a card is over the Inbox button. Local, unlike the panel's:
+    /// this one has no cards of its own to take the hover from it.
+    @State private var isInboxDropTarget = false
 
     var metrics: Metrics = .desk
     /// Room for the window controls when the sidebar is not there to hold it.
@@ -71,6 +74,7 @@ struct BoardToolbar: View {
     var body: some View {
         HStack(spacing: metrics.spacing) {
             sidebarToggle
+            inboxToggle
             title
 
             Spacer(minLength: 0)
@@ -99,6 +103,93 @@ struct BoardToolbar: View {
             .hoverBackground(palette.ink(0.06), radius: metrics.controlRadius)
             .accessibilityLabel("Toggle sidebar")
         }
+    }
+
+    /// The Inbox, in front of the board's name because that is the order the
+    /// two are in on screen: the panel opens to the left of everything the bar
+    /// says. A toggle, like the inspector button at the other end of the bar,
+    /// and marked the same way when it is out.
+    ///
+    /// **Only beside a board.** The panel stands beside the board and a saved
+    /// view has taken the board's place, so on Today the button would toggle
+    /// something the surface cannot show. It moved here from the top of the
+    /// source list, where it was a destination back when the Inbox was a page.
+    ///
+    /// It takes drops for the reason the source-list row used to: with the
+    /// panel shut this is the only way back by pointer for a card filed by
+    /// mistake — the Inbox is not a column, so there is no column to drop it on.
+    @ViewBuilder
+    private var inboxToggle: some View {
+        if store.showsInboxToggle {
+            Button { store.toggleInbox() } label: {
+                HStack(spacing: 6) {
+                    // Open, the button's job is to shut the panel, and the panel
+                    // is immediately to its left — so it points at what it will
+                    // close rather than naming what is already on screen. The
+                    // count goes with the tray: it is there to say what is in
+                    // the Inbox while the Inbox cannot be seen.
+                    if store.isInboxOpen {
+                        Image(systemName: "chevron.left")
+                            .symbolSize(metrics.glyph + 1, weight: .semibold, relativeTo: .subheadline)
+                            .foregroundStyle(palette.ink)
+                    } else {
+                        Image(systemName: "tray")
+                            .symbolSize(metrics.glyph + 1, weight: .medium, relativeTo: .subheadline)
+                            .foregroundStyle(palette.inkText(0.45))
+                        // Nothing in it is worth a badge saying nought.
+                        if store.inboxCount > 0 {
+                            CountPill(count: store.inboxCount)
+                        }
+                    }
+                }
+                .padding(.horizontal, 9)
+                // Square at the minimum: an icon and no badge is 34pt of
+                // content on the iPad, and a finger needs 44 in both directions
+                // rather than only downwards.
+                .frame(minWidth: chrome(metrics.control), minHeight: chrome(metrics.control))
+                .background(inboxBackground, in: .rect(cornerRadius: metrics.controlRadius))
+                .overlay {
+                    RoundedRectangle(cornerRadius: metrics.controlRadius)
+                        .strokeBorder(isInboxDropTarget ? palette.accent : palette.ink(0.12),
+                                      lineWidth: isInboxDropTarget ? 2 : 1)
+                }
+                .contentShape(.rect(cornerRadius: metrics.controlRadius))
+            }
+            .buttonStyle(.bare)
+            // Not read by anyone — an identifier is not a label — but the one
+            // way a UI test can tell this button from the source list's Inbox
+            // row and the panel's own header, all three of which are called
+            // "Inbox" because all three are the Inbox.
+            .accessibilityIdentifier(Self.inboxToggleID)
+            .help(store.isInboxOpen ? "Hide the Inbox" : "Show the Inbox")
+            // The count is what the button is worth, not part of what it is
+            // called: gathered into the name it reads out as "Inbox 4", a
+            // control whose name changes every time a card is filed.
+            .accessibilityLabel(Board.inboxName)
+            // Still the count, even while the chevron has taken the badge's
+            // place: what a reader needs from this control is how much is in
+            // there, and the panel being open is the `.isSelected` below.
+            .accessibilityValue(Text(verbatim: "\(store.inboxCount)"))
+            .accessibilityAddTraits(store.isInboxOpen ? [.isSelected] : [])
+            .dropDestination(for: TaskTransfer.self) { items, _ in
+                isInboxDropTarget = false
+                guard store.allowsCardDrag, let dropped = items.first, store[dropped.id] != nil
+                else { return false }
+                store.unfile(dropped.id)
+                return true
+            } isTargeted: { targeted in
+                isInboxDropTarget = targeted && store.allowsCardDrag
+            }
+        }
+    }
+
+    /// Shared with `UITests/InboxDragTests` through the source rather than by
+    /// both spelling the same string.
+    static let inboxToggleID = "InboxToggle"
+
+    private var inboxBackground: Color {
+        if isInboxDropTarget { return palette.accent.opacity(0.12) }
+        return store.isInboxOpen ? palette.ink(0.07) : .clear
     }
 
     /// The active board's name, renamed where it is written. `nil` is a state

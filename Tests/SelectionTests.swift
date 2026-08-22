@@ -615,13 +615,15 @@ private func registrations(_ undo: RecordingUndoManager, _ body: () -> Void) -> 
         #expect(store.addingColumnID != nil)
         #expect(store.draft.isEmpty)
 
-        // From the Inbox it adds to the Inbox, which is not a column.
+        // The Inbox panel being out does not change where ⌘N lands: the panel
+        // stands beside the board rather than instead of it, and the board is
+        // still what the user is working on. Its own "+" is how you capture
+        // into it.
         store.cancelDraft()
-        store.selectSurface(.inbox)
+        store.toggleInbox()
         store.beginAddingWhereVisible()
-        #expect(store.surface == .inbox)
-        #expect(store.addingPlacement == .inbox)
-        #expect(store.addingColumnID == nil)
+        #expect(store.surface == .board)
+        #expect(store.addingColumnID == store.activeBoard?.landingColumn?.id)
     }
 
     /// A saved view has no composer on it, so ⌘N there has to put the board
@@ -635,13 +637,14 @@ private func registrations(_ undo: RecordingUndoManager, _ body: () -> Void) -> 
     }
 
     /// With every board deleted there is nowhere on a board to land, and the
-    /// Inbox is still there.
+    /// Inbox is still there — so the panel that draws it has to come out, or
+    /// ⌘N focuses a field nobody can see.
     @Test func newTaskWithNoBoardLeftFallsToTheInbox() {
         let store = TestBoard.store(boards: [])
         store.selectSurface(.board)
         store.beginAddingWhereVisible()
-        #expect(store.surface == .inbox)
         #expect(store.addingPlacement == .inbox)
+        #expect(store.isInboxShowing, "the composer opened on a panel that is not out")
     }
 
     /// ⌘F travels as a counter rather than a flag: with the field already

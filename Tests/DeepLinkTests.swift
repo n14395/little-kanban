@@ -115,7 +115,10 @@ import Testing
 
         #expect(router.failure == nil)
         #expect(store.selectedID == TestBoard.widget)
-        #expect(store.surface == .inbox)
+        // The Inbox is a panel beside the board, so opening it means putting
+        // the board back *and* the panel out.
+        #expect(store.surface == .board)
+        #expect(store.isInboxShowing)
         #if os(iOS)
         #expect(store.tab == .inbox)
         #endif

@@ -41,6 +41,19 @@ struct TaskListMetrics {
     static let pad = TaskListMetrics(
         rowSpacing: 10, horizontalPadding: 20, maxRowWidth: 720, topInset: 12, bottomInset: 28
     )
+    /// The Inbox panel, which is a column's width. No cap, because the panel
+    /// *is* the cap — and the gutter and the gap between cards are a column's
+    /// own, so a card in the panel sits on the same grid as a card beside it.
+    static let panel = TaskListMetrics(
+        rowSpacing: BoardColumnView.Metrics.desk.cardSpacing,
+        horizontalPadding: BoardColumnView.Metrics.desk.horizontalPadding,
+        maxRowWidth: .infinity, topInset: 10, bottomInset: 12
+    )
+    static let panelPad = TaskListMetrics(
+        rowSpacing: BoardColumnView.Metrics.pad.cardSpacing,
+        horizontalPadding: BoardColumnView.Metrics.pad.horizontalPadding,
+        maxRowWidth: .infinity, topInset: 12, bottomInset: 16
+    )
 }
 
 /// A flat list of tasks drawn from anywhere on the board.

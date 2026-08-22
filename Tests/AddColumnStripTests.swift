@@ -16,8 +16,18 @@ import Testing
 @MainActor
 @Suite struct AddColumnStripTests {
     private static func rendered(_ metrics: BoardColumnView.Metrics) -> CGSize? {
-        let renderer = ImageRenderer(content: tile(metrics))
-        return renderer.nsImage?.size
+        size(of: ImageRenderer(content: tile(metrics)))
+    }
+
+    /// One spelling per platform for the same measurement, so both of them
+    /// measure: `nsImage` is macOS-only, and a suite that compiles on one
+    /// platform is not a suite that runs on the other.
+    private static func size(of renderer: ImageRenderer<some View>) -> CGSize? {
+        #if os(macOS)
+        renderer.nsImage?.size
+        #else
+        renderer.uiImage?.size
+        #endif
     }
 
     private static func tile(_ metrics: BoardColumnView.Metrics) -> some View {
@@ -53,7 +63,7 @@ import Testing
                 .environment(TestBoard.store())
                 .environment(\.palette, Palette(colorScheme: .light))
         )
-        let size = try #require(renderer.nsImage?.size)
+        let size = try #require(Self.size(of: renderer))
         #expect(size.width == BoardColumnView.Metrics.desk.width)
     }
 }

@@ -175,14 +175,15 @@ struct PhoneDetailSheet: View {
     /// come back to the Inbox — and on this surface these two are the only route
     /// a card has anywhere.
     ///
-    /// The picker falls back to the board on screen for a card in the Inbox, so
-    /// filing one is a single tap rather than a board and then a column.
+    /// The segments are the card's *own* board's, so a card in the Inbox has
+    /// none and the row goes: it is on no board, and the columns of some other
+    /// one are not an answer to where it sits on this.
     private var moveTo: some View {
         VStack(alignment: .leading, spacing: 7) {
             Text("Move to").sectionLabelStyle(opacity: Palette.readableInk)
             BoardDestinationMenu(task: task, metrics: .sheet)
             MoveToPicker(
-                board: store.board(for: task) ?? store.activeBoard,
+                board: store.board(for: task),
                 currentColumnID: task.columnID, metrics: .sheet
             ) { placement in
                 store.move(task.id, to: placement)

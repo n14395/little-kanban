@@ -188,7 +188,10 @@ import Testing
         // It keeps Done, and it is the only view an archived task is in.
         #expect(matches(.archive, ViewBoard.doneDueToday) == false)   // not filed on this board
         #expect(SavedView.filters.contains(.archive) == false)
-        #expect(SavedView.filters == [.today, .upcoming, .highPriority, .dueThisWeek, .recentlyUpdated])
+        // And the order the source list draws them in, Inbox first — where work
+        // arrives, above everything that has happened to it since.
+        #expect(SavedView.filters
+                == [.inbox, .today, .upcoming, .highPriority, .dueThisWeek, .recentlyUpdated])
     }
 
     @Test func filingAWholeColumnAtOnceKeepsTheBoardsOrderUnderneath() {
@@ -335,13 +338,54 @@ import Testing
                 == codes(.recentlyUpdated, store).count)
     }
 
+    // MARK: The Inbox, which is a place rather than a filter
+
+    /// The view and the panel are two faces of one list, so they had better be
+    /// the same cards in the same order — a person can see both at once by
+    /// picking Inbox with the panel open, and a disagreement would be visible.
+    @Test func theInboxViewIsExactlyTheCardsOnNoBoardAtAll() {
+        let store = TestBoard.store()
+        let inView = store.tasks(in: .inbox, today: TestBoard.dueDay).map(\.id)
+
+        #expect(!inView.isEmpty, "the fixture has no unfiled cards to test with")
+        #expect(inView == store.visibleInboxTasks.map(\.id),
+                "the view and the panel disagree about the Inbox")
+        #expect(store.count(of: .inbox, today: TestBoard.dueDay) == store.inboxCount)
+        #expect(inView.allSatisfy { store[$0]?.isUnfiled == true })
+    }
+
+    /// An archived card is only ever in the Archive — including one that was in
+    /// the Inbox when it was filed away, which is the case the shared
+    /// `isArchived == (self == .archive)` guard exists for.
+    @Test func anArchivedCardLeavesTheInboxView() throws {
+        let store = TestBoard.store()
+        let card = try #require(store.visibleInboxTasks.first)
+
+        store.archive(card.id)
+
+        #expect(store.tasks(in: .inbox, today: TestBoard.dueDay).contains { $0.id == card.id } == false)
+        #expect(store.tasks(in: .archive, today: TestBoard.dueDay).contains { $0.id == card.id })
+    }
+
+    /// The phone leaves it out of both its lists: it has a tab for the Inbox
+    /// and a drawer row above the boards, and a third route to one place on the
+    /// smallest screen is noise rather than convenience.
+    @Test func thePhoneDoesNotListTheInboxAmongItsViews() {
+        #expect(SavedView.phone == SavedView.allCases.filter { $0 != .inbox })
+        #expect(SavedView.phoneFilters.contains(.inbox) == false)
+        #expect(SavedView.phoneFilters.contains(.archive) == false)
+        // And it is not a general-purpose "hide things" list: everything else
+        // the desk offers, the phone offers.
+        #expect(SavedView.phoneFilters == SavedView.filters.filter { $0 != .inbox })
+    }
+
     // MARK: The enum's own surface
 
     @Test func everyViewNamesItselfAndCarriesASymbol() {
-        #expect(SavedView.allCases.count == 6)
+        #expect(SavedView.allCases.count == 7)
         #expect(SavedView.allCases.map(\.id) == SavedView.allCases.map(\.rawValue))
-        #expect(Set(SavedView.allCases.map(\.label)).count == 6)
-        #expect(Set(SavedView.allCases.map(\.symbol)).count == 6)
+        #expect(Set(SavedView.allCases.map(\.label)).count == 7)
+        #expect(Set(SavedView.allCases.map(\.symbol)).count == 7)
         #expect(SavedView.allCases.allSatisfy { !$0.label.isEmpty && !$0.symbol.isEmpty })
         // It is `Codable` against its raw value, so a later phase can remember
         // the last view as a preference without inventing a mapping.

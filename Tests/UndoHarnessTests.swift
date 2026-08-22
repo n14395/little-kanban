@@ -424,7 +424,7 @@ import Testing
             // you are on is where your work is, but a ⌘Z that moved somebody to
             // another board would be undoing their attention.
             store.selectBoard(TestBoard.support.id)
-            store.selectSurface(.inbox)
+            store.showInbox()
             store.beginEditing(.title, on: TestBoard.cafe, scope: .desk)
             store.endEditing(.title, on: TestBoard.cafe, scope: .desk)
             store.clearDrafts(for: TestBoard.cafe)

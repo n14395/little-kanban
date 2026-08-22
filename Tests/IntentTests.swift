@@ -95,7 +95,7 @@ import Testing
     @Test func showingTodayOpensTheViewAndClearsWhatWouldHideIt() async throws {
         let store = TestBoard.store(tasks: TestBoard.tasks(on: SeedData.defaultBoard))
         store.query = "café"
-        store.selectSurface(.inbox)
+        store.showInbox()
         try await borrowing(store) {
             _ = try await ShowTodayIntent().perform()
             #expect(store.activeView == .today)

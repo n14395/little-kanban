@@ -165,7 +165,9 @@ final class DeepLinkRouter {
         } else if let boardID = task.boardID {
             store.selectBoard(boardID)
         } else {
-            store.selectSurface(.inbox)
+            // Unfiled, so the card is in the panel — which means putting the
+            // board back as well, since the panel stands beside it.
+            store.showInbox()
         }
         store.select(task.id)
         // The desk and the iPad: the panel beside the board.

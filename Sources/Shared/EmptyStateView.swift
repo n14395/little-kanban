@@ -192,10 +192,8 @@ extension EmptyStateView {
     static func inbox(metrics: Metrics = .sheet, add: (() -> Void)? = nil) -> EmptyStateView {
         EmptyStateView(
             symbol: "tray",
-            headline: String(localized: "Inbox is clear",
-                             comment: "Empty state headline for the iOS Inbox tab"),
-            message: String(localized: "Everything captured has been filed onto a board.",
-                            comment: "Empty state body copy for the iOS Inbox tab"),
+            headline: Self.inboxHeadline,
+            message: Self.inboxMessage,
             actionTitle: add == nil ? nil : Self.addTitle,
             action: add,
             metrics: metrics
@@ -236,8 +234,23 @@ extension EmptyStateView {
         String(localized: "Add a task", comment: "Empty state button that starts a new task")
     }
 
+    /// The Inbox is empty in three places now — the panel beside the board, the
+    /// saved view in the source list and the phone's tab — and an empty Inbox
+    /// is the same fact in all three. Said once so the three cannot drift into
+    /// three different sentences about one state.
+    private static var inboxHeadline: String {
+        String(localized: "Inbox is clear", comment: "Empty state headline for the Inbox")
+    }
+
+    private static var inboxMessage: String {
+        String(localized: "Everything captured has been filed onto a board.",
+               comment: "Empty state body copy for the Inbox")
+    }
+
     private static func headline(for view: SavedView) -> String {
         switch view {
+        case .inbox:
+            Self.inboxHeadline
         case .today:
             String(localized: "Nothing due today", comment: "Empty Today view headline")
         case .upcoming:
@@ -255,6 +268,8 @@ extension EmptyStateView {
 
     private static func message(for view: SavedView) -> String {
         switch view {
+        case .inbox:
+            Self.inboxMessage
         case .today:
             String(localized: "Nothing is due today, and nothing has slipped past its date.",
                    comment: "Empty Today view body copy")

@@ -43,28 +43,57 @@ struct MacRootView: View {
             if window.isSidebarVisible {
                 BoardSidebar(isNamingNewBoard: $window.isNamingNewBoard, isManagingLabels: $isManagingLabels)
                     .transition(.move(edge: .leading))
+                    // Above the Inbox panel, always. A `.move(edge: .leading)`
+                    // transition offsets a view by its own width from where it
+                    // sits and nothing clips it on the way, so the panel's
+                    // travel takes it across the source list — and, drawn in
+                    // `HStack` order, on top of it. Putting the list above is
+                    // what makes the panel slide out from *behind* it and stop
+                    // at its edge, rather than sail in from the far left of the
+                    // window over everything in between.
+                    .zIndex(1)
             }
 
             VStack(spacing: 0) {
-                // The window has no title bar, so this bar is the top of the
-                // window and the traffic lights sit on its row — which is what
-                // the measurement is for. With the sidebar gone they float over
-                // the bar itself; the sidebar keeps a gap of its own for them,
-                // and this is that gap, moved.
-                BoardToolbar(leadingInset: window.isSidebarVisible ? 0 : 68)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
-
                 HStack(spacing: 0) {
-                    surface
-                    // The panel holds its 336pt with nothing selected. Dropping
-                    // it reflowed the whole board out from under a ⌘⌥I that had
-                    // done exactly what it says, which read as a broken toggle.
-                    if store.isInspectorOpen {
-                        if let task = store.selectedTask {
-                            TaskInspector(task: task)
-                        } else {
-                            MacEmptyInspector()
+                    // Full height of everything above the status strip — the
+                    // toolbar's row included, so the panel starts at the top of
+                    // the window the way the source list does and the board's
+                    // name begins where the panel ends.
+                    if store.isInboxShowing {
+                        InboxPanel(leadingInset: window.isSidebarVisible ? 0 : 68)
+                            .transition(.move(edge: .leading))
+                    }
+
+                    VStack(spacing: 0) {
+                        // The window has no title bar, so this bar is the top of
+                        // the window and the traffic lights sit on its row —
+                        // which is what the measurement is for. With the sidebar
+                        // gone they float over the bar itself; the sidebar keeps
+                        // a gap of its own for them, and this is that gap,
+                        // moved. The panel keeps the same gap when it is the one
+                        // they land on, which is why the toolbar stops needing
+                        // it as soon as either is out.
+                        BoardToolbar(
+                            leadingInset: window.isSidebarVisible || store.isInboxShowing ? 0 : 68
+                        )
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
+
+                        HStack(spacing: 0) {
+                            surface
+                            // The panel holds its 336pt with nothing selected.
+                            // Dropping it reflowed the whole board out from
+                            // under a ⌘⌥I that had done exactly what it says,
+                            // which read as a broken toggle.
+                            if store.isInspectorOpen {
+                                if let task = store.selectedTask {
+                                    TaskInspector(task: task)
+                                } else {
+                                    MacEmptyInspector()
+                                }
+                            }
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -88,11 +117,13 @@ struct MacRootView: View {
         .accessibilityHidden(isManagingLabels)
         // The board's own floor, which is what `.contentMinSize` on the window
         // is measured against. The sidebar can go, so the floor goes with it.
-        .frame(minWidth: window.isSidebarVisible ? 940 : 708, minHeight: 620)
+        .frame(minWidth: Self.floor(sidebar: window.isSidebarVisible, inbox: store.isInboxShowing),
+               minHeight: 620)
         .motionAnimation(.easeOut(duration: 0.16), value: store.isInspectorOpen)
         .motionAnimation(.easeOut(duration: 0.16), value: store.selection)
         .motionAnimation(.easeOut(duration: 0.16), value: store.surface)
         .motionAnimation(.easeOut(duration: 0.16), value: window.isSidebarVisible)
+        .motionAnimation(.easeOut(duration: 0.16), value: store.isInboxShowing)
         .sheet(isPresented: $store.isShowingShortcuts) {
             MacShortcutsSheet()
         }
@@ -135,19 +166,32 @@ struct MacRootView: View {
         .onChange(of: focusRelay.focusedColumnID) { _, id in window.focusedColumnID = id }
     }
 
-    /// The three things the main area can be. The Inbox is one of them rather
-    /// than a column of the board: it is global, and a card is in it by being
-    /// on no board at all.
+    /// The two things the main area can be. The Inbox is not one of them any
+    /// more: it is global, a card is in it by being on no board at all, and it
+    /// now stands beside the board rather than in front of it — see
+    /// ``InboxPanel``.
     @ViewBuilder
     private var surface: some View {
         switch store.surface {
         case .board:
             BoardScrollView()
-        case .inbox:
-            MacInboxList()
         case .view(let view):
             MacSavedViewList(view: view)
         }
+    }
+}
+
+extension MacRootView {
+    /// The board's own floor, which is what `.contentMinSize` on the window is
+    /// measured against: a board worth looking at, plus whatever is beside it.
+    /// Both the source list and the Inbox panel can go, so the floor goes with
+    /// them — a window pinned to a width for a panel that is not there is a
+    /// window you cannot make small.
+    static func floor(sidebar: Bool, inbox: Bool) -> CGFloat {
+        var width: CGFloat = 708
+        if sidebar { width += 232 }
+        if inbox { width += InboxPanel.Metrics.desk.width }
+        return width
     }
 }
 
@@ -170,120 +214,6 @@ private struct MacEmptyInspector: View {
     }
 }
 
-/// The global Inbox in place of the board: everything filed nowhere.
-///
-/// The same shape as `MacSavedViewList` — header, count, the way back, the
-/// shared flat list — because it is the same kind of surface: cards drawn from
-/// outside any one column. It is not a saved view, though. A card is *in* the
-/// Inbox rather than merely matching it, so this one can be composed into, and
-/// the sidebar row it belongs to takes drops.
-struct MacInboxList: View {
-    @Environment(\.palette) private var palette
-    @Environment(BoardStore.self) private var store
-    /// Which row the keyboard is on. Owned here rather than by the rows for
-    /// `BoardScrollView`'s reason: ↑ and ↓ cross rows, and a row cannot see its
-    /// neighbours.
-    @FocusState private var focus: TaskItem.ID?
-
-    private var isComposing: Bool { store.addingPlacement == .inbox }
-
-    var body: some View {
-        let tasks = store.visibleInboxTasks
-
-        VStack(spacing: 0) {
-            header(count: tasks.count)
-            // Carries the list's own margins so the field lines up with the
-            // cards under it rather than with the header above it.
-            if isComposing {
-                BoardTaskComposer(placement: .inbox)
-                    .frame(maxWidth: TaskListMetrics.desk.maxRowWidth)
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, TaskListMetrics.desk.horizontalPadding)
-                    .padding(.top, TaskListMetrics.desk.topInset)
-            }
-            if tasks.isEmpty, !isComposing {
-                emptyState
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                // The card the flat surfaces draw is the keyboard-reachable
-                // one: ⌘A, ⌘C, ⌘V, ⎋ and ↑/↓ read here exactly as they do on
-                // the board, less the two pairs that need columns.
-                TaskListView(tasks: tasks, metrics: .desk) { task in
-                    PlatformTaskCard(task: task, focus: $focus)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private func header(count: Int) -> some View {
-        HStack(spacing: 12) {
-            Button { store.selectSurface(.board) } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: "chevron.left")
-                        .imageScale(.small)
-                    Text("Board", comment: "Button that leaves the Inbox for the column board")
-                        .font(SimpleKanbanFont.ui(12.5, .bold, relativeTo: .subheadline))
-                }
-                .foregroundStyle(palette.inkText(0.55))
-                .padding(.horizontal, 9)
-                .frame(minHeight: 28)
-                .hoverBackground(palette.ink(0.06), radius: 9)
-            }
-            .buttonStyle(.bare)
-            // The chevron beside the word is decoration, and a label on the
-            // button does not take it out of the tree — it stays as a second
-            // element named from Apple's catalogue. Substituting the subtree
-            // does, and leaves the button saying what it does.
-            .accessibilityRepresentation {
-                Button(String(localized: "Back to the board",
-                              comment: "Accessibility name of the button leaving the Inbox or a saved view")) {
-                    store.selectSurface(.board)
-                }
-            }
-
-            HStack(spacing: 8) {
-                Image(systemName: "tray")
-                    .imageScale(.small)
-                    .foregroundStyle(palette.inkText(0.45))
-                    .accessibilityHidden(true)
-                Text(Board.inboxName)
-                    .font(SimpleKanbanFont.ui(14, .extraBold, relativeTo: .headline))
-                    .foregroundStyle(palette.ink)
-                CountPill(count: count)
-            }
-
-            Spacer(minLength: 0)
-
-            Button { store.beginAdding(in: .inbox) } label: {
-                Image(systemName: "plus")
-                    .font(SimpleKanbanFont.ui(12, .medium, relativeTo: .footnote))
-                    .foregroundStyle(palette.inkText(0.45))
-                    .frame(minWidth: 24, minHeight: 24)
-            }
-            .buttonStyle(.bare)
-            .hoverBackground(palette.ink(0.08), radius: 8)
-            .accessibilityLabel("Capture a task")
-        }
-        .padding(.horizontal, 20)
-        .frame(minHeight: 46)
-        .hairline(.bottom, color: palette.ink(0.07))
-    }
-
-    @ViewBuilder
-    private var emptyState: some View {
-        if store.isFiltering {
-            EmptyStateView.noResults(query: store.query, metrics: .desk) {
-                store.clearQuery()
-            }
-        } else {
-            EmptyStateView.inbox(metrics: .desk) {
-                store.beginAdding(in: .inbox)
-            }
-        }
-    }
-}
-
 /// A saved view in place of the board: the view's name, how many rows are under
 /// it, the way back, and the shared flat list underneath.
 ///
@@ -294,7 +224,7 @@ struct MacSavedViewList: View {
     @Environment(\.palette) private var palette
     @Environment(\.dayClock) private var dayClock
     @Environment(BoardStore.self) private var store
-    /// See `MacInboxList`: the surface's keyboard focus, not each row's.
+    /// See `InboxPanel`: the surface's keyboard focus, not each row's.
     @FocusState private var focus: TaskItem.ID?
 
     let view: SavedView
@@ -341,7 +271,7 @@ struct MacSavedViewList: View {
                 .hoverBackground(palette.ink(0.06), radius: 9)
             }
             .buttonStyle(.bare)
-            // See `MacInboxList`: the chevron is a nested element a label alone
+            // The chevron is a nested element a label alone
             // does not remove.
             .accessibilityRepresentation {
                 Button(String(localized: "Back to the board",

@@ -74,7 +74,7 @@ import UniformTypeIdentifiers
             tasks: TestBoard.tasks(on: SeedData.defaultBoard, archiving: [TestBoard.palette: 300]),
             boards: TestBoard.boards, file: temp.file
         )
-        store.selectSurface(.inbox)
+        store.showInbox()
         store.query = "sync"
         store.saveNow()
 

@@ -16,8 +16,18 @@ enum PhoneTab: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-/// What the main surface is showing: the active board, the global Inbox, or a
-/// saved view standing in for the board.
+/// What the main surface is showing: the active board, or a saved view
+/// standing in for it.
+///
+/// **The Inbox is not one of these.** It used to be — a page that took the
+/// board's place — and it is now a panel that stands *beside* the board, so it
+/// is a toggle (``BoardStore/isInboxOpen``) rather than a destination. Cards
+/// filed nowhere are the ones you reach for while working on the board; a
+/// surface that replaced the board made you leave it to see them.
+///
+/// The phone is the exception and keeps a tab, because a phone shows one thing
+/// at a time and has nowhere to put a panel. `PhoneTab` is that, and it is why
+/// `visibleTaskIDs` still asks which tab is up.
 ///
 /// Session state — where the user is looking rather than anything about the
 /// board — so it is out of `BoardSnapshot` and out of `BoardMutation`.
@@ -25,7 +35,6 @@ enum PhoneTab: String, CaseIterable, Identifiable, Sendable {
 /// their work is, while *whether they are looking at it* is not.
 enum BoardSurface: Hashable, Sendable {
     case board
-    case inbox
     case view(SavedView)
 }
 
@@ -299,7 +308,42 @@ final class BoardStore {
 
     // MARK: Surfaces
 
-    var isInspectorOpen: Bool = true
+    var isInspectorOpen: Bool = !BoardStore.inspectorHiddenAtLaunch
+
+    /// `-SimpleKanbanHideInspector YES`, for the same reason the Inbox has a
+    /// launch argument: a UI test needs a column beside the panel, and on an
+    /// iPad in portrait the inspector is holding that room.
+    #if DEBUG
+    static let inspectorHiddenAtLaunch = UserDefaults.standard.bool(forKey: "SimpleKanbanHideInspector")
+    #else
+    static let inspectorHiddenAtLaunch = false
+    #endif
+    /// Lit while a dragged card is over the Inbox panel.
+    ///
+    /// A flag of its own rather than a value of `dropTargetColumnID`, because
+    /// the Inbox is not a column — the same reason `TaskPlacement` has a case
+    /// for it. On the store rather than in the panel so the cards *inside* the
+    /// panel can set it too: a drop destination nested in another takes the
+    /// hover from its parent, so without this the panel's highlight blinks off
+    /// every time the pointer crosses a card in it.
+    var isInboxDropTarget: Bool = false
+
+    /// Whether the Inbox panel is out, beside the board. Session state like the
+    /// inspector, and closed to begin with: the sidebar row says how many cards
+    /// are in there, which is enough until somebody wants them.
+    var isInboxOpen: Bool = BoardStore.inboxOpensAtLaunch
+
+    /// The panel starts shut, and a harness cannot click it open: a simulator
+    /// takes no synthetic taps from outside, and driving the host Mac's pointer
+    /// is not a verification — it is a fight with whoever is using the machine.
+    /// So there is a launch argument, the same shape as `FirstRun`'s pair:
+    ///
+    ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanShowInbox YES
+    #if DEBUG
+    static let inboxOpensAtLaunch = UserDefaults.standard.bool(forKey: "SimpleKanbanShowInbox")
+    #else
+    static let inboxOpensAtLaunch = false
+    #endif
     var isNavDrawerOpen: Bool = false
     /// Whether the keyboard-shortcuts reference is up. Session state, and on
     /// the store rather than in a view because the menu bar opens it and a
@@ -1367,15 +1411,27 @@ final class BoardStore {
         selectAll(visibleTaskIDs(today: today))
     }
 
-    /// What is on the main surface, in the order it is drawn: the board's
-    /// columns left to right, the Inbox, or a saved view's own ordering. The
-    /// query narrows all three, because a card the search has hidden is not one
-    /// ⌘A can have meant.
+    /// What is on screen, in the order it is drawn: the Inbox panel if it is
+    /// out, then the board's columns left to right — or a saved view's own
+    /// ordering. The query narrows all of them, because a card the search has
+    /// hidden is not one ⌘A can have meant.
+    ///
+    /// The panel's cards count because the panel is *beside* the board rather
+    /// than instead of it: with it open they are as visible as any card in a
+    /// column, and a Select All that skipped them would be lying about what it
+    /// selected.
     func visibleTaskIDs(today: CalendarDay) -> [TaskItem.ID] {
         switch surface {
-        case .board: return columns.flatMap { visibleTasks(in: $0.id).map(\.id) }
-        case .inbox: return visibleInboxTasks.map(\.id)
-        case .view(let view): return tasks(in: view, today: today).map(\.id)
+        case .board:
+            #if os(iOS)
+            // The phone shows one thing at a time, and the Inbox is one of the
+            // things — it has no room for a panel, so it kept its tab.
+            if tab == .inbox { return visibleInboxTasks.map(\.id) }
+            #endif
+            let onTheBoard = columns.flatMap { visibleTasks(in: $0.id).map(\.id) }
+            return isInboxOpen ? visibleInboxTasks.map(\.id) + onTheBoard : onTheBoard
+        case .view(let view):
+            return tasks(in: view, today: today).map(\.id)
         }
     }
 
@@ -1743,6 +1799,32 @@ final class BoardStore {
         self.surface = surface
     }
 
+    /// Whether the Inbox is reachable at all from where the user is standing.
+    ///
+    /// The panel stands beside the *board*, so on a saved view there is nothing
+    /// for a toggle to open — which is why the toolbar's Inbox button is not
+    /// there to be clicked on Today. One predicate for the button and the panel
+    /// both, so the button cannot outlive what it opens.
+    var showsInboxToggle: Bool { surface == .board }
+
+    /// Whether the Inbox panel is on screen, which is not the same as whether
+    /// it is switched on: a saved view has taken the board's place. It is
+    /// hidden rather than switched off, so coming back to the board brings it
+    /// back with no second click — closing it was never what picking Today
+    /// meant.
+    var isInboxShowing: Bool { isInboxOpen && showsInboxToggle }
+
+    /// The sidebar row and the View menu, which are the same switch twice.
+    func toggleInbox() { isInboxOpen.toggle() }
+
+    /// Puts the Inbox in front of somebody who asked for a card that is in it —
+    /// a deep link, an intent, Spotlight. The panel stands beside the board, so
+    /// this has to put the board back as well as the panel out.
+    func showInbox() {
+        surface = .board
+        isInboxOpen = true
+    }
+
     /// A saved view's tasks: its predicate, its ordering and its cap, and then
     /// the search query on top of all three. Searching narrows a view rather
     /// than replacing it.
@@ -1833,6 +1915,13 @@ final class BoardStore {
     /// Takes a task off its board and back into the global Inbox — the return
     /// journey the "move to" control has no segment for.
     func unfile(_ id: TaskItem.ID) {
+        // Already there is not a move. Dropping a card back on the Inbox it
+        // came from — onto the panel, or onto the source list's row — would
+        // otherwise cost a ⌘Z and leave "Moved to Inbox" in its history, for a
+        // card that has not gone anywhere. `move` cannot make this judgement:
+        // a move to the column a card is already in is a *reorder*, and those
+        // are real.
+        guard self[id]?.isUnfiled == false else { return }
         move(id, to: .inbox)
     }
 
@@ -2334,6 +2423,29 @@ final class BoardStore {
         return id
     }
 
+    /// Quick capture into the Inbox for a surface that carries the card's editor
+    /// itself — the source list's capture button, which opens the whole
+    /// inspector in a popover rather than a one-line composer.
+    ///
+    /// The Inbox because capture must not begin with a decision: a card is in it
+    /// by being on no board at all, and the popover's own board menu is there
+    /// for filing it the moment the user knows where it goes.
+    ///
+    /// **The selection does not move, and that is the whole difference from
+    /// `addTask`.** The popover *is* this card's editor. Selecting the card as
+    /// well would open a second editor on it in the detail panel behind, and two
+    /// of them on one task share a `.desk` editing session and race for
+    /// `pendingTitleFocusID` — a race the panel wins, because it is already on
+    /// screen when this runs. The popover would then come up with its title
+    /// field unfocused, and the typing it was opened for would go nowhere.
+    @discardableResult
+    func captureToInbox() -> TaskItem.ID {
+        let id = mintTask(to: .inbox, title: "", log: .captured)
+        pendingTitleFocusID = id
+        untouchedCaptures.insert(id)
+        return id
+    }
+
     /// Adds several tasks as one step — what ⌘V of a list of lines is for, and
     /// the whole of the difference between it and a loop of `addTask`: N lines
     /// cost one ⌘Z rather than N.
@@ -2428,12 +2540,15 @@ final class BoardStore {
     /// The composer is drawn by whichever surface owns the place it is adding
     /// to, so this puts that surface on screen first — otherwise it focuses a
     /// text field nobody can see and the command reads as broken. It adds to
-    /// the Inbox from the Inbox and to the board's landing column from anywhere
-    /// else, falling back to the Inbox when there is no board left to land on.
+    /// the board's landing column, falling back to the Inbox — and opening the
+    /// panel that draws it — when there is no board left to land on.
     func beginAddingWhereVisible() {
-        guard surface != .inbox else { return beginAdding(in: .inbox) }
+        #if os(iOS)
+        // The phone, on the Inbox tab, is already looking at the Inbox.
+        if tab == .inbox { return beginAdding(in: .inbox) }
+        #endif
         guard let column = activeBoard?.landingColumn else {
-            selectSurface(.inbox)
+            showInbox()
             return beginAdding(in: .inbox)
         }
         selectSurface(.board)
@@ -3253,7 +3368,10 @@ final class BoardStore {
     /// and being shown Today. Going through here rather than assigning `tab`
     /// keeps the two from disagreeing.
     func selectTab(_ tab: PhoneTab) {
-        surface = tab == .inbox ? .inbox : .board
+        // Every tab is the board's surface now that the Inbox is not one of
+        // them: what the phone draws is chosen by `tab`, and `surface` is only
+        // still set here to leave whatever saved view was standing in.
+        surface = .board
         self.tab = tab
     }
 

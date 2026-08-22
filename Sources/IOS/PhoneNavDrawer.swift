@@ -147,7 +147,10 @@ struct PhoneNavDrawer: View {
 
             sectionHeader("Views", topPadding: 24)
             VStack(spacing: 2) {
-                ForEach(SavedView.filters) { viewRow($0) }
+                // Not `filters`: the Inbox is the row above the boards on
+                // this surface, and listing it again here would be two ways to
+                // the same place a thumb's width apart.
+                ForEach(SavedView.phoneFilters) { viewRow($0) }
                 // The Archive is where things go rather than a filter over the
                 // board, so it sits under the filters with a gap instead of in
                 // amongst them.

@@ -67,13 +67,17 @@ import Testing
         #expect(store.selection == [TestBoard.dragDrop, TestBoard.cafe, TestBoard.offline,
                                     TestBoard.sync, TestBoard.palette])
 
-        store.selectSurface(.inbox)
+        // With the panel out the Inbox is *beside* the board rather than
+        // instead of it, so ⌘A means both — a Select All that skipped cards the
+        // user can see would be lying about what it selected.
+        store.toggleInbox()
         store.selectAllVisible(today: TestBoard.dueDay)
-        #expect(store.selection == [TestBoard.widget])
+        #expect(store.selection == [TestBoard.widget, TestBoard.dragDrop, TestBoard.cafe,
+                                    TestBoard.offline, TestBoard.sync, TestBoard.palette])
 
         // And the query narrows it: a card the search has hidden is not one ⌘A
         // can have meant.
-        store.selectSurface(.board)
+        store.toggleInbox()
         store.query = "café"
         store.selectAllVisible(today: TestBoard.dueDay)
         #expect(store.selection == [TestBoard.cafe])
