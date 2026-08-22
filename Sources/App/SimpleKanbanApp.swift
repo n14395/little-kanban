@@ -32,7 +32,14 @@ struct SimpleKanbanApp: App {
         // A first launch starts on nothing rather than on the seed: `FirstRunView`
         // asks which board to start from, and folds the answer in. `restored()`
         // would have seeded the sample before anybody was asked (7.5).
-        let store = FirstRun.isPending ? FirstRun.emptyStore() : BoardStore.restored()
+        // The records the board syncs through. Local-only until the build
+        // carries the iCloud entitlement — see `project.yml` — and `nil` if the
+        // store cannot be opened at all, which leaves `board.json` in charge
+        // rather than handing anybody an empty board.
+        let sync = try? BoardSyncStore.app(syncing: SyncPreference.isOn, at: BoardSyncStore.defaultURL)
+        let store = FirstRun.isPending
+            ? FirstRun.emptyStore()
+            : BoardStore.restored(sync: sync)
         _store = State(initialValue: store)
         TaskIntentBridge.adopt(store)
     }
@@ -98,7 +105,13 @@ struct SimpleKanbanApp: App {
         RootView()
             .environment(store)
             .environment(\.dayClock, dayClock)
-            .onAppear { dayClock.start() }
+            .onAppear {
+                dayClock.start()
+                // Another device's edit arrives as a store notification rather
+                // than as anything the app asked for, so the listener goes up
+                // once and stays up.
+                store.beginObservingRemoteChanges()
+            }
             .modifier(ScenePhaseWork(store: store, dayClock: dayClock))
     }
 }
@@ -502,14 +515,6 @@ private struct FirstRunChoice: ViewModifier {
         Palette(colorScheme: appearance.colorScheme ?? colorScheme, accentTheme: store.accentTheme)
     }
 
-    private static var metrics: FirstRunView.Metrics {
-        #if os(macOS)
-        .desk
-        #else
-        .sheet
-        #endif
-    }
-
     /// Written only by the choice. The getter is what closes the cover once the
     /// preference lands, and the setter exists because a presentation binding
     /// must have one — nothing else can reach it.
@@ -518,21 +523,10 @@ private struct FirstRunChoice: ViewModifier {
     }
 
     func body(content: Content) -> some View {
-        #if os(iOS)
-        content.fullScreenCover(isPresented: isPresented) { picker }
-        #else
-        content.sheet(isPresented: isPresented) { picker }
-        #endif
-    }
-
-    private var picker: some View {
-        FirstRunView(metrics: Self.metrics, templates: SeedData.starters) { template in
+        content.starterPicker(isPresented: isPresented, occasion: .firstLaunch, palette: palette) { template in
             store.importBoard(template.snapshot)
             hasChosen = true
         }
-        .environment(\.palette, palette)
-        .tint(palette.accent)
-        .foregroundStyle(palette.ink)
     }
 }
 

@@ -135,12 +135,12 @@ import Testing
 
     /// The two mutations that replace the whole board. Both write *twice* on
     /// purpose — the board as it stands is flushed and copied into `backups/`
-    /// before it is thrown away, because a restore or a reset leaves it
+    /// before it is thrown away, because a restore or a start-over leaves it
     /// reachable only through an undo stack that does not survive a quit — so
     /// neither fits the one-write probe above.
     @Test func replacingTheWholeBoardKeepsTheOldOneAndWritesTheNew() async throws {
         for (label, act) in [
-            ("resetToSeed", { (store: BoardStore, _: URL) in store.resetToSeed() }),
+            ("startOver", { (store: BoardStore, _: URL) in store.startOver(with: SeedData.blank.snapshot) }),
             ("restore(fromBackup:)", { (store: BoardStore, url: URL) in try? store.restore(fromBackup: url) }),
         ] {
             let temp = TempBoard()

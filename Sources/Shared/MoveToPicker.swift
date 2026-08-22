@@ -6,11 +6,13 @@ import SwiftUI
 /// board's, and a segment hands back a whole `TaskPlacement`, so a column can
 /// never reach the caller without the board that owns it.
 ///
-/// The Inbox leads the segments. The spec's `COLS` — as opposed to `ALL_COLS` —
-/// left it out, which on the phone, where this control is the only route a card
-/// has out of a column, meant a card could leave the Inbox and never return.
-/// Now that the Inbox is global it is no longer a column any board draws
-/// either, so this is the route on both surfaces rather than only on one.
+/// **Columns only — the Inbox is not one of them.** It led the segments for a
+/// while, because a card that could only move between columns could leave the
+/// Inbox and never return. That is no longer this control's problem to solve:
+/// both surfaces that draw it draw `BoardDestinationMenu` directly above it,
+/// and the Inbox is the first item in that menu. Which is the truer split
+/// anyway — the menu answers *which board*, and a card in the Inbox is on none;
+/// this answers *where on it*, and the Inbox is not a place on a board.
 struct MoveToPicker: View {
     struct Metrics {
         var containerRadius: CGFloat
@@ -36,43 +38,45 @@ struct MoveToPicker: View {
     @Environment(\.palette) private var palette
 
     /// The board whose columns are offered. `nil` when there is no board at all
-    /// — the user can delete the last one — and the Inbox is then the only
-    /// destination there is, which is the honest thing to show.
+    /// — the user can delete the last one — and there is then nothing to offer,
+    /// so the control draws nothing rather than an empty track.
     let board: Board?
-    /// The task's column, or `nil` for a card in the Inbox, which is then the
-    /// segment that reads as current.
+    /// The task's column, or `nil` for a card in the Inbox — which is on no
+    /// board, so no segment reads as current and every one of them is a way to
+    /// file it.
     let currentColumnID: BoardColumn.ID?
     var metrics: Metrics = .desk
     let onSelect: (TaskPlacement) -> Void
 
     var body: some View {
-        // The segments share the width when they fit, and fall back to a
-        // scroller only when they cannot — the spec's `flex: 1 0 auto` plus
-        // `overflow-x: auto`, which a plain ScrollView alone cannot express.
-        // The Inbox added a fifth segment, so on a 375pt phone this is now the
-        // scroller rather than a hypothetical.
-        ViewThatFits(in: .horizontal) {
-            segments(expanding: true)
-                .padding(3)
-            ScrollView(.horizontal) {
-                segments(expanding: false)
+        // Nothing to move between is not an empty track with a border round it.
+        if !destinations.isEmpty {
+            // The segments share the width when they fit, and fall back to a
+            // scroller only when they cannot — the spec's `flex: 1 0 auto` plus
+            // `overflow-x: auto`, which a plain ScrollView alone cannot express.
+            // A board can carry as many columns as the user makes, so the
+            // scroller is not a hypothetical.
+            ViewThatFits(in: .horizontal) {
+                segments(expanding: true)
                     .padding(3)
+                ScrollView(.horizontal) {
+                    segments(expanding: false)
+                        .padding(3)
+                }
+                .scrollIndicators(.hidden)
+                .scrollBounceBehavior(.basedOnSize)
             }
-            .scrollIndicators(.hidden)
-            .scrollBounceBehavior(.basedOnSize)
+            .background(palette.ink(0.06), in: .rect(cornerRadius: metrics.containerRadius))
         }
-        .background(palette.ink(0.06), in: .rect(cornerRadius: metrics.containerRadius))
     }
 
-    /// The Inbox first, then the board's columns in board order — which is the
-    /// order the sidebar lists its destinations in, and was `ALL_COLS`'s.
+    /// The board's columns in board order — which is the order the board itself
+    /// draws them in, and was `COLS`'s.
     private var destinations: [Destination] {
-        let columns = board.map { board in
-            board.columns.map {
-                Destination(placement: .column(board: board.id, column: $0.id), title: $0.short)
-            }
+        guard let board else { return [] }
+        return board.columns.map {
+            Destination(placement: .column(board: board.id, column: $0.id), title: $0.short)
         }
-        return [Destination(placement: .inbox, title: Board.inboxName)] + (columns ?? [])
     }
 
     private func segments(expanding: Bool) -> some View {

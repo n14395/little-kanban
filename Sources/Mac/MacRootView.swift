@@ -28,6 +28,10 @@ struct MacRootView: View {
     /// The source list's, held here so the window can take itself out of the
     /// accessibility tree while the sheet is up — see `BoardSidebar`.
     @State private var isManagingLabels = false
+    /// What the header actually measured. The traffic lights are put on that
+    /// row, and the bar grows with the type inside it — so the row is read off
+    /// the laid-out bar rather than off the metric it started from.
+    @State private var headerHeight = BoardToolbar.Metrics.desk.height
 
     private var resolvedWindow: MacWindowState { injectedWindow ?? standaloneWindow }
 
@@ -42,10 +46,13 @@ struct MacRootView: View {
             }
 
             VStack(spacing: 0) {
-                // The window has no title bar, so with the sidebar gone the
-                // traffic lights float over the toolbar. The sidebar keeps a
-                // gap of its own for them; this is that gap, moved.
+                // The window has no title bar, so this bar is the top of the
+                // window and the traffic lights sit on its row — which is what
+                // the measurement is for. With the sidebar gone they float over
+                // the bar itself; the sidebar keeps a gap of its own for them,
+                // and this is that gap, moved.
                 BoardToolbar(leadingInset: window.isSidebarVisible ? 0 : 68)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
 
                 HStack(spacing: 0) {
                     surface
@@ -66,6 +73,14 @@ struct MacRootView: View {
             }
         }
         .background(palette.window)
+        // The title bar is hidden but SwiftUI still keeps its 32pt out of the
+        // safe area, and that band is the whole reason the header used to read
+        // as a strip *under* the chrome: the bar was drawn below the traffic
+        // lights rather than around them. Taking it back is what puts the two
+        // on one row.
+        .ignoresSafeArea(.container, edges: .top)
+        // Which is the row the lights are then moved onto.
+        .windowButtons(centredAt: headerHeight / 2)
         // A modal takes the pointer away from everything behind it; without
         // this it takes nothing away from a reader. Applied under the sheet
         // modifiers rather than over them, which is what leaves the sheet's own

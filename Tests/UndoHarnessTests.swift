@@ -344,7 +344,7 @@ import Testing
         // Phase F's whole-board mutations: each replaces the board rather than
         // editing one card, and each is still one ⌘Z.
         check("importBoard") { $0.importBoard(ForeignBoard.snapshot(includingCollision: true)) }
-        check("resetToSeed") { $0.resetToSeed() }
+        check("startOver") { $0.startOver(with: SeedData.blank.snapshot) }
 
         // A restore needs a file to restore *from*, so it cannot go through the
         // probe above, which keeps every store in memory on purpose.
@@ -393,7 +393,7 @@ import Testing
         #expect(named["archive (several)"] == "Archive Tasks")
         #expect(named["importBoard"] == "Import Board")
         #expect(named["restore(fromBackup:)"] == "Restore Backup")
-        #expect(named["resetToSeed"] == "Reset Board")
+        #expect(named["startOver"] == "Start Over")
         #expect(named.count == 49)
     }
 

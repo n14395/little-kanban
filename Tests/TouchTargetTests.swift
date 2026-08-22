@@ -41,6 +41,9 @@ import Testing
             ("BoardTaskCard.pad.toggle.hitSize", BoardTaskCard.Metrics.pad.toggle.hitSize),
             ("BoardTaskCard.pad.restoreHit", BoardTaskCard.Metrics.pad.restoreHit),
             ("BoardColumnView.pad.headerButton", BoardColumnView.Metrics.pad.headerButton),
+            // The add-column tile stands on its side, so its *width* is what a
+            // finger has to land on rather than an incidental of the column.
+            ("BoardColumnView.pad.addColumnWidth", BoardColumnView.Metrics.pad.addColumnWidth),
             ("BoardColumnView.pad.rowHit", BoardColumnView.Metrics.pad.rowHit),
             ("BoardColumnView.ColumnEditorMetrics.pad.fieldHit",
              BoardColumnView.ColumnEditorMetrics.pad.fieldHit),

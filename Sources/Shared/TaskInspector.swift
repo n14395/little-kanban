@@ -208,7 +208,8 @@ struct TaskInspector: View {
     /// Which board the card is on, and then where on it. Two controls because
     /// they are two questions: the picker below draws one board's columns, so
     /// without this a card could only ever move inside the board it was already
-    /// on — and a card in the Inbox is on none.
+    /// on — and a card in the Inbox is on none. The menu is also the only way
+    /// back to the Inbox, which is why it is not the picker's first segment.
     private var status: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Status").sectionLabelStyle(size: 10.5, opacity: Palette.readableInk)

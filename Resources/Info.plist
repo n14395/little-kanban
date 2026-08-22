@@ -66,6 +66,10 @@
 	<string>https://github.com/n14395/simple-kanban/releases/latest</string>
 	<key>SKUpdateRepository</key>
 	<string>n14395/simple-kanban</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

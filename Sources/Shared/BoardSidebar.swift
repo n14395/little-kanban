@@ -31,7 +31,7 @@ struct BoardSidebar: View {
         var labelManager: LabelManagerView.Metrics
 
         static let desk = Metrics(
-            width: 232, trafficLightInset: 14, rowFont: 13, rowVerticalPadding: 7,
+            width: 232, trafficLightInset: 16, rowFont: 13, rowVerticalPadding: 7,
             rowRadius: 9, rowHit: 0, fieldHit: 0, sectionSpacing: 22,
             accent: .desk, dots: .desk, labelManager: .desk
         )
@@ -517,15 +517,20 @@ struct BoardSidebar: View {
     // MARK: Furniture
 
     /// The window's own traffic lights sit here (the title bar is hidden), so
-    /// the sidebar reserves the same 14pt band the design draws them in. A
-    /// split view's own column has no such lights and no such band.
+    /// the sidebar reserves the band they are drawn in. A split view's own
+    /// column has no such lights and no such band.
+    ///
+    /// The 14pt above, the band and the 20pt below come to the height of
+    /// `BoardToolbar.Metrics.desk.height`, which is deliberate: the lights are
+    /// centred on the header's row, so the first row of the list starts level
+    /// with the seam under the header beside it.
     @ViewBuilder
     private var trafficLightInset: some View {
         if metrics.trafficLightInset > 0 {
             Color.clear
                 .frame(height: metrics.trafficLightInset)
                 .padding(.horizontal, 16)
-                .padding(.bottom, 18)
+                .padding(.bottom, 20)
         }
     }
 

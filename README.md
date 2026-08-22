@@ -69,7 +69,11 @@ Sources/
                        TaskIntents — deep links, Handoff, Spotlight and App Intents
   Store/               BoardStore — all state and mutations; BoardSnapshot + BoardFile —
                        the saved file; BoardMigration — the shapes older files were written
-                       in; NotificationScheduler — due-date reminders
+                       in; SyncSchema + BoardSyncStore — the same board as SwiftData
+                       records, and the CloudKit mirroring on top of them;
+                       CloudKitEntitlement — whether this build may ask for a container
+                       at all, which is a crash rather than an error to get wrong;
+                       NotificationScheduler — due-date reminders
   Theme/               Palette (design tokens), Typography, SwatchColor
   Mac/                 What only a window has: the root layout, the status strip, the
                        shortcuts sheet, the due-date sheet and the menu bar extra
@@ -116,7 +120,7 @@ side, wrapped in mock chrome. Natively the OS supplies that chrome, so:
 
 | Design | Implementation |
 | --- | --- |
-| Mock macOS window + traffic lights | Real window, `.windowStyle(.hiddenTitleBar)`; the sidebar reserves the 14pt band the lights occupy, and with the sidebar hidden the toolbar takes a 68pt leading inset instead — the lights are still there |
+| Mock macOS window + traffic lights | Real window, `.windowStyle(.hiddenTitleBar)`; the board header *is* the chrome, with the lights sitting on its row — see **The header is the title bar**. The sidebar reserves the band they occupy, and with the sidebar hidden the toolbar takes a 68pt leading inset instead |
 | Mock iPhone bezel, status bar, home indicator | The device |
 | Light/Dark toggle in the page header | Follows the system appearance; both palettes come straight from the spec's theme blocks |
 | `--glass` tab bar + `backdrop-filter: blur(20px)` | `glassEffect` inside a `GlassEffectContainer` (the spec's light-mode `--glass` is a self-referential CSS variable and resolves to nothing — Liquid Glass replaces it) |
@@ -187,11 +191,14 @@ Deliberate departures from a literal transcription:
   drawn identically inside every other. It sits above the board list in the
   sidebar and the drawer instead, and the board strip is the active board's own
   columns; see **Boards, columns and the Inbox**.
-- **"Move to" offers the Inbox as its first segment.** The spec's control ports
-  its `COLS`-vs-`ALL_COLS` distinction and so lists the workflow only, which on
-  the phone — where it is the only route off a board — made filing a card a
-  one-way door. It now leads with the Inbox, which is also what makes "unfile
-  this" reachable without a pointer.
+- **"Move to" is the board's columns, and the board menu above it is everything
+  else.** The spec's control lists the workflow only (`COLS` rather than
+  `ALL_COLS`), which on the phone — where it is the only route off a board —
+  made filing a card a one-way door. The Inbox led the segments for a while to
+  fix that; the fix now lives in `BoardDestinationMenu`, which sits directly
+  above the picker on both surfaces and lists the Inbox first. That is the truer
+  split: the menu answers *which board*, and a card in the Inbox is on none;
+  the picker answers *where on it*, and the Inbox is not a place on a board.
 - **A card away from its place says where it is.** The design only ever draws a
   card under its own heading. The saved views, the iOS Search tab and the iOS
   Inbox tab all draw cards from anywhere, where the column is the one thing the
@@ -388,7 +395,7 @@ arithmetic alone allows: at 0.62 the audit went on reporting the count pill,
 whose 11pt digit sits on a second wash of ink and computes to 4.76:1 — a number
 anti-aliased type that small does not actually deliver.
 
-**Chrome grows with the type inside it.** A 66pt toolbar, a 232pt source list, a
+**Chrome grows with the type inside it.** A 50pt toolbar, a 232pt source list, a
 272pt column and a 336pt panel are all boxes around text that scales, and at AX5
 they clipped: column headings truncated to "Bac…", the inspector broke "Priority"
 across two lines as "Prio / rity". `ChromeScale` is a `DynamicProperty` that
@@ -623,8 +630,9 @@ is unfiled.
 On macOS, drag a card onto a board row in the sidebar to file it there and onto the
 Inbox row to unfile it, or use the inspector's board menu and its "Move to"
 segments. On iOS, the detail sheet's board row and the card's "Move to ▸" context
-submenu do the same, and the picker's Inbox segment is the route back — the phone
-has no card drag, so without it filing a card was a one-way door.
+submenu do the same. The board menu — the row above the segments, on both
+surfaces — is the route back: it lists the Inbox first, and the phone has no card
+drag, so without it filing a card would be a one-way door.
 
 ### Codes
 
@@ -673,6 +681,24 @@ the phone that control is the only route a card has off a column. `addColumn` an
 only the board that holds it — so `PhoneBoardEditor` calls `selectBoard` on
 appear rather than risk adding board A's column while showing board B. `rename`,
 `recolor` and `delete` find the board from the column and are safe anywhere.
+
+**The add-column tile stands on its side.** It used to be a column-wide dashed
+pill — 272pt of board, a whole card's worth, spent for ever on two words — and is
+now a 38pt strip (44 on iPad, where it is a touch target) with the label turned
+to read bottom to top. The composer it opens into is still a full column, because
+naming a column wants a text field and the four roles beside it whatever opened
+them.
+
+Turning the label is `verticalText()`, and it is a `Layout` rather than the
+obvious measurement-into-`@State`. `rotationEffect` is a *draw*: it turns the
+picture and leaves the claimed size alone, so a rotated label holds the strip
+open to the width of the horizontal words it used to be. Measuring the content
+and writing the transposed size back through `@State` fixes the size one pass
+late, which is a flicker in the app and a permanently flat tile anywhere layout
+happens once. `Transposed` answers `sizeThatFits` with the axes swapped in the
+same pass. `AddColumnStripTests` renders the tile through `ImageRenderer` and
+measures what comes out — which is how the `@State` version was caught reporting
+38x57 for a label that needs 85pt of run.
 
 A role is chosen when the column is made and is not editable afterwards — the
 spec's column management is add, rename, recolour, reorder and delete, and a role
@@ -1516,6 +1542,45 @@ carries File ▸ Import…/Export…'s panels for the same reason: the menu bar 
 outside every window's view tree and the panels have to be presented from inside
 one.
 
+### The header is the title bar
+
+`.windowStyle(.hiddenTitleBar)` hides the title bar; it does not give back the
+32pt it occupied. SwiftUI keeps that band out of the safe area, so the board
+header was laid out *below* it and read as a second strip of chrome under the
+traffic lights — the title, the search field and the buttons all a row lower than
+the window controls beside them. `MacRootView` takes the band back with
+`.ignoresSafeArea(.container, edges: .top)`, which puts the header against the
+top of the window where the title bar used to be.
+
+That leaves the lights. AppKit sits them near the top of its own 32pt bar, which
+is not the centre of a 50pt header, so `windowButtons(centredAt:)` moves them
+onto the header's row — measured, not assumed: `MacRootView` reads the height the
+bar actually laid out at, because chrome grows with the type inside it.
+
+Two things about that placement are load-bearing.
+
+**A light hanging out of the title bar refuses the click.** `NSView.hitTest`
+stops at a view's own bounds before it ever asks a subview, so a button pushed
+below the 32pt bar draws exactly where it was asked to and then does nothing.
+The header's 50pt is the tallest row whose centre a 14pt light can still reach
+from inside that bar, which is where the number comes from, and the aligner
+clamps anyway.
+
+**AppKit puts them back.** A resize is enough. Each button is watched for the
+move rather than placed once — but correcting one the moment it moves is still
+not enough, because AppKit is mid-layout when the notification arrives and writes
+the zoom button's frame once more on the way out. Measured: close and minimise
+held their row across a resize and zoom alone snapped back up. So every
+notification also books a second pass for the next turn of the run loop. Full
+screen is left alone entirely; the lights come down there in an overlay that has
+nothing to do with this window's header.
+
+The sidebar reserves the band the lights sit in — 14pt above, 16 for the lights,
+20 below — which comes to the header's own 50pt, so the first row of the source
+list starts level with the seam under the header beside it. With the sidebar
+hidden there is nothing to hold that gap, and the toolbar takes a 68pt leading
+inset instead.
+
 There are two more scenes beside it. `Settings { }` is a root of its own and
 inherits nothing from the window, so the palette, the tint and the appearance
 override are all resolved again in `SettingsWindow`. `MenuBarQuickAdd` is a
@@ -1950,7 +2015,7 @@ to — and at `.sheet` on iOS, raised by `store.isShowingSettings`. Five section
 orders its cards), **Notifications** (due-date reminders and the time of day they
 arrive), **Labels** (the Phase B manager, opened as a sheet from a row so there is
 one label surface and not two), and **Data** (export, import, the board file,
-restore from a backup, reset to the sample board).
+restore from a backup, delete everything and start over).
 
 The version is at the bottom of the iOS sheet, in a 44pt row reading
 "Simple Kanban · Version 1.0 (1)"; macOS has the app menu's About window instead,
@@ -2097,7 +2162,7 @@ does not survive a quit. If that copy cannot be taken the restore still happens 
 Nothing here defeats Phase A's per-URL write ordering, which exists for exactly
 this: `scheduleSave()` claims its generation when the restore is queued, so a
 debounced write armed before it is by definition older and is dropped rather than
-silently putting the damaged board back. **Reset to the sample board** takes the
+silently putting the damaged board back. **Delete everything…** takes the
 same forced backup and is undoable the same way.
 
 ## System integration
@@ -2264,6 +2329,159 @@ Both hooks a harness needs are `DEBUG`-only launch arguments —
 suppresses it. **The forced one is pointed at a throwaway file**, not
 `BoardFile.default`: an empty store aimed at somebody's real board would write
 over it on the next flush, which it did once before the file was redirected.
+
+### Starting over
+
+**Settings ▸ Delete everything…** raises the same five rows. It used to be
+*Reset to the sample board*, which answered the question instead of asking it —
+somebody who wanted rid of their board got the demo whether they wanted it or
+not, and the only way to an empty one was to delete fifteen cards by hand.
+
+Both sites present through `starterPicker(isPresented:occasion:palette:choose:cancel:)`,
+so the cover-on-iOS/sheet-on-macOS choice and the metrics that go with it cannot
+drift apart. `FirstRunView.Occasion` carries the three strings that differ, on
+the enum rather than in the view so `StartingOverTests` can read them — a picker
+that still says *Welcome to Simple Kanban* while it replaces somebody's board is
+the failure the split exists to prevent.
+
+Two differences from a first launch, both about there being something to lose:
+
+- **A Cancel.** `cancel` is one optional closure that the button, the Escape key
+  and `interactiveDismissDisabled` all read, so a first launch stays inescapable
+  — the empty board is its skip — and starting over cannot trap anybody into
+  replacing a board they changed their mind about.
+- **`startOver(with:)` replaces, where first run merges.** `importBoard` folds a
+  template into what is already there, which reproduces it exactly when what is
+  already there is nothing. Here it would leave the cards somebody just asked to
+  be rid of sitting beside the new ones.
+
+**Nothing is thrown away until a row is picked**, and that is a correctness
+property rather than a nicety. Emptying the board when the warning is accepted
+and filling it in when the picker returns costs two ⌘Z to get back from, and
+opens a window where undo restores the board *underneath* a modal whose only
+exit is to destroy it again. One step, taken at the choice, has neither problem —
+and it is what makes the Cancel mean anything. `saveNow()` and a copy into
+`backups/` come first, as they do for a restore.
+
+## Sync
+
+The board syncs through **SwiftData with CloudKit**, one record per task,
+sub-task, activity entry, board, column and label. The granularity is the point:
+a single JSON document is the wrong shape for sync, because two devices editing
+different cards would conflict on the whole document, and per-record storage
+lets CloudKit merge them without either side losing an edit.
+
+**What did not change.** `BoardStore` still holds value types and still undoes by
+snapshot. `@Model` classes were kept at the persistence boundary rather than
+made the in-memory representation, because converting the store would have taken
+out undo, the spec's transition rules and most of the suite for no sync benefit —
+the records are what CloudKit reconciles, and the store never sees one.
+
+**`board.json` did not go away either**, and the two are not redundant:
+
+| | holds | answers |
+| --- | --- | --- |
+| `board.store` (SwiftData) | the board as records | what another device changed |
+| `board.json` | the board as a document | backups, export, import, and the corrupt-file rescue |
+
+Both are written on every save. At launch the records are asked **first**, since
+they are the ones another device can have written since this one last looked;
+`board.json` answers when the records are empty — the upgrade, where the JSON
+board is folded into them once — and when the store cannot be opened at all,
+which is the failure the quarantine machinery exists for and must never look
+like an empty board.
+
+### What CloudKit will not do for you
+
+Every rule in `SyncSchema.swift` is one the framework cannot enforce once the
+data is on a server it does not exclusively own, and every one of them fails at
+container-open time on somebody's device rather than at compile time here —
+which is why `SyncStoreTests.theSchemaIsOneCloudKitCanTake` walks the schema and
+asserts them:
+
+- **No unique constraints.** Two records can share an id, so `BoardSyncStore`
+  settles them on the way out: newest `updatedAt` wins, which is
+  last-writer-wins applied to a whole record. Sub-tasks and activity merge by id
+  *inside* the record instead, so an edit made on each of two devices keeps both.
+- **Every relationship optional**, because iCloud does not process relationship
+  changes atomically — which is also why a task record carrying one of
+  `boardID`/`columnID` and not the other reads as **unfiled** rather than as a
+  card in a column nobody can find.
+- **Explicit inverses**, since changes arrive in an indeterminate order.
+- **No `.deny` delete rule.** Cards own their checklists and their history, so
+  those cascade.
+- **The schema is additive only** once promoted to production: a model type
+  cannot be removed and an attribute cannot change type. Treat `SyncSchema.swift`
+  the way `BoardMigration.swift` treats the JSON shape.
+
+One trap worth naming, because it costs an afternoon: **SwiftData reads a
+`Codable` value's shape from the type.** `CalendarDay` encodes through a
+*single-value* container, so the store lays out for its three `Int`s and then
+trips over the string that arrives — surfacing as
+`Could not cast __NSCFNumber to NSString` at *read* time. Every value type in the
+schema is therefore stored as something CloudKit has natively: the due day as
+`"2026-08-20"`, and `SwatchColor`/`LabelTone` as JSON `Data`.
+
+### Turning it on
+
+The code is complete and the capability is a **provisioning step**. A build
+carrying the iCloud entitlement will not sign until the App ID and the container
+`iCloud.com.n14395.SimpleKanban` exist under the team, so the plain entitlement
+files stay wired and the app runs on the local SwiftData store with sync off.
+To switch it on:
+
+1. Open the project in Xcode once, add **iCloud ▸ CloudKit** and **Background
+   Modes ▸ Remote notifications** to the target with automatic signing, and let
+   it register the App ID and the container. `xcodebuild -allowProvisioningUpdates`
+   does the same from the command line.
+2. Point the three `CODE_SIGN_ENTITLEMENTS` lines in `project.yml` at the
+   `-CloudKit` entitlement files, uncomment the
+   `SWIFT_ACTIVE_COMPILATION_CONDITIONS` line beneath them, and `xcodegen generate`.
+3. Initialise the development schema once, then promote it in the CloudKit
+   dashboard before shipping.
+
+Nothing else changes. `BoardSyncStore` reads the entitlement rather than being
+told about it, and a build without one runs the same records locally — the board
+is saved, and Settings ▸ Sync says it is not travelling.
+
+### Asking for a container you were not signed for is a crash
+
+Not a failure. Not an error. A crash, and one that costs an afternoon to place,
+so it is worth stating plainly:
+
+`ModelContainer.init` accepts `cloudKitDatabase: .private(…)` on a build with no
+iCloud entitlement, **succeeds**, and hands back a working store. CoreData's
+mirroring delegate then reaches `CKContainer` on `com.apple.coredata.cloudkit.queue`
+and traps — `EXC_BREAKPOINT` inside
+`-[PFCloudKitContainerProvider containerWithIdentifier:options:]`, on a thread this
+app does not own, with nothing on the stack it could have caught. The obvious
+guard is a `do`/`catch` around the open, and it does exactly nothing.
+
+So the entitlement is checked **before** the ask, by `CloudKitEntitlement`, and
+`BoardSyncStore.app(syncing:at:)` is the only place in the app allowed to name a
+container. The decision itself is a pure function —
+`BoardSyncStore.cloudContainer(syncing:isRunningTests:signedContainers:)` — because
+a crash cannot be caught by a test after the fact, so the thing that has to be
+right is the thing that runs before it. `SyncEntitlementTests` puts it through
+every combination, and pins the end of the rope too: whatever the preference
+says, the container the app opens must report `cloudKitContainerIdentifier == nil`.
+
+The two platforms answer the entitlement question differently, and neither answer
+is a preference:
+
+- **macOS reads its own code signature** through `SecTask`, so it cannot drift
+  from what the app was built with. `SyncEntitlementTests.theSignatureAgreesWithItself`
+  cross-checks that reading against `SecCode`, which reads the signature off the
+  bundle on disk — two frameworks, one fact.
+- **iOS has no public API for it** (`SecTask` is macOS-only in the SDK, and the
+  private spelling is not worth a rejection), so it reads the
+  `SIMPLE_KANBAN_CLOUDKIT` compilation condition, set beside the entitlements file
+  it has to agree with in `project.yml`.
+
+The suite is a third `nil`: it runs as the app's own test host under the app's own
+bundle identifier, so an entitled build would otherwise hand the fixtures to
+whatever iCloud account the machine is signed in to — and then to every device on
+it. Same rule as `BoardFile.default`, with more at stake.
 
 ## Packaging, the icon and the update check
 

@@ -171,8 +171,9 @@ struct PhoneDetailSheet: View {
 
     /// Where the card lives, in the two halves it now has: which board, and
     /// where on it. The segments only ever show one board's columns, so without
-    /// the row above them a card could not cross from one board to another — and
-    /// on this surface the picker is the only route a card has anywhere.
+    /// the row above them a card could not cross from one board to another, nor
+    /// come back to the Inbox — and on this surface these two are the only route
+    /// a card has anywhere.
     ///
     /// The picker falls back to the board on screen for a card in the Inbox, so
     /// filing one is a single tap rather than a board and then a column.

@@ -87,12 +87,16 @@ enum BoardStoreError: LocalizedError, Equatable, Sendable, Identifiable {
     /// A write failed. It carries the message rather than the error so the
     /// value stays `Equatable`; the store only ever displays it.
     case save(message: String)
+    /// The board is safe on this device but is not reaching the others. A
+    /// different sentence from `save`, and a much less urgent one.
+    case sync(message: String)
 
     var id: String {
         switch self {
         case .load(.unreadable): "load.unreadable"
         case .load(.newerVersion(let version, _)): "load.newerVersion.\(version)"
         case .save(let message): "save.\(message)"
+        case .sync(let message): "sync.\(message)"
         }
     }
 
@@ -107,6 +111,9 @@ enum BoardStoreError: LocalizedError, Equatable, Sendable, Identifiable {
         case .save(let message):
             String(localized: "The board could not be saved. \(message)",
                    comment: "Status shown when writing the board file failed")
+        case .sync(let message):
+            String(localized: "This board is saved on this device but is not syncing. \(message)",
+                   comment: "Status shown when the board saved locally but could not reach iCloud")
         }
     }
 
@@ -120,7 +127,7 @@ enum BoardStoreError: LocalizedError, Equatable, Sendable, Identifiable {
                 String(localized: "A new board has been started, and saving is paused so the old file is not written over. Continuing will replace it.",
                        comment: "Alert body when the damaged board could not be moved aside")
             }
-        case .save:
+        case .save, .sync:
             nil
         }
     }
@@ -411,6 +418,9 @@ final class BoardStore {
     /// this session has saved something.
     private(set) var lastSavedAt: Date?
 
+    /// When the board last reached iCloud. `nil` when sync is off.
+    private(set) var lastSyncedAt: Date?
+
     /// The last load or write failure, for an alert and the status bar.
     /// `OSLog` is not a user interface.
     private(set) var lastError: BoardStoreError?
@@ -429,12 +439,44 @@ final class BoardStore {
     private let file: BoardFile?
     private var saveTask: Task<Void, Never>?
 
+    /// The SwiftData store the board syncs through, when there is one.
+    ///
+    /// Both are written on every save, and they are not redundant: SwiftData
+    /// holds the board as records, which is the granularity CloudKit needs to
+    /// merge two devices editing different cards, and `board.json` holds it as
+    /// a document, which is what backups, export and the corrupt-file rescue
+    /// are built on. The read order at launch is in `restored(file:sync:)`.
+    @ObservationIgnored private let sync: BoardSyncStore?
+
+    /// Whether the board is reaching iCloud right now. `false` when sync is
+    /// off, when the entitlement is missing, and in every test.
+    var isSyncing: Bool { sync?.isSyncing ?? false }
+
+    @ObservationIgnored private var remoteChangeObserver: (any NSObjectProtocol)?
+
     /// Bumped by every mutation. `scheduleSave()` is the one call the mutation
     /// contract requires them all to make, so bumping it there covers the lot.
     @ObservationIgnored private var boardRevision: Int = 0
 
     /// The app's store: the board as it was left, or a seeded one on first run.
-    static func restored(file: BoardFile = .default) -> BoardStore {
+    ///
+    /// **The read order matters.** The SwiftData store is asked first, because
+    /// it is the one another device can have written since this one last
+    /// looked. `board.json` answers when SwiftData has nothing — a first launch
+    /// after the upgrade, where the JSON board is migrated into the records —
+    /// and when SwiftData cannot be opened at all, which is the failure the
+    /// quarantine machinery exists for and must not look like an empty board.
+    static func restored(file: BoardFile = .default, sync: BoardSyncStore? = nil) -> BoardStore {
+        if let sync, let synced = try? sync.load() {
+            let store = BoardStore(
+                tasks: synced.tasks, boards: synced.boards, activeBoardID: synced.activeBoardID,
+                labels: synced.labels, accentTheme: synced.accentTheme,
+                nextSerial: synced.nextSerial, file: file, sync: sync
+            )
+            store.applyStoredPreferences()
+            return store
+        }
+
         let result = file.load()
         let store: BoardStore
         if let snapshot = result.snapshot {
@@ -451,17 +493,26 @@ final class BoardStore {
                 labels: snapshot.labels,
                 accentTheme: snapshot.accentTheme,
                 nextSerial: snapshot.nextSerial,
-                file: file
+                file: file,
+                sync: sync
             )
         } else {
-            store = BoardStore(file: file)
+            store = BoardStore(file: file, sync: sync)
         }
         store.adopt(result)
-        if let raw = UserDefaults.standard.string(forKey: sortOrderKey),
-           let order = BoardSortOrder(rawValue: raw) {
-            store.sortOrder = order
-        }
+        store.applyStoredPreferences()
+        // Whatever the JSON said is now what the records should say: either
+        // this is the upgrade that first fills them, or SwiftData failed to
+        // read and is being given the board back.
+        store.pushToSync()
         return store
+    }
+
+    private func applyStoredPreferences() {
+        if let raw = UserDefaults.standard.string(forKey: Self.sortOrderKey),
+           let order = BoardSortOrder(rawValue: raw) {
+            sortOrder = order
+        }
     }
 
     init(
@@ -471,8 +522,10 @@ final class BoardStore {
         labels: [LabelDef] = LabelDef.seed,
         accentTheme: AccentTheme = .ember,
         nextSerial: Int = BoardSnapshot.baseSerial,
-        file: BoardFile? = nil
+        file: BoardFile? = nil,
+        sync: BoardSyncStore? = nil
     ) {
+        self.sync = sync
         self.tasks = Self.placed(tasks, on: boards)
         self.boards = boards
         self.activeBoardID = boards.contains { $0.id == activeBoardID } ? activeBoardID : boards.first?.id
@@ -605,6 +658,10 @@ final class BoardStore {
             TaskSpotlightIndex.shared.reconcile(tasks)
         }
         let pending = snapshot
+        // The records first, and on this actor: SwiftData's main context is
+        // main-actor work, and `apply` only touches what changed, so the cost
+        // is one card's worth rather than the board's.
+        pushToSync(pending)
         let generation = file.nextWriteGeneration()
         saveTask?.cancel()
         saveTask = Task { [weak self] in
@@ -632,11 +689,56 @@ final class BoardStore {
         guard let file, !isSaveBlocked else { return }
         saveTask?.cancel()
         saveTask = nil
+        pushToSync()
         do {
             let wrote = try file.write(snapshot, generation: file.nextWriteGeneration())
             recordSave(wrote ? .wrote : .superseded)
         } catch {
             recordSave(.failed(error.localizedDescription))
+        }
+    }
+
+    // MARK: - Sync
+
+    /// Writes the board into the records CloudKit syncs.
+    ///
+    /// A failure here is not a failure to save: `board.json` is written on the
+    /// same path and is what recovery reads, so the board is safe on this
+    /// device either way. It is reported so the surface can say the board is
+    /// not reaching the user's other devices, which is a different sentence.
+    private func pushToSync(_ board: BoardSnapshot? = nil) {
+        guard let sync else { return }
+        do {
+            try sync.apply(board ?? snapshot)
+            if case .sync = lastError { lastError = nil }
+        } catch {
+            lastError = .sync(message: error.localizedDescription)
+        }
+    }
+
+    /// Adopts what another device changed.
+    ///
+    /// The records are authoritative here, not this device's copy: CloudKit has
+    /// already merged the two, so re-reading is how this side finds out what it
+    /// won and lost. The undo stack is deliberately left alone — a step that
+    /// reversed somebody else's edit on their behalf would be worse than no
+    /// step at all — and `invalidateDiff` tells the next write that what it
+    /// thinks is on disk is no longer what is.
+    func mergeRemoteChanges() {
+        guard let sync, let incoming = try? sync.load() else { return }
+        sync.invalidateDiff()
+        adoptContent(incoming)
+        lastSyncedAt = .now
+    }
+
+    /// Starts listening for another device's changes. Called by `RootView`;
+    /// safe to call twice.
+    func beginObservingRemoteChanges() {
+        guard sync?.isSyncing == true, remoteChangeObserver == nil else { return }
+        remoteChangeObserver = NotificationCenter.default.addObserver(
+            forName: .NSPersistentStoreRemoteChange, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.mergeRemoteChanges() }
         }
     }
 
@@ -749,18 +851,31 @@ final class BoardStore {
         }
     }
 
-    /// Throws the board away and starts again from the sample data, keeping a
-    /// backup of what was there. Undoable, and the accent is left alone — it is
-    /// a preference the user set, not part of the board being replaced.
-    func resetToSeed() {
+    /// Throws the whole board away and starts again from `template`, keeping a
+    /// backup of what was there.
+    ///
+    /// **One undoable step, and it is taken here rather than in two halves.**
+    /// The obvious shape — empty the board when the warning is accepted, then
+    /// fold in whatever the picker returns — costs two ⌘Z to get back from, and
+    /// leaves a window where the board is gone and the picker is still up: undo
+    /// in that window brings the board back underneath a modal that has no way
+    /// out but to destroy it again. So nothing is thrown away until a template
+    /// arrives, which is also what lets the picker have a Cancel that means
+    /// something.
+    ///
+    /// A replacement rather than `importBoard`'s merge: that one folds a board
+    /// into what is already there, which is right for a first launch, where
+    /// what is already there is nothing.
+    ///
+    /// The accent is left alone — it is a preference the user set, not part of
+    /// the board being replaced — and `apply` moves `activeBoardID` onto the
+    /// new board, since the one it named has just gone.
+    func startOver(with template: BoardSnapshot) {
         saveNow()
         if let file { keepACopy(with: file) }
-        undoable(String(localized: "Reset Board",
-                        comment: "Undo action name for replacing the board with the sample data")) {
-            adoptContent(BoardSnapshot(
-                tasks: SeedData.tasks, boards: SeedData.boards, labels: LabelDef.seed,
-                nextSerial: BoardSnapshot.baseSerial, accentTheme: accentTheme
-            ))
+        undoable(String(localized: "Start Over",
+                        comment: "Undo action name for replacing the whole board with a starter template")) {
+            adoptContent(template)
         }
     }
 

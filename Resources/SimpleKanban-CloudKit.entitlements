@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<!-- The one outbound call the app makes: the update check reads
+	     api.github.com when the user presses the button, and nothing else. A
+	     sandboxed app with no client entitlement gets a connection refused it
+	     cannot explain. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<!-- Sync. SwiftData finds its database through the ubiquity container
+	     named here; `BoardSyncStore` names the same one explicitly rather than
+	     taking whichever comes first, so adding a second container later
+	     cannot silently move the board. -->
+	<key>com.apple.developer.icloud-services</key>
+	<array>
+		<string>CloudKit</string>
+	</array>
+	<key>com.apple.developer.icloud-container-identifiers</key>
+	<array>
+		<string>iCloud.com.n14395.SimpleKanban</string>
+	</array>
+	<!-- CloudKit tells the app about a change on another device by pushing a
+	     silent notification; without this the board only catches up when the
+	     app is launched. -->
+	<key>aps-environment</key>
+	<string>development</string>
+</dict>
+</plist>

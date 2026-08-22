@@ -21,8 +21,14 @@ struct BoardToolbar: View {
         /// What the two text fields claim — see ``FieldHitArea``.
         var fieldHit: CGFloat
 
+        // The desk's height is the row the window's traffic lights sit on —
+        // there is no title bar, so this bar *is* the chrome rather than a
+        // strip beneath it, and 50 is the tallest row whose centre the lights
+        // can still be moved to: AppKit's own title bar is 32pt, a light is
+        // 14pt, and one hanging out of that bar draws where it is asked to and
+        // then refuses the click. See `windowButtons(centredAt:)`.
         static let desk = Metrics(
-            height: 66, spacing: 14, horizontalPadding: 20, titleSize: 24, searchWidth: 216,
+            height: 50, spacing: 14, horizontalPadding: 20, titleSize: 24, searchWidth: 216,
             searchFont: 13, buttonFont: 12.5, control: 34, controlRadius: 10, glyph: 12,
             fieldHit: 0
         )

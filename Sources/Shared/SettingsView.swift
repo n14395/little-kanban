@@ -92,6 +92,10 @@ struct SettingsView: View {
     @Environment(BoardStore.self) private var store
 
     @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
+    /// The switch is this device's intent; whether it takes is `store.isSyncing`.
+    /// Changing it needs a relaunch, which `syncExplanation` says rather than
+    /// pretending the container can be swapped underneath a running store.
+    @AppStorage(SyncPreference.storageKey) private var isSyncOn = true
 
     var metrics: Metrics = .desk
 
@@ -100,6 +104,10 @@ struct SettingsView: View {
     @State private var isImporting = false
     @State private var isManagingLabels = false
     @State private var isConfirmingReset = false
+    /// Raised by the warning, and the only thing that mutates the board is a
+    /// row in it — see `BoardStore.startOver(with:)` for why nothing is thrown
+    /// away before then.
+    @State private var isPickingStarter = false
     /// Read once, when the list is opened: it is a directory listing, and a
     /// computed property would run it on every render.
     @State private var backups: [BoardBackup] = []
@@ -117,6 +125,7 @@ struct SettingsView: View {
                     appearanceSection
                     boardSection
                     notificationsSection
+                    syncSection
                     labelsSection
                     dataSection
                 }
@@ -151,14 +160,18 @@ struct SettingsView: View {
             Text(notice.message)
         }
         .alert(
-            "Replace the board with the sample data?",
+            "Delete everything on this board?",
             isPresented: $isConfirmingReset
         ) {
             Button("Cancel", role: .cancel) {}
-            Button("Reset", role: .destructive) { store.resetToSeed() }
+            Button("Delete Everything", role: .destructive) { isPickingStarter = true }
         } message: {
-            Text("A copy of the board as it stands is kept in the backups folder first, and ⌘Z takes the reset back.")
+            Text("Every board, card and label goes, and you pick what to start from next. A copy of the board as it stands is kept in the backups folder first, and the change can be undone.")
         }
+        .starterPicker(
+            isPresented: $isPickingStarter, occasion: .startingOver, palette: palette,
+            choose: startOver, cancel: { isPickingStarter = false }
+        )
         .alert(
             "Restore this backup?",
             isPresented: Binding(get: { pendingRestore != nil }, set: { if !$0 { pendingRestore = nil } }),
@@ -280,6 +293,64 @@ struct SettingsView: View {
         }
     }
 
+    private var syncSection: some View {
+        section(String(localized: "Sync", comment: "Settings section heading")) {
+            row {
+                Toggle(isOn: $isSyncOn) {
+                    Text("Keep this board on my other devices")
+                        .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                }
+                // A build with no iCloud entitlement cannot sync whatever this
+                // says, and a switch that flips with nothing behind it is worse
+                // than one that admits it. The note underneath says why.
+                .disabled(!SyncPreference.isAvailable)
+            }
+            rule
+            row {
+                Text(syncExplanation)
+                    .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                    .foregroundStyle(palette.inkText(0.45))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    /// Says which of the four states the app is actually in, because "on" and
+    /// "working" are not the same thing here: the switch is this device's
+    /// intent, iCloud can decline it, and a build that was never signed for the
+    /// container cannot even ask.
+    private var syncExplanation: String {
+        guard SyncPreference.isAvailable else {
+            return String(
+                localized: "This copy of Simple Kanban was not built for iCloud, so your board stays on this device. Everything still saves locally, and you can export it at any time.",
+                comment: "Settings note when the build carries no iCloud entitlement"
+            )
+        }
+        guard isSyncOn else {
+            return String(
+                localized: "Your board stays on this device. Everything still saves locally, and you can export it at any time.",
+                comment: "Settings note when sync is switched off"
+            )
+        }
+        guard store.isSyncing else {
+            return String(
+                localized: "Not syncing right now — sign in to iCloud and relaunch. Your board is saved on this device either way.",
+                comment: "Settings note when sync is on but iCloud is unavailable"
+            )
+        }
+        guard let when = store.lastSyncedAt else {
+            return String(
+                localized: "Changes go to iCloud as you make them, and arrive on your other devices signed in to the same account.",
+                comment: "Settings note when sync is on and nothing has arrived yet"
+            )
+        }
+        return String(
+            localized: "Last change from another device: \(when.formatted(.relative(presentation: .numeric))).",
+            comment: "Settings note naming when another device's change last arrived"
+        )
+    }
+
     private var labelsSection: some View {
         section(String(localized: "Labels", comment: "Settings section heading")) {
             action(
@@ -302,9 +373,9 @@ struct SettingsView: View {
             backupsRow
             if isShowingBackups { backupList }
             rule
-            action(String(localized: "Reset to the sample board…", comment: "Settings row that throws the board away"),
-                   note: String(localized: "Replaces everything with the cards this app ships with.",
-                                comment: "Settings note under the reset row"),
+            action(String(localized: "Delete everything…", comment: "Settings row that throws the board away"),
+                   note: String(localized: "Throws away every board, card and label, then asks what to start from again.",
+                                comment: "Settings note under the delete-everything row"),
                    isDestructive: true) {
                 isConfirmingReset = true
             }
@@ -534,6 +605,15 @@ struct SettingsView: View {
 
     private func importBoard(_ url: URL) {
         notice = .importing(url, into: store)
+    }
+
+    /// The one place the board is actually replaced, and the picker closes and
+    /// takes Settings with it — what somebody wants to look at after starting
+    /// over is the board they just chose, not the screen they left.
+    private func startOver(with template: BoardTemplate) {
+        store.startOver(with: template.snapshot)
+        isPickingStarter = false
+        dismiss()
     }
 
     private func restore(_ backup: BoardBackup) {

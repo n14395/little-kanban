@@ -16,6 +16,11 @@ struct BoardColumnView: View {
         var titleSize: CGFloat
         /// The square the header's menu and "+" claim.
         var headerButton: CGFloat
+        /// The trailing add-column tile, which stands on its side. A whole
+        /// column's width for a two-word button is a card's worth of board
+        /// spent on nothing, so it claims a strip and turns the words to match.
+        /// Touch still needs 44 of it.
+        var addColumnWidth: CGFloat
         var headerButtonRadius: CGFloat
         /// The "+" glyph inside it.
         var headerGlyph: CGFloat
@@ -31,13 +36,15 @@ struct BoardColumnView: View {
 
         static let desk = Metrics(
             width: 272, cornerRadius: 16, horizontalPadding: 8, topPadding: 10, bottomPadding: 8,
-            titleSize: 12.5, headerButton: 22, headerButtonRadius: 7, headerGlyph: 12, rowHit: 0,
+            titleSize: 12.5, headerButton: 22, addColumnWidth: 38, headerButtonRadius: 7,
+            headerGlyph: 12, rowHit: 0,
             cardSpacing: 8, card: .desk, composer: .desk, emptyState: .desk,
             editor: .desk, dots: .desk
         )
         static let pad = Metrics(
             width: 320, cornerRadius: 18, horizontalPadding: 10, topPadding: 12, bottomPadding: 10,
-            titleSize: 13.5, headerButton: 44, headerButtonRadius: 12, headerGlyph: 15, rowHit: 44,
+            titleSize: 13.5, headerButton: 44, addColumnWidth: 44, headerButtonRadius: 12,
+            headerGlyph: 15, rowHit: 44,
             cardSpacing: 10, card: .pad, composer: .pad, emptyState: .sheet,
             editor: .pad, dots: .sheet
         )
@@ -407,22 +414,32 @@ struct AddColumnTile: View {
     @FocusState private var isFocused: Bool
     private var chrome = ChromeScale()
 
+    /// The button is a strip and the composer is a column: naming a column
+    /// wants a text field and the four roles beside it, which is a column's
+    /// width whatever the button that opened it was.
     var body: some View {
         Group {
-            if isComposing { composer } else { button }
+            if isComposing {
+                composer.frame(width: chrome(metrics.width))
+            } else {
+                button.frame(width: chrome(metrics.addColumnWidth))
+            }
         }
-        .frame(width: chrome(metrics.width))
         .padding(.top, metrics.topPadding)
     }
 
     private var button: some View {
         Button { isComposing = true } label: {
-            HStack(spacing: 7) {
+            VStack(spacing: 7) {
                 Image(systemName: "plus")
                     .font(SimpleKanbanFont.ui(11, .bold, relativeTo: .footnote))
                     .accessibilityHidden(true)
+                // Turned rather than wrapped: the words are the tile's height,
+                // and `verticalText` is what stops them claiming a column's
+                // width while they are drawn on their side.
                 Text("Add column", comment: "Button at the end of the board that starts a column")
                     .font(SimpleKanbanFont.ui(12.5, .bold, relativeTo: .footnote))
+                    .verticalText()
             }
             .foregroundStyle(palette.inkText(0.45))
             .frame(maxWidth: .infinity)
@@ -433,6 +450,9 @@ struct AddColumnTile: View {
                         palette.ink(0.14), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])
                     )
             }
+            // A strip narrower than the dashes are long has nothing to hit at
+            // its edges; the shape is what the pointer and the finger get.
+            .contentShape(.rect(cornerRadius: 16))
             .hoverBackground(palette.ink(0.05), radius: 16)
         }
         .buttonStyle(.bare)

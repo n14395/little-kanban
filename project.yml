@@ -134,6 +134,12 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+        # CloudKit tells the app about another device's edit by pushing a
+        # silent notification, and only an app that has asked for remote
+        # notifications is woken to receive one. Without this the board still
+        # syncs, but not until somebody launches it.
+        UIBackgroundModes:
+          - remote-notification
     settings:
       base:
         PRODUCT_NAME: Simple Kanban
@@ -148,7 +154,35 @@ targets:
         DEVELOPMENT_TEAM: P52946XHRJ
         TARGETED_DEVICE_FAMILY: "1,2"
         ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
+        # Sync is one line away, and deliberately not switched on here.
+        #
+        # `Resources/SimpleKanban-CloudKit.entitlements` and its iOS twin carry
+        # the same keys plus the iCloud container and the push environment. The
+        # App ID and the container have to exist under the team above before a
+        # build carrying them will sign — Xcode registers both the first time
+        # you tick iCloud ▸ CloudKit on the target with automatic signing, or
+        # `xcodebuild -allowProvisioningUpdates` does it from here. Until then a
+        # build with those entitlements fails to sign and `./build.sh` with it,
+        # so the plain files stay wired and the app runs on the local SwiftData
+        # store with sync off. To turn it on, point these three lines at the
+        # `-CloudKit` files and uncomment the compilation condition below.
+        #
+        # The app does not take these lines on trust. `CloudKitEntitlement`
+        # checks the running signature before `BoardSyncStore` names a
+        # container, because asking for one the build was not signed for is not
+        # an error anybody can catch — it is a trap on CoreData's own queue,
+        # which is exactly how this app used to die on its second launch.
         CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Resources/SimpleKanban.entitlements
+        # iOS gets its own file rather than sharing the Mac's: the sandbox keys
+        # there are macOS-only, and only the iCloud pair is common. There is no
+        # non-CloudKit iOS file because iOS needs no entitlement to run the
+        # local store — the setting appears only when sync is switched on.
+        # CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: Resources/SimpleKanban-iOS-CloudKit.entitlements
+        # CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Resources/SimpleKanban-iOS-CloudKit.entitlements
+        # macOS reads its own code signature and needs no flag. iOS has no
+        # public API for that — `SecTask` is macOS-only — so it is told, here,
+        # beside the entitlements file it has to agree with.
+        # SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphone*]: $(inherited) SIMPLE_KANBAN_CLOUDKIT
     scheme:
       testTargets:
         - SimpleKanbanTests
