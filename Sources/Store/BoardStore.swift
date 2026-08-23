@@ -1792,6 +1792,24 @@ final class BoardStore {
         return .column(board: board.id, column: id)
     }
 
+    /// The columns a card can be moved between: its own board's, in board order.
+    ///
+    /// **Its own board's, not the board on screen** — a card drawn in a saved
+    /// view or a search result can belong to another one, and moving it into a
+    /// column of the board somebody happens to be looking at would be filing it
+    /// somewhere they never named.
+    ///
+    /// Empty for a card in the Inbox, which is on no board, and for an archived
+    /// one, which has left the workflow — the Archive is not a column. The
+    /// surfaces that offer these draw nothing at all in that case rather than a
+    /// menu whose every row is inert; `ColumnDestinationItems`, `MoveActions`
+    /// and the two card context menus all ask here so that one answer is drawn,
+    /// offered and acted on.
+    func moveDestinations(for task: TaskItem) -> [BoardColumn] {
+        guard !task.isArchived else { return [] }
+        return board(for: task)?.columns ?? []
+    }
+
     /// Whether a placement names somewhere that exists: the Inbox, which always
     /// does, or a column that is actually on the board it claims.
     ///
@@ -2290,50 +2308,38 @@ final class BoardStore {
             return caret.card == draggingID ? nil : caret
         }
         // The pointer is on a list's own ground rather than on a gap it has
-        // named, so the card keeps the rank it came in with — see
-        // ``groundCaret(for:in:)``.
+        // named, and a drop there lands at the foot — see ``groundCaret(in:)``.
         guard let dragging = draggingID,
               let destination = hoveredDropPlacement,
               self[dragging]?.placement != destination
         else { return nil }
-        return groundCaret(for: dragging, in: destination)
+        return groundCaret(in: destination)
     }
 
-    /// Where a drop on a list's *ground* lands: the space around its cards,
-    /// which names no gap of its own.
+    /// Where a drop on a list's *ground* lands: **the foot of it**.
     ///
-    /// **At the rank the card is leaving.** A card third in the column it came
-    /// from lands third in the column it is dropped on. This used to append —
-    /// the caret went under whatever was last there — and appending is the
-    /// wrong answer for the gesture people actually make: a card is dragged
-    /// *sideways*, across a board whose columns are stages of one piece of
-    /// work, and the row it was on is where the eye is. A card third in Doing
-    /// that reappeared at the foot of a Backlog twenty cards long had to be
-    /// found again before it could be put back.
+    /// The ground is the space around a list's cards — the room under the last
+    /// one, most of an empty column, the strip beside the header — and it names
+    /// no gap, so something has to be the default.
     ///
-    /// Only the ground answers this way. A pointer inside a card has named a
-    /// gap — `dropTargetCaret`, the branch above — and an explicit aim always
-    /// beats the rank, which is only ever a default for a drop that did not say.
+    /// It briefly kept the row the card came in on: a card third in Doing landed
+    /// third in the Backlog it was dropped on. That reads well written down and
+    /// badly under a finger. What a person aims at is the space *under* the
+    /// cards, and a card that lands halfway up the list they were pointing below
+    /// of has gone somewhere nothing marked — on the phone, where a column is a
+    /// whole screen and the ground is everything below the last card, it jumped
+    /// several rows up the list on release.
     ///
-    /// Appending is still the answer when the destination is the shorter list:
-    /// a card fifth in its column dropped on the ground of one holding two has
-    /// no fifth place to keep, and the foot is the nearest thing to it. An empty
-    /// list has no card to draw a caret against at all, so it gets none — the
-    /// column highlight is the whole of the feedback there, and ``drop(_:onGroundOf:)``
-    /// takes that drop the plain way.
-    private func groundCaret(for id: TaskItem.ID, in destination: TaskPlacement) -> DropCaret? {
-        let list = tasks(in: destination)
-        guard let last = list.last else { return nil }
-        guard let rank = rank(of: id), rank < list.count else { return .below(last.id) }
-        return .above(list[rank].id)
-    }
-
-    /// How far down its own list a card sits — which is what crossing to
-    /// another list preserves. Counted over the same `tasks(in:)` the caret and
-    /// the drop are counted over, so the three cannot disagree.
-    private func rank(of id: TaskItem.ID) -> Int? {
-        guard let placement = self[id]?.placement else { return nil }
-        return tasks(in: placement).firstIndex { $0.id == id }
+    /// So the ground is the plainest thing it can be: the bottom, which is where
+    /// every other route into a list already puts a card — the move-to menu, the
+    /// sidebar's board rows, a bulk move, `move(_:to:)` itself.
+    ///
+    /// A pointer *inside* a card is a different question, answered above this: it
+    /// has named a gap, and a named gap always wins. An empty list has no card to
+    /// draw a caret against at all, so it gets none — the column highlight is the
+    /// whole of the feedback there, and the drop still lands.
+    private func groundCaret(in destination: TaskPlacement) -> DropCaret? {
+        tasks(in: destination).last.map { .below($0.id) }
     }
 
     /// Puts the dragged card exactly where the caret says, which is the one
@@ -2367,28 +2373,24 @@ final class BoardStore {
     }
 
     /// The drop a list's own ground takes — the column around its cards, the
-    /// Inbox panel around its own — which names no gap, so it lands where
-    /// ``groundCaret(for:in:)`` promised the caret would.
+    /// Inbox panel around its own — which names no gap, so it lands at the foot,
+    /// where ``groundCaret(in:)`` promised the caret would.
     ///
-    /// **Separate from `move(_:to:)`, which still appends.** Rank is a fact
-    /// about a *drag*: the card was on a row and the eye is on that row. Every
-    /// other route into a column — the move-to menu, the sidebar's board rows,
-    /// a bulk move, filing from the Inbox — is a card arriving from somewhere
-    /// with no row to keep, and those go on landing at the end.
+    /// **It is `move(_:to:)` with one refusal in front of it**, rather than a
+    /// rule of its own: a drop on the ground of the list the card is already in
+    /// is aimed at where it already is, and `performMove` would return without
+    /// moving it — but only after `undoable` had opened a step for it. Refusing
+    /// up front is what keeps a ⌘Z from taking back a card that never went
+    /// anywhere, and `unfile` says the same about the Inbox.
     ///
-    /// A drop on the ground of the list the card is already in is aimed at
-    /// where it already is: `performMove` returns without moving it and
-    /// `unfile` says the same about the Inbox, so this refuses it up front
-    /// rather than spending a ⌘Z on a card that did not go anywhere.
+    /// Kept as a name of its own rather than folded into that one call, because
+    /// the four surfaces that take a drop on ground say which kind of drop it is
+    /// at the call site — and `DragReorderTests` reads those call sites to check
+    /// that a *ground* drop has not quietly become one that names a card.
     func drop(_ id: TaskItem.ID, onGroundOf placement: TaskPlacement) {
         guard isPlaceable(placement), let task = self[id] else { return }
         guard task.placement != placement else { return endDrag() }
-        // An empty list has no card to insert ahead of, and no caret was drawn
-        // over it either; the plain move appends into the empty place.
-        guard let caret = groundCaret(for: id, in: placement) else {
-            return move(id, to: placement)
-        }
-        drop(id, at: caret)
+        move(id, to: placement)
     }
 
     /// Whether the card is already sitting in the gap the caret names.
@@ -3131,6 +3133,35 @@ final class BoardStore {
     /// Whether completing this card would do anything: `complete` asks the same
     /// question and acts on the answer.
     func canComplete(_ id: TaskItem.ID) -> Bool { donePlacement(for: id) != nil }
+
+    /// Ticks a card off, or takes it back out of Done — the one act a tick
+    /// makes, whichever tick it is.
+    ///
+    /// The board card's toggle, the detail panel's and the phone sheet's all
+    /// mean exactly this, and each used to spell out the same `isDone ? reopen :
+    /// complete` for itself. Three copies of a two-line rule is two chances for
+    /// a surface to answer a different question from the one beside it.
+    ///
+    /// Singular on purpose, where the menu bar and the keyboard act on the whole
+    /// selection: a tick is aimed at one card with a pointer or a finger, and
+    /// the card it is aimed at is the one it is drawn on.
+    func toggleCompletion(_ id: TaskItem.ID) {
+        guard let task = self[id] else { return }
+        if isDone(task) { reopen(id) } else { complete(id) }
+    }
+
+    /// Whether that tick would do anything, so a surface can draw it as unable
+    /// rather than draw it live and swallow the press.
+    ///
+    /// The two directions do not have the same condition, which is the whole
+    /// reason this is not just `canComplete`. Reopening needs only that the card
+    /// is in Done; completing needs a Done column to complete *into*, which a
+    /// board that has been hand-edited can be without. Neither works on an
+    /// archived card — in the Archive the verb is Restore and only Restore.
+    func canToggleCompletion(_ id: TaskItem.ID) -> Bool {
+        guard let task = self[id], !task.isArchived else { return false }
+        return isDone(task) || canComplete(id)
+    }
 
     /// Whether archiving this card would do anything. A card already in the
     /// Archive is the only one it would not.

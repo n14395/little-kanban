@@ -34,12 +34,15 @@ struct PhoneInboxSheet: View {
         /// How much of the screen the panel takes.
         ///
         /// A fixed share rather than "as tall as its contents, up to a ceiling",
-        /// which is what this wanted to be and cannot be: the list inside is
+        /// which is what this wanted to be and cannot be: the list inside was
         /// `TaskListView`, `TaskListView` is a `List`, and a `List` reports no
         /// useful intrinsic height. Under `fixedSize` it collapses to nothing
         /// and the panel draws as a header over a hole; measured, that is
-        /// exactly what happened. A share of the screen is what every detent on
-        /// this platform is anyway.
+        /// exactly what happened. It is ``PhoneCardStack`` now and a scroll view
+        /// answers that question no better — it takes whatever it is offered —
+        /// and a share of the screen is what every detent on this platform is
+        /// anyway. The height wants the space around the cards regardless:
+        /// that space is where a card arriving from elsewhere lands.
         ///
         /// Most of the screen, with the board's own title row left showing: the
         /// Inbox is a list you work *through* — file this one, keep that one —
@@ -63,6 +66,15 @@ struct PhoneInboxSheet: View {
 
     var metrics: Metrics = .phone
 
+    /// Lit while a card is over the panel — ``BoardStore/isInboxDropTarget``,
+    /// which the desk's panel sets too, and for the reason it lives on the store
+    /// rather than in here: a drop destination nested inside another takes the
+    /// hover from its parent, so the flag has to be readable from a card's own
+    /// zone. `draggingID` guards it the way every other highlight is guarded — a
+    /// flag left true by a drop that went elsewhere would leave the sheet tinted
+    /// with nothing over it.
+    private var isDropTarget: Bool { store.isInboxDropTarget && store.draggingID != nil }
+
     /// The sheet's contents. Everything about *how* it arrives — the slide, the
     /// scrim, the drag, the corner, what a reader's cursor does — is the four
     /// presentation modifiers at the bottom and the system behind them.
@@ -72,7 +84,24 @@ struct PhoneInboxSheet: View {
             list
         }
         .frame(maxWidth: .infinity)
-        .background(palette.sheet)
+        .background(isDropTarget ? palette.accent.opacity(0.07) : palette.sheet)
+        // Most of a panel is the space around its cards, and empty space is hit
+        // tested only where something has said what shape it is.
+        .contentShape(.rect)
+        // **The whole panel takes a card, not just the rows in it.** The same
+        // destination `InboxPanel` hangs around the desk's Inbox, and the same
+        // call: the ground names no gap, so the card lands at the foot, and
+        // `drop(_:onGroundOf:)` refuses a card already in the Inbox rather than
+        // spending a ⌘Z on a card that has not gone anywhere.
+        .dropDestination(for: TaskTransfer.self) { items, _ in
+            store.isInboxDropTarget = false
+            guard store.allowsCardDrag, let dropped = items.first, store[dropped.id] != nil
+            else { return false }
+            store.drop(dropped.id, onGroundOf: .inbox)
+            return true
+        } isTargeted: { targeted in
+            if store.allowsCardDrag { store.isInboxDropTarget = targeted }
+        }
         // The editor's presentation, to the point: same detent arithmetic, same
         // indicator, same corner, same ground. The height is this panel's own —
         // the Inbox is a list to work through and the editor is one card.
@@ -83,6 +112,38 @@ struct PhoneInboxSheet: View {
         // A card tapped in here opens the editor, and the root cannot put that
         // sheet up while this one is over it — see `phoneTaskDetailSheet`.
         .phoneTaskDetailSheet()
+        // **The panel comes down when the card it has open leaves the Inbox.**
+        //
+        // The other direction already reads this way and is where the idea came
+        // from: file a card *to* the Inbox from the editor's Move to menu and
+        // `showPlace` raises this panel, so the editor drops, the Inbox slides
+        // up, and the editor comes back over it — you watch the card arrive
+        // somewhere. Going the other way said nothing at all. `showPlace`
+        // selected the board and set the pager's column exactly as it should,
+        // and every one of those changes happened *behind a modal panel* still
+        // showing the list the card had just left, with the editor on top of
+        // that. The only thing that moved on screen was the pill's own label.
+        //
+        // So the panel takes itself down, and the sequence mirrors the one that
+        // works: the editor drops with this sheet, the board it was sent to is
+        // uncovered with the right column already paged to, and the root puts
+        // the editor back up over it — see `PhoneRootView`, where the root's
+        // copy of the editor sheet is held back by `isInboxOpen` and is
+        // released by exactly this.
+        //
+        // **On the phone and nowhere else**, which is why it is here rather than
+        // in `showPlace`. The iPad's Inbox is a panel that stands *beside* the
+        // board rather than over it: a card filed from there is visible on the
+        // board the moment it moves, and closing a panel the user deliberately
+        // opened would be taking something away for no reason. The store cannot
+        // tell the two apart — `isInboxOpen` is one flag meaning two shapes —
+        // and this view is only ever built on the phone.
+        .onChange(of: store.sheetTask?.isUnfiled) { wasUnfiled, isUnfiled in
+            // Only the crossing, and only outwards. `nil` on either side is the
+            // editor opening or closing rather than a card moving.
+            guard wasUnfiled == true, isUnfiled == false else { return }
+            store.isInboxOpen = false
+        }
         // The VoiceOver cursor, not the keyboard's. The system moves it into a
         // sheet on its own; this puts it on the title rather than on whatever
         // the first element happens to be. `PhoneNavDrawer` has the long version
@@ -121,19 +182,17 @@ struct PhoneInboxSheet: View {
         .padding(.bottom, 6)
     }
 
-    /// The same flat list of cards every other surface draws — `TaskListView`,
-    /// not a second list — with the Inbox's own add row under it.
+    /// The cards, in ``PhoneCardStack`` — the board pages' container, and the
+    /// desk panel's, for the reason both of them are in it: the Inbox is a place
+    /// a card can be put, and a `List` keeps every drop inside its own bounds.
+    /// It was `TaskListView` here until the rows in it could neither be
+    /// rearranged by dragging nor land a card arriving from anywhere else.
     ///
-    /// **No column chips.** Every card in here is unfiled and the chip for an
-    /// unfiled card names the Inbox, so the whole list would read "INBOX" under
-    /// a panel titled Inbox. That is the argument `showsMobileColumnChips`
-    /// makes about the board, from the other end.
-    ///
-    /// The list is what fills the sheet and what scrolls in it; the header
+    /// The stack is what fills the sheet and what scrolls in it; the header
     /// above it does not go anywhere — and the drag indicator over that is the
     /// system's, drawn by `presentationDragIndicator`.
     private var list: some View {
-        TaskListView(tasks: store.inboxTasks, metrics: .sheet, showsColumn: false) {
+        PhoneCardStack(tasks: store.inboxTasks, metrics: .sheet) {
             if store.inboxTasks.isEmpty {
                 EmptyStateView.inbox(metrics: .sheet, add: add)
             } else {

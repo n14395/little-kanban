@@ -56,8 +56,16 @@ struct PhoneRootView: View {
                         // The row that used to sit here was also the gap
                         // between the chips and the first card; the chips have
                         // 4pt of their own and the list 2, which is not a gap.
-                        // On its side there are no chips above to clear.
-                        .padding(.top, isShort ? 0 : 10)
+                        //
+                        // On its side there are no chips to clear, and for a
+                        // while that meant no gap at all: the column pills sat
+                        // directly under the board's name, close enough to read
+                        // as a second line of the title rather than as the tops
+                        // of four lists. Landscape is the orientation with 402pt
+                        // of height to spend, so it is also the one where a
+                        // heading crowding the title is most obvious — hence the
+                        // larger of the two numbers, not the smaller.
+                        .padding(.top, isShort ? 14 : 10)
                 } else {
                     taskList(tasks)
                 }

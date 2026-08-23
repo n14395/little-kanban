@@ -111,8 +111,8 @@ struct InboxPanel: View {
             else { return false }
             // A card already in the Inbox has landed on empty panel rather
             // than on one of its neighbours, which is not a move — and one
-            // arriving off a board keeps the row it was on, the way a column's
-            // ground keeps it. Both are `drop(_:onGroundOf:)`'s.
+            // arriving off a board lands at the foot, the way a column's ground
+            // puts it there. Both are `drop(_:onGroundOf:)`'s.
             store.drop(dropped.id, onGroundOf: .inbox)
             return true
         } isTargeted: { targeted in

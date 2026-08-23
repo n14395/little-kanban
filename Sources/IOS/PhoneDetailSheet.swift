@@ -17,7 +17,7 @@ struct PhoneDetailSheet: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 header
-                titleField
+                titleRow
                 noteField
                 moveTo
                 attributeCards
@@ -96,6 +96,13 @@ struct PhoneDetailSheet: View {
 
     // MARK: Editable text
 
+    /// The title, on its own — the same row `TaskInspector` draws, at this
+    /// surface's sizes, and it lost its tick when that one did. See there for
+    /// why completion is the card's control rather than this surface's.
+    private var titleRow: some View {
+        titleField
+    }
+
     /// Single-line on purpose: a title is one line by definition, and on a
     /// vertical-axis field Return inserts a newline instead of submitting, so
     /// the `.done` key painted here would not have done what it said.
@@ -157,9 +164,11 @@ struct PhoneDetailSheet: View {
         )
     }
 
+    /// The sheet's own row, which is the ✕ and nothing else. The task code used
+    /// to lead it — see ``TaskInspector/header``, which took the same line out
+    /// of the desk's panel for the same reason and has the long version of it.
     private var header: some View {
         HStack(spacing: 8) {
-            Text(task.code).sectionLabelStyle(opacity: Palette.readableInk)
             Spacer(minLength: 0)
             // The drawn circle stays at the design's 28pt; the outer frame is
             // the 44pt touch minimum, which the circular content shape then

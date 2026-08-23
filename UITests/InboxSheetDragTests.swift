@@ -85,7 +85,13 @@ final class InboxSheetDragTests: XCTestCase {
         let close = closeButton(app)
         XCTAssertTrue(close.waitForExistence(timeout: 15), "the Inbox sheet never came up")
 
-        let card = app.cells.element(boundBy: 0)
+        // By the words on it rather than as `app.cells.element(boundBy: 0)`,
+        // which is what this used to say: the sheet's cards were a `List`'s rows
+        // and are ``PhoneCardStack``'s now — a stack has no cells, and the query
+        // matched nothing at all. What the test is about is unchanged.
+        let card = app.buttons
+            .matching(NSPredicate(format: "label CONTAINS %@", "Widget on the iOS home screen"))
+            .firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 5), "no cards in the Inbox to drag from")
 
         dragDown(app, from: card.frame.midY / app.windows.firstMatch.frame.height)

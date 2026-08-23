@@ -28,6 +28,16 @@ struct PhoneHeader: View {
     @FocusState private var isSearchFocused: Bool
     @State private var isManagingLabels = false
     @State private var isRenamingBoard = false
+    /// Which column's editor the chips' **Edit Column…** has asked for. The
+    /// column rather than a flag, because the sheet has to be told which one.
+    @State private var editingColumn: ColumnEdit?
+    /// Why the last Trash Column did not happen. A refusal has an explanation
+    /// to show — from the outside, a menu item that does nothing is a bug, which
+    /// is why `BoardColumnView` and `PhoneBoardEditor` both keep one too.
+    @State private var refusal: ColumnRefusal?
+
+    /// `sheet(item:)` wants something `Identifiable`, and a bare `UUID` is not.
+    private struct ColumnEdit: Identifiable { let id: BoardColumn.ID }
 
     private var isShort: Bool { verticalSizeClass == .compact }
 
@@ -98,42 +108,29 @@ struct PhoneHeader: View {
     /// The board-level actions with no other home on the phone (4.4). This was a
     /// decorated `Image` — no action, no label, no target — beside a hamburger
     /// that has always been a real button.
+    ///
+    /// **What is *not* in here is the drawer's.** It carried a Switch Board item
+    /// and the whole list of saved views, both of which the hamburger one thumb's
+    /// width away draws in full — the boards with their dots and counts, the
+    /// views with theirs, the Archive under them — so the menu was a second,
+    /// shorter, worse copy of the panel beside it. It also carried Clear Search,
+    /// which the search field's own × does and which the filtered indicator
+    /// under this header does for the surfaces the field is not on: a filter is
+    /// never invisible here, so there is always a control on screen that undoes
+    /// it. Two sections are left, and each holds things that are reachable
+    /// nowhere else.
     private var boardMenu: some View {
         Menu {
-            // Renaming the board is here rather than on the title itself (4.7):
-            // a serif line that turns into a field on a tap is a control nothing
-            // on screen says is one.
+            // Everything that acts on the board that is on screen. Renaming is
+            // here rather than on the title itself (4.7): a serif line that
+            // turns into a field on a tap is a control nothing on screen says is
+            // one.
             Section {
                 Button { isRenamingBoard = true } label: {
                     Label("Rename Board…", systemImage: "pencil")
                 }
                 .disabled(store.activeBoard == nil)
 
-                Button { store.isNavDrawerOpen = true } label: {
-                    Label("Switch Board…", systemImage: "rectangle.stack")
-                }
-            } header: {
-                Text("Board")
-            }
-
-            Section {
-                if store.activeView != nil {
-                    Button { store.selectTab(.board) } label: {
-                        Label("Back to Board", systemImage: "square.grid.2x2")
-                    }
-                }
-                // Not `allCases`: the Inbox is a tab on this surface — see
-                // `SavedView.phone`.
-                ForEach(SavedView.phone) { view in
-                    Button { store.activeView = view } label: {
-                        Label(view.label, systemImage: view.symbol)
-                    }
-                }
-            } header: {
-                Text("Views")
-            }
-
-            Section {
                 Button { store.archiveCompleted() } label: {
                     Label("Archive Completed", systemImage: "archivebox")
                 }
@@ -142,25 +139,26 @@ struct PhoneHeader: View {
                 Button { isManagingLabels = true } label: {
                     Label("Manage Labels", systemImage: "tag")
                 }
-
-                Button { store.clearQuery() } label: {
-                    Label("Clear Search", systemImage: "xmark.circle")
-                }
-                .disabled(!store.isFiltering)
+            } header: {
+                Text("Board")
             }
 
-            // The phone's door to the Trash, which used to be a tab of Settings
+            // And the two that are about the app rather than about this board:
+            // the phone's door to the Trash, which used to be a tab of Settings
             // two surfaces away — see `BoardStore.isShowingTrash` for why it is
-            // not a setting. A section of its own at the foot of the menu: it is
-            // not a board action, and it is the one item here that is about work
-            // the user has already thrown away.
+            // not a setting — and Settings itself, which until now was reachable
+            // only by opening the drawer and scrolling to the foot of it.
             //
-            // The count is in the title rather than beside it because a menu row
-            // has nowhere to put a trailing anything, and "Trash" alone makes
-            // opening it the only way to learn there is nothing in it.
+            // The trash count is in the title rather than beside it because a
+            // menu row has nowhere to put a trailing anything, and "Trash" alone
+            // makes opening it the only way to learn there is nothing in it.
             Section {
                 Button { store.isShowingTrash = true } label: {
                     Label(trashTitle, systemImage: store.trashCount > 0 ? "trash.fill" : "trash")
+                }
+
+                Button { store.isShowingSettings = true } label: {
+                    Label("Settings", systemImage: "gearshape")
                 }
             }
         } label: {
@@ -381,26 +379,25 @@ struct PhoneHeader: View {
     private var chips: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 6) {
-                ForEach(store.pagerColumns) { column in
+                ForEach(Array(store.pagerColumns.enumerated()), id: \.element.id) { index, column in
                     let isCurrent = column.id == store.mobileColumnID
                     Button { store.mobileColumnID = column.id } label: {
-                        HStack(spacing: 6) {
-                            Text(column.name)
-                                .font(SimpleKanbanFont.ui(12.5, .bold, relativeTo: .footnote))
-                            Text("\(store.boardTasks(in: column.id).count)")
-                                .font(SimpleKanbanFont.ui(10.5, .extraBold, relativeTo: .caption2))
-                                .opacity(0.65)
-                        }
-                        .foregroundStyle(isCurrent ? palette.onAccent : palette.inkText(0.6))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(isCurrent ? palette.accent : palette.ink(0.055), in: .capsule)
+                        // The same capsule the landscape pages draw over
+                        // themselves — see ``ColumnPill``, which is where it
+                        // lives so the two orientations cannot drift into two
+                        // ideas of what a column looks like.
+                        ColumnPill(
+                            name: column.name,
+                            count: store.boardTasks(in: column.id).count,
+                            isCurrent: isCurrent
+                        )
                         // The capsule stays as drawn; the row around it is the
                         // 44pt minimum.
                         .frame(minHeight: 44)
                     }
                     .buttonStyle(.bare)
                     .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
+                    .contextMenu { columnMenu(column, index: index) }
                     // What the strip above scrolls to.
                     .id(column.id)
                 }
@@ -408,6 +405,96 @@ struct PhoneHeader: View {
             .padding(.bottom, 4)
         }
         .scrollIndicators(.hidden)
+        .sheet(item: $editingColumn) { edit in
+            if let boardID = store.activeBoardID {
+                PhoneBoardEditor(boardID: boardID, expandsColumn: edit.id)
+                    .environment(store)
+                    .environment(\.palette, palette)
+                    .tint(palette.accent)
+            }
+        }
+        .alert(
+            refusal?.errorDescription ?? "",
+            isPresented: Binding(get: { refusal != nil }, set: { if !$0 { refusal = nil } }),
+            presenting: refusal
+        ) { _ in
+            Button("OK", role: .cancel) { refusal = nil }
+        } message: { refusal in
+            if let suggestion = refusal.recoverySuggestion { Text(suggestion) }
+        }
+    }
+
+    /// Everything that can be done to a column, on the one control the phone
+    /// draws a column as.
+    ///
+    /// **A long press, because the tap is taken.** The chip's tap pages to that
+    /// column and has to keep doing so — it is the switcher. A context menu is
+    /// the gesture iOS gives a control that already has a primary action, and it
+    /// is what the desk's column header offers behind its ⋯ button; this is that
+    /// menu, item for item, on the surface that had none of it. Until now a
+    /// column on the phone could only be renamed, recoloured, reordered or
+    /// thrown away by opening the drawer, long-pressing the board, and finding
+    /// the row in the sheet that came up.
+    ///
+    /// `PhoneBoardEditor` is what **Edit Column…** opens, arriving with this
+    /// column already unfolded — see its `expandsColumn`. Not a sheet of its
+    /// own: everything a column can be changed to is already in that row.
+    @ViewBuilder private func columnMenu(_ column: BoardColumn, index: Int) -> some View {
+        // Only on a Done column, and only while there is something to file:
+        // a control that is greyed out from the day it ships teaches people not
+        // to open the menu. `BoardColumnView` draws it under the same two
+        // conditions, and `archiveCompleted` is defined over Done rather than
+        // over this column, so the count says how many are about to go.
+        if column.role == .done, !store.completedTasks.isEmpty {
+            Button {
+                store.archiveCompleted()
+            } label: {
+                Label(
+                    String(localized: "Archive \(store.completedTasks.count) Completed",
+                           comment: "Menu item on a column that files every finished task away"),
+                    systemImage: "archivebox"
+                )
+            }
+            Divider()
+        }
+
+        Button {
+            editingColumn = ColumnEdit(id: column.id)
+        } label: {
+            Label("Edit Column…", systemImage: "pencil")
+        }
+
+        Divider()
+
+        // Left and right rather than up and down: the chips are a horizontal
+        // strip and the board pages sideways, so this is the direction the user
+        // is looking at. `PhoneBoardEditor`'s own pair says up and down because
+        // there the columns are a vertical list.
+        Button {
+            store.moveColumn(fromOffsets: IndexSet(integer: index), toOffset: index - 1)
+        } label: {
+            Label("Move Left", systemImage: "arrow.left")
+        }
+        .disabled(index == 0)
+
+        Button {
+            store.moveColumn(fromOffsets: IndexSet(integer: index), toOffset: index + 2)
+        } label: {
+            Label("Move Right", systemImage: "arrow.right")
+        }
+        .disabled(index == store.pagerColumns.count - 1)
+
+        Divider()
+
+        // No confirmation, matching every other Trash in the app: the act is
+        // undoable and the column waits thirty days in the trash. It can still
+        // be refused — the last Done column, a board left with none — and a
+        // refusal has to say why.
+        Button(role: .destructive) {
+            refusal = store.trashColumn(column.id)
+        } label: {
+            Label("Trash Column", systemImage: "trash")
+        }
     }
 }
 

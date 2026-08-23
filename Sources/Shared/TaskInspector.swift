@@ -88,7 +88,7 @@ struct TaskInspector: View {
             VStack(alignment: .leading, spacing: 0) {
                 header
                 VStack(alignment: .leading, spacing: metrics.sectionSpacing) {
-                    titleField
+                    titleRow
                     noteField
                     status
                     attributes
@@ -156,10 +156,18 @@ struct TaskInspector: View {
         focusedField = .title
     }
 
+    /// The panel's own row: what closes it, and what throws the card away.
+    ///
+    /// **The task code is not in it.** `NW-118` sat at the leading edge of every
+    /// editor on both platforms, and it is the one thing on this panel that
+    /// nothing can do anything with: it cannot be edited, it names nothing the
+    /// user chose, and it is already carried by every route that needs it — the
+    /// `simplekanban://` link Copy Link puts on the pasteboard, the due-date
+    /// reminder, the Markdown export, Spotlight, and the search field, which
+    /// still finds a card by its code. What it cost was the first line of the
+    /// panel, above the title, on the surface where the title is the point.
     private var header: some View {
         HStack(spacing: 8) {
-            Text(task.code)
-                .sectionLabelStyle(opacity: Palette.readableInk)
             Spacer(minLength: 0)
             // No confirmation: the delete happens and ⌘Z is the way back.
             // Both roots re-read `selectedTask`, so the panel follows the
@@ -192,6 +200,21 @@ struct TaskInspector: View {
     }
 
     // MARK: Editable text
+
+    /// The title, on its own.
+    ///
+    /// **The tick that used to sit at the trailing edge of this row is gone**,
+    /// from here and from the phone's sheet with it. Completion is the card's
+    /// own control: the circle in its leading gutter on both platforms, the
+    /// first item in its context menu, ⌘↩ and the Task menu on the desk. A
+    /// second copy of a verb on the surface for *editing* a card is a state
+    /// control standing in a column of fields, and the one place a
+    /// half-considered tap costs the most — the Done column is where a card
+    /// stops being work in progress, and this panel is where somebody is in the
+    /// middle of the work.
+    private var titleRow: some View {
+        titleField
+    }
 
     /// A title is one line. On a vertical-axis field Return inserts a newline
     /// and `.onSubmit` never fires, so a pasted paragraph became a title the

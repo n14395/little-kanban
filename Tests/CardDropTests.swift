@@ -112,24 +112,27 @@ import Testing
         #expect(store.isDone(try #require(store[Self.fourth])) == false)
     }
 
-    /// The two menu items `CardReorderItems` draws, in the spelling it uses.
+    /// Reordering inside a column, which is now the drag's alone: Move Up /
+    /// Move Down are gone from the card menu, and what replaced them names a
+    /// *column* rather than a neighbour — see `ColumnDestinationItems`.
     ///
-    /// Move Down is said backwards on purpose — the card *below* is moved above
-    /// this one — because `move` refuses a `before: nil` into the place a card
-    /// already is, which is what stops a drop on a column sending a card to the
-    /// bottom of its own. The last row is therefore not a destination, and this
-    /// is what says the roundabout spelling still walks the card down.
-    @Test func theReorderMenuWalksACardUpAndDownItsColumn() throws {
+    /// Kept because the arithmetic is the drop caret's as well as the deleted
+    /// menu's: `move` refuses a `before: nil` into the place a card already is,
+    /// which is what stops a drop on a column sending a card to the bottom of
+    /// its own, so walking a card *down* has to be said as the card below it
+    /// moving above it. `DropCaretTests` names the gaps; this says the two
+    /// spellings still land where they claim.
+    @Test func aCardWalksUpAndDownItsColumnOneGapAtATime() throws {
         let store = store()
         let siblings = store.boardTasks(in: BoardColumn.backlog.id)
         let index = try #require(siblings.firstIndex { $0.id == Self.fourth })
 
-        // Move Up.
+        // Up: before the card above it.
         let above = siblings[index - 1]
         store.move(Self.fourth, to: try #require(store[Self.fourth]).placement, before: above.id)
         #expect(backlog(store) == [TestBoard.dragDrop, TestBoard.cafe, Self.fourth, Self.third])
 
-        // Move Down, from the card below.
+        // Down: said backwards, as the card below moving above this one.
         let below = try #require(store[Self.third])
         store.move(below.id, to: below.placement, before: Self.fourth)
         #expect(backlog(store) == [TestBoard.dragDrop, TestBoard.cafe, Self.third, Self.fourth])

@@ -296,6 +296,40 @@ import Testing
         #expect(!store.isInboxOpen)
     }
 
+    // MARK: Where a card can be moved to
+
+    /// **Move Column** offers the card's *own* board's columns, not the board on
+    /// screen. A card met in a saved view or a search result can be on any board
+    /// — filing it into a column of whichever board happens to be open would be
+    /// putting it somewhere nobody named.
+    @Test func theColumnsACardCanMoveToAreItsOwnBoards() throws {
+        let store = Self.store()
+        #expect(store.activeBoardID == Self.alphaID)
+
+        let onBeta = try #require(store[Self.onBeta])
+        #expect(store.moveDestinations(for: onBeta).map(\.id) == [Self.betaTodo.id, Self.betaDone.id])
+
+        let onAlpha = try #require(store[Self.onAlpha])
+        #expect(store.moveDestinations(for: onAlpha).map(\.id) == [Self.alphaTodo.id, Self.alphaDone.id])
+    }
+
+    /// Two cards have nowhere to go, and the menu is then not drawn at all
+    /// rather than drawn with every row inert: one in the Inbox, which is on no
+    /// board, and an archived one, which has left the workflow — the Archive is
+    /// not a column.
+    @Test func aCardOnNoBoardAndAnArchivedOneHaveNoColumnsToMoveTo() throws {
+        let store = Self.store()
+
+        let captured = try #require(store[Self.captured])
+        #expect(captured.isUnfiled)
+        #expect(store.moveDestinations(for: captured).isEmpty)
+
+        store.archive(Self.onAlpha)
+        let archived = try #require(store[Self.onAlpha])
+        #expect(archived.isArchived)
+        #expect(store.moveDestinations(for: archived).isEmpty)
+    }
+
     // MARK: Codes
 
     @Test func aCodeIsMintedFromTheDestinationBoardsPrefix() {

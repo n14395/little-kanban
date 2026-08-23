@@ -950,6 +950,7 @@
       }
     },
     "Back to Board" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1434,6 +1435,7 @@
       }
     },
     "Clear Search" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2174,6 +2176,7 @@
     },
     "Due date reminders" : {
       "comment" : "Accessibility name of the drawer row that opens reminder settings",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3173,6 +3176,16 @@
         }
       }
     },
+    "Move Board" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Board"
+          }
+        }
+      }
+    },
     "Move Card Left" : {
       "comment" : "Moves the focused card to the previous column",
       "localizations" : {
@@ -3191,6 +3204,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Move Card Right"
+          }
+        }
+      }
+    },
+    "Move Column" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Column"
           }
         }
       }
@@ -3623,6 +3646,7 @@
     },
     "Not allowed" : {
       "comment" : "Drawer row value when notification permission was refused",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3855,6 +3879,7 @@
     },
     "Off" : {
       "comment" : "Drawer row value when due date reminders are switched off",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3943,6 +3968,7 @@
       }
     },
     "Open Settings" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4341,6 +4367,7 @@
       }
     },
     "Reminders" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5368,6 +5395,7 @@
       }
     },
     "Switch Board…" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

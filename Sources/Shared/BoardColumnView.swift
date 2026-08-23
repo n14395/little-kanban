@@ -134,8 +134,8 @@ struct BoardColumnView: View {
         .dropDestination(for: TaskTransfer.self) { items, _ in
             guard store.allowsCardDrag, let dropped = items.first, store[dropped.id] != nil
             else { return false }
-            // The column's ground, not a gap between two of its cards: the
-            // card keeps the row it was on — see `BoardStore.drop(_:onGroundOf:)`.
+            // The column's ground, not a gap between two of its cards — so it
+            // lands at the foot; see `BoardStore.drop(_:onGroundOf:)`.
             store.drop(dropped.id, onGroundOf: store.placement(forColumn: column.id))
             return true
         } isTargeted: { targeted in

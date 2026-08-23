@@ -193,6 +193,71 @@ import Testing
         #expect(store.tasks == before)
     }
 
+    // MARK: The tick, whichever tick it is
+
+    /// `toggleCompletion` is what the tick on a card, the tick in the detail
+    /// panel and the phone sheet's tick all call. Each used to spell out
+    /// `isDone ? reopen : complete` for itself, which is two chances for one
+    /// surface to answer a different question from the one beside it.
+    @Test func theTickGoesBothWays() {
+        let store = TestBoard.store()
+
+        store.toggleCompletion(TestBoard.sync)
+        #expect(column(of: store, TestBoard.sync) == done)
+
+        store.toggleCompletion(TestBoard.sync)
+        #expect(column(of: store, TestBoard.sync) == doing, "the tick would not come back off")
+    }
+
+    /// **The two directions do not have the same condition**, which is why the
+    /// panel asks this rather than `canComplete`: reopening needs only that the
+    /// card is in Done, so on a completed card `canComplete` is false and the
+    /// tick is still live.
+    @Test func aCompletedCardCanStillBeTickedEvenThoughItCannotBeCompleted() {
+        let store = TestBoard.store()
+        #expect(store.canComplete(TestBoard.palette) == false)
+        #expect(store.canToggleCompletion(TestBoard.palette))
+    }
+
+    /// A board with nowhere to complete *into* — which `trashColumn` refuses to
+    /// leave behind, but a hand-edited file can still arrive like. The panel
+    /// draws the tick as unable rather than drawing it live and swallowing the
+    /// press.
+    @Test func aCardWithNoDoneColumnToReachCannotBeTicked() {
+        let onlyColumn = BoardColumn(name: "Only", short: "ON", dot: .ink(opacity: 0.35), role: .backlog)
+        let board = Board(name: "No finish line", dot: .ink(opacity: 0.35),
+                          columns: [onlyColumn], codePrefix: "NF")
+        let card = TaskItem(id: TestBoard.taskID(90), code: "NF-1", columnID: onlyColumn.id,
+                            title: "Nowhere to finish",
+                            createdAt: TestBoard.at(10), updatedAt: TestBoard.at(10))
+        let store = TestBoard.store(tasks: [card], boards: [board])
+
+        #expect(store.canComplete(card.id) == false)
+        #expect(store.canToggleCompletion(card.id) == false)
+
+        let before = store.tasks
+        store.toggleCompletion(card.id)
+        #expect(store.tasks == before, "a tick that says it cannot act moved a card")
+    }
+
+    /// In the Archive the verb is Restore and only Restore — `complete` and
+    /// `reopen` both refuse a filed card — so there is nothing for a tick to do
+    /// and the panel does not draw one.
+    @Test func anArchivedCardOffersNoTick() {
+        let store = TestBoard.store()
+        store.archive(TestBoard.sync)
+        #expect(store.canToggleCompletion(TestBoard.sync) == false)
+
+        let before = store.tasks
+        store.toggleCompletion(TestBoard.sync)
+        #expect(store.tasks == before, "the tick moved a card out of the Archive")
+    }
+
+    @Test func aCardThatIsNotThereCannotBeTicked() {
+        let store = TestBoard.store()
+        #expect(store.canToggleCompletion(TestBoard.taskID(200)) == false)
+    }
+
     // MARK: Adding
 
     @Test func addedTasksMintSequentialCodes() {

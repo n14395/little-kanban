@@ -16,7 +16,6 @@ struct PhoneNavDrawer: View {
     @Environment(\.layoutDirection) private var layoutDirection
 
     @State private var isManagingLabels = false
-    @State private var isEditingReminders = false
     @State private var isCreatingBoard = false
     /// The board whose editor is open. A snapshot only names which one — the
     /// editor reads the board back out of the store, so a rename inside it does
@@ -77,11 +76,6 @@ struct PhoneNavDrawer: View {
         // take the presentation down with it. The board editor and the new-board
         // prompt are here for the same reason.
         .labelManagerSheet(isPresented: $isManagingLabels, metrics: .sheet)
-        .sheet(isPresented: $isEditingReminders) {
-            PhoneRemindersSheet()
-                .environment(\.palette, palette)
-                .tint(palette.accent)
-        }
         .sheet(item: $editingBoard) { board in
             PhoneBoardEditor(boardID: board.id)
                 .environment(store)
@@ -202,9 +196,13 @@ struct PhoneNavDrawer: View {
             manageLabelsRow
                 .padding(.horizontal, 12)
 
-            sectionHeader("Reminders", topPadding: 24)
-            remindersRow
-                .padding(.horizontal, 12)
+            // **Reminders used to be a section of its own down here**, opening
+            // a sheet with the switch and the time of day on it. It was a
+            // preference in a list of *places* — every other row in this drawer
+            // goes somewhere the user's work is — and it was the second copy of
+            // a pane Settings already had, with two of Settings' four switches
+            // missing from it. Settings ▸ Notifications is the whole of it now,
+            // and `settingsRow` below is the way there.
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -238,9 +236,12 @@ struct PhoneNavDrawer: View {
         }
     }
 
-    /// The only way into Settings on this platform — macOS gets ⌘, and the
-    /// `Settings` scene for free, and everything behind this row (export,
-    /// import, the backups, the reset) would otherwise be unreachable here.
+    /// One of the phone's two ways into Settings — the header's ⋯ menu has the
+    /// other, and neither is a duplicate of a *destination* the way the menu's
+    /// old board and view items were: this is a panel of preferences, reached
+    /// from wherever the hand already is. macOS gets ⌘, and the `Settings` scene
+    /// for free, and everything behind this row (export, import, the backups,
+    /// the reset) would otherwise be unreachable here.
     ///
     /// The drawer closes *before* the flag is set: the sheet is presented from
     /// the root, and one raised under an open overlay is a sheet nobody can
@@ -264,50 +265,6 @@ struct PhoneNavDrawer: View {
             .contentShape(.rect)
         }
         .buttonStyle(.bare)
-    }
-
-    /// The phone's way to the notification settings item 6.5 needs somewhere to
-    /// put: the time of day reminders arrive, and — the part that matters — what
-    /// is happening when they do not arrive at all. A refused permission is a
-    /// standing condition rather than an error to report once, so it is stated
-    /// beside the switch it has silenced.
-    private var remindersRow: some View {
-        Button { isEditingReminders = true } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "bell")
-                    .imageScale(.medium)
-                    .foregroundStyle(palette.inkText(0.5))
-                Text("Due date reminders")
-                    .font(SimpleKanbanFont.ui(15, .semibold, relativeTo: .body))
-                    .foregroundStyle(palette.ink(0.66))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text(reminderSummary)
-                    .font(SimpleKanbanFont.ui(12.5, .bold, relativeTo: .caption))
-                    .foregroundStyle(palette.inkText(0.45))
-            }
-            .padding(12)
-            .frame(minHeight: 44)
-            .contentShape(.rect)
-        }
-        .buttonStyle(.bare)
-        .accessibilityRepresentation {
-            Button(String(localized: "Due date reminders",
-                          comment: "Accessibility name of the drawer row that opens reminder settings")) {
-                isEditingReminders = true
-            }
-                .accessibilityValue(Text(reminderSummary))
-        }
-    }
-
-    private var reminderSummary: String {
-        let scheduler = NotificationScheduler.shared
-        if scheduler.needsSystemSettings {
-            return String(localized: "Not allowed", comment: "Drawer row value when notification permission was refused")
-        }
-        guard scheduler.isEnabled else {
-            return String(localized: "Off", comment: "Drawer row value when due date reminders are switched off")
-        }
-        return scheduler.reminderTime.formatted(date: .omitted, time: .shortened)
     }
 
     private static let wordmark = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
@@ -506,98 +463,6 @@ struct PhoneNavDrawer: View {
     }
 }
 
-// MARK: - Reminders
-
-/// The whole of the notification preference on this platform: whether reminders
-/// happen, when they arrive, and what to do when the system has refused them.
-///
-/// Bound to ``NotificationScheduler/shared`` rather than to `@AppStorage`. The
-/// scheduler is what has to act on a change — moving the time of day moves every
-/// pending request — so it owns the values and writes them to `UserDefaults`
-/// itself; a second copy in a view would set the preference without rescheduling
-/// anything.
-struct PhoneRemindersSheet: View {
-    @Environment(\.palette) private var palette
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        @Bindable var scheduler = NotificationScheduler.shared
-
-        return VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                Text("Reminders")
-                    .font(SimpleKanbanFont.ui(17, .bold, relativeTo: .headline))
-                    .accessibilityAddTraits(.isHeader)
-                Spacer(minLength: 0)
-                Button { dismiss() } label: {
-                    Text("Done")
-                        .font(SimpleKanbanFont.ui(15, .bold, relativeTo: .body))
-                        .foregroundStyle(palette.accent)
-                        .padding(.horizontal, 8)
-                        .frame(minWidth: 44, minHeight: 44)
-                }
-                .buttonStyle(.bare)
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .hairline(.bottom, color: palette.ink(0.08))
-
-            VStack(alignment: .leading, spacing: 14) {
-                Toggle(isOn: $scheduler.isEnabled) {
-                    Text("Remind me on the due date")
-                        .font(SimpleKanbanFont.ui(15, .semibold, relativeTo: .body))
-                }
-                .frame(minHeight: 44)
-
-                DatePicker(selection: $scheduler.reminderTime, displayedComponents: .hourAndMinute) {
-                    Text("At")
-                        .font(SimpleKanbanFont.ui(15, .semibold, relativeTo: .body))
-                }
-                .frame(minHeight: 44)
-                .disabled(!scheduler.isEnabled)
-                .opacity(scheduler.isEnabled ? 1 : 0.4)
-
-                if let explanation = scheduler.explanation {
-                    Text(explanation)
-                        .font(SimpleKanbanFont.ui(13, .medium, relativeTo: .footnote))
-                        .foregroundStyle(palette.inkText(0.5))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                if scheduler.needsSystemSettings {
-                    Button { scheduler.openSystemSettings() } label: {
-                        Text("Open Settings")
-                            .font(SimpleKanbanFont.ui(14, .bold, relativeTo: .callout))
-                            .foregroundStyle(palette.accent)
-                            .frame(minHeight: 44)
-                            .contentShape(.rect)
-                    }
-                    .buttonStyle(.bare)
-                } else if scheduler.authorization == .notDetermined {
-                    Button { Task { await scheduler.requestAuthorization() } } label: {
-                        Text("Allow Notifications")
-                            .font(SimpleKanbanFont.ui(14, .bold, relativeTo: .callout))
-                            .foregroundStyle(palette.accent)
-                            .frame(minHeight: 44)
-                            .contentShape(.rect)
-                    }
-                    .buttonStyle(.bare)
-                }
-
-                Spacer(minLength: 0)
-            }
-            .padding(20)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(palette.sheet)
-        .presentationBackground(palette.sheet)
-        .presentationDetents([.medium])
-        // The board never asks at launch, so the answer can have changed in
-        // System Settings since the app started.
-        .task { await scheduler.refreshAuthorization() }
-    }
-}
-
 // MARK: - Board management
 
 /// One board's name, colour and existence. The phone's answer to the macOS
@@ -623,6 +488,16 @@ struct PhoneBoardEditor: View {
     /// Set by the header's "Rename Board…", which names the one field it means
     /// and so should land the caret in it.
     var focusesName: Bool = false
+    /// A column to arrive with already unfolded, set by the board chips' **Edit
+    /// Column…**.
+    ///
+    /// The same sheet rather than one of its own: everything a column can be
+    /// changed to is already in this row — its name, its abbreviation, its
+    /// colour, where it sits and whether it stays — and a second surface holding
+    /// a copy of the four is a second place for them to drift. The board's own
+    /// fields stay above it, which is also true: a column belongs to a board,
+    /// and the chip that opened this is one of that board's.
+    var expandsColumn: BoardColumn.ID?
 
     /// The store refuses an empty name, so the field cannot bind straight
     /// through it — backspacing to nothing would snap the old name back under
@@ -677,6 +552,9 @@ struct PhoneBoardEditor: View {
             // bargain: the drawer's long press is a way in to a board, and the
             // user ends up on the board they were just editing.
             if store.activeBoardID != boardID { store.selectBoard(boardID) }
+            if let expandsColumn, let column = board?.column(id: expandsColumn) {
+                open(column)
+            }
         }
         .onDisappear {
             commitRename()
@@ -744,6 +622,14 @@ struct PhoneBoardEditor: View {
             }
             .onChange(of: columnFocus) { _, focus in
                 if focus == .new { reveal(in: proxy) }
+            }
+            // A sheet opened straight onto a column has to *show* it. The board
+            // name, the colour row and however many columns come first are
+            // above it, so the fifth column of five opens off the bottom of a
+            // phone and the sheet looks as though it ignored what was asked for.
+            .onAppear {
+                guard let expandsColumn else { return }
+                reveal(expandsColumn, in: proxy, anchor: .center)
             }
         }
     }
@@ -837,6 +723,8 @@ struct PhoneBoardEditor: View {
             }
         }
         .background(isOpen ? palette.ink(0.045) : .clear, in: .rect(cornerRadius: 12))
+        // What `expandsColumn` scrolls to.
+        .id(column.id)
     }
 
     /// Everything about a column except its role, which nothing can change once
@@ -1036,10 +924,17 @@ struct PhoneBoardEditor: View {
     /// pinning the composer's bottom edge to the bottom of what is left puts
     /// the whole of it, role segments included, in reach.
     private func reveal(in proxy: ScrollViewProxy) {
+        reveal(Self.composerAnchor, in: proxy, anchor: .bottom)
+    }
+
+    /// Brings something in this sheet into view, after the beat the sheet takes
+    /// to finish arriving — scrolling a `ScrollView` that is still being
+    /// presented moves nothing.
+    private func reveal(_ id: some Hashable, in proxy: ScrollViewProxy, anchor: UnitPoint) {
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(360))
             Motion.run(.easeOut(duration: 0.2), reduceMotion: reduceMotion) {
-                proxy.scrollTo(Self.composerAnchor, anchor: .bottom)
+                proxy.scrollTo(id, anchor: anchor)
             }
         }
     }
@@ -1087,15 +982,27 @@ struct PhoneBoardEditor: View {
     /// Opening one column closes whichever was open, committing its fields on
     /// the way — the same bargain the board's own name field makes.
     private func toggle(_ column: BoardColumn) {
-        commitColumnRename()
-        columnFocus = nil
         if expandedColumnID == column.id {
+            commitColumnRename()
+            columnFocus = nil
             expandedColumnID = nil
         } else {
-            expandedColumnID = column.id
-            columnNameDraft = column.name
-            columnShortDraft = column.short
+            open(column)
         }
+    }
+
+    /// Unfolds a column's editor and fills its fields.
+    ///
+    /// Split out of `toggle` so a chip's **Edit Column…** and a tap on the row
+    /// arrive in exactly the same state: the drafts are what the fields bind to,
+    /// and a row unfolded without them shows the *last* column's name in the
+    /// field under this column's heading.
+    private func open(_ column: BoardColumn) {
+        commitColumnRename()
+        columnFocus = nil
+        expandedColumnID = column.id
+        columnNameDraft = column.name
+        columnShortDraft = column.short
     }
 
     private func commitColumnRename() {

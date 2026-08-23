@@ -74,7 +74,18 @@ struct BoardDestinationMenu: View {
         .menuIndicator(.hidden)
         .accessibilityLabel("Board")
         .accessibilityValue(board?.name ?? Board.inboxName)
+        .accessibilityIdentifier(Self.pillID)
     }
+
+    /// What `UITests/InboxFilingTests` finds this by, shared through the source
+    /// rather than by both spelling the same string — the arrangement
+    /// `BoardToolbar.inboxToggleID` and `SettingsTab.chipID` have.
+    ///
+    /// The name alone will not do. "Board" is also the phone's first tab, and
+    /// the editor is a sheet at a detent — so once it is presented by the *root*
+    /// rather than by the Inbox panel, the bar behind it is reachable and a
+    /// query by label finds two.
+    static let pillID = "BoardDestination"
 }
 
 /// The destinations on their own: the Inbox, a rule, then every board.
@@ -115,6 +126,10 @@ struct BoardDestinationItems: View {
             label(Board.inboxName, isCurrent: task.isUnfiled)
         }
         .accessibilityAddTraits(task.isUnfiled ? [.isSelected] : [])
+        // Named for the same reason the pill is: the boards below are found by
+        // their own names, which are the user's and are unique, but "Inbox" is
+        // also the phone's middle tab. See ``BoardDestinationMenu/pillID``.
+        .accessibilityIdentifier(Self.inboxRowID)
 
         if !store.boards.isEmpty { Divider() }
 
@@ -144,4 +159,7 @@ struct BoardDestinationItems: View {
             Text(name)
         }
     }
+
+    /// What `UITests/InboxFilingTests` finds the Inbox row by.
+    static let inboxRowID = "BoardDestination.inbox"
 }

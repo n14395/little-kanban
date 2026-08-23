@@ -264,8 +264,9 @@ import Testing
             "Shared/BoardTaskCard.swift": "store.drop(dropped.id, at: caret)",
             "IOS/PhoneTaskCard.swift": "store.drop(dropped.id, at: caret)",
             // A column — the desk's strip and the phone's page are both one —
-            // and the Inbox panel take the drops that landed on a list's
-            // *ground* rather than in a gap between two of its cards.
+            // and the Inbox, as a panel beside the board and as a sheet over it,
+            // take the drops that landed on a list's *ground* rather than in a
+            // gap between two of its cards.
             // Those name no gap, so the card keeps the row it was on — see
             // `BoardStore.drop(_:onGroundOf:)` — and neither may go back to
             // `move(_:to:)`, which appends.
@@ -274,13 +275,15 @@ import Testing
             "IOS/PhoneColumnPage.swift":
                 "store.drop(dropped.id, onGroundOf: store.placement(forColumn: column.id))",
             "Shared/InboxPanel.swift": "store.drop(dropped.id, onGroundOf: .inbox)",
+            "IOS/PhoneInboxSheet.swift": "store.drop(dropped.id, onGroundOf: .inbox)",
         ]
         // The phone's *card* asks `allowsCardDrag` outside its closure — the
         // whole destination is behind the guard — so the question is put to the
-        // four that ask it inside, which is where a copy-paste would lose it.
+        // five that ask it inside, which is where a copy-paste would lose it.
         let guardedInside: Set<String> = [
             "Shared/BoardTaskCard.swift", "Shared/BoardColumnView.swift",
             "IOS/PhoneColumnPage.swift", "Shared/InboxPanel.swift",
+            "IOS/PhoneInboxSheet.swift",
         ]
         var seen: Set<String> = []
         for file in SourceTree.files() {

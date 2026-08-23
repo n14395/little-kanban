@@ -44,7 +44,6 @@ struct PhoneTaskCard: View {
                 .shadow(color: palette.shadow(0.05), radius: 9, y: 6)
                 .shadow(color: palette.shadow(0.07), radius: 1, y: 1)
         }
-        .modifier(ReorderableCard(task: task))
         // The one act on this surface that deserves `.success` (5.8). Read off
         // the card's own state rather than counted in the store, so it fires
         // once wherever the tick came from — the gutter, the menu or the detail
@@ -139,7 +138,18 @@ struct PhoneTaskCard: View {
 /// moves sideways only once it has been picked up**, which is now the whole of
 /// what a sideways finger on a card can mean: the rows carried swipe actions
 /// until 6.4 and no longer do — see ``PhoneTaskRowActions``.
-private struct ReorderableCard: ViewModifier {
+///
+/// **Applied beside ``PhoneTaskRowActions`` rather than inside the card**, and
+/// that is the whole of what makes a lifted card follow the finger. UIKit shares
+/// one long press between a view's `UIDragInteraction` and its
+/// `UIContextMenuInteraction`: move during the lift and the drag takes it, hold
+/// still and the menu does. It only shares it when both are on the *same* view.
+/// With `.draggable` a body deeper than `.contextMenu` they were on two, the
+/// menu's lift failed the drag's gesture underneath it, and the only way into a
+/// drag left was to haul the presented menu far enough to tear the preview out
+/// of it — which is a long way, by design, and is what this surface used to ask
+/// for. Both are on the row now.
+struct ReorderableCard: ViewModifier {
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
 
@@ -250,7 +260,10 @@ private struct ReorderableCard: ViewModifier {
 ///
 /// Applied by the list to the row rather than by the card to itself: list-row
 /// traits are read off the row's own view, and burying them a body deeper is
-/// how they quietly stop arriving.
+/// how they quietly stop arriving. ``ReorderableCard`` is applied on the same
+/// view immediately before this one, and has to be: the lift this menu opens
+/// with is the drag's lift too, and UIKit only shares it between interactions
+/// that sit on one view.
 struct PhoneTaskRowActions: ViewModifier {
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
@@ -264,7 +277,6 @@ struct PhoneTaskRowActions: ViewModifier {
             .contextMenu {
                 leadingAction
                 filing
-                CardReorderItems(task: task)
                 copyLink
                 deletion
             }
@@ -308,7 +320,19 @@ struct PhoneTaskRowActions: ViewModifier {
             Menu {
                 BoardDestinationItems(task: task)
             } label: {
-                Label("Move to", systemImage: "tray.and.arrow.down")
+                Label("Move Board", systemImage: "tray.and.arrow.down")
+            }
+
+            // Where on that board, which is the other half of the same
+            // question — see ``ColumnDestinationItems``. Drawn only where there
+            // are columns to name: a card in the Inbox is on no board, and a
+            // submenu with nothing in it is a row that opens onto nothing.
+            if !store.moveDestinations(for: task).isEmpty {
+                Menu {
+                    ColumnDestinationItems(task: task)
+                } label: {
+                    Label("Move Column", systemImage: "arrow.left.arrow.right")
+                }
             }
 
             Button { store.archive(task.id) } label: {

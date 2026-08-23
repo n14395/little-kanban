@@ -5,19 +5,11 @@ import SwiftUI
 /// One column of the phone's pager: its heading, its cards, and — the reason it
 /// is a view of its own — **the ground around them**.
 ///
-/// **A stack rather than `TaskListView`'s `List`, for the reason `InboxPanel` is
-/// one.** A `List` handles drags inside its own bounds, so on this page a card
-/// released anywhere but squarely on another card reached nothing at all: the
-/// space under the last card took no drop, and a column with nothing in it — all
-/// of which is that space — could not be dragged to by any gesture. The desk's
-/// columns have always been `ScrollView` + `LazyVStack`, which is why dropping
-/// onto one has always worked, and a page here *is* a column.
-///
-/// The swap costs the rows their `swipeActions`, and nothing else. No card in
-/// this app swipes since 6.4 — see ``PhoneTaskRowActions`` — so what is given up
-/// is a capability the phone had already put in a menu. The flat surfaces keep
-/// the `List`: Search, a saved view and the Inbox sheet have no ground that
-/// means anything, because none of them is a place a card can be put.
+/// **``PhoneCardStack`` rather than `TaskListView`'s `List`**, which is what a
+/// page was until a drop had somewhere to land: a `List` handles drags inside
+/// its own bounds, so a card released anywhere on this page — squarely on
+/// another card, in the space under the last one, anywhere at all in a column
+/// with nothing in it — reached nothing. That file has the rest of the argument.
 ///
 /// The page draws the whole column and takes the whole column's drops. Where in
 /// it the card lands is not this view's to decide: a card names a gap and the
@@ -66,8 +58,8 @@ struct PhoneColumnPage<Trailing: View>: View {
         .dropDestination(for: TaskTransfer.self) { items, _ in
             guard store.allowsCardDrag, let dropped = items.first, store[dropped.id] != nil
             else { return false }
-            // The column's ground, not a gap between two of its cards: the card
-            // keeps the row it was on — see `BoardStore.drop(_:onGroundOf:)`.
+            // The column's ground, not a gap between two of its cards — so it
+            // lands at the foot; see `BoardStore.drop(_:onGroundOf:)`.
             store.drop(dropped.id, onGroundOf: store.placement(forColumn: column.id))
             return true
         } isTargeted: { targeted in
@@ -81,44 +73,32 @@ struct PhoneColumnPage<Trailing: View>: View {
 
     /// The cards, in the container a column has always used.
     ///
-    /// The scroll view fills the page whether or not the cards do, and the drop
-    /// destination is *outside* it, so the space below the last card is inside
-    /// the page's own frame rather than behind something that would swallow it.
+    /// The stack's scroll view fills the page whether or not the cards do, and
+    /// the drop destination is *outside* it, so the space below the last card is
+    /// inside the page's own frame rather than behind something that would
+    /// swallow it.
     private var cards: some View {
-        ScrollView {
-            LazyVStack(spacing: metrics.rowSpacing) {
-                ForEach(tasks) { task in
-                    // No column chip: this page is the column, and a chip on
-                    // every card would name it once per row (4.8).
-                    PlatformTaskCard(task: task, showsColumn: false)
-                }
-                trailing()
-            }
-            .padding(.horizontal, metrics.horizontalPadding)
-            .padding(.top, metrics.topInset)
-            .padding(.bottom, metrics.bottomInset)
-        }
-        // A column shorter than the page does not bounce — the desk's columns
-        // ask for the same thing, and here it also keeps a short column's
-        // ground still under a finger that is about to drop a card on it.
-        .scrollBounceBehavior(.basedOnSize)
-        .scrollDismissesKeyboard(.interactively)
+        PhoneCardStack(tasks: tasks, metrics: metrics, trailing: trailing)
     }
 
     /// Which column this page is, drawn only when more than one is on screen.
+    ///
+    /// **The pill portrait's switcher draws**, not a caption of its own. It was
+    /// one — a coloured dot, the name, and a `CountPill` beside it — which meant
+    /// a column looked like one thing with the phone upright and another thing
+    /// with it on its side, for no reason a user could name. `ColumnPill` is now
+    /// the one drawing, and it explains why this one is never accent-filled.
+    ///
+    /// The dot went with the caption. It is the one thing portrait's chips have
+    /// never carried, and a strip of pills each wearing a swatch is a busier row
+    /// than a column heading needs — the pages are side by side and the name is
+    /// what tells them apart.
     private var heading: some View {
         HStack(spacing: 8) {
-            Circle()
-                .fill(palette.resolve(column.dot))
-                .frame(width: 7, height: 7)
-            Text(column.name)
-                .font(SimpleKanbanFont.ui(12.5, .extraBold, relativeTo: .footnote))
-                .foregroundStyle(palette.inkText(0.6))
-            CountPill(count: tasks.count, font: 10.5)
+            ColumnPill(name: column.name, count: tasks.count)
             Spacer(minLength: 0)
         }
         .padding(.horizontal, metrics.horizontalPadding)
-        .padding(.top, 2)
         .padding(.bottom, 8)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)

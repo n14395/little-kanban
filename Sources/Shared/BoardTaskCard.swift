@@ -277,7 +277,7 @@ struct BoardTaskCard: View {
                 }
             } else {
                 Button {
-                    toggleCompletion()
+                    store.toggleCompletion(task.id)
                 } label: {
                     Label(isDone ? "Reopen Task" : "Complete Task",
                           systemImage: isDone ? "arrow.uturn.backward" : "checkmark.circle")
@@ -302,9 +302,20 @@ struct BoardTaskCard: View {
             Menu {
                 BoardDestinationItems(task: task)
             } label: {
-                Label("Move Task", systemImage: "square.stack.3d.up")
+                Label("Move Board", systemImage: "square.stack.3d.up")
             }
-            CardReorderItems(task: task)
+            // Where on that board, which is the other half of the same
+            // question — see ``ColumnDestinationItems``. Drawn only where there
+            // are columns to name: a card in the Inbox is on no board and an
+            // archived one has left the workflow, and a submenu with nothing in
+            // it is a row that opens onto nothing.
+            if !store.moveDestinations(for: task).isEmpty {
+                Menu {
+                    ColumnDestinationItems(task: task)
+                } label: {
+                    Label("Move Column", systemImage: "arrow.left.arrow.right")
+                }
+            }
             Button {
                 TaskLink.copyToPasteboard(task.id)
             } label: {
@@ -344,14 +355,6 @@ struct BoardTaskCard: View {
             store.trashTasks(targets)
         }
         .modifier(MoveActions(task: task))
-    }
-
-    private func toggleCompletion() {
-        if isDone {
-            store.reopen(task.id)
-        } else {
-            store.complete(task.id)
-        }
     }
 
     /// What a rotor action acts on: the whole selection when this card is part
@@ -416,7 +419,7 @@ struct BoardTaskCard: View {
     private var completionToggle: some View {
         if !task.isArchived {
             CompletionToggle(isDone: isDone, metrics: metrics.toggle) {
-                toggleCompletion()
+                store.toggleCompletion(task.id)
             }
             .padding(.leading, metrics.horizontalPadding - metrics.toggleInset)
             .padding(.top, metrics.topPadding - metrics.toggleInset)
@@ -636,84 +639,23 @@ private struct CardDragSession: ViewModifier {
     }
 }
 
-/// Move Up / Move Down for one card, as menu items.
-///
-/// Reordering without a drag, which is the whole of what VoiceOver and Switch
-/// Control have: a long-press lift is unreachable to both, and 7.1 counts a
-/// gesture-only capability as a blocker. The board's cards had the lift and
-/// nothing else — only the phone's row carried these — so on the iPad the
-/// order of a column was a pointer-and-finger-only fact. The phone's row now
-/// draws these too, rather than its own second copy of them.
-///
-/// The menu rather than a rotor action, because the menu is where a reader
-/// meets the card's other verbs already and a second copy of a verb is a second
-/// thing to read past.
-///
-/// Offered only where the cards on screen are in the board's own order, which
-/// is the same guard the drag is under — see `BoardStore.allowsCardDrag`. In a
-/// saved view or a search result the card would not visibly move.
-struct CardReorderItems: View {
-    @Environment(BoardStore.self) private var store
-
-    let task: TaskItem
-
-    /// The cards this one shares a place with, in the order they are drawn —
-    /// its column's, or the Inbox's for a card on no board. What "up" and
-    /// "down" are relative to, and the one list a reorder is defined over.
-    private var siblings: [TaskItem] {
-        guard let columnID = task.columnID else { return store.inboxTasks }
-        return store.boardTasks(in: columnID)
-    }
-
-    var body: some View {
-        if store.allowsCardDrag, !task.isArchived,
-           let index = siblings.firstIndex(where: { $0.id == task.id }) {
-            if index > 0 {
-                Button {
-                    store.move(task.id, to: task.placement, before: siblings[index - 1].id)
-                } label: {
-                    Label("Move Up", systemImage: "arrow.up")
-                }
-            }
-            if index + 1 < siblings.count {
-                // Said as "the card below moves above this one", because the
-                // other way round cannot be said at all: `move` refuses a
-                // `before: nil` into the place a card is already in — that is
-                // what stops a drop on a column from sending a card to the
-                // bottom of its own — so the last row is not a destination.
-                Button {
-                    let next = siblings[index + 1]
-                    store.move(next.id, to: next.placement, before: task.id)
-                } label: {
-                    Label("Move Down", systemImage: "arrow.down")
-                }
-            }
-        }
-    }
-}
-
 /// One rotor action per column of the card's board.
 ///
 /// This is the non-drag way to move a task, which VoiceOver and Switch Control
 /// have never had — the board's whole vocabulary was a pointer dragging a card
 /// from one place to another. ⌥←/→ are the same thing for a keyboard.
 ///
-/// The card's own board, not the board on screen: a card drawn in a saved view
-/// or a search result can belong to another one, and its columns are the ones
-/// it can move between.
+/// The card's own board, not the board on screen — `moveDestinations(for:)` has
+/// the rule, and the **Move Column** submenu on this card's context menu is the
+/// same list drawn for a pointer.
 private struct MoveActions: ViewModifier {
     @Environment(BoardStore.self) private var store
 
     let task: TaskItem
 
-    private var columns: [BoardColumn] {
-        guard !task.isArchived else { return [] }
-        return store.board(for: task)?.columns ?? []
-    }
-
     func body(content: Content) -> some View {
         content.accessibilityActions {
-            ForEach(columns) { column in
+            ForEach(store.moveDestinations(for: task)) { column in
                 if column.id != task.columnID {
                     Button(String(localized: "Move to \(column.name)",
                                   comment: "Accessibility action on a card, one per column of its board")) {

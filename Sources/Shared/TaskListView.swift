@@ -175,7 +175,12 @@ struct PlatformTaskCard: View {
             BoardTaskCard(task: task, showsColumn: showsColumn)
         }
         #else
+        // The lift and the menu, in that order and on one view: UIKit shares a
+        // long press between the two interactions only when they sit on the
+        // same one — see ``ReorderableCard``, which is why the drag is applied
+        // here beside the menu rather than inside the card.
         PhoneTaskCard(task: task, showsColumn: showsColumn)
+            .modifier(ReorderableCard(task: task))
             .modifier(PhoneTaskRowActions(task: task))
         #endif
     }

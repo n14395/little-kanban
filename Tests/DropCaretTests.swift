@@ -136,57 +136,59 @@ import Testing
         #expect(store.dropCaret == .above(TestBoard.cafe))
     }
 
-    // MARK: A list's own ground, where the card keeps its row
+    // MARK: A list's own ground, which is the foot of it
 
-    /// **The one this section was rewritten for.** A drop on a column's ground
-    /// used to append, and the caret faithfully drew that: a card third in
-    /// Doing, dragged sideways onto a Backlog twenty cards long, was promised
-    /// the foot of it and went there. The row the card was on is where the eye
-    /// is, so the ground keeps it — third out, third in.
-    @Test func aColumnsGroundKeepsTheRowTheCardWasOn() {
+    /// **A drop on a column's ground lands at the bottom, wherever the card came
+    /// from.** The ground briefly kept the row instead — a card third in one
+    /// column landed third in the next — and under a finger that is a card
+    /// jumping several rows *up* a list the user was pointing below the end of.
+    /// The space under the cards is what a person aims at, and the bottom is
+    /// what that space means.
+    @Test func aColumnsGroundLandsAtTheFoot() throws {
         let store = Self.deeper()
-        let source = order(store, in: backlog)
-        let third = source[2]
+        let third = order(store, in: backlog)[2]
         store.draggingID = third
         store.dropTargetColumnID = upNext
 
-        let landing = order(store, in: upNext)[2]
-        #expect(store.dropCaret == .above(landing))
+        let foot = try #require(order(store, in: upNext).last)
+        #expect(store.dropCaret == .below(foot))
 
         store.drop(third, onGroundOf: store.placement(forColumn: upNext))
-        #expect(order(store, in: upNext).firstIndex(of: third) == 2)
+        #expect(order(store, in: upNext).last == third)
     }
 
-    /// The Inbox panel is a list like any other, and a card dropped on its
-    /// ground keeps its row the same way.
-    @Test func theInboxPanelsGroundKeepsTheRowToo() {
+    /// The Inbox panel is a list like any other, and its ground says the same
+    /// thing — including for the phone's sheet, which is the same drop.
+    @Test func theInboxPanelsGroundLandsAtTheFootToo() throws {
         let store = Self.deeper()
         let second = order(store, in: backlog)[1]
         store.draggingID = second
         store.isInboxDropTarget = true
 
-        let landing = store.inboxTasks.map(\.id)[1]
-        #expect(store.dropCaret == .above(landing))
-
-        store.drop(second, onGroundOf: .inbox)
-        #expect(store.inboxTasks.map(\.id).firstIndex(of: second) == 1)
-    }
-
-    /// The shorter list has no such row to keep, so the foot is the nearest
-    /// thing to it — which is what the ground has always done, now as the
-    /// fallback rather than as the rule.
-    @Test func aGroundWithNoSuchRowAppends() throws {
-        let store = Self.deeper()
-        let done = BoardColumn.done.id
-        let last = try #require(order(store, in: backlog).last)
-        #expect(order(store, in: backlog).count > order(store, in: done).count)
-        store.draggingID = last
-        store.dropTargetColumnID = done
-        let foot = try #require(order(store, in: done).last)
+        let foot = try #require(store.inboxTasks.map(\.id).last)
         #expect(store.dropCaret == .below(foot))
 
-        store.drop(last, onGroundOf: store.placement(forColumn: done))
-        #expect(order(store, in: done).last == last)
+        store.drop(second, onGroundOf: .inbox)
+        #expect(store.inboxTasks.map(\.id).last == second)
+    }
+
+    /// The rule does not read the row the card is leaving, so the *last* card of
+    /// a long list lands at the foot of a short one exactly as the first card of
+    /// it does. Both directions, because "always the foot" is only a rule if the
+    /// card's own position cannot change the answer.
+    @Test func theRowTheCardCameFromChangesNothing() throws {
+        let done = BoardColumn.done.id
+        for index in [0, 2] {
+            let store = Self.deeper()
+            let card = order(store, in: backlog)[index]
+            store.draggingID = card
+            store.dropTargetColumnID = done
+            let foot = try #require(order(store, in: done).last)
+            #expect(store.dropCaret == .below(foot), "the caret moved with the card's own row")
+
+            store.drop(card, onGroundOf: store.placement(forColumn: done))
+            #expect(order(store, in: done).last == card, "a card from row \(index) missed the foot")
+        }
     }
 
     /// An empty list has no card to hang a mark off — a caret is drawn *by* a
@@ -206,9 +208,9 @@ import Testing
         #expect(order(store, in: empty) == [TestBoard.dragDrop])
     }
 
-    /// The rank is a default for a drop that did not say where, and nothing
+    /// The foot is a default for a drop that did not say where, and nothing
     /// more: a pointer inside a card has named a gap, and the gap wins.
-    @Test func aPointerInsideACardBeatsTheRank() {
+    @Test func aPointerInsideACardBeatsTheGround() {
         let store = Self.deeper()
         let third = order(store, in: backlog)[2]
         store.draggingID = third
@@ -221,11 +223,11 @@ import Testing
         #expect(order(store, in: upNext).first == third)
     }
 
-    /// **Only a drag keeps a row.** Every other route into a column — the
-    /// move-to menu, the sidebar's board rows, a bulk move — is a card arriving
-    /// from somewhere with no row to keep, and `move(_:to:)` goes on appending
-    /// for them.
-    @Test func theMoveToMenuStillLandsAtTheFoot() {
+    /// **Every route agrees.** The move-to menu, the sidebar's board rows and a
+    /// bulk move all go through `move(_:to:)` and land at the foot, and a drop
+    /// on the ground is now that same call — so a card arrives at the same place
+    /// whether it was carried there or sent.
+    @Test func theMoveToMenuLandsAtTheFootToo() {
         let store = Self.deeper()
         let third = order(store, in: backlog)[2]
 

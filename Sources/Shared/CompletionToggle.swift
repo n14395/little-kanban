@@ -27,6 +27,10 @@ struct CompletionToggle: View {
         static let deskRow = Metrics(size: 15, radius: 5, borderWidth: 1.5, glyphScale: 0.58, hitSize: 18)
         /// A checklist row on iOS.
         static let sheetRow = Metrics(size: 20, radius: 6, borderWidth: 1.5, glyphScale: 0.58, hitSize: 44)
+        // There were two more — `deskPanel` and `sheetPanel`, sized to stand
+        // beside the detail surfaces' serif title. The tick they were for is
+        // gone from both, and they go with the case rather than being left
+        // behind as presets nothing can ask for.
     }
 
     @Environment(\.palette) private var palette

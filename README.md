@@ -79,8 +79,10 @@ Sources/
                        shortcuts sheet, the due-date sheet and the menu bar extra
   IOS/                 PhoneRootView — header, pager, cards, tab bar, drawer, Inbox, detail
                        sheet; PhoneColumnPage — one column of that pager, cards and the
-                       ground around them; PadRootView — the desk's three panes in a
-                       split view
+                       ground around them; PhoneCardStack — the container both it and
+                       the Inbox sheet draw their cards in, which is a column's stack
+                       rather than a `List` so that a drop has somewhere to land;
+                       PadRootView — the desk's three panes in a split view
   Shared/              The board itself — scroller, column, card, composer, keyboard map
                        — plus InboxPanel, the global Inbox standing beside it
                        — plus the sidebar, the toolbar, the inspector, chips (label, due,
@@ -103,7 +105,10 @@ Tests/                 Swift Testing suites — model, store, boards, columns an
   Fixtures/            board-v1*.json … board-v5.json — real older boards, kept to migrate against
 UITests/               XCUITest, iOS simulator only, on a scheme of its own — the drag
                        between the Inbox panel and the board, where a card dropped on
-                       a column's ground lands on either idiom, the leading-edge
+                       a column's ground lands on either idiom — and that a card
+                       dropped *below* a list lands at the foot of it — what the
+                       phone's board menu holds and no longer holds, the task code
+                       no longer at the head of the editor, the leading-edge
                        swipe that opens the drawer and the source list, the
                        column strip's portrait-only rule, the tab bar standing up
                        on its side, cards that no longer swipe open, the detail
@@ -483,7 +488,20 @@ card and the accent switcher under the rows; both are gone, which is the trade
 the macOS source list made first. The accent is still in Settings, which the
 drawer's own `settingsRow` opens, so nothing became unreachable — the meter has
 no reader on any surface now, and the note under **Identity and timestamps**
-says what became of it. Everything below the title still scrolls rather than the
+says what became of it.
+
+**Due date reminders went the same way, and were the clearest case of the rule.**
+The drawer carried a Reminders section at its foot — a row with the time of day
+beside it, opening a `PhoneRemindersSheet` with the switch and the picker on it.
+Two things were wrong with that. It was a *preference* in a list whose every
+other row goes somewhere the user's work is: boards, views, the Archive, the
+Inbox. And it was a second, narrower copy of a pane Settings already had —
+Settings ▸ Notifications carries the same switch, the same picker, the same
+standing explanation of a refused permission and the same trip to System
+Settings, plus the day-before and the overdue-nag switches that the drawer's
+sheet never grew. Two surfaces for one preference is two places for it to drift,
+and the smaller one was already behind. The sheet is deleted rather than moved:
+there was nothing in it Settings did not already draw. Everything below the title still scrolls rather than the
 rows being given whatever height is left after something pinned to the bottom:
 on a 402x874 phone that was 481pt for 620pt of rows, so the Archive row was
 clipped and "Manage labels" sat 59pt past the fold with nothing to say so.
@@ -651,6 +669,40 @@ card at a time, and being thrown onto another board after each one is a worse
 answer than the card simply leaving. Nor does the ticked destination follow —
 nothing moved, so there is nothing to follow — and neither does an archived card,
 which lives on the Archive view and is drawn on no board at all.
+
+**On the phone the journey has a second half, and it only ever had one.** The
+Inbox there is not a panel beside the board — it is a **modal sheet over it** —
+so a card sent *to* the Inbox reads beautifully: the editor drops, the panel
+slides up, the editor comes back over it, and you watch the card arrive
+somewhere. Going the other way said nothing at all. `showPlace` selected the
+board and paged to the card's column exactly as it should, and every one of those
+changes happened *behind* a modal still listing the Inbox the card had just left,
+with the editor on top of that. The only thing that moved on screen was the
+pill's own label.
+
+So the panel takes itself down when the card it has open stops being unfiled, and
+the sequence mirrors the one that worked: the editor drops with the panel, the
+board is uncovered with the right column already paged to, and the root — whose
+own copy of the editor sheet is held back by `isInboxOpen` — puts the editor back
+up over it. The rule lives in `PhoneInboxSheet` rather than in `showPlace`
+because it is true of a modal and false of a side panel: the iPad's Inbox stands
+*beside* the board, so a card filed from there is visible the moment it moves and
+closing a panel the user deliberately opened would be taking something away for
+nothing. `isInboxOpen` is one flag meaning two shapes and the store cannot tell
+them apart; that view is only ever built on the phone.
+
+`UITests/InboxFilingTests` is what can see it, and what it can see is limited in
+a way worth writing down: **a sheet makes its presenter inaccessible**, so with
+the editor up the panel underneath reports `exists == false` whether it is still
+there or has gone — which is the one question being asked. So it is asked in two
+halves that only both hold if the panel closed and the editor came back: straight
+after the pick the editor is still up with its pill now naming the board, and
+then the editor is closed and what is behind it is the board rather than the
+list the card has left. The suite files the card home again on the way out, which
+is not tidiness — the board file outlives the process, and a suite that eats one
+of the three seeded Inbox cards fails `InboxSheetDragTests` and `InboxPanelTests`
+for reasons that have nothing to do with either. That return trip pins the
+direction that already worked.
 
 **Deleting a board sends its cards — archived ones included — to the Inbox** and
 records `.unfiled` on each, rather than deleting them silently. It is one ⌘Z, and
@@ -843,19 +895,32 @@ is unfiled.
 **A task can be moved between boards, and back to the Inbox, from both surfaces.**
 On macOS, drag a card onto a board row in the sidebar to file it there and onto the
 Inbox row to unfile it, or use the inspector's board menu and its "Move to"
-segments. On iOS, the detail sheet's board row and the card's "Move to ▸" context
-submenu do the same. The board menu — the row above the segments, on both
+segments. On iOS, the detail sheet's board row does the same. On both, the card's
+own context menu carries **Move Board ▸** and **Move Column ▸**. The board menu — the row above the segments, on both
 surfaces — is the route back: it lists the Inbox first, and the phone's card drag
 reaches the board's own columns and nothing else — there is no Inbox panel on
 that surface to drop onto — so without it filing a card would be a one-way door.
 
 ### Codes
 
-`code` — "NW-118" — is the human-facing label printed on the card. It is minted
+`code` — "NW-118" — is the human-facing label a task carries. It is minted
 from the **destination's** `codePrefix` plus one global `nextSerial`, and unfiled
 tasks take the constant prefix `"IN"`. One counter for the whole file rather than
 one per board: the prefix is what tells two boards' codes apart, and a per-board
 counter would hand two boards the same number and make the prefix load-bearing.
+
+**It is not drawn in the editor, and it never was on the card.** It led the
+header of both task panels — the desk's inspector and the phone's sheet — until
+it was taken out of them: it is the one thing on that panel nothing can be done
+with, it names nothing the user chose, and it cost the first line above the title
+on the surface where the title is the point. Where it *does* show is everywhere
+the app has to name a card outside itself — the `simplekanban://` link Copy Link
+puts on the pasteboard, the plain-text half of a drag, the due-date reminder,
+Spotlight, the Markdown export, and macOS's quick-add confirmation — plus the
+Trash row, where two cards with the same title have to be told apart. The search
+field still finds a card by its code, which is what makes one worth reading out
+loud in the first place. `UITests/EditorHeaderTests` opens the editor on both
+idioms and looks for the label that used to be there.
 
 **A code never changes once minted.** Filing an IN-141 onto Northwind leaves it
 called IN-141, because by then it may be sitting in someone's commit message. That
@@ -1020,9 +1085,10 @@ track the real calendar.
 
 ### Completing, reopening and deleting
 
-A task reaches Done three ways now: dragged there, sent there from "Move to", or
+A task reaches Done four ways now: dragged there, sent there from "Move to",
 completed where it stands — a circular checkbox on either card, and a
-context-menu item on both platforms. The checkbox is `CompletionToggle`, which
+context-menu item on both platforms — or ticked off **in the detail panel**. The
+checkbox is `CompletionToggle`, which
 is also what the checklist rows are drawn from: same accent fill, same border,
 same tick glyph, so the board and the checklist cannot drift into two ideas of
 what "done" looks like. Only the corner radius is a metric, because a card wants
@@ -1035,6 +1101,28 @@ and to the board's first such column when it has none, so the Done tick is a
 round trip rather than a one-way door. Neither verb applies to a filed card: `complete` and `reopen`
 refuse an archived task outright, where Restore is the only verb — see
 **Saved views and the archive**.
+
+**The detail surfaces have no tick.** They carried one for a while, at the top
+right, level with the title — the panel's one *state* control among a column of
+fields. It is gone from both, and the reasoning that put it there is what takes
+it away again: this is the surface for *editing* a card, and the one place where
+a half-considered tap costs the most. Done is where a card stops being work in
+progress, and the panel is open precisely when somebody is in the middle of that
+work. Completion is the card's own control and stays reachable four ways — the
+circle in the card's leading gutter on both platforms, the first item in its
+context menu, and ⌘↩ plus the Task menu on the desk. `CompletionToggle`'s
+`.deskPanel` and `.sheetPanel` presets went with it, rather than being left
+behind as sizes nothing can ask for.
+
+**`BoardStore.toggleCompletion(_:)` is still the one act**, because the board
+card, the panel and the sheet had each spelled out `isDone ? reopen : complete`
+for themselves, and three copies of a two-line rule is two chances for one
+surface to answer differently from the one beside it. `canToggleCompletion(_:)`
+is the matching question and now has no drawn control asking it: the two
+directions have different conditions — reopening needs only that the card is in
+Done, so on a completed card `canComplete` is *false* while the toggle is still
+live, and completing needs a Done column to complete into, which a hand-edited
+board can be without. `BoardStoreMutationTests` holds all four cases.
 
 **The verb is Trash, and it happens immediately.** It is a context-menu item and
 an inspector button on macOS, and the long-press menu plus a row at the foot of
@@ -1082,16 +1170,16 @@ as. It was made one purely for `swipeActions` — a hand-rolled swipe has to fig
 the scroll view for the gesture, re-implement the full-swipe threshold, and is
 invisible to VoiceOver — and **that reason expired when the cards stopped
 swiping**. It is kept there rather than re-chosen: the two containers are not
-interchangeable, and on Search, a saved view and the Inbox sheet the difference
-does not arise, because none of those is a place a card can be dropped. The rows
-are stripped back to clear backgrounds, no separators and the design's 10pt gap,
-so the cards look exactly as they did.
+interchangeable, and on Search, a saved view and the Archive the difference does
+not arise, because none of those is a place a card can be dropped. The rows are
+stripped back to clear backgrounds, no separators and the design's 10pt gap, so
+the cards look exactly as they did.
 
-**The board's own pages are the other container**, and that is the difference
-spelled out: a `List` handles drags inside its own bounds, which is why
-`InboxPanel` and the board's columns are stacks, and a column page that stayed a
-`List` took no drop anywhere on it. `PhoneColumnPage` is that stack — see **Drag
-and drop**.
+**The two surfaces that *are* places use the other container**, and that is the
+difference spelled out: a `List` handles drags inside its own bounds, which is
+why `InboxPanel` and the board's columns are stacks, and a board page or an Inbox
+that stayed a `List` took no drop anywhere on it. `PhoneCardStack` is that stack,
+drawn by `PhoneColumnPage` and `PhoneInboxSheet` — see **Drag and drop**.
 
 ### The trash
 
@@ -1691,10 +1779,20 @@ These rules are the iPhone's alone:
   `UITests/QuickCaptureTests` checks it **after the sheet closes**, which is
   where it showed — a presented sheet marks what is under it inaccessible, so a
   test that looked while the sheet was up would have passed against the bug.
-- **The `…` button is a real `Menu`.** It was a decorated `Image` — no action, no
-  accessibility label, no tap target — sitting beside a hamburger that worked. It
-  now has a 44pt target and carries the board-level actions with no other home on
-  touch: the saved views, Archive completed, Manage labels and Clear search.
+- **The `…` button is a real `Menu`, and it holds only what has no other home.**
+  It was a decorated `Image` — no action, no accessibility label, no tap target —
+  sitting beside a hamburger that worked; it now has a 44pt target. What is in it
+  is Rename board, Archive completed, Manage labels, the Trash and **Settings**.
+  What was taken out of it is the hamburger's: **Switch board** stood a thumb's
+  width from a drawer that lists every board with its dot and its count, and the
+  whole **Views** section stood beside the same drawer's views and the Archive
+  under them — a second, shorter, worse copy of the panel next to it. **Clear
+  search** went with them, because the field has an × and the surfaces without
+  the field have the filtered indicator under this header: a filter is never
+  invisible (1.11), so a control that undoes it is always already on screen.
+  Settings arrived by the same rule in reverse — it was reachable *only* by
+  opening the drawer and scrolling to the foot of it. `UITests/BoardMenuTests`
+  pins the three removals by name, the survivors, and the new door.
 - **Column chips are on Search and every saved view, never the Board tab**
   (`showsMobileColumnChips`), where the strip in the header names the column.
   The Inbox's panel drops them too, and makes that call for itself: every card in
@@ -2383,18 +2481,32 @@ board and in the checklist. Three menus close it:
 
 | what was drag-only | the menu it is on now |
 | --- | --- |
-| a card's place in its column | **Move Up** / **Move Down** on `BoardTaskCard`'s context menu, drawn by `CardReorderItems` |
+| a card's column | **Move Column ▸**, drawn by `ColumnDestinationItems`, and one rotor action per column |
+| a card's board, or the Inbox | **Move Board ▸**, drawn by `BoardDestinationItems` |
 | a sub-task's place in the list | **Move Up** / **Move Down** on the checklist row's context menu |
-| a card's column, board or the Inbox | **Move Task ▸**, and one rotor action per column |
 
-`CardReorderItems` is offered only where `allowsCardDrag` is — in a saved view or
-a search result the card would not visibly move, which is the same reason the
-drag is withheld. **Move Down** is said backwards on purpose: `move` refuses a
-`before: nil` into the place a card already is (that is what stops a drop on a
-column sending a card to the bottom of its own), so the card *below* is moved
-above this one instead. The checklist's two items go through `dropOffset(from:to:)`
-— the drop closure's own arithmetic — so the menu and the drag cannot end up with
-two ideas of where a row lands. `CardDropTests` pins both.
+**A card's place *within* a column is the drag's alone.** Move Up / Move Down
+were on both card menus and are gone. They named a **neighbour** rather than a
+place, which is the one filing verb in the app that does: everything else — the
+board menu, the column menu, the rotor actions, ⌥←/→ — says where the card should
+end up. They also could not be said straight. `move` refuses a `before: nil` into
+the place a card already is (that is what stops a drop on a column sending a card
+to the bottom of its own), so **Move Down** was spelled backwards as *the card
+below moves above this one*, and the last row of a column was therefore not a
+destination at all — the menu drew one item there, two in the middle and one at
+the top, changing shape as the card travelled. `CardDropTests` still pins the
+arithmetic, because the drop caret's `before:` is the same call.
+
+**Move Board and Move Column are the two halves of one question**, and they split
+where `BoardDestinationMenu` and `MoveToPicker` split it on the detail surfaces:
+which board, then where on it. Both draw the card's *own* board's columns rather
+than the board on screen — `BoardStore.moveDestinations(for:)` is that rule, and
+the rotor actions read it too, so the list a pointer sees and the list VoiceOver
+is offered cannot drift. A tick marks where the card is now and picking it does
+nothing; a card in the Inbox or the Archive has no columns, and **Move Column** is
+then not drawn rather than drawn empty. The checklist's two items go through
+`dropOffset(from:to:)` — the drop closure's own arithmetic — so the one menu that
+still says *up* and *down* cannot end up with a second idea of where a row lands.
 
 **The macOS sidebar rows are drop destinations too.** A card dropped on a board
 row is filed onto that board's landing column — the first column work can start
@@ -2494,37 +2606,58 @@ than skipping the phone, and `UITests/ColumnDropTests` has a phone half of its
 own — turned on its side, which is the one shape where two columns share a phone
 screen and a drop can therefore cross one.
 
-The flat surfaces are still a `List`: Search, a saved view and the Inbox sheet
-have no ground that means anything, because none of them is a place a card can be
-put. What the swap costs is the rows' `swipeActions`, and no card in this app has
-swiped since 6.4.
+**The phone's Inbox is the same story and the same fix.** `PhoneInboxSheet` drew
+its cards with the same `List`, so nothing in the Inbox could be rearranged by
+dragging and nothing could be dropped into it — on a surface whose desk
+equivalent has done both since the panel existed. It draws them with the stack
+now and carries `InboxPanel`'s own destination, the whole panel over: a card
+released anywhere in it goes through `drop(_:onGroundOf: .inbox)`, and a card
+released on one of its rows goes through the caret. `UITests/InboxSheetDropTests`
+pins the half one finger can reach — a row dragged into the gap above another —
+and reads the order off the screen rather than assuming the seed's, because it
+rearranges the thing it measures. A card arriving from the *board* needs a drag
+that outlives the sheet coming up, which is a second finger on the Inbox slot and
+not something XCUITest can synthesise; what the destination calls is read out of
+the source by `DragReorderTests` instead.
 
-**A drop on a list's own ground keeps the row the card was on.** The ground is
-the space around a column's cards — its header, the gap under the last one, an
-empty column — and it names no gap of its own, so something has to be the
-default. That default used to be *append*: the caret went under whatever was
-last there, and the drop followed it. It is the wrong answer for the gesture
-people actually make. A board's columns are stages of one piece of work and a
-card is dragged **sideways** across them; the row it was on is where the eye is,
-and a card third in Doing that reappeared at the foot of a Backlog twenty cards
-long had to be found again before it could be put back. So third out is third
-in — `BoardStore.groundCaret(for:in:)` reads the rank the card holds in the list
-it is leaving and the caret goes above whatever holds that rank in the list it is
-arriving at.
+The container itself is one view, `PhoneCardStack`, because the argument for it
+is one argument. The flat surfaces are still a `List`: Search, a saved view and
+the Archive are filters over the board rather than places on it, and nothing can
+be dropped into a filter. What the swap costs is the rows' `swipeActions`, and no
+card in this app has swiped since 6.4.
 
-A pointer *inside* a card has named a gap, and that always wins: the rank is a
-default for a drop that did not say where, and nothing more. Appending is still
-the answer when the destination is the shorter list — a card fifth in its column
-dropped on a column holding two has no fifth place to keep, and the foot is the
-nearest thing to it — and an empty list gets no caret at all, because a caret is
-drawn *by* a card on one of its edges and there is no card there to draw it. The
-drop still lands; the column highlight is the whole of the feedback for that one.
+**A drop on a list's own ground lands at the foot of it.** The ground is the
+space around a column's cards — its header, the room under the last one, an empty
+column — and it names no gap of its own, so something has to be the default. It
+briefly *kept the row the card came in on*: a card third in Doing landed third in
+the Backlog it was dropped on, on the argument that a card is dragged sideways
+across stages of one piece of work and the row it was on is where the eye is.
 
-`drop(_:onGroundOf:)` is what the column and the Inbox panel call, and it is
-deliberately **not** `move(_:to:)`. Rank is a fact about a *drag*. Every other
-route into a column — the move-to menu, the source list's board rows, a bulk
-move, filing from the Inbox — is a card arriving from somewhere with no row to
-keep, and those go on landing at the end.
+**That is right on paper and wrong under a finger.** What a person aims at is the
+space *under* the cards — on the phone it is most of the screen, everything below
+the last card — and a card that lands halfway up the list they were pointing
+below the end of has gone somewhere nothing marked. It reads as the card jumping
+on release. So the ground is the plainest thing it can be:
+`BoardStore.groundCaret(in:)` draws the caret under whatever is last, and the
+drop follows it.
+
+`UITests/GroundDropFootTests` is the half only a finger can ask, and it aims at
+the dashed "+ Add task to…" row rather than at bare ground beside it, because
+that row is where a thumb lands when it means "the bottom of this list" — it
+passes the drop through to the page behind it, which is itself worth having
+measured.
+
+A pointer *inside* a card has named a gap, and that always wins: the foot is a
+default for a drop that did not say where, and nothing more. An empty list gets
+no caret at all, because a caret is drawn *by* a card on one of its edges and
+there is no card there to draw it. The drop still lands; the column highlight is
+the whole of the feedback for that one.
+
+`drop(_:onGroundOf:)` is what the columns and both Inboxes call. It is
+`move(_:to:)` with one refusal in front of it — see the exception below — and
+that agreement is the point: a card arrives at the same place whether it was
+carried there or sent by the move-to menu, the source list's board rows or a bulk
+move.
 
 The exception is a column the card is already in: a drop aimed at no particular
 card is aimed at where the card already is, so it moves nothing, registers no
@@ -2586,9 +2719,29 @@ route through the header.
 `.draggable`/`.dropDestination` pair and the same `move(_:to:before:)` the desk
 uses, under the same `allowsCardDrag` guard: where the cards on screen are not in
 the board's own order, there is nothing a drop could mean. The lift is a long
-press and the page turn is a pan, so the two do not compete. The non-drag
-equivalent is **Move Up / Move Down in the long-press menu**, offered only where
-there is somewhere to go.
+press and the page turn is a pan, so the two do not compete. There is no non-drag
+equivalent for a card's place *within* its column, and deliberately so — see
+**Every drag has a way to say the same thing without one**, where Move Up / Move
+Down went and what replaced them.
+
+**The lift and the menu are one long press, and they have to be on one view.**
+UIKit shares a single press between a view's `UIDragInteraction` and its
+`UIContextMenuInteraction` — move while it is lifting and the drag takes it, hold
+still and the menu does — and it only shares it when both interactions sit on the
+*same* view. `.contextMenu` was applied by the list to the row and `.draggable` a
+body deeper inside `PhoneTaskCard`, so they were on two: the menu's lift failed
+the drag's gesture underneath it, and the only route left into a drag was hauling
+the presented menu far enough to tear its preview out, which is a long way by
+design. `PlatformTaskCard` now applies ``ReorderableCard`` and
+``PhoneTaskRowActions`` side by side, in that order, on one view.
+
+**This one cannot be pinned by a test.** XCUITest's runner is killed by its own
+idle watchdog whenever a gesture is synthesised over a presented context menu, so
+the press-past-the-menu case cannot be driven at all — measured, repeatedly, on
+iOS 27. What the suites do cover is that the drag still works and still lands:
+`CardDropTargetTests` and `ColumnDropTests` both press *short* of the menu, which
+is the other half of the same gesture and the half a relocated modifier would
+break first.
 
 **A card can now be dragged to another column**, which it could not while the
 pages were a `List`. Two things changed together. The page takes drops anywhere
@@ -2654,6 +2807,53 @@ and short enough to be forgotten before the same hand tries again. The drop bump
 next to it is a plain counter — a drop has a handler, so it needs no latch. Both
 fold into `onDragSessionUpdated` when the target moves, which is also when the
 phone's card can start dimming while it is carried.
+
+### The column chips carry the column
+
+The phone draws a column as a chip in the header's strip, and until now that was
+all a chip was: a switcher. Columns became board data in D1, but every call site
+for the store's column mutations was in `Sources/Mac/`, so renaming, recolouring,
+reordering or throwing away a column on this platform meant opening the drawer,
+long-pressing the board row, and finding the column in the sheet that came up —
+three surfaces deep for the four things a column *is*.
+
+**A long press on the chip now opens the desk's column menu**, item for item:
+Archive *N* Completed on a Done column with something in it, Edit Column…, Move
+Left, Move Right, Trash Column. A context menu because the chip's *tap* is taken
+and has to stay taken — it is the switcher — which is precisely the case iOS
+offers one for, and is the same arrangement `BoardColumnView` has behind its ⋯.
+Left and right rather than up and down: the chips are a horizontal strip over a
+board that pages sideways, so those are the directions being looked at, while
+`PhoneBoardEditor`'s own pair says up and down because there the columns are a
+vertical list. Trash Column asks nothing, matching every other Trash here — the
+act is undoable and the column waits thirty days — but it can still be *refused*,
+so the strip keeps a `ColumnRefusal` and an alert exactly as the desk's header
+and the board editor both do.
+
+**Edit Column… opens `PhoneBoardEditor` with that column already unfolded** —
+its new `expandsColumn` — rather than a column sheet of its own. Everything a
+column can be changed to is already in that row: its name, its abbreviation, its
+colour, where it sits, and whether it stays. A second surface holding a copy of
+those four is a second place for them to drift. The board's own fields stay above
+it, which is also true — a column belongs to a board, and the chip that opened it
+is one of that board's. Arriving unfolded goes through the same `open(_:)` a tap
+on the row does, split out of `toggle` so the two cannot disagree: the fields
+bind to drafts, and a row unfolded without filling them shows the *last* column's
+name under this column's heading. The sheet scrolls the row into view on the way
+in, because the board name, the colour picker and however many columns come first
+put the fifth column of five off the bottom of a phone.
+
+`UITests/ColumnChipMenuTests` presses it, which is the only way: a context menu is
+a `@ViewBuilder` handed to `.contextMenu` and no store knows what is in it. Two
+things it measured are worth keeping. **A press of 1.0s does not raise the menu at
+all** in the simulator — it fails on the first item every time, which reads
+exactly like a menu that was never built; UIKit's own recogniser fires well
+before that, and what needs the extra half-second is the chip's home in a
+horizontal `ScrollView`, where a shorter hold is claimed by the scroller as the
+start of a swipe. And **the board editor is left standing at the end**: the
+header's Done is not the only button called that — one of the columns listed
+under it is *named* Done and publishes its row under its own name — and a swipe
+down over a `.large` sheet full of scrolling content scrolls the content.
 
 ### The edge swipe
 
@@ -2961,9 +3161,10 @@ is what previews and tests use — see **Tests**.
 
 ### Identity and timestamps
 
-A task's `id` is a `UUID`. `code` — "NW-118" — is the human-facing label printed
-on the card, minted from the destination's prefix and one file-wide counter, and
-meant to be read out loud; see **Codes**. Nothing keys off it, so renumbering or
+A task's `id` is a `UUID`. `code` — "NW-118" — is the human-facing label a task
+carries, minted from the destination's prefix and one file-wide counter, and
+meant to be read out loud rather than looked at: it is not drawn in either
+editor; see **Codes**. Nothing keys off it, so renumbering or
 importing a task cannot break a reference. v1 files stored string ids (`"t1"`)
 that nothing referred to, so the migration mints fresh UUIDs for them.
 
@@ -3115,11 +3316,16 @@ The version is at the bottom of the iOS sheet, in a 44pt row reading
 which is where **Check for Updates…** lives — see **Packaging, the icon and the
 update check**.
 
-macOS reaches it through ⌘, and nothing else has to be built. **iOS has two doors,
-both of which had to be added**: a Settings row at the foot of the phone's nav
-drawer, which closes the drawer before raising the sheet because a sheet presented
-under an open overlay is one nobody can touch; and a row under Labels in
-`BoardSidebar` for the iPad, which is the whole of that platform's chrome. The
+macOS reaches it through ⌘, and nothing else has to be built. **iOS has three
+doors, all of which had to be added**: a Settings row at the foot of the phone's
+nav drawer, which closes the drawer before raising the sheet because a sheet
+presented under an open overlay is one nobody can touch; an item in the phone's
+`…` menu, added when that menu stopped being a copy of the drawer and had room
+for something the drawer alone was holding; and a row under Labels in
+`BoardSidebar` for the iPad, which is the whole of that platform's chrome. Two
+doors on the phone is not the duplication the menu's board and view items were:
+those led to *places* the drawer draws better, and this leads to a sheet that
+neither surface draws at all. The
 `#if os(iOS)` around the sidebar's row is about reachability rather than size — a
 second door on macOS would duplicate the app menu's.
 
@@ -3696,7 +3902,7 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | --- | --- |
 | `CalendarDayTests` | day arithmetic, month/leap/DST boundaries, `Codable` round-trip, stability across time zones |
 | `DueDateTests` | every label and urgency boundary, against an injected `today` |
-| `BoardStoreMutationTests` | move and its Done tick, add, delete and where the selection falls, complete/reopen, discarding a capture nothing was filled into — emptied again, pickers that came home, whitespace, a default due date, and the seven fills that keep it, including the board menu's — the sub-task reorder offset, the column a launch opens on and the phone's column step and its wrap, label toggle, priority, due, `updatedAt` and the header counts |
+| `BoardStoreMutationTests` | move and its Done tick, add, delete and where the selection falls, complete/reopen, the tick itself — `toggleCompletion` going both ways, a completed card still tickable though `canComplete` says no, a board with no Done column to reach drawing a dead one, and an archived card offering none — discarding a capture nothing was filled into — emptied again, pickers that came home, whitespace, a default due date, and the seven fills that keep it, including the board menu's — the sub-task reorder offset, the column a launch opens on and the phone's column step and its wrap, label toggle, priority, due, `updatedAt` and the header counts |
 | `EditingSessionTests` | one entry per session; none when nothing changed; a blank title or sub-task restored; first naming is not a rename; independence per surface, per task and per sub-task row — driven through the selection and sheet changes that end a session, which is where the scoping actually lives |
 | `DraftTests` | sub-task and label drafts are per (surface, task), and go when the task does |
 | `UndoTests` | every mutation undoes and redoes; a deleted task returns to its own index; a text session is one step while each picker change inside one is its own; keystrokes typed before an interleaved step are still reachable, and a ⌘Z aimed at an older step keeps what is still being typed; the Done tick's sub-task flags come back exactly; a blank title restored before the step opens on the bulk delete as well as the singular one, which is the only place that ordering can go wrong |
@@ -3724,7 +3930,7 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `PaletteSemanticTests` | the semantic colours, asked what a view cannot ask itself: every accent in either scheme keeping its label above 4.5:1 against the accent it is drawn on, and the one accent that follows the colour scheme taking its label with it. `.white` on the dark-mode ink accent scores 1.2:1, which is text that is simply not there |
 | `SaveContractTests` | every public board mutation reaching the disk, one store and one file apiece |
 | `UndoHarnessTests` | every public board mutation registering exactly one named step that undoes cleanly, and the list of the ones that deliberately register nothing — plus how many there are, which is the only thing stopping a new mutation being quietly left out |
-| `CardDropTests` | what a drop is allowed to do, at the seam the two board drop closures call into. A card dropped on a sibling reorders and *nothing else* — same column, same count, same sub-tasks, no move written into its history — because the failure it exists for was a reorder that moved the card to Done, ticked it, moved the week's completed count and closed its outstanding sub-tasks on the way. The contrasting drop, onto a card in Done, still does all of that, so the first cannot pass by the Done behaviour having been deleted. Then a drop on the column a card is already in staying a no-op, and the two menus that say the same things without a drag: `CardReorderItems`' Move Up / Move Down walking a card up and down its column, and the checklist's going through `dropOffset` |
+| `CardDropTests` | what a drop is allowed to do, at the seam the two board drop closures call into. A card dropped on a sibling reorders and *nothing else* — same column, same count, same sub-tasks, no move written into its history — because the failure it exists for was a reorder that moved the card to Done, ticked it, moved the week's completed count and closed its outstanding sub-tasks on the way. The contrasting drop, onto a card in Done, still does all of that, so the first cannot pass by the Done behaviour having been deleted. Then a drop on the column a card is already in staying a no-op, and the two spellings of a walk up and down a column — the second said backwards, because `move` refuses a `before: nil` into the place a card already is — plus the checklist's menu going through `dropOffset` |
 | `MenuKeyOwnershipByPlatformTests` | the other half of `KeyOwnershipTests`, and in a file that is not `#if os(macOS)` so it can say it: the menu bar takes keys off a card only on the platform that has one. On macOS ⌘⌫ and ⌘⏎ reach no card; on iOS `menuOwnedShortcuts` is empty and both reach the card, because `BoardCommands` is built into the macOS scene alone and nothing on iPad was taking them first. Space, a bare ⏎ and ⌥← are unchanged on both |
 | `RootSurfaceTests` | iOS only — which of the two layouts a window gets. An iPad at regular width takes the desk's; a phone takes the phone's at *every* width it can reach, which is the blocker: a Max-class iPhone in landscape is a regular horizontal size class and drew the iPad's split view; an iPad in Slide Over takes the phone's; and an unresolved size class is not a licence to draw three panes |
 | `PadListMetricTests` | `TaskListMetrics.pad` exists and is named beside its siblings — room under the last card but not the phone's tab-bar's worth, and a row capped and centred rather than stretched across 13 inches |
@@ -3737,7 +3943,7 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `IntentTests` | `AddTaskIntent` and `ShowTodayIntent` through `TaskIntentBridge` — no destination landing in the Inbox under an `IN-` code, a named column and a named board each landing where they say and minting from that board's prefix, a due date reaching the card, a column no board has refused rather than guessed at, and the entity queries offering what the board actually has, each column named with its board. All of it on the one store the app is holding, because a second store would be a board of its own written over the real one |
 | `SystemWiringTests` | the handovers every other Phase F suite passes without: the scheduler reconciled from the board, `.systemEntryPoints()` attached to a view, a store adopted into the intent bridge — **from the app's `init()`**, not a view's `.onAppear`, because an intent can perform before any scene exists — both detail surfaces publishing their task for Handoff, the settings surface reachable, and exactly one store over the real file. Read out of the source the way `MenuDeclarationTests` reads the menu: a scene has nothing to enumerate at runtime, and a modifier commented out of a `body` is invisible to everything else. This is `UndoHandoverTests`' question asked of the other joins. The three that were open at the end of Phase F were wrapped in `withKnownIssue` rather than deleted or left red — Swift Testing fails a block that *stops* failing, so wiring one up told the next agent to take the wrapper off in the same run, which is what happened |
 | `DragReorderTests` | the card-to-card drop as a property rather than as an example, which is what the iPad needs: for **every** ordered pair of cards sharing a place — each column of each board, and the Inbox — the drop `BoardTaskCard` and `PhoneTaskCard` make must leave the card in that place, not change its completion, and not touch its sub-tasks, with the place holding the same set of cards afterwards. Then that it genuinely reorders — the card lands immediately ahead of the one it was dropped on, in every pair — so the first claim cannot be satisfied by a `move` that does nothing. Then the contrast, over every pair of *different* places, including a card into Done still being ticked; the column's own drop closure resolving to that column for every card on the board and staying a no-op on the column a card is already in; a drag refused under a query, under a sort and inside a saved view; and an archived card unreachable by either closure |
-| `DropCaretTests` | where a dragged card says it will land, and whether it is telling the truth. A caret names a *gap*: the head of another list — the one thing the old direction-of-travel rule could not express at all — the foot of one, the two names for one gap meaning one place, and a card coming from below landing where it was pointed rather than on the other side. A drop into the gap the card is already in moving nothing *and registering no step*. A list's own ground keeping the row the card was on — third out, third in — in a column and in the Inbox panel, with the foot as the fallback where the destination is the shorter list and no caret at all over an empty one, which still takes the card; the pointer inside a card beating the rank, because a named gap is not a default; `move(_:to:)` still appending, because only a drag has a row to keep; the column a card is already in offering none, because that drop moves nothing and registers no step; and none at all with nothing in the air or with a query narrowing the board. Then the caret drawn without a drag session to name the card, which is the iPad's case. Then the half that is a claim about pixels: the card rendered and the accent-coloured row found in it — looked for rather than diffed against a plain card, because in a full parallel run the same card came out 83pt where it is 110pt alone and a third of it differed for reasons that had nothing to do with a caret — against a raster whose row order is itself measured rather than assumed |
+| `DropCaretTests` | where a dragged card says it will land, and whether it is telling the truth. A caret names a *gap*: the head of another list — the one thing the old direction-of-travel rule could not express at all — the foot of one, the two names for one gap meaning one place, and a card coming from below landing where it was pointed rather than on the other side. A drop into the gap the card is already in moving nothing *and registering no step*. A list's own ground landing the card at the foot — in a column and in the Inbox, and from the top row of the list it left as readily as from the bottom, because "always the foot" is only a rule if the row the card came from cannot change the answer — with no caret at all over an empty one, which still takes the card; the pointer inside a card beating the ground, because a named gap is not a default; `move(_:to:)` landing a card in the same place a drag does, since a ground drop is now that call; the column a card is already in offering none, because that drop moves nothing and registers no step; and none at all with nothing in the air or with a query narrowing the board. Then the caret drawn without a drag session to name the card, which is the iPad's case. Then the half that is a claim about pixels: the card rendered and the accent-coloured row found in it — looked for rather than diffed against a plain card, because in a full parallel run the same card came out 83pt where it is 110pt alone and a third of it differed for reasons that had nothing to do with a caret — against a raster whose row order is itself measured rather than assumed |
 | `DragLiftTests` | when a card stops looking as though it is being carried, which the reported flash was a hundred milliseconds late for. `BoardStore.endDrag()` taking the lift off the card *and* the highlight off both places one can be — the column and the Inbox panel — and a move, including the drop that lands where the card already is, going through it. Then the half no unit test can drive, read off the source the way `DragReorderTests` reads the drop closures: nothing in the session handler ends a lift by hand, a drop carrying a card falls through the `ended` arm untouched, and the arm that ends the lift is `dataTransferCompleted` |
 | `BoardRevealTests` | how far the board moves when focus arrives, and who decides. Every surface that scrolls a card into view — the strip, the column, the Inbox panel — read off the source: none of them hangs a `scrollTo` off `focus`, which is what made a click scroll the board; each answers **both** manners, centring what a key revealed and giving a click's reveal no anchor at all, so the rule cannot be met by dropping the scroll and stranding the arrow keys nor by answering a click with the centring that was the complaint; and the two routes that raise one are the keyboard, only ever centred, and the card's click, only ever into view. The scroll counts per file are asserted too, so a new one cannot be added without this being read. Then the arithmetic that keeps the reveal margin free: the inset plus what is left of the spacing is the gutter, and the inset plus what is left of the strip's margin is the strip's margin — both remainders being negative at the current inset, which is why it is asked as a sum |
 | `FieldFocusTests` | that a field which opens, opens with the keyboard in it. Nothing in the app writes a `@FocusState` from `onAppear` — the line that shipped three fields unfocused — told apart from the `@AccessibilityFocusState` the phone's drawer sets there on purpose by how the property is declared, so a file nobody has thought about is covered too. Then the other half, without which the rule is met by a field that never focuses at all: the set of files using `focusWhenReady` is the set named in the test. Then what the modifier must do — yield *before* it asks, and not go back to waiting a fixed number of milliseconds |
