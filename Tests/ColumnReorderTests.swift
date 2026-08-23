@@ -45,11 +45,33 @@ import Testing
     @Test func aColumnDraggedLeftTakesTheTargetsPlace() {
         let store = store()
 
-        // Done onto Up Next: from 3, to 1, so it lands second.
-        #expect(store.dropColumn(payload(BoardColumn.done, in: store), onto: BoardColumn.upNext.id))
+        // In Progress onto Up Next: from 2, to 1, so it lands second.
+        #expect(store.dropColumn(payload(BoardColumn.inProgress, in: store), onto: BoardColumn.upNext.id))
         #expect(order(store) == [
-            BoardColumn.backlog.id, BoardColumn.done.id,
+            BoardColumn.backlog.id, BoardColumn.inProgress.id,
+            BoardColumn.upNext.id, BoardColumn.done.id,
+        ])
+    }
+
+    /// **The Done column is not a payload.** Nothing offers it as a drag — see
+    /// `ColumnGrip` — so a drop carrying it came from somewhere the interface
+    /// does not go, and `false` is the answer to it. Done is the board's last
+    /// column and that is what makes it the one a tick sends cards to.
+    @Test func aDropCarryingTheDoneColumnIsRefused() {
+        let store = store()
+        #expect(store.dropColumn(payload(BoardColumn.done, in: store), onto: BoardColumn.upNext.id) == false)
+        #expect(order(store) == seeded)
+    }
+
+    /// A column dropped *onto* Done is allowed, and lands in front of it rather
+    /// than past it: the drop was heading for the end of the board, and the end
+    /// of the working columns is the nearest place that exists.
+    @Test func aColumnDroppedOntoDoneLandsInFrontOfIt() {
+        let store = store()
+        #expect(store.dropColumn(payload(BoardColumn.backlog, in: store), onto: BoardColumn.done.id))
+        #expect(order(store) == [
             BoardColumn.upNext.id, BoardColumn.inProgress.id,
+            BoardColumn.backlog.id, BoardColumn.done.id,
         ])
     }
 

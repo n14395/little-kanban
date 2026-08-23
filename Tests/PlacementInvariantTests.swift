@@ -21,15 +21,15 @@ import Testing
         UUID(uuid: (a, b, 0, 0, 0, 0, 0x40, 0, 0x80, 0, 0, 0, 0, 0, 0, n))
     }
 
-    private static func column(_ n: UInt8, _ name: String, _ role: ColumnRole) -> BoardColumn {
-        BoardColumn(id: uuid(0xC0, 0x1F, n), name: name, short: name, dot: .hex(0xA8A29A), role: role)
+    private static func column(_ n: UInt8, _ name: String) -> BoardColumn {
+        BoardColumn(id: uuid(0xC0, 0x1F, n), name: name, short: name, dot: .hex(0xA8A29A))
     }
 
-    private static let alphaTodo = column(1, "To do", .backlog)
-    private static let alphaDoing = column(2, "Doing", .active)
-    private static let alphaDone = column(3, "Shipped", .done)
-    private static let betaQueue = column(4, "Queue", .backlog)
-    private static let betaDone = column(5, "Closed", .done)
+    private static let alphaTodo = column(1, "To do")
+    private static let alphaDoing = column(2, "Doing")
+    private static let alphaDone = column(3, "Shipped")
+    private static let betaQueue = column(4, "Queue")
+    private static let betaDone = column(5, "Closed")
 
     private static let alphaID = uuid(0xB0, 0x1E, 1)
     private static let betaID = uuid(0xB0, 0x1E, 2)

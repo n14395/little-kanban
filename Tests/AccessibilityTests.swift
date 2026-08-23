@@ -81,9 +81,9 @@ import Testing
     @Test func theDueChipIsReadableAtEveryUrgencyInEitherScheme() {
         for scheme in [ColorScheme.light, .dark] {
             let palette = Palette(colorScheme: scheme)
-            for role in [ColumnRole.backlog, .done] {
+            for isDone in [false, true] {
                 for urgency in [DueUrgency.overdue, .today, .soon, .later] {
-                    let tone = palette.dueTone(urgency: urgency, role: role)
+                    let tone = palette.dueTone(urgency: urgency, isDone: isDone)
                     let ground = composite(tone.background, over: palette.card)
                     let text = composite(
                         tone.foreground,
@@ -93,7 +93,7 @@ import Testing
                         )
                     )
                     let ratio = contrast(text, ground)
-                    #expect(ratio >= 4.5, "\(urgency)/\(role) in \(scheme) is \(ratio):1")
+                    #expect(ratio >= 4.5, "\(urgency)/done=\(isDone) in \(scheme) is \(ratio):1")
                 }
             }
         }
@@ -123,12 +123,12 @@ import Testing
     /// the tint distinguishes, and none for the neutral one, because a mark on
     /// every chip distinguishes nothing.
     @Test func theDueChipMarksEachUrgencyItTints() {
-        #expect(DueChip.urgencySymbol(urgency: .later, role: .done) == "checkmark")
-        #expect(DueChip.urgencySymbol(urgency: .overdue, role: .done) == "checkmark")
-        #expect(DueChip.urgencySymbol(urgency: .overdue, role: .backlog) == "exclamationmark")
-        #expect(DueChip.urgencySymbol(urgency: .today, role: .backlog) == "exclamationmark")
-        #expect(DueChip.urgencySymbol(urgency: .soon, role: .backlog) == "clock")
-        #expect(DueChip.urgencySymbol(urgency: .later, role: .backlog) == nil)
+        #expect(DueChip.urgencySymbol(urgency: .later, isDone: true) == "checkmark")
+        #expect(DueChip.urgencySymbol(urgency: .overdue, isDone: true) == "checkmark")
+        #expect(DueChip.urgencySymbol(urgency: .overdue, isDone: false) == "exclamationmark")
+        #expect(DueChip.urgencySymbol(urgency: .today, isDone: false) == "exclamationmark")
+        #expect(DueChip.urgencySymbol(urgency: .soon, isDone: false) == "clock")
+        #expect(DueChip.urgencySymbol(urgency: .later, isDone: false) == nil)
     }
 
     /// A tint the chip draws and a glyph it does not are the same failure over
@@ -137,11 +137,11 @@ import Testing
     @Test func everyDistinctTintHasItsOwnMark() {
         let palette = Palette(colorScheme: .light)
         var byTint: [String: Set<String?>] = [:]
-        for role in [ColumnRole.backlog, .done] {
+        for isDone in [false, true] {
             for urgency in [DueUrgency.overdue, .today, .soon, .later] {
-                let tone = palette.dueTone(urgency: urgency, role: role)
+                let tone = palette.dueTone(urgency: urgency, isDone: isDone)
                 let key = "\(tone.background)|\(tone.foreground)"
-                byTint[key, default: []].insert(DueChip.urgencySymbol(urgency: urgency, role: role))
+                byTint[key, default: []].insert(DueChip.urgencySymbol(urgency: urgency, isDone: isDone))
             }
         }
         for (tint, marks) in byTint {

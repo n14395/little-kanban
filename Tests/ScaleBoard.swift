@@ -60,8 +60,7 @@ enum ScaleBoard {
                 let n = b * columnsPerBoard + c
                 return BoardColumn(
                     id: columnID(n), name: "Column \(b).\(c)", short: "C\(b).\(c)",
-                    dot: .hex(0xA8A29A),
-                    role: c == columnsPerBoard - 1 ? .done : (c == 0 ? .backlog : .active)
+                    dot: .hex(0xA8A29A)
                 )
             },
             codePrefix: "B\(b)"

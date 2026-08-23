@@ -352,7 +352,7 @@ struct PhoneDetailSheet: View {
     /// is passed explicitly because the task's own would turn the row green
     /// once it reached Done.
     private var destructiveTone: (background: Color, foreground: Color) {
-        palette.dueTone(urgency: .overdue, role: .backlog)
+        palette.dueTone(urgency: .overdue, isDone: false)
     }
 }
 

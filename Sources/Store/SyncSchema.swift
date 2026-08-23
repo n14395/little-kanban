@@ -163,7 +163,15 @@ final class StoredColumn {
     var short: String = ""
     /// As `StoredBoard.dot`.
     var dot: Data?
-    var roleKey: String = ColumnRole.backlog.rawValue
+    /// **v8's `ColumnRole`, kept and no longer read.**
+    ///
+    /// A CloudKit schema is additive only, so the attribute stays whatever the
+    /// app does with it. Nothing decodes it — since v9 a column is the Done one
+    /// by being its board's last, see ``Board/doneColumn`` — but
+    /// ``BoardSyncStore`` still *writes* it, `"done"` for the last column and
+    /// `"backlog"` for the rest, so a build from before v9 syncing against this
+    /// one still finds exactly one Done column and finds it in the right place.
+    var roleKey: String = "backlog"
     var position: Int = 0
     var board: StoredBoard?
 

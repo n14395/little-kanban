@@ -63,8 +63,14 @@ import Testing
             #expect(board.codePrefix == "NW", "\(name) lost the board's code prefix")
             #expect(snapshot.activeBoardID == board.id, "\(name) arrived with no active board")
             #expect(board.columns.isEmpty == false, "\(name) arrived with no columns")
-            let doneColumns = board.columns.count { $0.role == .done }
-            #expect(doneColumns == 1, "\(name) has \(doneColumns) Done columns")
+            // One Done column, and it is the **last** — which since v9 is what
+            // makes it one. `board-v8-done-adrift` is the fixture that can fail
+            // this: it is a v8 file whose Done column sits second, and the step
+            // that brings it forward has to move it to the end.
+            let done = try #require(board.doneColumn, "\(name) arrived with no Done column")
+            #expect(done.name == "Done", "\(name) ends on \(done.name), not its Done column")
+            #expect(board.columns.map(\.name) == ["Backlog", "Up Next", "In Progress", "Done"],
+                    "\(name) arrived as \(board.columns.map(\.name))")
             // The board is at least as old as the oldest thing on it.
             for task in snapshot.tasks {
                 #expect(board.createdAt <= task.createdAt, "\(name): the board is younger than \(task.code)")

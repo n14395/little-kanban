@@ -209,9 +209,15 @@ struct BoardColumnView: View {
         .padding(.top, 2)
         .padding(.bottom, 10)
         // **The grip a column is re-ordered by.** See ``lifted()``.
+        //
+        // Not on the Done column, which is its board's last and stays there —
+        // see ``Board/doneColumn``. A grip that lifted and then refused to land
+        // anywhere is worse than no grip: the store would refuse the drop, and
+        // the only thing on screen to explain it would be the column sliding
+        // back. `dropColumn` refuses it too, because a payload can also arrive
+        // from a build that offered the drag.
         .contentShape(.rect)
-        .draggable(lifted())
-        .help("Drag to re-order the columns")
+        .modifier(ColumnGrip(isEnabled: !isDone, lift: lifted))
     }
 
     /// The payload, and the session with it — `ReorderableCard`'s trick, for its
@@ -230,6 +236,10 @@ struct BoardColumnView: View {
     /// and the count are one label, and the only two things in that row with
     /// business of their own are the `…` and `+` buttons, which take their own
     /// taps before this ever sees them.
+    /// Whether this is its board's Done column — the one that neither moves nor
+    /// goes. See ``Board/doneColumn``.
+    private var isDone: Bool { store.isDone(column: column.id) }
+
     private func lifted() -> ColumnTransfer {
         store.beginColumnDrag(column.id)
         // The board this column is actually on, looked up rather than assumed
@@ -266,7 +276,12 @@ struct BoardColumnView: View {
                 } isTargeted: { targeted in
                     // Not the column being dragged: a line against the column
                     // that is leaving says nothing about where it lands.
-                    isColumnDropTarget = targeted && store.draggingColumnID != column.id
+                    // Not the column being dragged — a line against the column
+                    // that is leaving says nothing about where it lands — and
+                    // not past Done, which a drop here would be asking for: the
+                    // store lands it in front instead, so the line belongs on
+                    // the column before this one, not on this one.
+                    isColumnDropTarget = targeted && store.draggingColumnID != column.id && !isDone
                 }
         }
     }
@@ -282,7 +297,7 @@ struct BoardColumnView: View {
     /// not over the query — so the count says how many are about to go.
     private var columnMenu: some View {
         Menu {
-            if column.role == .done, !store.completedTasks.isEmpty {
+            if store.isDone(column: column.id), !store.completedTasks.isEmpty {
                 Button {
                     store.archiveCompleted()
                 } label: {
@@ -412,15 +427,38 @@ struct BoardColumnView: View {
     }
 }
 
+/// The header's drag grip, on every column but Done.
+///
+/// A `ViewModifier` rather than a ternary because `.draggable` takes a payload,
+/// not an optional one — `DraggableWhenOrdered` is the same shape for the same
+/// reason. `lift` stays an escaping closure so the payload is still built when
+/// the *session* starts rather than when the header is drawn; see ``lifted()``,
+/// which is what makes `beginColumnDrag` land at the right moment.
+private struct ColumnGrip: ViewModifier {
+    let isEnabled: Bool
+    let lift: () -> ColumnTransfer
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content
+                .draggable(lift())
+                .help("Drag to re-order the columns")
+        } else {
+            content.help("The Done column stays at the end")
+        }
+    }
+}
+
 /// Name, abbreviation and dot for one column, in a popover off its header.
 ///
 /// The abbreviation is here because nothing else edits it and `MoveToPicker`
 /// draws it: a column renamed with no way to change its short name went on
 /// calling itself by the old one in the control the phone uses to move cards.
 ///
-/// The role is not here. Nothing can change a column's role once it exists —
-/// `BoardStore` has no `setColumnRole`, which is also why the refusal to delete
-/// the last Done column suggests something the user cannot yet do.
+/// There is no role here, and since v9 there is no role anywhere: a column is
+/// the Done column by being its board's *last*, and nothing else about it says
+/// what it is for. See ``Board/doneColumn``.
 private struct BoardColumnEditor: View {
     @Environment(\.palette) private var palette
     @Environment(\.dismiss) private var dismiss
@@ -491,13 +529,11 @@ private struct BoardColumnEditor: View {
 
 /// The trailing tile of the column strip: how a board grows a column.
 ///
-/// It names the column and nothing else. A column added here is a `.backlog`
-/// one, and the four role segments that used to sit under the field are gone —
-/// so **the phone's drawer is now the only place a role is chosen**, which
-/// makes it the only way to give a board the second Done column that changing
-/// an existing column's role would otherwise need. `BoardStore` still has no
-/// `setColumnRole`, so `deleteColumn`'s refusal to remove the last Done column
-/// now suggests something a pointer cannot do at all.
+/// It names the column and nothing else, which since v9 is everything there is
+/// to say: a column has no role to choose, and it lands where every new column
+/// lands — in front of the board's Done column, which stays last. The role
+/// segments that used to sit under this field are gone, and so is the pair they
+/// were the only pointer-side way to reach.
 struct AddColumnTile: View {
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store

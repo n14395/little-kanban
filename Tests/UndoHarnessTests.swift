@@ -318,7 +318,7 @@ import Testing
         check("addColumn") { $0.addColumn(named: "Blocked") }
         check("renameColumn") { $0.renameColumn(BoardColumn.upNext.id, to: "Later") }
         check("recolorColumn") { $0.recolorColumn(BoardColumn.backlog.id, to: .accent) }
-        check("moveColumn") { $0.moveColumn(fromOffsets: [3], toOffset: 0) }
+        check("moveColumn") { $0.moveColumn(fromOffsets: [1], toOffset: 0) }
         check("deleteColumn") { $0.deleteColumn(BoardColumn.upNext.id) }
         // The placement pair. `file` needs somewhere else to file it to.
         check("file", boards: TestBoard.boards) {

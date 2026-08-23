@@ -447,7 +447,7 @@ struct PhoneHeader: View {
         // to open the menu. `BoardColumnView` draws it under the same two
         // conditions, and `archiveCompleted` is defined over Done rather than
         // over this column, so the count says how many are about to go.
-        if column.role == .done, !store.completedTasks.isEmpty {
+        if store.isDone(column: column.id), !store.completedTasks.isEmpty {
             Button {
                 store.archiveCompleted()
             } label: {

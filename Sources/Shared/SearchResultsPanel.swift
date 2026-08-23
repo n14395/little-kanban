@@ -148,7 +148,7 @@ struct SearchResultsPanel: View {
                 // Beside the title rather than centred on a row that is now
                 // three lines tall.
                 if let due = task.due {
-                    DueChip(due: due, today: dayClock.today, role: store.role(of: task))
+                    DueChip(due: due, today: dayClock.today, isDone: store.isDone(task))
                 }
             }
             .padding(.horizontal, 10)

@@ -80,7 +80,7 @@ struct DueDateField: View {
                     DueChip(
                         due: due,
                         today: today,
-                        role: store.role(of: task),
+                        isDone: store.isDone(task),
                         font: metrics.chipFont,
                         horizontalPadding: metrics.chipHorizontalPadding,
                         radius: metrics.chipRadius

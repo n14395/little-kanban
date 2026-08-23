@@ -13,14 +13,14 @@ import Testing
         UUID(uuid: (a, b, 0, 0, 0, 0, 0x40, 0, 0x80, 0, 0, 0, 0, 0, 0, n))
     }
 
-    private static func column(_ n: UInt8, _ name: String, _ role: ColumnRole) -> BoardColumn {
-        BoardColumn(id: uuid(0xC0, 0x1B, n), name: name, short: name, dot: .hex(0xA8A29A), role: role)
+    private static func column(_ n: UInt8, _ name: String) -> BoardColumn {
+        BoardColumn(id: uuid(0xC0, 0x1B, n), name: name, short: name, dot: .hex(0xA8A29A))
     }
 
-    private static let alphaTodo = column(1, "To do", .backlog)
-    private static let alphaDone = column(2, "Shipped", .done)
-    private static let betaTodo = column(3, "Queue", .backlog)
-    private static let betaDone = column(4, "Closed", .done)
+    private static let alphaTodo = column(1, "To do")
+    private static let alphaDone = column(2, "Shipped")
+    private static let betaTodo = column(3, "Queue")
+    private static let betaDone = column(4, "Closed")
 
     private static let alphaID = uuid(0xB0, 0x1D, 1)
     private static let betaID = uuid(0xB0, 0x1D, 2)
@@ -451,7 +451,7 @@ import Testing
         #expect(store.board(id: id)?.codePrefix == "WR")
         // A new board is blank, so it is given a column before it is given a
         // card — which is the order the surfaces put the user through too.
-        store.addColumn(named: "Doing", role: .backlog)
+        store.addColumn(named: "Doing")
         let added = store.addTask(to: .column(board: id, column: try #require(store.columns.first?.id)), title: "First")
         #expect(store[added]?.code.hasPrefix("WR-") == true)
     }

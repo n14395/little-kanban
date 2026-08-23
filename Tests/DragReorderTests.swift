@@ -49,8 +49,7 @@ import Testing
             columns: (0..<columnsPerBoard).map { c in
                 BoardColumn(
                     id: uuid(0xC0, b * columnsPerBoard + c),
-                    name: "Column \(b).\(c)", short: "C\(b).\(c)", dot: .hex(0xA8A29A),
-                    role: c == columnsPerBoard - 1 ? .done : (c == 0 ? .backlog : .active)
+                    name: "Column \(b).\(c)", short: "C\(b).\(c)", dot: .hex(0xA8A29A)
                 )
             },
             codePrefix: "D\(b)"
@@ -197,7 +196,7 @@ import Testing
                 let moved = try #require(store[dropped])
                 #expect(moved.placement == destination,
                         "a cross-place drop did not land: \(moved.code) is \(moved.placement)")
-                if let columnID = destination.columnID, store.role(ofColumn: columnID) == .done {
+                if let columnID = destination.columnID, store.isDone(column: columnID) {
                     #expect(moved.subtasks.allSatisfy { $0.done },
                             "a card moved into Done kept an outstanding sub-task")
                     #expect(store.isDone(moved))

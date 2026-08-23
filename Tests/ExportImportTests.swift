@@ -384,7 +384,7 @@ import UniformTypeIdentifiers
         var clashing = ForeignBoard.board
         clashing.columns = [
             BoardColumn(id: BoardColumn.backlog.id, name: "Their backlog", short: "Backlog",
-                        dot: .hex(0xA8A29A), role: .backlog),
+                        dot: .hex(0xA8A29A)),
         ]
         var arriving = TaskItem(
             id: ForeignBoard.taskID(9), code: "WR-150", title: "On their backlog",

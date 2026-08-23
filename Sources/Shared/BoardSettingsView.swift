@@ -89,7 +89,6 @@ struct BoardSettingsView: View {
     @State private var columnNameDraft = ""
     @State private var columnShortDraft = ""
     @State private var newColumnName = ""
-    @State private var newColumnRole: ColumnRole = .backlog
     @FocusState private var columnFocus: ColumnField?
     /// Why the last delete did not happen. `BoardColumnView` keeps the same
     /// state for the same reason: a menu item that silently does nothing is
@@ -99,9 +98,6 @@ struct BoardSettingsView: View {
     /// cost — see ``ColumnTrashWarning``. Held rather than acted on: this is the
     /// one control in here that moves other people's cards.
     @State private var trashWarning: ColumnTrashWarning?
-    /// A reorder that would change which column completed cards land in, held
-    /// until it is confirmed — see ``ColumnMoveWarning``.
-    @State private var moveWarning: ColumnMoveWarning?
 
     private var board: Board? { store.board(id: boardID) }
 
@@ -147,13 +143,16 @@ struct BoardSettingsView: View {
         } message: { refusal in
             if let suggestion = refusal.recoverySuggestion { Text(suggestion) }
         }
-        // **The two changes in here that reach past the board's own chrome.**
-        // Everything else — a name, an abbreviation, a colour — is visible the
-        // moment it happens and is one ⌘Z from being back. These two are not:
-        // trashing a column moves other people's cards to another column, and a
-        // reorder that changes which column is the Done one changes where every
-        // future tick sends a card, with nothing on the board to show for it.
-        // So each says what it is about to do, in the numbers of this board.
+        // **The one change in here that reaches past the board's own chrome.**
+        // Everything else — a name, an abbreviation, a colour, an order — is
+        // visible the moment it happens and is one ⌘Z from being back. Trashing
+        // a column is not: it moves other people's cards to another column. So
+        // it says what it is about to do, in the numbers of this board.
+        //
+        // A reorder used to ask as well, because it could change which column
+        // was the Done one and so where every future tick sent a card, with
+        // nothing on the board to show for it. It cannot now — Done is the last
+        // column and does not move — so there is nothing left to ask about.
         .alert(
             trashWarning?.title ?? "",
             isPresented: Binding(get: { trashWarning != nil }, set: { if !$0 { trashWarning = nil } }),
@@ -161,16 +160,6 @@ struct BoardSettingsView: View {
         ) { warning in
             Button("Trash Column", role: .destructive) { trash(warning.column) }
             Button("Cancel", role: .cancel) { trashWarning = nil }
-        } message: { warning in
-            Text(warning.detail)
-        }
-        .alert(
-            moveWarning?.title ?? "",
-            isPresented: Binding(get: { moveWarning != nil }, set: { if !$0 { moveWarning = nil } }),
-            presenting: moveWarning
-        ) { warning in
-            Button("Move Column") { apply(warning) }
-            Button("Cancel", role: .cancel) { moveWarning = nil }
         } message: { warning in
             Text(warning.detail)
         }
@@ -303,22 +292,12 @@ struct BoardSettingsView: View {
                         .foregroundStyle(palette.ink(0.8))
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    // The role, and — on the one column it is true of — that
-                    // this is where a tick sends a card. Two Done columns are
-                    // allowed and only the first of them is that column, which
-                    // is invisible everywhere else in the app and is the whole
-                    // reason a reorder can need a warning.
-                    if isLandingColumn(column) {
-                        Text("Completed")
-                            .font(SimpleKanbanFont.ui(11, .bold, relativeTo: .caption2))
-                            .foregroundStyle(palette.accent)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(palette.accentSoft, in: .capsule)
-                    }
-                    Text(Self.roleName(column.role))
-                        .font(SimpleKanbanFont.ui(11, .bold, relativeTo: .caption2))
-                        .foregroundStyle(palette.inkText(0.4))
+                    // Nothing but the name. Up to v8 every row carried its
+                    // `ColumnRole` here — "Backlog", "Doing", "Done" — beside a
+                    // "Completed" pill on whichever column a tick actually sent
+                    // a card to. Two of the three roles never did anything, the
+                    // third is now the last row by definition, and the pill was
+                    // marking a distinction that no longer exists.
                     Text(verbatim: isOpen ? "\u{2303}" : "\u{2304}")
                         .font(SimpleKanbanFont.ui(11, .bold, relativeTo: .caption2))
                         .foregroundStyle(palette.inkText(0.35))
@@ -332,11 +311,14 @@ struct BoardSettingsView: View {
             // thing to a reader — the column's name, its role as the value.
             .accessibilityRepresentation {
                 Button(column.name) { toggle(column) }
+                    // The Done column still says so out loud. Sighted readers
+                    // have its position and the line in its open editor; a
+                    // reader moving row by row has neither.
                     .accessibilityValue(
-                        isLandingColumn(column)
-                            ? String(localized: "\(Self.roleName(column.role)), completed tasks land here",
-                                     comment: "A column's role, plus that it is where ticking a task sends it")
-                            : Self.roleName(column.role)
+                        isDoneColumn(column)
+                            ? String(localized: "Completed tasks land here",
+                                     comment: "Spoken value on the board's last column, where ticking a task sends it")
+                            : ""
                     )
                     .accessibilityAddTraits(isOpen ? [.isSelected] : [])
             }
@@ -350,15 +332,25 @@ struct BoardSettingsView: View {
         .id(column.id)
     }
 
-    /// Whether a tick sends cards here: the board's *first* Done column, which
-    /// is `BoardStore.doneColumnID`'s rule read back rather than restated.
-    private func isLandingColumn(_ column: BoardColumn) -> Bool {
-        store.doneColumnID(onBoard: boardID) == column.id
+    /// Whether this is the board's Done column: its last, which is
+    /// ``Board/doneColumn``'s rule read back rather than restated.
+    ///
+    /// It is the one row that cannot be moved or trashed, so it is the one row
+    /// that draws neither control.
+    private func isDoneColumn(_ column: BoardColumn) -> Bool {
+        board?.doneColumn?.id == column.id
     }
 
-    /// Everything about a column except its role, which nothing can change once
-    /// the column exists — `BoardStore` has no `setColumnRole`, and the macOS
-    /// editor leaves it out for the same reason.
+    /// Everything a column can be changed to. Since v9 that is all of it: there
+    /// is no role left to leave out.
+    ///
+    /// **The Done column gets the fields and not the buttons.** It can be
+    /// renamed and recoloured — real boards call it Shipped, Live and Published,
+    /// and `SeedData.contentCalendar` already ships one called Published — but
+    /// it cannot be moved off the end or thrown away, because being on the end
+    /// is what makes it the column a tick sends cards to. A line of text says so
+    /// where the controls would have been, rather than three disabled buttons
+    /// that would leave a person pressing them to find out why.
     private func columnEditor(_ column: BoardColumn, index: Int, count: Int) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             columnField("Name", text: $columnNameDraft, focus: .name)
@@ -376,18 +368,30 @@ struct BoardSettingsView: View {
                 .padding(.leading, -(metrics.dots.hitSize - metrics.dots.dot) / 2)
             }
 
-            HStack(spacing: 8) {
-                // Reordering, for a list that cannot be dragged: these rows are
-                // a `VStack` in a sheet's scroller, and `onMove` belongs to
-                // `List`. The drawer's board rows make the same trade.
-                stepButton("Move Up", glyph: "\u{2191}", isEnabled: index > 0) {
-                    move(from: index, to: index - 1)
+            if isDoneColumn(column) {
+                Text("Every board keeps its Done column, at the end. Ticking a task sends it here.")
+                    .font(SimpleKanbanFont.ui(12.5, .medium, relativeTo: .footnote))
+                    .foregroundStyle(palette.inkText(0.45))
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                HStack(spacing: 8) {
+                    // Reordering, for a list that cannot be dragged: these rows
+                    // are a `VStack` in a sheet's scroller, and `onMove` belongs
+                    // to `List`. The drawer's board rows make the same trade.
+                    stepButton("Move Up", glyph: "\u{2191}", isEnabled: index > 0) {
+                        move(from: index, to: index - 1)
+                    }
+                    // `count - 2`, not `count - 1`: the last row is Done and
+                    // stays there, so the row above it is already as far down as
+                    // a working column goes. The store clamps this too — see
+                    // `moveColumn` — and the button is disabled rather than
+                    // silently doing nothing.
+                    stepButton("Move Down", glyph: "\u{2193}", isEnabled: index < count - 2) {
+                        move(from: index, to: index + 2)
+                    }
+                    Spacer(minLength: 0)
+                    deleteColumnButton(column)
                 }
-                stepButton("Move Down", glyph: "\u{2193}", isEnabled: index < count - 1) {
-                    move(from: index, to: index + 2)
-                }
-                Spacer(minLength: 0)
-                deleteColumnButton(column)
             }
         }
         .padding(.horizontal, 12)
@@ -459,7 +463,8 @@ struct BoardSettingsView: View {
     /// alert says how many and where to; see ``ColumnTrashWarning``.
     ///
     /// It can also be refused outright, and a refusal has to say why: a board
-    /// with no Done column, or none that is not Done, is not a board.
+    /// down to its last working column has nowhere for work to start. The Done
+    /// column never reaches here — it draws no Trash button at all.
     private func deleteColumnButton(_ column: BoardColumn) -> some View {
         Button(role: .destructive) {
             commitColumnRename()
@@ -503,19 +508,11 @@ struct BoardSettingsView: View {
 
     private var addColumnComposer: some View {
         VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 6) {
-                // The role is chosen here and nowhere else — a column's role
-                // cannot be changed later — which is also how a board is given
-                // the second Done column the refusal above asks for.
-                Text("Role").sectionLabelStyle(size: 10.5, tracking: 0.08, opacity: Palette.readableInk)
-                rolePicker
-            }
-            // Above the name field, not below it. The segments used to sit in
-            // the band the software keyboard lands in, so once the field had
-            // focus a tap aimed at Doing or Done reached the keyboard instead
-            // and the column was created as a Backlog without a word said.
-            // Ahead of the field they are on the far side of the caret from the
-            // keyboard, and `reveal` keeps them there.
+            // A name and nothing else. There used to be four role segments
+            // above this field, and they had to be *above* it because the band
+            // below is where the software keyboard lands — a tap aimed at Doing
+            // or Done reached the keyboard instead and the column was made a
+            // Backlog without a word said. Both problems left with the roles.
             columnField("Name", text: $newColumnName, focus: .new)
             HStack(spacing: 8) {
                 // The height belongs inside the label. Hung on the `Button`
@@ -559,8 +556,8 @@ struct BoardSettingsView: View {
     /// focus, so a scroll issued in the same turn aims at a viewport that is
     /// about to lose a third of its height — which is how a control above the
     /// caret ended up underneath the keyboard. Waiting for the inset and then
-    /// pinning the composer's bottom edge to the bottom of what is left puts
-    /// the whole of it, role segments included, in reach.
+    /// pinning the composer's bottom edge to the bottom of what is left puts the
+    /// whole of it in reach.
     private func reveal(in proxy: ScrollViewProxy) {
         reveal(Self.composerAnchor, in: proxy, anchor: .bottom)
     }
@@ -577,42 +574,15 @@ struct BoardSettingsView: View {
         }
     }
 
-    private var rolePicker: some View {
-        HStack(spacing: 4) {
-            ForEach(ColumnRole.allCases, id: \.self) { option in
-                let isCurrent = option == newColumnRole
-                Button { newColumnRole = option } label: {
-                    Text(Self.roleName(option))
-                        .font(SimpleKanbanFont.ui(13, .bold, relativeTo: .footnote))
-                        .foregroundStyle(isCurrent ? palette.ink : palette.inkText(0.5))
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 38)
-                        .background {
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(isCurrent ? palette.card : .clear)
-                                .shadow(color: isCurrent ? palette.shadow(0.16) : .clear, radius: 1.5, y: 1)
-                        }
-                        .frame(minHeight: metrics.hit)
-                }
-                .buttonStyle(.bare)
-                .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
-            }
-        }
-        .padding(.horizontal, 3)
-        .background(palette.ink(0.06), in: .rect(cornerRadius: 10))
-    }
-
     /// A name with nothing in it is refused by the store, and the composer stays
     /// open rather than closing on a column that was never made.
     private func addColumn() {
-        guard store.addColumn(named: newColumnName, role: newColumnRole) != nil else { return }
+        guard store.addColumn(named: newColumnName) != nil else { return }
         cancelAddColumn()
     }
 
     private func cancelAddColumn() {
         newColumnName = ""
-        newColumnRole = .backlog
         columnFocus = nil
         isAddingColumn = false
     }
@@ -652,46 +622,25 @@ struct BoardSettingsView: View {
         }
     }
 
-    /// Moves a column, once anything worth asking about has been asked.
+    /// Moves a column.
     ///
     /// `toOffset` is `SwiftUI`'s: an index in the list *before* the move, which
     /// is why moving down is `index + 2`. The callers keep that spelling and
     /// this passes it through untouched — arithmetic done twice is arithmetic
     /// that can disagree.
+    ///
+    /// It used to have a question in front of it, because a reorder could change
+    /// which column completed cards landed in. Done is the last column now and
+    /// does not move, so a reorder cannot change anything a person would want
+    /// warning about.
     private func move(from index: Int, to offset: Int) {
-        let offsets = IndexSet(integer: index)
-        let before = store.doneColumnID
-        let after = store.doneColumnID(afterMoving: offsets, toOffset: offset)
-        guard before != after, let landing = after.flatMap(store.column(id:)) else {
-            store.moveColumn(fromOffsets: offsets, toOffset: offset)
-            return
-        }
-        moveWarning = ColumnMoveWarning(
-            from: index, to: offset, landing: landing.name,
-            leaving: before.flatMap(store.column(id:))?.name
-        )
-    }
-
-    private func apply(_ warning: ColumnMoveWarning) {
-        store.moveColumn(fromOffsets: IndexSet(integer: warning.from), toOffset: warning.to)
-        moveWarning = nil
+        store.moveColumn(fromOffsets: IndexSet(integer: index), toOffset: offset)
     }
 
     private func trash(_ id: BoardColumn.ID) {
         trashWarning = nil
         refusal = store.trashColumn(id)
         if refusal == nil { expandedColumnID = nil }
-    }
-
-    private static func roleName(_ role: ColumnRole) -> String {
-        switch role {
-        case .backlog:
-            String(localized: "Backlog", comment: "Column role: work that has not started")
-        case .active:
-            String(localized: "Doing", comment: "Column role: work in flight")
-        case .done:
-            String(localized: "Done", comment: "Column role: work that is complete")
-        }
     }
 
     /// No confirmation, matching the task row's Trash: the act is undoable, and
@@ -725,7 +674,7 @@ struct BoardSettingsView: View {
     /// `Palette` has no danger semantic of its own, so this borrows the overdue
     /// tone rather than naming a colour (C2) — `PhoneDetailSheet` does the same.
     private var destructiveTone: (background: Color, foreground: Color) {
-        palette.dueTone(urgency: .overdue, role: .backlog)
+        palette.dueTone(urgency: .overdue, isDone: false)
     }
 
     private func commitRename() {
@@ -774,36 +723,3 @@ struct ColumnTrashWarning: Identifiable, Equatable {
     }
 }
 
-/// A reorder that would change which column completed cards land in.
-///
-/// Only a board with more than one Done column can produce one — the first of
-/// them is where a tick sends a card, whatever the order of the rest — so this
-/// is rare and, when it happens, is the only thing on screen that would say so.
-struct ColumnMoveWarning: Identifiable, Equatable {
-    /// The move, in `moveColumn(fromOffsets:toOffset:)`'s own spelling, so
-    /// confirming performs exactly what was described.
-    var from: Int
-    var to: Int
-    var landing: String
-    var leaving: String?
-
-    var id: String { "\(from)-\(to)" }
-
-    var title: String {
-        String(localized: "Completed tasks will land in “\(landing)”",
-               comment: "Alert title when a column reorder changes which column completed tasks go to")
-    }
-
-    var detail: String {
-        guard let leaving else {
-            return String(
-                localized: "Ticking a task will send it to this column from now on. Tasks already completed do not move.",
-                comment: "Alert body when a column reorder changes where completed tasks go, with no previous column to name"
-            )
-        }
-        return String(
-            localized: "Ticking a task will send it to “\(landing)” rather than “\(leaving)” from now on. Tasks already completed do not move.",
-            comment: "Alert body naming the column completed tasks used to go to and the one they will go to"
-        )
-    }
-}

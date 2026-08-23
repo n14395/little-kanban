@@ -259,7 +259,7 @@ import Testing
     @Test func aRefusedColumnTrashSaysNothing() {
         let store = TestBoard.store(boards: [SeedData.defaultBoard])
         let done = BoardColumn.done.id
-        #expect(store.trashColumn(done) == .lastDoneColumn)
+        #expect(store.trashColumn(done) == .doneColumn)
         #expect(store.trashAnnouncement == nil)
     }
 

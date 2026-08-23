@@ -82,7 +82,7 @@ struct PhoneTaskCard: View {
                     DueChip(
                         due: due,
                         today: dayClock.today,
-                        role: store.role(of: task),
+                        isDone: store.isDone(task),
                         font: 12,
                         horizontalPadding: 7,
                         radius: 7

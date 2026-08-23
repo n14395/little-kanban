@@ -37,7 +37,7 @@ struct BoardSnapshot: Codable, Sendable {
     /// precisely the things that are *not* on the board any more.
     var trash: [TrashedItem] = []
 
-    static let currentVersion = 8
+    static let currentVersion = 9
 
     enum CodingKeys: String, CodingKey {
         case version, tasks, boards, labels, nextSerial, accentTheme, activeBoardID, trash
@@ -265,10 +265,28 @@ struct BoardFile: Sendable {
     /// v4 → v5 code a v4 file does. Widening an old decoder to reach the current
     /// shape instead would make every future field silently rewrite the past.
     static func decode(_ data: Data) throws -> (snapshot: BoardSnapshot, migratedFrom: Int?) {
+        let (snapshot, migratedFrom) = try decodeToV8(data)
+        guard let migratedFrom else { return (snapshot, nil) }
+        // The last step, applied once at the end of whichever chain ran, because
+        // it is the only one that needs something the *bytes* still have and the
+        // decoded value no longer does — see `migrate(v8:legacyDoneColumns:)`.
+        return (BoardSnapshot.migrate(v8: snapshot, legacyDoneColumns: legacyDoneColumns(in: data)), migratedFrom)
+    }
+
+    /// Every version up to and including v8, decoded and walked forward to the
+    /// v8 shape. `nil` for a file that is already current and needs no step.
+    private static func decodeToV8(_ data: Data) throws -> (BoardSnapshot, Int?) {
         let decoder = JSONDecoder()
         switch try version(of: data) {
         case BoardSnapshot.currentVersion:
             return (try decoder.decode(BoardSnapshot.self, from: data), nil)
+        case 8:
+            // v8 and v9 are the same shape: v9 *removes* `ColumnRole` from each
+            // column, and an unknown key is not a decoding failure, so the
+            // current decoder reads a v8 file whole. What it cannot read is the
+            // roles — which is exactly what the step below needs, and why it
+            // takes them from the bytes instead.
+            return (try decoder.decode(BoardSnapshot.self, from: data), 8)
         case 7:
             // v7 and v8 are the same shape as well: v8 adds a priority above
             // High and moves what a new card starts on, neither of which is a
@@ -346,6 +364,31 @@ struct BoardFile: Sendable {
             throw BoardFileError.newerVersion(version)
         default:
             throw BoardFileError.unreadable
+        }
+    }
+
+    /// The column each board would have sent a tick to under v8: the **first**
+    /// one whose `ColumnRole` said `done`.
+    ///
+    /// Read straight out of the bytes rather than off the decoded snapshot,
+    /// because v9 removed the field and the decoder therefore throws it away —
+    /// see `BoardMigration.migrate(v8:legacyDoneColumns:)`, which is the only
+    /// caller. A tiny shape rather than a frozen copy of the whole v8 snapshot:
+    /// one key of one array is all the step needs, and a full `BoardSnapshotV8`
+    /// would be several hundred lines that exist to answer a yes/no question.
+    ///
+    /// Silent about failure on purpose. A v1–v4 file has no `boards` key at all
+    /// and yields nothing, which is the right answer — those are rebuilt out of
+    /// `BoardColumn.workflow` on the way through and already end in Done.
+    static func legacyDoneColumns(in data: Data) -> [BoardColumn.ID] {
+        struct Roles: Decodable {
+            struct Board: Decodable { var columns: [Column] }
+            struct Column: Decodable { var id: UUID; var role: String }
+            var boards: [Board]
+        }
+        guard let roles = try? JSONDecoder().decode(Roles.self, from: data) else { return [] }
+        return roles.boards.compactMap { board in
+            board.columns.first { $0.role == "done" }?.id
         }
     }
 

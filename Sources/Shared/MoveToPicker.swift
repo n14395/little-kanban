@@ -16,6 +16,18 @@ import SwiftUI
 ///
 /// The same split is why this control goes away entirely once the menu above it
 /// reads Inbox: there is no board, so there is no second question left to ask.
+///
+/// **Done is not one of the segments either.** It is a board's last column and
+/// the one place a tick already sends a card — the completion button sits on the
+/// same surface, a few points above this control on both of them — so a segment
+/// for it is a second way to do the one thing here that is not really a move.
+/// It also earned its width the least: it is the segment nobody drags a card to,
+/// because finishing something is what the tick is for.
+///
+/// A card that *is* done therefore has no segment marked, which is the same
+/// thing this control already does for a card on another board and reads the
+/// same way — nothing here claims to be where it is. Pressing any segment moves
+/// it out of Done, which is what un-ticking it would have done anyway.
 struct MoveToPicker: View {
     struct Metrics {
         var containerRadius: CGFloat
@@ -82,11 +94,12 @@ struct MoveToPicker: View {
         }
     }
 
-    /// The board's columns in board order — which is the order the board itself
-    /// draws them in, and was `COLS`'s.
+    /// The board's working columns in board order — which is the order the
+    /// board itself draws them in, and was `COLS`'s, less the Done column on the
+    /// end.
     private var destinations: [Destination] {
         guard let board else { return [] }
-        return board.columns.map {
+        return board.workingColumns.map {
             Destination(placement: .column(board: board.id, column: $0.id), title: $0.short)
         }
     }

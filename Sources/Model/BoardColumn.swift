@@ -1,25 +1,5 @@
 import Foundation
 
-/// What a column *is for*, as opposed to what it is called.
-///
-/// **`.done` is the only role with behaviour attached**: reaching it ticks off a
-/// task's outstanding sub-tasks, tints its due chip green, and is what
-/// "completed" means to the weekly meter and to the archive. `.backlog` and
-/// `.active` are descriptive only — nothing branches on them, and nothing
-/// should start to, because the moment a rule hangs off `.active` a board whose
-/// owner never made an "in progress" column stops behaving like a board.
-///
-/// The role exists because those three behaviours used to match on the literal
-/// column id `"done"`, which a user-created column would have silently broken.
-enum ColumnRole: String, Codable, Hashable, Sendable, CaseIterable {
-    /// Not started.
-    case backlog
-    /// In flight.
-    case active
-    /// Complete.
-    case done
-}
-
 /// One column of the board. `short` is the abbreviated name used by the
 /// "move to" segmented control, where horizontal room is tight.
 ///
@@ -32,12 +12,19 @@ enum ColumnRole: String, Codable, Hashable, Sendable, CaseIterable {
 /// content the moment a board exists, and rewriting it under a language change
 /// would be editing somebody's board. Seeding is the one moment there is no
 /// user content to overwrite.
+///
+/// **There is nothing here that says what a column is *for*.** Up to v8 there
+/// was: a `ColumnRole` of `backlog`, `active` or `done`, stored per column. Two
+/// of the three never did anything — nothing in the app branched on `backlog`
+/// or `active` — and the third is now answered by position instead. Done is the
+/// board's **last** column, always, and `Board.doneColumn` is the only place
+/// that is written down. See ``Board/doneColumn`` for why position rather than a
+/// stored id.
 struct BoardColumn: Identifiable, Hashable, Codable, Sendable {
     var id: UUID = UUID()
     var name: String
     var short: String
     var dot: SwatchColor
-    var role: ColumnRole
 }
 
 extension BoardColumn {
@@ -57,38 +44,51 @@ extension BoardColumn {
     /// unfiled again by `BoardStore` on the way in.
     static let inbox = BoardColumn(
         id: seedID(1), name: Board.inboxName, short: Board.inboxName,
-        dot: .ink(opacity: 0.35), role: .backlog
+        dot: .ink(opacity: 0.35)
     )
 
     static let backlog = BoardColumn(
         id: seedID(2),
         name: String(localized: "Backlog", comment: "Seed column: work not started"),
         short: String(localized: "Backlog", comment: "Seed column: work not started"),
-        dot: .hex(0xA8A29A), role: .backlog
+        dot: .hex(0xA8A29A)
     )
     static let upNext = BoardColumn(
         id: seedID(3),
         name: String(localized: "Up Next", comment: "Seed column: work queued to start"),
         short: String(localized: "Up Next", comment: "Seed column: work queued to start"),
-        dot: .hex(0xC98A16), role: .backlog
+        dot: .hex(0xC98A16)
     )
     static let inProgress = BoardColumn(
         id: seedID(4),
         name: String(localized: "In Progress", comment: "Seed column: work in flight"),
         short: String(localized: "Doing",
                       comment: "Abbreviated seed column name for the \"move to\" control, where room is tight"),
-        dot: .hex(0xC2532F), role: .active
+        dot: .hex(0xC2532F)
     )
     static let done = BoardColumn(
         id: seedID(5),
         name: String(localized: "Done", comment: "Seed column: finished work"),
         short: String(localized: "Done", comment: "Seed column: finished work"),
-        dot: .hex(0x1F6F63), role: .done
+        dot: .hex(0x1F6F63)
     )
 
     /// The four workflow columns, in board order — what a fresh board's
-    /// `BoardStore.columns` starts as.
+    /// `BoardStore.columns` starts as. **Done is last**, which since v9 is what
+    /// makes it Done; every starter template in `SeedData` ends the same way.
     static let workflow: [BoardColumn] = [backlog, upNext, inProgress, done]
+
+    /// A Done column with a **fresh id**, for a board being made now.
+    ///
+    /// The statics above carry fixed ids and two boards may not share a column
+    /// id — the store resolves a card's board *from* its column, so a shared id
+    /// would put one card on two boards. `SeedData.column(like:)` exists for the
+    /// same reason and this is its one-column case, kept here because every
+    /// board is created holding this column and `SeedData` is only about
+    /// starters.
+    static func freshDone() -> BoardColumn {
+        BoardColumn(name: done.name, short: done.short, dot: done.dot)
+    }
 
     /// The string ids columns had up to snapshot v3, when there were only ever
     /// these five. The v3 → v4 step maps them; `BoardStore` never sees them.

@@ -160,8 +160,7 @@ import Testing
 
             let board = try #require(store.boards.first, "\(template.id) has no board")
             let landing = try #require(board.landingColumn, "\(template.id) has nowhere to land a card")
-            let done = try #require(board.columns.first { $0.role == .done },
-                                    "\(template.id) has no Done column")
+            let done = try #require(board.doneColumn, "\(template.id) has no Done column")
 
             let existing = Set(store.tasks.map(\.code))
             let id = store.addTask(to: landing.id, title: "First thing")

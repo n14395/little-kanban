@@ -170,10 +170,12 @@ enum BoardStoreError: LocalizedError, Equatable, Sendable, Identifiable {
 enum ColumnRefusal: LocalizedError, Equatable, Sendable {
     /// No column on this board has that id.
     case unknownColumn
-    /// It is the board's only `.done` column. Completing a task, the weekly
-    /// meter and the archive all mean nothing without one.
-    case lastDoneColumn
-    /// Everything left would be a Done column, which is a list rather than a
+    /// It is the board's Done column, which every board has and keeps — see
+    /// ``Board/doneColumn``. Completing a task, the weekly meter and the archive
+    /// all mean nothing without one, and since v9 it is the *last* column rather
+    /// than a column wearing a role, so there is no second one to fall back to.
+    case doneColumn
+    /// Everything left would be the Done column, which is a list rather than a
     /// board: there would be nowhere for work to start.
     case lastWorkingColumn
 
@@ -182,9 +184,9 @@ enum ColumnRefusal: LocalizedError, Equatable, Sendable {
         case .unknownColumn:
             String(localized: "That column is not on this board.",
                    comment: "Explanation when a column change names a column that does not exist")
-        case .lastDoneColumn:
-            String(localized: "A board needs a Done column.",
-                   comment: "Explanation when deleting the last Done column is refused")
+        case .doneColumn:
+            String(localized: "Every board keeps its Done column.",
+                   comment: "Explanation when deleting a board's Done column is refused")
         case .lastWorkingColumn:
             String(localized: "A board needs at least one column that is not Done.",
                    comment: "Explanation when deleting the last column work can start in is refused")
@@ -195,9 +197,13 @@ enum ColumnRefusal: LocalizedError, Equatable, Sendable {
         switch self {
         case .unknownColumn:
             nil
-        case .lastDoneColumn:
-            String(localized: "Add another Done column first, then delete this one.",
-                   comment: "How to get past the refusal to delete the last Done column")
+        case .doneColumn:
+            // No instructions, because there is nothing to do: this is the one
+            // column that is part of what a board *is*. It can still be renamed
+            // and recoloured, which is what somebody who wants rid of "Done"
+            // usually actually wants.
+            String(localized: "It can be renamed and recoloured, but not removed.",
+                   comment: "What can be done to a board's Done column instead of deleting it")
         case .lastWorkingColumn:
             String(localized: "Add another column first, then delete this one.",
                    comment: "How to get past the refusal to delete the last column work can start in")
@@ -1875,42 +1881,33 @@ final class BoardStore {
         return board(id: boardID)?.column(id: columnID) != nil
     }
 
-    /// Whether a task is complete — the one question the three Done behaviours
-    /// used to answer by comparing its column id against the literal "done".
-    func isDone(_ task: TaskItem) -> Bool { role(of: task) == .done }
+    /// Whether a task is complete: whether it is in its board's last column.
+    ///
+    /// The one funnel for the question, which is why removing `ColumnRole` cost
+    /// its callers nothing — they all came through here. A card in the Inbox is
+    /// on no board and so is never done, which is the harmless answer and the
+    /// same one the roles gave.
+    func isDone(_ task: TaskItem) -> Bool {
+        guard let columnID = task.columnID else { return false }
+        return isDone(column: columnID)
+    }
 
-    /// A task's column's role. A card in the Inbox, or whose column has gone,
-    /// reads as `.backlog` rather than as complete: the harmless answer of the
-    /// three.
-    func role(of task: TaskItem) -> ColumnRole { column(id: task.columnID)?.role ?? .backlog }
+    /// Whether a column is the one its **own** board keeps for finished work.
+    ///
+    /// Asked of the board that holds the column rather than of the board on
+    /// screen: a card opened out of a saved view can be on another board, and
+    /// the answer has to be about the board it is actually on.
+    func isDone(column id: BoardColumn.ID) -> Bool {
+        board(ofColumn: id)?.doneColumn?.id == id
+    }
 
-    func role(ofColumn id: BoardColumn.ID) -> ColumnRole { column(id: id)?.role ?? .backlog }
-
-    /// Where `complete` sends a task, and what "Archive completed" clears. The
-    /// first `.done` column, so a board with two of them still has one answer.
+    /// Where `complete` sends a task, and what "Archive completed" clears.
     var doneColumnID: BoardColumn.ID? { doneColumnID(onBoard: activeBoardID) }
 
     /// The same, on a named board. A card is completed onto *its own* board's
     /// Done column, which is not always the one on screen.
     func doneColumnID(onBoard id: Board.ID?) -> BoardColumn.ID? {
-        (board(id: id) ?? activeBoard)?.columns.first { $0.role == .done }?.id
-    }
-
-    /// Which column completed cards would land in **after** a reorder, worked
-    /// out without performing one.
-    ///
-    /// What makes a column the one completed work lands in is its *role*, not
-    /// its position — see `doneColumnID` — so most reorders change nothing about
-    /// it. The exception is a board with more than one Done column, where the
-    /// first of them is the answer and moving them past each other changes it.
-    /// That is the case the settings sheet asks about before it moves anything:
-    /// it is invisible on the board, it changes where every future tick sends a
-    /// card, and no undo step announces itself.
-    func doneColumnID(afterMoving fromOffsets: IndexSet, toOffset: Int) -> BoardColumn.ID? {
-        guard let board = activeBoard else { return nil }
-        var reordered = board.columns
-        reordered.move(fromOffsets: fromOffsets, toOffset: toOffset)
-        return reordered.first { $0.role == .done }?.id
+        (board(id: id) ?? activeBoard)?.doneColumn?.id
     }
 
     /// Where a column's cards would go if it were trashed: **the first column
@@ -2751,7 +2748,7 @@ final class BoardStore {
         let wasElsewhere = moved.placement != placement
         moved.placement = placement
         if case .column(_, let columnID) = placement {
-            if role(ofColumn: columnID) == .done, wasElsewhere {
+            if isDone(column: columnID), wasElsewhere {
                 let outstanding = moved.subtasks.count { !$0.done }
                 if outstanding > 0 {
                     moved.subtasks = moved.subtasks.map { var s = $0; s.done = true; return s }
@@ -2833,15 +2830,15 @@ final class BoardStore {
         // resolving one of them here would reopen the card onto a board the
         // user was not looking at and did not ask about.
         guard let board = board(for: task) ?? activeBoard else { return task.placement }
+        let done = board.doneColumn?.id
         for entry in task.activity {
             guard case .moved(let columnID, _) = entry.kind,
                   let id = UUID(uuidString: columnID),
-                  let column = board.column(id: id), column.role != .done
+                  let column = board.column(id: id), column.id != done
             else { continue }
             return .column(board: board.id, column: column.id)
         }
-        guard let column = board.columns.first(where: { $0.role != .done })
-        else { return task.placement }
+        guard let column = board.landingColumn else { return task.placement }
         return .column(board: board.id, column: column.id)
     }
 
@@ -4050,9 +4047,16 @@ final class BoardStore {
 
     private var activeBoardIndex: Int? { boards.firstIndex { $0.id == activeBoardID } }
 
-    /// Adds a column at the end of the active board. Returns its id, or `nil`
-    /// for a name with nothing in it — an unnamed column is unreachable — or
-    /// for no board to add it to.
+    /// Adds a column to the active board, **before its Done column**. Returns
+    /// its id, or `nil` for a name with nothing in it — an unnamed column is
+    /// unreachable — or for no board to add it to.
+    ///
+    /// Before, not at the end, because the end is what makes a column Done — see
+    /// ``Board/doneColumn``. Appending would hand every new column the finished
+    /// work and quietly demote the old one, which is the failure mode that made
+    /// "the last column is Done" look unworkable until the column was pinned.
+    /// A new column goes where work is still moving, which is also where anyone
+    /// adding one wants it.
     ///
     /// `short` falls back to the name: the "move to" control would otherwise
     /// draw a blank segment, and a long name in a tight segment is still better
@@ -4061,17 +4065,24 @@ final class BoardStore {
     func addColumn(
         named name: String,
         short: String = "",
-        dot: SwatchColor = .ink(opacity: 0.35),
-        role: ColumnRole = .backlog
+        dot: SwatchColor = .ink(opacity: 0.35)
     ) -> BoardColumn.ID? {
         let trimmed = Self.columnName(name)
         guard !trimmed.isEmpty, let boardIndex = activeBoardIndex else { return nil }
         let abbreviated = Self.columnName(short)
         let column = BoardColumn(
-            name: trimmed, short: abbreviated.isEmpty ? trimmed : abbreviated, dot: dot, role: role
+            name: trimmed, short: abbreviated.isEmpty ? trimmed : abbreviated, dot: dot
         )
         undoable(String(localized: "Add Column", comment: "Undo action name for adding a board column")) {
-            boards[boardIndex].columns.append(column)
+            // A board with no columns at all is being set up for the first time
+            // and has no Done column to go in front of yet, so this makes the
+            // pair — see `createBoard`, which is the only other place a Done
+            // column is minted.
+            if boards[boardIndex].columns.isEmpty {
+                boards[boardIndex].columns = [column, .freshDone()]
+            } else {
+                boards[boardIndex].columns.insert(column, at: boards[boardIndex].columns.count - 1)
+            }
             scheduleSave()
         }
         return column.id
@@ -4117,10 +4128,20 @@ final class BoardStore {
     /// Reorders the active board's columns. Logs nothing, for `moveSubtask`'s
     /// reason: the order is on screen, and a feed of "column moved" would bury
     /// the changes that matter.
+    ///
+    /// **Done stays last.** It is the last column that makes it the Done column
+    /// — see ``Board/doneColumn`` — so dragging it is refused outright, and
+    /// dragging something *past* it lands that column just in front instead,
+    /// which is where the drop was heading anyway. This is what a warning used
+    /// to be needed for: up to v8 a reorder could silently change where every
+    /// future tick sent a card, and the sheet had to ask before it moved
+    /// anything. It cannot now, so it does not ask.
     func moveColumn(fromOffsets: IndexSet, toOffset: Int) {
         guard let board = activeBoardIndex else { return }
-        var reordered = boards[board].columns
-        reordered.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        let current = boards[board].columns
+        guard let last = current.indices.last, !fromOffsets.contains(last) else { return }
+        var reordered = current
+        reordered.move(fromOffsets: fromOffsets, toOffset: min(toOffset, last))
         guard reordered != boards[board].columns else { return }
         undoable(String(localized: "Reorder Columns", comment: "Undo action name for reordering the board's columns")) {
             boards[board].columns = reordered
@@ -4147,12 +4168,17 @@ final class BoardStore {
     /// an index from another one names a place in a list this column is not in —
     /// and refused onto itself, where there is nothing to do. `false` says the
     /// drop was not taken, which is what a drop handler owes its caller.
+    ///
+    /// Refused for the Done column too, which nothing offers as a drag in the
+    /// first place: `false` here is the answer to a payload that came from
+    /// somewhere the interface does not go. Dropping another column *onto* Done
+    /// is allowed and lands it in front — `moveColumn` clamps it.
     @discardableResult
     func dropColumn(_ payload: ColumnTransfer, onto target: BoardColumn.ID) -> Bool {
         guard payload.boardID == activeBoardID,
               let from = columns.firstIndex(where: { $0.id == payload.columnID }),
               let to = columns.firstIndex(where: { $0.id == target }),
-              from != to
+              from != to, from != columns.indices.last
         else { return false }
         moveColumn(fromOffsets: IndexSet(integer: from), toOffset: Self.dropOffset(from: from, to: to))
         return true
@@ -4162,18 +4188,22 @@ final class BoardStore {
     /// first column left. Nothing is thrown away silently, and each card that
     /// moved says so in its own history.
     ///
-    /// Refused rather than crashed when it would leave the board without a Done
-    /// column or without one that is not Done. `nil` means it happened.
+    /// Refused rather than crashed for the two columns a board cannot lose: its
+    /// Done column, which every board keeps, and its last working one, without
+    /// which there is nowhere for work to start. `nil` means it happened.
     @discardableResult
     func deleteColumn(_ id: BoardColumn.ID) -> ColumnRefusal? {
         guard let board = boardIndex(ofColumn: id),
               let index = boards[board].columns.firstIndex(where: { $0.id == id })
         else { return .unknownColumn }
+        guard boards[board].columns.last?.id != id else { return .doneColumn }
         let boardID = boards[board].id
         var remaining = boards[board].columns
         let removed = remaining.remove(at: index)
-        guard remaining.contains(where: { $0.role == .done }) else { return .lastDoneColumn }
-        guard remaining.contains(where: { $0.role != .done }) else { return .lastWorkingColumn }
+        // Two, not one: what is left is a working column *and* the Done column
+        // it keeps, so a board down to `[something, Done]` has reached the
+        // floor.
+        guard remaining.count >= 2 else { return .lastWorkingColumn }
         // The same first-column-left the warning in front of this promised —
         // one rule, asked twice.
         guard let destination = refuge(ifTrashing: id) else { return .unknownColumn }
@@ -4377,7 +4407,7 @@ final class BoardStore {
     /// card is ever in it — a card is in the Inbox by being on no board.
     private static let inboxColumn = BoardColumn(
         id: BoardColumn.inbox.id, name: Board.inboxName, short: Board.inboxName,
-        dot: Board.inboxDot, role: .backlog
+        dot: Board.inboxDot
     )
 
     /// The name the "+ Add task to …" row shows. The board's, always: the Inbox

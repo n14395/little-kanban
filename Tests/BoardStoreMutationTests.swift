@@ -224,7 +224,7 @@ import Testing
     /// draws the tick as unable rather than drawing it live and swallowing the
     /// press.
     @Test func aCardWithNoDoneColumnToReachCannotBeTicked() {
-        let onlyColumn = BoardColumn(name: "Only", short: "ON", dot: .ink(opacity: 0.35), role: .backlog)
+        let onlyColumn = BoardColumn(name: "Only", short: "ON", dot: .ink(opacity: 0.35))
         let board = Board(name: "No finish line", dot: .ink(opacity: 0.35),
                           columns: [onlyColumn], codePrefix: "NF")
         let card = TaskItem(id: TestBoard.taskID(90), code: "NF-1", columnID: onlyColumn.id,

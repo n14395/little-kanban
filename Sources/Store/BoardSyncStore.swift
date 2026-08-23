@@ -297,7 +297,10 @@ final class BoardSyncStore {
             record.name = column.name
             record.short = column.short
             record.dot = Self.encoded(column.dot)
-            record.roleKey = column.role.rawValue
+            // Written for older builds only — see `StoredColumn.roleKey`. The
+            // last column is the Done one, which is the whole of v9's rule
+            // spelled in v8's vocabulary.
+            record.roleKey = index == columns.count - 1 ? "done" : "backlog"
             record.position = index
         }
         for orphan in existing.values { context.delete(orphan) }
@@ -437,8 +440,7 @@ final class BoardSyncStore {
             id: record.id,
             name: record.name,
             short: record.short,
-            dot: Self.decoded(record.dot) ?? .accent,
-            role: ColumnRole(rawValue: record.roleKey) ?? .backlog
+            dot: Self.decoded(record.dot) ?? .accent
         )
     }
 

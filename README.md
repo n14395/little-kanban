@@ -98,8 +98,8 @@ Sources/
                        documents with the panels that present them, and the two
                        accessibility helpers every surface goes through — ScaledChrome
                        (chrome that grows with Dynamic Type) and ReducedMotion
-Tests/                 Swift Testing suites — model, store, boards, columns and their
-                       roles, placement, editing sessions, undo, persistence, search and
+Tests/                 Swift Testing suites — model, store, boards, columns and the
+                       Done one, placement, editing sessions, undo, persistence, search and
                        its scoping, saved views, the archive, migration, day rollover,
                        drag payloads and where a drop may land, touch metrics, selection
                        and the bulk commands, the shortcut vocabulary, board focus,
@@ -241,6 +241,17 @@ Deliberate departures from a literal transcription:
   column rather than a board and then a column; it read as a lie about where the
   card was — a row of columns it was not in, none of them marked — and the menu
   above files it in one go regardless.
+
+  **Done is not one of the segments.** It is the board's last column and the one
+  place a tick already sends a card, and the completion button sits on the same
+  surface a few points above this control — so a segment for it is a second way
+  to do the one thing here that is not really a move, and it is the segment
+  nobody drags a card to. A card that *is* done therefore has no segment marked,
+  which is what the control already does for a card on another board and reads
+  the same way: nothing here claims to be where it is. Pressing any segment moves
+  it out of Done, which is what un-ticking it would have done. The **Move
+  Column** menu still lists every column, because a menu opened on demand is a
+  complete answer to "where can this go" rather than a row competing for width.
 - **A card away from its place says where it is.** The design only ever draws a
   card under its own heading. The saved views and the iOS Search tab draw cards
   from anywhere, where the column is the one thing the card no longer says, so
@@ -820,7 +831,7 @@ The panel is exactly a column wide (`InboxPanel.Metrics.width` **is**
 `BoardColumnView.Metrics.width`, asserted, not copied) and its cards keep a
 column's gutter and gap, so a card in the panel sits on the same grid as a card
 in the column beside it. It is not a `BoardColumnView` — the Inbox has no name to
-rename, no dot, no role and no delete — and its cards drop the column chip the
+rename, no dot and no delete — and its cards drop the column chip the
 flat surfaces carry, because inside the Inbox every card is in the Inbox. It
 takes drops, like the source-list row: a panel you can see and cannot drop onto
 reads as broken.
@@ -1003,7 +1014,7 @@ is also why the migration renumbers nothing. A board given no prefix derives one
 from its initials, upper-cased and capped at four characters, and falls back to
 `"NW"` — a board that cannot mint a code is a board no task can be added to.
 
-### Columns, and the role that carries the behaviour
+### Columns, and the last one
 
 Columns are a **board's** data, not a fixed set and not the store's: they live on
 `Board.columns`, they are written with the board, and they can be added, renamed,
@@ -1018,11 +1029,10 @@ are, and every surface that draws one offers the column composer where it would
 otherwise offer a card — see **Empty states**.
 
 Two things had to hold for that to be safe. The first is that **deletion's
-invariant is untouched**: `deleteColumn` still refuses to take a board's last
-Done column or its last working one. A board is allowed never to have had a
-column and is not allowed to be emptied down to none; from the outside those read
-as one rule, and underneath they are not, because the second has cards in it to
-lose. The second is `mobileAddPlacement`. `mobileColumnID` is session state that
+invariant is untouched**: `deleteColumn` still refuses to take a board's Done
+column or its last working one. A board is allowed never to have had a column and
+is not allowed to be emptied down to none; from the outside those read as one
+rule, and underneath they are not, because the second has cards in it to lose. The second is `mobileAddPlacement`. `mobileColumnID` is session state that
 outlives a board switch, and a board with no first column leaves it naming the
 *previous* board's — which `placement(forColumn:)` resolves happily, since it
 looks an id up across every board, and `isPlaceable` then agrees. A card added on
@@ -1031,15 +1041,37 @@ Inbox instead.
 
 The **Inbox is not one of them** — it is global; see above.
 
-Each column carries a `ColumnRole` — `backlog`, `active` or `done` — and
-**`.done` is the only role with behaviour attached**: arriving in it ticks off a
-task's outstanding sub-tasks, tints its due chip green, and is what the weekly
-meter and "Archive completed" mean by shipped. Those three used to match on the
-literal column id `"done"`, which a column the user made would have silently
-broken. `.backlog` and `.active` are descriptive, and nothing may start
-branching on them — a board whose owner never made an "in progress" column has
-to go on behaving like a board. Everything asks the store rather than the task:
-`store.isDone(task)`, `store.role(of: task)`, `store.column(for: task)`.
+**The Done column is the board's last one, and every board has one.** Arriving
+in it ticks off a task's outstanding sub-tasks, tints its due chip green, and is
+what the weekly meter and "Archive completed" mean by shipped. `Board.doneColumn`
+is where that is written down, once; everything asks the store rather than the
+task — `store.isDone(task)`, `store.isDone(column:)`, `store.column(for: task)`.
+
+It is not deletable and not re-orderable, which is what makes reading it off the
+position safe: `addColumn` inserts **in front of** it, `moveColumn` refuses to
+lift it and clamps anything dragged past it, `deleteColumn` refuses it outright,
+and nothing offers it as a drag on the board itself. It is an ordinary column in
+every other way — renameable and recolourable, because real boards call it
+Shipped, Live and Published, and `SeedData.contentCalendar` already ships one
+called Published. A board that has no columns yet gains its Done column along
+with the first column its owner adds, so there is never a board holding nothing
+but somewhere to finish. A board arriving from an import with a *single* column
+has no Done column at all: that column is where the work is, and reading it as
+Done would have every card on the board arrive complete.
+
+**Up to v8 this was a `ColumnRole` stored per column** — `backlog`, `active` or
+`done` — and the Done column was the first one whose role said so. Two of the
+three roles never did anything; nothing in the app ever branched on `backlog` or
+`active`, and the picker offering them was a choice with no consequence that
+could not be corrected afterwards, because there was no `setColumnRole`. The
+third allowed a board to hold *two* Done columns where only the first counted, a
+distinction invisible everywhere in the app except the warning that had to be put
+in front of a reorder. `migrate(v8:legacyDoneColumns:)` moves whichever column v8
+would have sent a tick to to the end of its board, and nothing else about the
+board changes — no card moves, no column is lost. A stored `doneColumnID` was the
+alternative and would have needed a fallback for the case where it named a column
+that had gone; the only sensible fallback is "the last one", so the id would have
+existed purely to allow Done in the middle of a board.
 
 **Column management exists on every surface**, because a board made on the phone
 would otherwise be stuck with its four starting columns for good — and because
@@ -1083,22 +1115,18 @@ first.** Everything else in the sheet is visible the moment it happens and is on
   mutation cannot name different places. The count includes *archived* cards,
   because the move does. And it says the last true thing: the column itself goes
   to the Trash and can be restored for thirty days.
-- **A reorder can change where completed work lands** — and only rarely, which is
-  exactly why it needs saying. What makes a column the one a tick sends a card to
-  is its **role**, not its position: `doneColumnID` is the *first* `.done` column.
-  So moving columns about changes nothing at all on an ordinary board, and the
-  sheet asks nothing. On a board with two Done columns, moving one past the other
-  changes where every future tick lands, with nothing on the board to show for
-  it. `doneColumnID(afterMoving:toOffset:)` answers that question without
-  performing the move, and the alert names the column completed work is moving
-  to and the one it is leaving. The row of the column that is currently that one
-  wears a **Completed** marker, so the rule is legible before anything is
-  dragged.
+**A reorder used to ask as well, and no longer can need to.** What made a column
+the one a tick sent a card to was its role rather than its position, so a board
+with two Done columns changed where every future tick landed the moment they were
+dragged past each other — invisibly, with no undo step announcing it. Done is the
+last column now and does not move, so `doneColumnID(afterMoving:toOffset:)`, the
+alert and `ColumnMoveWarning` are all gone. `BoardSettingsTests` asserts the
+absence: no reorder from anywhere to anywhere changes where completed work lands,
+adding a column leaves it where it is, and the Done column refuses every move.
 
-`BoardSettingsTests` pins the numbers — the refuge is where the cards actually
-land, the count includes archived cards, an empty column's warning mentions no
-cards, one Done column means no reorder ever changes anything, two means the
-crossing one does — and `UITests/BoardSettingsSheetTests` presses the button on
+`BoardSettingsTests` also pins the numbers — the refuge is where the cards
+actually land, the count includes archived cards, an empty column's warning
+mentions no cards — and `UITests/BoardSettingsSheetTests` presses the button on
 both idioms, because every one of those numbers would go on being right with the
 alert deleted and the button wired straight through.
 
@@ -1106,8 +1134,7 @@ alert deleted and the button wired straight through.
 pill — 272pt of board, a whole card's worth, spent for ever on two words — and is
 now a 38pt strip (44 on iPad, where it is a touch target) with the label turned
 to read bottom to top. The composer it opens into is still a full column, because
-naming a column wants a text field and the four roles beside it whatever opened
-them.
+naming a column wants a text field whatever opened it.
 
 Turning the label is `verticalText()`, and it is a `Layout` rather than the
 obvious measurement-into-`@State`. `rotationEffect` is a *draw*: it turns the
@@ -1120,18 +1147,17 @@ same pass. `AddColumnStripTests` renders the tile through `ImageRenderer` and
 measures what comes out — which is how the `@State` version was caught reporting
 38x57 for a label that needs 85pt of run.
 
-A role is chosen when the column is made and is not editable afterwards — the
-spec's column management is add, rename, recolour, reorder and delete, and a role
-that could be moved between columns would let a board hold two Done columns, or
-none, between one keystroke and the next. Add a column with the role you want
-instead; the refusal below says so in as many words.
+**The row for the Done column draws neither a move nor a trash**, and says why in
+a line of text where they would have been, rather than as three disabled buttons
+somebody has to press to find out. Its name, abbreviation and colour are editable
+like any other column's.
 
 Deleting a column moves its cards — archived ones included — to the first column
 left, and each of them records the move, so a card changing column is explicable
-from its own history. A delete that would leave the board without a `.done`
-column, or without one that is not `.done`, is **refused with a `ColumnRefusal`
-the surface can show** rather than ignored: from the outside, "delete" doing
-nothing is indistinguishable from a bug.
+from its own history. A delete of the board's Done column, or one that would
+leave it with no working column, is **refused with a `ColumnRefusal` the surface
+can show** rather than ignored: from the outside, "delete" doing nothing is
+indistinguishable from a bug.
 
 ## Editing
 
@@ -1248,13 +1274,11 @@ it, because the strip scrolls the tile into view in the same turn the composer
 opens in and a close that fired on any momentary loss would be a field that shuts
 as it appears.
 
-**The tile asks for a name and nothing else.** The four role segments that used
-to sit under the field are gone, which takes `.done` with them: a column added
-from the board is a `.backlog` one. **The phone's drawer is now the only place a
-role is chosen**, and `BoardStore` still has no `setColumnRole` — so a board can
-only be given a second Done column from the phone, and `deleteColumn`'s refusal
-to remove the last one now suggests something no pointer can do.
-`AddColumnStripTests` asserts both ends of that: the board's composer has no
+**The tile asks for a name and nothing else**, which since v9 is everything there
+is to say about a column when it is made: there is no role to choose, and the new
+column lands in front of the board's Done column, which stays last.
+`AddColumnStripTests` asserts that neither surface has grown a picker back — the
+board's composer has no
 picker, and the phone's still does, because if the phone's went too no surface
 could make a Done column at all.
 
@@ -1280,10 +1304,11 @@ track the real calendar.
 
 ### Completing, reopening and deleting
 
-A task reaches Done four ways now: dragged there, sent there from "Move to",
-completed where it stands — a circular checkbox on either card, and a
-context-menu item on both platforms — or ticked off **in the detail panel**. The
-checkbox is `CompletionToggle`, which
+A task reaches Done three ways: dragged there, sent there from the **Move
+Column** menu, or completed where it stands — a circular checkbox on either card,
+a context-menu item on both platforms, and the tick in the detail panel. The
+"Move to" segments are not one of them; see **Boards, columns and the Inbox**.
+The checkbox is `CompletionToggle`, which
 is also what the checklist rows are drawn from: same accent fill, same border,
 same tick glyph, so the board and the checklist cannot drift into two ideas of
 what "done" looks like. Only the corner radius is a metric, because a card wants
@@ -1291,8 +1316,8 @@ the circle the spec draws beside a title and a row wants the design's rounded
 square. On a card the control sits *over* the button rather than inside its
 label: a button nested in another button's label never sees the click, and
 ticking a card must not also open its detail surface. `reopen` sends a completed
-task back to the newest column its own history names whose role is not `.done`,
-and to the board's first such column when it has none, so the Done tick is a
+task back to the newest column its own history names that is not the Done one,
+and to the board's landing column when it has none, so the Done tick is a
 round trip rather than a one-way door. Neither verb applies to a filed card: `complete` and `reopen`
 refuse an archived task outright, where Restore is the only verb — see
 **Saved views and the archive**.
@@ -3628,13 +3653,13 @@ screen's, and the header's distance from the top — the portrait claim above ma
 again in the shape that lost it. With the cap taken out the card measures 642pt
 against a 402pt phone, which is what the suite is for.
 
-The add-column composer is the one place landscape is worse: 402pt minus a
-software keyboard leaves 238pt for a composer around 200pt tall, so its last row
-can be clipped above the visible area. Its Role picker sits **above** the Name
-field for that reason: naming the column raises the keyboard, and with Role below
-it the picker was measured unhittable and every column made in landscape came out
-a Backlog. Role first, then the name, and the sheet dismisses the keyboard
-interactively. Portrait is clean.
+The add-column composer used to be the one place landscape was worse: 402pt minus
+a software keyboard leaves 238pt for a composer that was around 200pt tall, so its
+last row could be clipped above the visible area. Its Role picker sat **above**
+the Name field for that reason — naming the column raises the keyboard, and with
+Role below it the picker was measured unhittable and every column made in
+landscape came out a Backlog. The roles went in v9 and the composer is a single
+field now, so it clears the keyboard in either orientation.
 
 ## Persistence
 
@@ -3667,7 +3692,7 @@ is untouched by it. If sync ever matters, this is the layer to replace.
   still sitting at `board.json`, and a write would land on top of it. A file
   that is simply absent is not a failure and leaves nothing behind.
 - **Older files are migrated, not guessed at.** `BoardSnapshot.currentVersion`
-  is 6. The version is read out of the raw JSON *before* anything is decoded,
+  is 9. The version is read out of the raw JSON *before* anything is decoded,
   because synthesised `Codable` throws `keyNotFound` for a key the older shape
   never wrote — a property default does not make a field backward-compatible.
   Only an `Optional` tolerates absence, which is why `archivedAt` is one.
@@ -3742,6 +3767,36 @@ is untouched by it. If sync ever matters, this is the layer to replace.
     Medium back if it edits that card. There is no version to refuse on, which is
     what **What CloudKit will not do for you** is about; the board *file* is where
     the guarantee lives.
+
+  - **v8 → v9** — `ColumnRole` goes. Up to v8 each column stored `backlog`,
+    `active` or `done`, and a board's Done column was the first one whose role
+    said so; it is now simply the board's **last** column. The step is therefore a
+    *reorder*, and only for boards not already in that shape: whichever column v8
+    would have sent a tick to moves to the end of its board. Every column is kept,
+    the order of the rest is kept, and no card moves — a card sits in a column,
+    and the column has come with it.
+
+    It is the one step that needs something the decoded value no longer has. v9
+    removed the field, so the current decoder throws the roles away on the way in;
+    `BoardSnapshot.legacyDoneColumns(in:)` reads them straight out of the bytes
+    with a five-line `Decodable` rather than a frozen copy of the whole v8
+    snapshot, because one key of one array is all the step needs. It is silent
+    about failure on purpose: a v1–v4 file has no `boards` key at all and yields
+    nothing, which is right, since those are rebuilt out of `BoardColumn.workflow`
+    on the way through and already end in Done.
+
+    **The one board this changes the meaning of** is one with more than one `done`
+    column. v8 treated a card in *any* of them as complete while sending new ticks
+    only to the first; v9 has one Done column, so cards left in the others read as
+    unfinished again. Nothing is lost, and the state it gives up is one the app
+    never had a way to show. `board-v8-done-adrift.json` is the fixture that would
+    catch the reorder going missing.
+
+    **Sync keeps the field and stops reading it.** A CloudKit schema is additive
+    only once it is in production, so `StoredColumn.roleKey` stays —
+    `BoardSyncStore` writes `"done"` for the last column and `"backlog"` for the
+    rest, which is v9's rule spelled in v8's vocabulary, so a device on an older
+    build still finds exactly one Done column and finds it in the right place.
 
   Those last two were planned as **one** step to v4 — "boards and columns" was a
   single item — and shipped as two because each half is separately verifiable and
@@ -4629,7 +4684,7 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `TransferTests` | the drag payloads — the plain-text and `Codable` forms of a card, a checklist row and a column, that a column's carries the board it is on, and that all three exported type identifiers match the ones `project.yml` declares |
 | `SavedViewTests` | every view's badge equalling its list's length whenever nothing is typed, and a query being the only thing that may part them; every predicate at the day either side of every bound it draws — Today carrying overdue, Upcoming strictly ahead, `0...6` for the week — the cap at twenty, the two views that override the board's order and the four that do not, Done left out of four of six, archived tasks in one of six, and a query narrowing a view *after* its cap rather than before |
 | `ColumnTests` | columns as data — add, rename, recolour, reorder and delete, each of them one ⌘Z and one write; a delete relocating its cards and logging it, and being refused rather than ignored when it would leave no Done column or no other one; columns surviving a relaunch, and no columns surviving one too, because no boards is a state rather than damage; and the v3 → v4 step mapping every legacy column id, on the task and inside the activity feed |
-| `ColumnRoleTests` | the role rather than the *word* carrying every Done behaviour — against a board that also holds a `.backlog` column called "Done" — after the real one has been renamed, recoloured, moved and relaunched, and on a Done column the user made through `addColumn` after deleting the seeded one; plus each board's Done being its own while another board has one |
+| `DoneColumnTests` | the board's **last** column rather than the *word* carrying every Done behaviour — against a board that also holds a middle column called "Done" — after it has been renamed, recoloured and had the columns around it shuffled, and across a relaunch; that it cannot be dragged off the end, dropped away, or displaced by a new column; that a board built by hand gains it with its first column and a single-column board has none; and that each board's Done is its own while another board has one |
 | `BoardTests` | boards created, renamed, recoloured, reordered and deleted; switching boards changing the columns, the title and every count; the Inbox being the same list whichever board is active and a quick capture never picking one; codes minted from the destination and never changing; a board deleted sending its cards to the Inbox, its neighbour taking over, and the last one going without taking the Inbox with it — after which the empty board list is what a relaunch reads back, and a fresh board can still be made from it; the active board surviving a relaunch while the surface does not; and a v4 file splitting between the default board and the Inbox |
 | `PlacementInvariantTests` | the one rule the model exists to keep — a task is unfiled or on a board in one of its columns, never half of either — checked after every store method that can touch a placement, four ways over: alone, in one long sequence, undone one at a time, and undone in a full drain. Plus the illegal pairs refused rather than stored at all three doors that take a placement from outside — `file` leaving the card where it was, `move` the same, `addTask` landing it in the Inbox and minting an `IN-` code for it; a card whose board and column disagree placed by its column; a file carrying two cards under one id loading with the second dropped; `reopen` reading a card's history against its *own* board, so an id it recognises from elsewhere cannot carry the card to a board nobody was looking at; the bulk move refusing the same pair, which is the fourth door and the only one that does not go through the singular `move`; and a code surviving every journey a card can take |
 | `ArchiveTests` | a filed task leaving `searchResults`, every column slice, every board count and every view but the Archive while staying in the file; the surfaces moving off it; `archiveCompleted` as one ⌘Z on one instant, skipping what is already filed; restore putting it back in its own column; filing moving no `updatedAt` while still invalidating the grouping and the search; `complete` and `reopen` refusing an archived task outright, at no undo cost; the rolling seven-day meter, at both ends of its window, against a stamp in the future, and reading `updatedAt` rather than `createdAt`. Plus what the Task menu may do to a selection of filed cards, which the Archive surface's own ⌘A makes one keystroke away: every item on it disabled, nothing for any of them to act on, no step filed and no stamp moved — and the four commands that *do* still apply to a filed card, because reading one, copying its code or throwing it away are things a person does in an archive |
@@ -4841,8 +4896,8 @@ suite holds that at zero.
 that nothing on disk is a word the interface draws, because a board written in one
 language has to read in another. `ActivityEntry` stores a `Kind` and renders the
 sentence at display time; `Priority` stores `max`/`high`/`medium`/`low` and answers
-`displayName` separately (v5 → v6, above); `PhoneTab`, `SavedView`, `BoardSortOrder`
-and `ColumnRole` all key on a slug and name themselves in a `switch`. `LabelDef.key`
+`displayName` separately (v5 → v6, above); `PhoneTab`, `SavedView` and `BoardSortOrder`
+all key on a slug and name themselves in a `switch`. `LabelDef.key`
 is the same rule for user content: the key is the stable slug tasks store, the
 `name` is what the chip draws.
 

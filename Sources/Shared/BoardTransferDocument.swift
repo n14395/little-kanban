@@ -114,7 +114,7 @@ enum BoardMarkdown {
             for column in board.columns {
                 let cards = onBoard.filter { $0.columnID == column.id }
                 guard !cards.isEmpty else { continue }
-                lines += section(column.name, tasks: cards, done: column.role == .done,
+                lines += section(column.name, tasks: cards, done: column.id == board.doneColumn?.id,
                                  labels: names, level: 3)
             }
         }

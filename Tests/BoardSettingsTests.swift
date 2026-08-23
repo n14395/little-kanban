@@ -75,68 +75,54 @@ import Testing
         #expect(warning.detail.contains("cards move") == false)
     }
 
-    // MARK: What a reorder would change
+    // MARK: What a reorder cannot change
 
-    /// The ordinary case: one Done column, and moving anything anywhere leaves
-    /// completed work landing exactly where it did. A warning here would be a
-    /// lie, and the sheet asks nothing.
-    @Test func reorderingABoardWithOneDoneColumnChangesNothing() {
+    /// **The warning this section used to be about is gone.** Up to v8 a column
+    /// carried a `ColumnRole`, the board's Done column was the first one whose
+    /// role said so, and a board with two of them changed where every future
+    /// tick sent a card the moment they were dragged past each other — invisibly,
+    /// with no undo step announcing it. The sheet had to ask first.
+    ///
+    /// Done is the board's last column now and does not move, so there is
+    /// nothing left to ask about. What is asserted here is the *absence*: no
+    /// reorder, from anywhere to anywhere, changes where completed work lands.
+    @Test func noReorderChangesWhereCompletedWorkLands() {
         let store = TestBoard.store()
         let landing = store.doneColumnID
 
         for from in store.columns.indices {
             for to in 0...store.columns.count where to != from && to != from + 1 {
-                #expect(
-                    store.doneColumnID(afterMoving: IndexSet(integer: from), toOffset: to) == landing,
-                    "moving \(from) to \(to) claimed to change where completed tasks land"
-                )
+                store.moveColumn(fromOffsets: IndexSet(integer: from), toOffset: to)
+                #expect(store.doneColumnID == landing,
+                        "moving \(from) to \(to) changed where completed tasks land")
+                #expect(store.columns.last?.id == landing, "Done stopped being last")
             }
         }
     }
 
-    /// The case that earns the warning: a second Done column, moved past the
-    /// first. Nothing on the board says which of the two a tick sends a card to,
-    /// and the sheet is the only place it is written down.
-    @Test func movingASecondDoneColumnPastTheFirstChangesWhereCompletedWorkLands() throws {
+    /// Adding a column is the other way the end of the board could have moved,
+    /// and the one that would happen constantly: `addColumn` appends nowhere
+    /// near Done, it inserts in front of it.
+    @Test func addingAColumnLeavesTheDoneColumnWhereItIs() throws {
         let store = TestBoard.store()
-        let second = try #require(store.addColumn(named: "Shipped", role: .done))
-        #expect(store.doneColumnID == done, "the seeded Done is still the one")
-        let last = store.columns.count - 1
-        let first = try #require(store.columns.firstIndex { $0.id == done })
-
-        // Read before it moves…
-        let predicted = store.doneColumnID(afterMoving: IndexSet(integer: last), toOffset: first)
-        #expect(predicted == second, "the warning would have named the wrong column")
-
-        // …and the move keeps the promise.
-        store.moveColumn(fromOffsets: IndexSet(integer: last), toOffset: first)
-        #expect(store.doneColumnID == second)
-    }
-
-    /// And the same board, moved somewhere that does not cross the two: still
-    /// nothing to ask about.
-    @Test func movingAColumnThatIsNotDonePastAnotherAsksNothing() throws {
-        let store = TestBoard.store()
-        _ = try #require(store.addColumn(named: "Shipped", role: .done))
         let landing = store.doneColumnID
-        let index = try #require(store.columns.firstIndex { $0.id == upNext })
 
-        #expect(store.doneColumnID(afterMoving: IndexSet(integer: index), toOffset: 0) == landing)
+        let added = try #require(store.addColumn(named: "Shipped"))
+        #expect(store.doneColumnID == landing, "the new column took the finished work")
+        #expect(store.columns.last?.id == landing)
+        #expect(store.columns.dropLast().last?.id == added, "the new column did not land in front of Done")
     }
 
-    /// The warning carries the move in `moveColumn`'s own spelling, so
-    /// confirming performs the move that was described rather than one worked
-    /// out a second time.
-    @Test func confirmingAMoveWarningPerformsTheMoveItDescribed() throws {
+    /// And the Done column cannot be dragged out of the way either, which is
+    /// what makes reading it off the position safe.
+    @Test func theDoneColumnRefusesToMove() {
         let store = TestBoard.store()
-        let second = try #require(store.addColumn(named: "Shipped", role: .done))
+        let order = store.columns.map(\.id)
         let last = store.columns.count - 1
-        let first = try #require(store.columns.firstIndex { $0.id == done })
-        let warning = ColumnMoveWarning(from: last, to: first, landing: "Shipped", leaving: "Done")
 
-        store.moveColumn(fromOffsets: IndexSet(integer: warning.from), toOffset: warning.to)
-
-        #expect(store.doneColumnID == second)
-        #expect(store.columns[first].id == second, "the column did not land where the warning said")
+        for to in 0..<last {
+            store.moveColumn(fromOffsets: IndexSet(integer: last), toOffset: to)
+            #expect(store.columns.map(\.id) == order, "the Done column moved to \(to)")
+        }
     }
 }

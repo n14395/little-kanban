@@ -83,7 +83,7 @@ import Testing
         mutate("addColumn") { $0.addColumn(named: "Blocked") }
         mutate("renameColumn") { $0.renameColumn(BoardColumn.upNext.id, to: "Later") }
         mutate("recolorColumn") { $0.recolorColumn(BoardColumn.backlog.id, to: .accent) }
-        mutate("moveColumn") { $0.moveColumn(fromOffsets: [3], toOffset: 0) }
+        mutate("moveColumn") { $0.moveColumn(fromOffsets: [1], toOffset: 0) }
         mutate("deleteColumn") { $0.deleteColumn(BoardColumn.upNext.id) }
         // The placement pair, and the board list — both need a second board to
         // be capable of failing.

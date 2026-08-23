@@ -525,7 +525,7 @@ struct BoardTaskCard: View {
                         PriorityDot(priority: task.priority, namesPriority: true)
                     }
                     if let due = task.due {
-                        DueChip(due: due, today: dayClock.today, role: store.role(of: task))
+                        DueChip(due: due, today: dayClock.today, isDone: store.isDone(task))
                     }
                     if task.hasSubtasks, density.showsDetail {
                         SubtaskCountBadge(text: task.subtaskProgressText)

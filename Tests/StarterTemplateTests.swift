@@ -17,7 +17,12 @@ struct StarterTemplateTests {
             let board = try #require(template.boards.first, "\(template.id) has no board")
             #expect(board.columns.count >= 4)
             #expect(board.landingColumn != nil)
-            #expect(board.columns.contains { $0.role == .done }, "\(template.id) has nowhere to finish")
+            // The *last* column, which is what makes it the Done one — see
+            // `Board.doneColumn`. A template that ended on a working column
+            // would hand a new board a Done column called "Drafting".
+            #expect(board.doneColumn != nil, "\(template.id) has nowhere to finish")
+            #expect(board.landingColumn?.id != board.doneColumn?.id,
+                    "\(template.id) lands new cards in its Done column")
             #expect(!board.codePrefix.isEmpty)
         }
     }

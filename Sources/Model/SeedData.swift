@@ -320,11 +320,14 @@ extension BoardTemplate {
     /// both name, and two boards may not share a column id — the store resolves
     /// a card's board *from* its column.
     static func column(like seed: BoardColumn) -> BoardColumn {
-        BoardColumn(name: seed.name, short: seed.short, dot: seed.dot, role: seed.role)
+        BoardColumn(name: seed.name, short: seed.short, dot: seed.dot)
     }
 
-    static func column(_ name: String, short: String? = nil, _ dot: SwatchColor, _ role: ColumnRole) -> BoardColumn {
-        BoardColumn(name: name, short: short ?? name, dot: dot, role: role)
+    /// A template column. The order the template lists them in is the board's,
+    /// and **the last one is its Done column** — see ``Board/doneColumn``. Every
+    /// starter ends with one; `FirstRunTests` is what keeps it that way.
+    static func column(_ name: String, short: String? = nil, _ dot: SwatchColor) -> BoardColumn {
+        BoardColumn(name: name, short: short ?? name, dot: dot)
     }
 }
 
@@ -338,19 +341,19 @@ extension SeedData {
         let columns = [
             BoardTemplate.column(
                 String(localized: "Someday", comment: "Personal template column: no date on it yet"),
-                .hex(0xA8A29A), .backlog
+                .hex(0xA8A29A)
             ),
             BoardTemplate.column(
                 String(localized: "This Week", comment: "Personal template column: work with a day on it"),
-                .hex(0xC98A16), .backlog
+                .hex(0xC98A16)
             ),
             BoardTemplate.column(
                 String(localized: "Doing", comment: "Personal template column: in flight"),
-                .hex(0xC2532F), .active
+                .hex(0xC2532F)
             ),
             BoardTemplate.column(
                 String(localized: "Done", comment: "Personal template column: finished"),
-                .hex(0x1F6F63), .done
+                .hex(0x1F6F63)
             ),
         ]
         let board = Board(
@@ -405,7 +408,7 @@ extension SeedData {
             BoardTemplate.column(
                 String(localized: "In Review", comment: "Sprint template column: waiting on a reviewer"),
                 short: String(localized: "Review", comment: "Sprint template column, abbreviated"),
-                .hex(0x3B5BA9), .active
+                .hex(0x3B5BA9)
             ),
             BoardTemplate.column(like: .done),
         ]
@@ -463,23 +466,23 @@ extension SeedData {
         let columns = [
             BoardTemplate.column(
                 String(localized: "Ideas", comment: "Content template column: not written yet"),
-                .hex(0xA8A29A), .backlog
+                .hex(0xA8A29A)
             ),
             BoardTemplate.column(
                 String(localized: "Drafting", comment: "Content template column: being written"),
-                .hex(0xC98A16), .active
+                .hex(0xC98A16)
             ),
             BoardTemplate.column(
                 String(localized: "Editing", comment: "Content template column: written, being cut"),
-                .hex(0xC2532F), .active
+                .hex(0xC2532F)
             ),
             BoardTemplate.column(
                 String(localized: "Scheduled", comment: "Content template column: has a publication date"),
-                .hex(0x3B5BA9), .active
+                .hex(0x3B5BA9)
             ),
             BoardTemplate.column(
                 String(localized: "Published", comment: "Content template column: out in the world"),
-                .hex(0x1F6F63), .done
+                .hex(0x1F6F63)
             ),
         ]
         let board = Board(

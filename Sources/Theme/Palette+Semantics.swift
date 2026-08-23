@@ -97,11 +97,13 @@ extension Palette {
     /// otherwise anything due today or already past is urgent, the next couple
     /// of days are warm, and everything further out is neutral ink.
     ///
-    /// It takes the column's *role* rather than its id: a board whose owner
-    /// made their own Done column would otherwise go on colouring shipped work
-    /// as overdue.
-    func dueTone(urgency: DueUrgency, role: ColumnRole) -> (background: Color, foreground: Color) {
-        if role == .done {
+    /// It takes *whether the card is done* rather than a column id: a board
+    /// whose owner renamed their Done column to Shipped would otherwise go on
+    /// colouring shipped work as overdue. Which column that is, is
+    /// ``Board/doneColumn``'s answer and reaches here through
+    /// `BoardStore.isDone(_:)`.
+    func dueTone(urgency: DueUrgency, isDone: Bool) -> (background: Color, foreground: Color) {
+        if isDone {
             return isDarkScheme
                 ? (Color(hex: 0x50BEAA, opacity: 0.16), Color(hex: 0x8FD9C8))
                 : (Color(hex: 0x1F6F63, opacity: 0.12), Color(hex: 0x175A50))
@@ -126,8 +128,8 @@ extension Palette {
     /// Convenience for a task's own due date. `today` is passed rather than
     /// read from the clock so the tint follows the day rolling over.
     func dueTone(
-        due: CalendarDay, today: CalendarDay, role: ColumnRole
+        due: CalendarDay, today: CalendarDay, isDone: Bool
     ) -> (background: Color, foreground: Color) {
-        dueTone(urgency: DueDate.urgency(due, from: today), role: role)
+        dueTone(urgency: DueDate.urgency(due, from: today), isDone: isDone)
     }
 }

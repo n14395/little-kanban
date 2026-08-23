@@ -428,9 +428,11 @@ extension BoardSnapshot {
     /// Version 3 → 4.
     ///
     /// v4 makes the columns board data. The five that used to be compiled in
-    /// keep their name, short name, dot and order and gain a `ColumnRole`; the
-    /// board's own list is the four workflow columns, because the Inbox sits
-    /// outside the workflow and is not something a person may rename or delete.
+    /// keep their name, short name, dot and order; the board's own list is the
+    /// four workflow columns, because the Inbox sits outside the workflow and is
+    /// not something a person may rename or delete. They gained a `ColumnRole`
+    /// here too, which v9 removed again — Done is the last column, and the four
+    /// are already in that order.
     ///
     /// Every string id a v3 file holds is mapped onto the matching column's
     /// UUID — on the task itself and inside each `.moved` activity entry, which
@@ -559,8 +561,54 @@ extension BoardSnapshot {
     /// handed a board with a single Max card on it fails to decode the *whole
     /// file* and quarantines the user's board as corrupt. With the bump it
     /// refuses the file up front and says why.
+    ///
+    /// Stamps **8** rather than `currentVersion`, for `migrate(v5:)`'s reason:
+    /// this is one step of a chain and `migrate(v8:legacyDoneColumns:)` carries
+    /// it the rest of the way.
     static func migrate(v7: BoardSnapshot) -> BoardSnapshot {
         var snapshot = v7
+        snapshot.version = 8
+        return snapshot
+    }
+
+    /// Version 8 → 9.
+    ///
+    /// v9 removes `ColumnRole`. Up to v8 each column stored one of `backlog`,
+    /// `active` or `done`, and the board's Done column was the *first* one whose
+    /// role said `done`. Two of the three roles never did anything — nothing in
+    /// the app ever branched on `backlog` or `active` — and the third is now
+    /// answered by position: **the Done column is the board's last one**. See
+    /// ``Board/doneColumn``.
+    ///
+    /// So this step is a reorder, and only for boards that were not already in
+    /// that shape: whichever column v8 would have sent a tick to is moved to the
+    /// end of its board. Every column the board has, it keeps, and no card
+    /// moves — a card sits in a column, and the column has come with it.
+    ///
+    /// `legacyDoneColumns` carries the ids that v8's rule picks out, read from
+    /// the bytes by `BoardSnapshot.legacyDoneColumns(in:)`, because the decoded
+    /// snapshot has no roles left in it to read. Empty is the honest answer for
+    /// a v1–v4 file: those are rebuilt by the steps above out of
+    /// `BoardColumn.workflow`, which already ends in Done.
+    ///
+    /// **The one board this changes the meaning of** is one with more than one
+    /// `done` column. v8 treated a card in *any* of them as complete while
+    /// sending new ticks only to the first; v9 has one Done column, so cards
+    /// left in the others read as unfinished again. Nothing is lost — the cards,
+    /// the columns and the order are all still there — and the state it gives up
+    /// is one the app never had a way to show.
+    static func migrate(v8: BoardSnapshot, legacyDoneColumns: [BoardColumn.ID] = []) -> BoardSnapshot {
+        var snapshot = v8
+        let done = Set(legacyDoneColumns)
+        for index in snapshot.boards.indices {
+            let columns = snapshot.boards[index].columns
+            guard let landing = columns.firstIndex(where: { done.contains($0.id) }),
+                  landing != columns.count - 1
+            else { continue }
+            var reordered = columns
+            reordered.append(reordered.remove(at: landing))
+            snapshot.boards[index].columns = reordered
+        }
         snapshot.version = BoardSnapshot.currentVersion
         return snapshot
     }

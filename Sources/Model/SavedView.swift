@@ -90,7 +90,7 @@ enum SavedView: String, CaseIterable, Identifiable, Codable, Sendable {
     ///
     /// `isDone` is asked of the caller rather than read off the task: which
     /// column counts as Done is the board's answer, not a fact about a task —
-    /// see `ColumnRole`.
+    /// see ``Board/doneColumn``.
     /// `week` is what "due this week" is measured against — see
     /// ``WeekMeaning``. Defaulted to the rolling seven days this view has always
     /// meant, so a caller with no opinion, and every test, reads as before.

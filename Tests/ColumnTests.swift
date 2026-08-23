@@ -18,15 +18,15 @@ import Testing
     }
 
     private static let triage = BoardColumn(
-        id: columnID(1), name: "Triage", short: "Triage", dot: .hex(0xA8A29A), role: .backlog
+        id: columnID(1), name: "Triage", short: "Triage", dot: .hex(0xA8A29A)
     )
     private static let building = BoardColumn(
-        id: columnID(2), name: "Building", short: "Build", dot: .hex(0xC2532F), role: .active
+        id: columnID(2), name: "Building", short: "Build", dot: .hex(0xC2532F)
     )
     /// A Done column by role and by nothing else: not the seed's id, not its
     /// name, not its short name.
     private static let shipped = BoardColumn(
-        id: columnID(3), name: "Shipped", short: "Ship", dot: .hex(0x1F6F63), role: .done
+        id: columnID(3), name: "Shipped", short: "Ship", dot: .hex(0x1F6F63)
     )
 
     private static let columns = [triage, building, shipped]
@@ -122,13 +122,13 @@ import Testing
 
     @Test func theDueChipReadsGreenForADoneRoleAndNotForAnyOther() {
         let palette = Palette(colorScheme: .light)
-        let shipped = palette.dueTone(urgency: .overdue, role: .done)
-        #expect(shipped == palette.dueTone(urgency: .later, role: .done))
-        #expect(shipped != palette.dueTone(urgency: .overdue, role: .backlog))
-        #expect(shipped != palette.dueTone(urgency: .overdue, role: .active))
+        let shipped = palette.dueTone(urgency: .overdue, isDone: true)
+        #expect(shipped == palette.dueTone(urgency: .later, isDone: true))
+        #expect(shipped != palette.dueTone(urgency: .overdue, isDone: false))
+        #expect(shipped != palette.dueTone(urgency: .overdue, isDone: false))
         // `.active` is descriptive only: nothing may hang off it.
-        #expect(palette.dueTone(urgency: .overdue, role: .active)
-                == palette.dueTone(urgency: .overdue, role: .backlog))
+        #expect(palette.dueTone(urgency: .overdue, isDone: false)
+                == palette.dueTone(urgency: .overdue, isDone: false))
     }
 
     @Test func reopeningReadsTheColumnIDTheHistoryCarries() {
@@ -152,16 +152,19 @@ import Testing
         let store = BoardStore(tasks: [stray], columns: Self.columns, labels: LabelDef.seed, file: nil)
         #expect(store.column(for: stray) == nil)
         #expect(store.isDone(stray) == false)
-        #expect(store.role(of: stray) == .backlog)
     }
 
     // MARK: Managing columns
 
-    @Test func addingAColumnPutsItAtTheEndAndInThePager() {
+    /// **In front of Done, not at the end.** The end is what makes a column the
+    /// Done one — see `Board.doneColumn` — so appending would hand every new
+    /// column the finished work and quietly demote the old one.
+    @Test func addingAColumnPutsItInFrontOfDoneAndInThePager() {
         let store = Self.store()
-        let id = store.addColumn(named: "Blocked", short: "Block", dot: .hex(0x111111), role: .active)
-        #expect(store.columns.last?.id == id)
-        #expect(store.columns.last?.name == "Blocked")
+        let id = store.addColumn(named: "Blocked", short: "Block", dot: .hex(0x111111))
+        #expect(store.columns.dropLast().last?.id == id)
+        #expect(store.columns.map(\.name) == ["Triage", "Building", "Blocked", "Shipped"])
+        #expect(store.doneColumnID == Self.shipped.id, "the new column took the finished work")
         #expect(store.pagerColumns.map(\.id) == store.columns.map(\.id))
         // The Inbox is not one of the board's columns — since v5 it is not a
         // column at all, and a card is in it by being on no board.
@@ -216,11 +219,13 @@ import Testing
         #expect(store.tasks == before)
     }
 
+    /// "Building", not "Shipped": Shipped is the board's last column and so its
+    /// Done column, which does not move — see `DoneColumnTests`.
     @Test func reorderingColumnsMovesThemAndNothingElse() {
         let store = Self.store()
         let before = store.tasks
-        store.moveColumn(fromOffsets: [2], toOffset: 0)
-        #expect(store.columns.map(\.name) == ["Shipped", "Triage", "Building"])
+        store.moveColumn(fromOffsets: [1], toOffset: 0)
+        #expect(store.columns.map(\.name) == ["Building", "Triage", "Shipped"])
         #expect(store.tasks == before)
     }
 
@@ -248,10 +253,10 @@ import Testing
         #expect(store.mobileColumnID == Self.triage.id)
     }
 
-    @Test func deletingTheOnlyDoneColumnIsRefusedWithAnExplanation() {
+    @Test func deletingTheDoneColumnIsRefusedWithAnExplanation() {
         let store = Self.store()
         let refusal = store.deleteColumn(Self.shipped.id)
-        #expect(refusal == .lastDoneColumn)
+        #expect(refusal == .doneColumn)
         #expect(refusal?.errorDescription?.isEmpty == false)
         #expect(refusal?.recoverySuggestion?.isEmpty == false)
         #expect(store.columns.count == 3)
@@ -288,7 +293,7 @@ import Testing
         mutate("addColumn") { $0.addColumn(named: "Blocked") }
         mutate("renameColumn") { $0.renameColumn(Self.building.id, to: "In flight") }
         mutate("recolorColumn") { $0.recolorColumn(Self.triage.id, to: .accent) }
-        mutate("moveColumn") { $0.moveColumn(fromOffsets: [2], toOffset: 0) }
+        mutate("moveColumn") { $0.moveColumn(fromOffsets: [1], toOffset: 0) }
         mutate("deleteColumn") { $0.deleteColumn(Self.building.id) }
 
         try await Task.sleep(for: .milliseconds(900))
@@ -313,7 +318,7 @@ import Testing
         check("addColumn") { $0.addColumn(named: "Blocked") }
         check("renameColumn") { $0.renameColumn(Self.building.id, to: "In flight") }
         check("recolorColumn") { $0.recolorColumn(Self.triage.id, to: .accent) }
-        check("moveColumn") { $0.moveColumn(fromOffsets: [2], toOffset: 0) }
+        check("moveColumn") { $0.moveColumn(fromOffsets: [1], toOffset: 0) }
         check("deleteColumn") { $0.deleteColumn(Self.building.id) }
     }
 
@@ -344,14 +349,13 @@ import Testing
     @Test func aBoardsColumnsAreWrittenAndReadBack() throws {
         let temp = TempBoard()
         let store = Self.store(file: temp.file)
-        store.addColumn(named: "Blocked", short: "Block", dot: .accent, role: .active)
+        store.addColumn(named: "Blocked", short: "Block", dot: .accent)
         store.saveNow()
 
         let read = try temp.snapshot()
         #expect(read.version == BoardSnapshot.currentVersion)
         #expect(columns(of: read) == store.columns)
-        #expect(columns(of: read).map(\.name) == ["Triage", "Building", "Shipped", "Blocked"])
-        #expect(columns(of: read).map(\.role) == [.backlog, .active, .done, .active])
+        #expect(columns(of: read).map(\.name) == ["Triage", "Building", "Blocked", "Shipped"])
 
         let reopened = BoardStore.restored(file: temp.file)
         #expect(reopened.columns == store.columns)
@@ -389,15 +393,15 @@ import Testing
         #expect(snapshot.nextSerial == 121)
 
         // Every column keeps the name, short name, dot and order it had when it
-        // was five literals in the app, and gains a role.
+        // was five literals in the app.
         #expect(columns(of: snapshot) == BoardColumn.workflow)
         #expect(columns(of: snapshot).map(\.name) == ["Backlog", "Up Next", "In Progress", "Done"])
         #expect(columns(of: snapshot).map(\.short) == ["Backlog", "Up Next", "Doing", "Done"])
         #expect(columns(of: snapshot).map(\.dot) == [
             .hex(0xA8A29A), .hex(0xC98A16), .hex(0xC2532F), .hex(0x1F6F63),
         ])
-        #expect(columns(of: snapshot).map(\.role) == [.backlog, .backlog, .active, .done])
-        #expect(columns(of: snapshot).count { $0.role == .done } == 1)
+        // And Done is last, which since v9 is the whole of what makes it Done.
+        #expect(columns(of: snapshot).last == BoardColumn.done)
 
         // The fixture is `TestBoard` with one task filed away, written out by
         // the v3 encoder, so this compares every field of every task at once —

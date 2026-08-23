@@ -105,28 +105,24 @@ import Testing
                 "the close does not re-check that the keyboard really left: \(body)")
     }
 
-    /// The composer names the column and does nothing else. The four role
-    /// segments under the field are gone, which takes `.done` with them: a
-    /// column added from the board is a `.backlog` one, and the board settings
-    /// sheet is the only place left that chooses. `BoardStore` still has no
-    /// `setColumnRole`, so a role is settled when the column is made and this is
-    /// the whole of what the board itself can say about it — see ``AddColumnTile``.
+    /// The composer names the column and does nothing else — and since v9 that
+    /// is everything there is to say about a column when it is made.
+    ///
+    /// Both surfaces used to carry a row of role segments. `.backlog` and
+    /// `.active` never did anything, and `.done` is now the board's last column
+    /// rather than a role, so a picker on either would be offering a choice the
+    /// model cannot hold. This asserts neither has one.
     @Test func theComposerAsksForANameAndNothingElse() {
         guard SourceTree.isReachable else { return }
-        guard let file = SourceTree.files().first(where: { $0.path == "Shared/BoardColumnView.swift" })
-        else {
-            Issue.record("the column view has moved file")
-            return
+        for path in ["Shared/BoardColumnView.swift", "Shared/BoardSettingsView.swift"] {
+            guard let file = SourceTree.files().first(where: { $0.path == path }) else {
+                Issue.record("\(path) has moved")
+                continue
+            }
+            #expect(file.source.contains("rolePicker") == false,
+                    "\(path) has a role picker under its add-column field again")
+            #expect(file.source.contains("ColumnRole") == false,
+                    "\(path) still knows what a ColumnRole is")
         }
-        #expect(file.source.contains("rolePicker") == false,
-                "the board's add-column composer has a role picker under it again")
-
-        // The board settings sheet has one, and is now the only surface that
-        // does — it took the picker off the phone's drawer when it took that
-        // drawer's board editor, which is why every platform can now make a Done
-        // column rather than only the phone. If this goes, none of them can.
-        let sheet = SourceTree.files().first { $0.path == "Shared/BoardSettingsView.swift" }
-        #expect(sheet?.source.contains("rolePicker") == true,
-                "no surface left can give a board a Done column")
     }
 }

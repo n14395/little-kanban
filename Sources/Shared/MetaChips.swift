@@ -107,13 +107,13 @@ struct DueChip: View {
     let today: CalendarDay
     /// The role of the column the task is in, which is the only thing the tint
     /// asks about it: completed work reads green whatever the date says.
-    let role: ColumnRole
+    let isDone: Bool
     var font: CGFloat = 11
     var horizontalPadding: CGFloat = 6
     var radius: CGFloat = 6
 
     var body: some View {
-        let tone = palette.dueTone(due: due, today: today, role: role)
+        let tone = palette.dueTone(due: due, today: today, isDone: isDone)
         HStack(spacing: 3) {
             if let symbol = urgencySymbol, differentiateWithoutColor {
                 Image(systemName: symbol)
@@ -139,12 +139,12 @@ struct DueChip: View {
     /// which is the one that earns no mark, because a mark on every chip is a
     /// mark that distinguishes nothing.
     private var urgencySymbol: String? {
-        Self.urgencySymbol(urgency: DueDate.urgency(due, from: today), role: role)
+        Self.urgencySymbol(urgency: DueDate.urgency(due, from: today), isDone: isDone)
     }
 
     /// A `static` for the same reason ``PriorityDot/mark(for:)`` is one.
-    static func urgencySymbol(urgency: DueUrgency, role: ColumnRole) -> String? {
-        if role == .done { return "checkmark" }
+    static func urgencySymbol(urgency: DueUrgency, isDone: Bool) -> String? {
+        if isDone { return "checkmark" }
         switch urgency {
         case .overdue, .today: return "exclamationmark"
         case .soon: return "clock"

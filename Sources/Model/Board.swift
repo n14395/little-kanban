@@ -36,7 +36,7 @@ enum TaskPlacement: Hashable, Sendable {
 ///
 /// The columns live here rather than on the store because they are the board's
 /// own — switching boards changes them, and two boards may share neither names
-/// nor count nor roles.
+/// nor count nor order.
 struct Board: Identifiable, Hashable, Codable, Sendable {
     var id: UUID = UUID()
     var name: String
@@ -50,13 +50,55 @@ struct Board: Identifiable, Hashable, Codable, Sendable {
 
     func column(id: BoardColumn.ID) -> BoardColumn? { columns.first { $0.id == id } }
 
-    /// Where a card lands when it is filed onto this board without being told
-    /// where: the first column work can start in. A board whose every column is
-    /// Done — which column management refuses to make, but a hand-edited file
-    /// can still arrive as — falls back to the first one it has.
-    var landingColumn: BoardColumn? {
-        columns.first { $0.role != .done } ?? columns.first
+    /// **Where finished work lives: the last column, always.**
+    ///
+    /// This is the whole of the rule. Up to v8 each column carried a
+    /// `ColumnRole` and the Done column was the first one whose role said so —
+    /// which allowed a board to have two of them, where only the first counted,
+    /// a distinction invisible everywhere in the app except the warning that had
+    /// to be put in front of a reorder.
+    ///
+    /// Position rather than a stored `doneColumnID` because a stored id needs a
+    /// fallback for the case where it names a column that has gone, and the only
+    /// sensible fallback is "the last one" — so the id would exist purely to let
+    /// somebody put Done in the *middle* of their board, which is not a thing a
+    /// board is for. Deriving it means there is no field to get out of step with
+    /// the array, nothing to migrate forward, and nothing to keep in sync.
+    ///
+    /// It is not deletable and not re-orderable — see `BoardStore.deleteColumn`
+    /// and `moveColumn`, which is what makes reading it off the position safe.
+    /// It is still an ordinary column otherwise: renameable and recolourable,
+    /// because "Done" is called Shipped, Live and Published on real boards, and
+    /// `SeedData.contentCalendar` already ships one called Published.
+    ///
+    /// **Once there are two.** A board with a single column has nowhere to
+    /// finish: that column is where the work *is*, and reading it as Done would
+    /// have every card on the board arrive complete. `BoardStore` will not make
+    /// such a board — `addColumn` mints the pair, and `deleteColumn` refuses the
+    /// second-to-last — so this is about the ones that arrive from outside, in
+    /// an import or a hand-edited file, and it is the harmless answer of the
+    /// two. `nil` likewise for a board with no columns at all, which is what a
+    /// board looks like between being created and being set up.
+    var doneColumn: BoardColumn? { columns.count >= 2 ? columns.last : nil }
+
+    /// Every column before Done — the ones work actually moves through.
+    ///
+    /// What the "move to" control offers, and what a card can be filed into
+    /// without being finished by the act of filing it. A board with no Done
+    /// column of its own is all working columns, for the reason above.
+    var workingColumns: [BoardColumn] {
+        doneColumn == nil ? columns : Array(columns.dropLast())
     }
+
+    /// Where a card lands when it is filed onto this board without being told
+    /// where: the first column work can start in.
+    ///
+    /// `nil` for a board that has no working column — one that is empty, or that
+    /// holds nothing but its Done column. Both mean the same thing to a caller
+    /// ("this board is not set up yet"), and both must refuse the card rather
+    /// than land it: a card dropped onto a bare board and landed in Done would
+    /// arrive already completed.
+    var landingColumn: BoardColumn? { workingColumns.first }
 }
 
 extension Board {

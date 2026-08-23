@@ -232,10 +232,10 @@ enum TestBoard {
     }
 
     static let queue = BoardColumn(
-        id: columnID(1), name: "Queue", short: "Queue", dot: .hex(0xA8A29A), role: .backlog
+        id: columnID(1), name: "Queue", short: "Queue", dot: .hex(0xA8A29A)
     )
     static let closed = BoardColumn(
-        id: columnID(2), name: "Closed", short: "Closed", dot: .hex(0x1F6F63), role: .done
+        id: columnID(2), name: "Closed", short: "Closed", dot: .hex(0x1F6F63)
     )
 
     /// A second board, holding nothing. The mutations that reorder the board
@@ -472,10 +472,10 @@ enum ForeignBoard {
     static let colliding = TestBoard.cafe
 
     static let triage = BoardColumn(
-        id: columnID(1), name: "Triage", short: "Triage", dot: .hex(0x3B5BA9), role: .backlog
+        id: columnID(1), name: "Triage", short: "Triage", dot: .hex(0x3B5BA9)
     )
     static let shipped = BoardColumn(
-        id: columnID(2), name: "Shipped", short: "Shipped", dot: .hex(0x1F6F63), role: .done
+        id: columnID(2), name: "Shipped", short: "Shipped", dot: .hex(0x1F6F63)
     )
 
     static let board = Board(
