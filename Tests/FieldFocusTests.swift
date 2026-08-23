@@ -38,6 +38,7 @@ import Testing
         "Shared/LabelEditor.swift",         // the new-label field in the popover
         "Mac/MenuBarQuickAdd.swift",        // ⌃⌘N, where the field is the window
         "IOS/PhoneNavDrawer.swift",         // the phone's rename sheet, when it was opened to rename
+        "IOS/PhoneHeader.swift",            // the phone's search field, on arriving at the Search tab
     ]
 
     private func sources() -> [SourceFile] { SourceTree.files() }

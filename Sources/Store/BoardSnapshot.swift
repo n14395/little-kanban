@@ -105,7 +105,7 @@ struct BoardSnapshot: Codable, Sendable {
 
     /// The serial a code was minted from, whatever prefix it carries, or `nil`
     /// for one this did not mint. Reading the number rather than rebuilding the
-    /// whole code is what lets `discardIfUntouched` hand a serial back without
+    /// whole code is what lets `discardIfBlank` hand a serial back without
     /// knowing which board — or the Inbox — minted it.
     static func serial(ofCode code: String) -> Int? {
         guard let dash = code.lastIndex(of: "-"),

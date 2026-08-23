@@ -2,7 +2,7 @@
 
 import SwiftUI
 
-/// The iPhone screen: header, optional pager, task list, floating tab bar,
+/// The iPhone screen: header, task list or paged board, floating tab bar,
 /// plus the drawer, the Inbox slide-over and the detail sheet over the top.
 struct PhoneRootView: View {
     @Environment(\.palette) private var palette
@@ -19,9 +19,17 @@ struct PhoneRootView: View {
     /// Which column the horizontal scroller is settled on, mirrored to
     /// `store.mobileColumnID` in both directions. It is view state rather than
     /// board state because it is a scroll offset: the store already owns the
-    /// answer to *which column*, and two owners of one fact is how the dots
+    /// answer to *which column*, and two owners of one fact is how the chips
     /// and the page fall out of step.
     @State private var pagedColumnID: BoardColumn.ID?
+    /// How far a finger has pulled the drawer in — 0 shut, 1 open — or `nil`
+    /// when no pan is driving it.
+    ///
+    /// View state for `pagedColumnID`'s reason: it is a position in a gesture,
+    /// not a fact about the board. `nil` rather than 1 for "not being dragged",
+    /// because the two are not the same thing to draw: a drawer nobody is
+    /// touching is the transition's to move, and one under a finger is not.
+    @State private var drawerPull: CGFloat?
 
     var body: some View {
         // Resolved once and handed to both: the saved-view bar's count pill and
@@ -36,66 +44,74 @@ struct PhoneRootView: View {
                     .padding(.top, 4)
 
                 // No columns means no board — the user can delete the last one —
-                // and a pager with nothing to step through is two dead arrows.
+                // and there is then nothing to page between.
                 if store.isColumnPaging {
-                    // Portrait only. Turned on its side the phone shows two
-                    // columns at once, each under its own name and count, so
-                    // the dots are a second and vaguer copy of what the
-                    // headings have already said — and the strip is 44pt of
-                    // the one dimension a phone in landscape has least of. The
-                    // swipe is unchanged, and so is every route in the header.
-                    if !isShort { PhoneColumnPager() }
+                    // The chip strip in the header is the one thing that says
+                    // which column you are on, and it is also how you get to
+                    // another one by name; the arrows-and-dots row that used to
+                    // sit under it said the same thing again in a vaguer
+                    // alphabet. The swipe is unchanged, and so is every route
+                    // in the header.
                     columnPages
+                        // The row that used to sit here was also the gap
+                        // between the chips and the first card; the chips have
+                        // 4pt of their own and the list 2, which is not a gap.
+                        // On its side there are no chips above to clear.
+                        .padding(.top, isShort ? 0 : 10)
                 } else {
                     taskList(tasks)
                 }
             }
+            // Turned on its side the bar becomes a rail on the leading edge —
+            // see ``PhoneTabBar``, which has the arithmetic. `safeAreaInset`
+            // rather than an overlay and a matching padding: the rail's width is
+            // its own business and grows with the reader's text, and this is the
+            // one spelling where the board is inset by exactly what the rail
+            // turned out to need. In portrait it holds nothing and insets by
+            // nothing.
+            .safeAreaInset(edge: .leading, spacing: 0) {
+                if isShort { PhoneTabBar(axis: .vertical) }
+            }
 
-            PhoneTabBar()
+            // Portrait keeps it floating over the foot of the list, which is
+            // what the gradient behind it is for.
+            if !isShort { PhoneTabBar() }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .trashToast(metrics: .phone)
+        // `.phone` clears a tab bar along the foot; on its side there is none
+        // there to clear, and the card sits where every other touch surface
+        // puts it.
+        .trashToast(metrics: isShort ? .sheet : .phone)
         .background(palette.appBackground.ignoresSafeArea())
         // The drawer is a scrim over the board, so to a sighted user the board
-        // is gone. This takes the header, the pager and the tab bar out of the
-        // tree with it — but *not* the list: its rows are hosted in collection
-        // view cells, which the modifier does not reach, and putting a second
+        // is gone. This takes the header and the tab bar out of the tree with
+        // it — but *not* the list: its rows are hosted in collection view
+        // cells, which the modifier does not reach, and putting a second
         // one on `taskList` does not reach them either. Measured with the
         // drawer up, every card was still enumerable. What actually keeps a
         // reader out of the board is the drawer's own `.isModal`; this is worth
-        // keeping for the three bars it does take, and is not the whole of it.
+        // keeping for the two bars it does take, and is not the whole of it.
         .accessibilityHidden(store.isNavDrawerOpen || store.isInboxOpen)
         // The drawer's other way in. The hamburger was the only one, and a
         // panel that slides out from the leading edge is one every other iOS
         // app opens by pulling from that edge. `PadRootView` takes the same
-        // modifier for its source list.
+        // recognizer for its source list, in the fire-once spelling: a split
+        // view's column is not something a finger can be given hold of.
         //
-        // Guarded rather than unconditional, because two of the three things
-        // that can be over the board are *overlays in this tree* — the drawer
-        // and the Inbox — so the pan still lands here with either up, and would
-        // otherwise re-open what is already open or open a second panel behind
-        // the first. The detail sheet is the third: a real presentation, out of
-        // this recognizer's reach, and named anyway so the rule reads as one.
-        .leadingEdgeSwipe {
-            guard !store.isNavDrawerOpen, !store.isInboxOpen, store.sheetID == nil else { return }
-            store.isNavDrawerOpen = true
-        }
+        // The pan is followed rather than merely noticed — see `drawerPan`,
+        // which is also where the three guards live that keep it from opening a
+        // drawer behind something already over the board.
+        .leadingEdgePan(drawerPan)
         .overlay {
             if store.isNavDrawerOpen {
-                PhoneNavDrawer()
+                PhoneNavDrawer(progress: drawerPull ?? 1)
             }
         }
         // Under the drawer rather than over it: the drawer is the way to a
         // *board*, and a board list half-covered by the Inbox is the wrong way
         // round. Both up at once is reachable — the drawer's Inbox row opens
         // this one — and that row closes the drawer on its way.
-        .overlay {
-            if store.isInboxOpen {
-                PhoneInboxSheet()
-            }
-        }
         .motionAnimation(.timingCurve(0.32, 0.72, 0, 1, duration: 0.28), value: store.isNavDrawerOpen)
-        .motionAnimation(.timingCurve(0.32, 0.72, 0, 1, duration: 0.28), value: store.isInboxOpen)
         // 5.8's `.selection` half: paging and the tab bar are the same act —
         // picking where you are — and both are one tap or one swipe, never a
         // keystroke. The card owns the other two, because both are things that
@@ -107,21 +123,48 @@ struct PhoneRootView: View {
         // drawer has the same prompt, but reaching it means knowing the way out
         // is behind the hamburger.
         .newBoardAlert(isPresented: $isCreatingBoard)
-        .sheet(isPresented: sheetBinding) {
-            if let task = store.sheetTask {
-                PhoneDetailSheet(task: task)
-                    .environment(store)
-                    .environment(\.palette, palette)
-                    .environment(\.dayClock, dayClock)
-            }
+        // Held back while the Inbox is up, which puts the editor over itself
+        // instead — a sheet is presented by whatever is on screen, and this view
+        // is behind one by then. See `phoneTaskDetailSheet`.
+        .phoneTaskDetailSheet(isEnabled: !store.isInboxOpen)
+        // The Inbox, which used to be an overlay of this view's own with a
+        // scrim, a transition and a drag gesture hand-rolled to match what a
+        // sheet does. It is a sheet now — see ``PhoneInboxSheet``.
+        .sheet(isPresented: inboxPresentation) {
+            PhoneInboxSheet()
+                .environment(store)
+                .environment(\.palette, palette)
+                .environment(\.dayClock, dayClock)
         }
+        // Raised from the header's board menu, which is this surface's drawer
+        // for everything with no other home. Presented here rather than there
+        // because the menu is inside the header and a sheet wants the root —
+        // the same split `SettingsSheet` makes for the drawer's Settings row.
+        //
+        // A sheet on the phone and a popover on the two pointer surfaces, off
+        // the same flag: there is no source list here to hang a popover from.
+        .sheet(isPresented: trashPresentation) {
+            TrashSheet()
+                .environment(store)
+                .environment(\.palette, palette)
+                .environment(\.dayClock, dayClock)
+        }
+    }
+
+    private var inboxPresentation: Binding<Bool> {
+        Binding(get: { store.isInboxOpen }, set: { store.isInboxOpen = $0 })
+    }
+
+    private var trashPresentation: Binding<Bool> {
+        Binding(get: { store.isShowingTrash }, set: { store.isShowingTrash = $0 })
     }
 
     // MARK: - The board, one column per screen
 
     /// The spec's pager, finally holding the gesture it describes: *"One column
-    /// per screen, rubber-band at the ends, dots reflect position"* (seed task
-    /// `t4`). It was a strip of dots over a list that did not move.
+    /// per screen, rubber-band at the ends"* (seed task `t4`). It was a strip
+    /// of dots over a list that did not move; the chips in the header are now
+    /// the whole of what says where you are.
     ///
     /// `.viewAligned` rather than `.paging` because a page here is a *column*,
     /// not a screenful: in landscape two of them share the width and the swipe
@@ -166,50 +209,19 @@ struct PhoneRootView: View {
         isShort && store.pagerColumns.count > 1 ? 2 : 1
     }
 
+    /// A page is a column, and is drawn by ``PhoneColumnPage`` rather than by
+    /// the flat list below: a column has ground around its cards that means
+    /// *put it here*, and a `List` is the one container that will not let a
+    /// finger say so. The two rows under the cards are still built here,
+    /// because the flat list needs the same two.
     @ViewBuilder private func page(_ column: BoardColumn) -> some View {
         let tasks = store.boardTasks(in: column.id)
 
-        VStack(spacing: 0) {
-            if columnsPerScreen > 1 { heading(column, count: tasks.count) }
-            taskList(tasks, in: column)
-        }
-    }
-
-    /// Which column this page is. Drawn only when more than one is on screen:
-    /// in portrait the chips row and the dots directly above have both just
-    /// said it, and a third caption would be the count pills 4.4 removed.
-    private func heading(_ column: BoardColumn, count: Int) -> some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(palette.resolve(column.dot))
-                .frame(width: 7, height: 7)
-            Text(column.name)
-                .font(SimpleKanbanFont.ui(12.5, .extraBold, relativeTo: .footnote))
-                .foregroundStyle(palette.inkText(0.6))
-            CountPill(count: count, font: 10.5)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, TaskListMetrics.sheet.horizontalPadding)
-        .padding(.top, 2)
-        .padding(.bottom, 8)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isHeader)
-    }
-
-    // MARK: - The list
-
-    /// `TaskListView`, not a second list: the Search tab, the Inbox tab and a
-    /// saved view are the same flat list of cards the desk draws, and this
-    /// surface used to hand-roll it — down to a private copy of the row
-    /// modifier — while the shared view had a single macOS-only call site.
-    /// What is genuinely the phone's stays here as trailing rows.
-    ///
-    /// `column` is the page's own, and is nil off the board. Two pages are on
-    /// screen at once in landscape, so a dashed row that says Doing has to add
-    /// to Doing rather than to whichever column the pager happens to be on.
-    private func taskList(_ tasks: [TaskItem], in column: BoardColumn? = nil) -> some View {
-        TaskListView(
-            tasks: tasks, metrics: listMetrics, showsColumn: showsPlaceChips
+        PhoneColumnPage(
+            column: column,
+            tasks: tasks,
+            showsHeading: columnsPerScreen > 1,
+            metrics: listMetrics
         ) {
             if tasks.isEmpty {
                 emptyState(in: column)
@@ -222,15 +234,47 @@ struct PhoneRootView: View {
         }
     }
 
+    // MARK: - The list
+
+    /// `TaskListView`, not a second list: the Search tab, the Inbox tab and a
+    /// saved view are the same flat list of cards the desk draws, and this
+    /// surface used to hand-roll it — down to a private copy of the row
+    /// modifier — while the shared view had a single macOS-only call site.
+    /// What is genuinely the phone's stays here as trailing rows.
+    ///
+    /// **Off the board only.** The board's own pages are ``PhoneColumnPage``,
+    /// which is a stack: a `List` will not hand a drop on its own ground to
+    /// anything behind it, and a column's ground is where a card is aimed when
+    /// it is not aimed at another card. Nowhere this list is drawn is a place a
+    /// card can be put, so nothing here wants that ground — which is why the
+    /// two containers can differ without the two surfaces disagreeing.
+    private func taskList(_ tasks: [TaskItem]) -> some View {
+        TaskListView(
+            tasks: tasks, metrics: listMetrics, showsColumn: showsPlaceChips
+        ) {
+            if tasks.isEmpty {
+                emptyState(in: nil)
+            }
+            // The empty state carries the same "add a task" offer, so the dashed
+            // row would only be a second copy of it under the first.
+            if store.showsMobileAddRow, !tasks.isEmpty {
+                addRow(in: nil)
+            }
+        }
+    }
+
     /// The touch preset, with the room under the last card taken back on a
-    /// screen that has none to spare. 130pt is the floating tab bar plus the
-    /// space to scroll the last card clear of it, which is a third of a phone
-    /// held sideways.
+    /// screen that has none to spare.
+    ///
+    /// `sheet`'s 130pt is a floating tab bar plus the space to scroll the last
+    /// card clear of it — a third of a phone held sideways, spent on a bar that
+    /// on this shape is not down there any more but up the leading edge. What
+    /// is left is the ordinary clearance under a last row.
     private var listMetrics: TaskListMetrics {
         var metrics = TaskListMetrics.sheet
         if isShort {
             metrics.topInset = 0
-            metrics.bottomInset = 92
+            metrics.bottomInset = 24
         }
         return metrics
     }
@@ -275,8 +319,12 @@ struct PhoneRootView: View {
     }
 
     /// Not `EmptyStateView.column`: its copy tells the reader to drag a card
-    /// here, which is a pointer gesture the phone does not have. Everything else
-    /// about the state is the same.
+    /// here, and on a surface that shows one column at a time the card to drag
+    /// is on another screen. A drag *does* land here — the page takes a drop
+    /// anywhere in it, see ``PhoneColumnPage`` — but it is the second way in
+    /// rather than the one to name, and the phone's own copy names the first:
+    /// add a task, or swipe to a column that has some. Everything else about
+    /// the state is the same.
     private func emptyColumn(_ column: BoardColumn?) -> EmptyStateView {
         let name = column?.name ?? store.mobileColumnName
         return EmptyStateView(
@@ -323,19 +371,83 @@ struct PhoneRootView: View {
         store.addTask(to: column.id, title: "", fromPhone: true)
     }
 
-    /// Dismissing the sheet is also where a quick capture the user never typed
-    /// into is thrown away (1.14). This covers the drag-down and any other
-    /// route SwiftUI takes to close it; the sheet's own × goes through the same
-    /// pair of calls.
-    private var sheetBinding: Binding<Bool> {
-        Binding(
-            get: { store.sheetID != nil },
-            set: { isPresented in
-                guard !isPresented, let id = store.sheetID else { return }
-                store.sheetID = nil
-                store.discardIfUntouched(id)
+    // MARK: - The drawer, under a finger
+
+    /// How the drawer is settled when the finger comes off, and how it is put
+    /// back when a pan is cancelled. Shorter than the tap's 0.28: the panel is
+    /// already most of the way there.
+    private static let drawerSettle = Animation.timingCurve(0.32, 0.72, 0, 1, duration: 0.24)
+
+    /// Past this many points a second, the throw decides rather than the
+    /// distance — a flick that never reached the middle still means open, which
+    /// is how every drawer on this platform reads a pan.
+    private static let drawerFlick: CGFloat = 350
+
+    /// The drawer, dragged in. It used to arrive whole on the first report and
+    /// slide itself in over 0.28s while the finger went its own way; now the
+    /// panel is wherever the finger is, and the animation is only what happens
+    /// after it lifts.
+    private func drawerPan(_ pan: EdgePan) {
+        let reach = pan.width * PhoneNavDrawer.widthFraction
+        switch pan.phase {
+        case .began:
+            // The same three guards the tap-to-open path had: this recognizer
+            // sits under the drawer and the Inbox both, and a sheet is a
+            // presentation it cannot see.
+            guard !store.isNavDrawerOpen, !store.isInboxOpen, store.sheetID == nil else { return }
+            // Into the tree at nothing, without animating: the panel is about
+            // to be positioned by a finger, and its own transition would be a
+            // second answer to where it is.
+            withoutAnimation {
+                drawerPull = 0
+                store.isNavDrawerOpen = true
             }
-        )
+        case .changed:
+            guard drawerPull != nil, reach > 0 else { return }
+            drawerPull = min(1, pan.distance / reach)
+        case .ended:
+            guard let pulled = drawerPull else { return }
+            if pan.velocity > Self.drawerFlick {
+                settleDrawer(open: true)
+            } else if pan.velocity < -Self.drawerFlick {
+                settleDrawer(open: false)
+            } else {
+                settleDrawer(open: pulled >= 0.5)
+            }
+        case .cancelled:
+            guard drawerPull != nil else { return }
+            settleDrawer(open: false)
+        }
+    }
+
+    /// Finishes the drag, and hands the drawer back to the way it is drawn when
+    /// nobody is touching it.
+    ///
+    /// Opening lets `drawerPull` go before the panel is anywhere else: at 1 it
+    /// is exactly where the transition would have put it, so `nil` moves
+    /// nothing. Closing has to wait — the panel is only taken out of the tree
+    /// once it has finished sliding out of sight, and taking it out is itself
+    /// unanimated, because by then there is nothing left to see go.
+    private func settleDrawer(open: Bool) {
+        Motion.run(Self.drawerSettle, reduceMotion: reduceMotion) {
+            drawerPull = open ? 1 : 0
+        } completion: {
+            guard drawerPull != nil else { return }
+            if open {
+                drawerPull = nil
+            } else {
+                withoutAnimation {
+                    store.isNavDrawerOpen = false
+                    drawerPull = nil
+                }
+            }
+        }
+    }
+
+    private func withoutAnimation(_ body: () -> Void) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction, body)
     }
 }
 
@@ -343,18 +455,16 @@ extension BoardStore {
     /// Whether the board itself is on screen with columns to page through, as
     /// opposed to one of the flat lists.
     ///
-    /// It is also the answer to *who owns a horizontal drag here*, which is why
-    /// it is one predicate and not two. A pan that begins on a list row is
-    /// claimed by whichever recognizer gets there first, and an enclosing
-    /// scroll view always does — measured both ways round, with a paging
-    /// `ScrollView` and with a `TabView(.page)`: the leading swipe never
-    /// revealed Complete, the board simply turned to the next column. Neither
-    /// SwiftUI nor UIKit exposes the failure requirement that would settle it
-    /// the other way. So the board's rows do not draw swipe actions they cannot
-    /// deliver, and every verb they carried is on the long press instead —
-    /// which is where VoiceOver and Switch Control read them from anyway. Off
-    /// the board — Inbox, Search, a saved view, the Archive — nothing is
-    /// competing and the swipes are untouched.
+    /// It used to be the answer to *who owns a horizontal drag here* as well,
+    /// because the board's rows had to give up their swipe actions to the pager
+    /// while the flat lists kept theirs: a pan beginning on a row is claimed by
+    /// whichever recognizer gets there first and an enclosing scroll view always
+    /// does — measured both ways round, with a paging `ScrollView` and with a
+    /// `TabView(.page)`, and the leading swipe never revealed Complete. That
+    /// question has since been settled everywhere rather than per surface: **no
+    /// card swipes**, on the board or off it (6.4, and see
+    /// ``PhoneTaskRowActions``). What is left here is the layout question it was
+    /// named for.
     var isColumnPaging: Bool {
         tab == .board && activeView == nil && !pagerColumns.isEmpty
     }

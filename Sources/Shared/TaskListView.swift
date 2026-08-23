@@ -62,11 +62,15 @@ struct TaskListMetrics {
 /// surface with different contents, so they are one view: three copies of
 /// "cards from anywhere on the board" would drift apart inside a phase.
 ///
-/// A `List` rather than a `LazyVStack`, on both platforms, for `swipeActions`:
-/// a hand-rolled swipe fights the scroll view for the gesture, re-implements
-/// the full-swipe threshold, and is invisible to VoiceOver. The card comes from
-/// the caller and is the row's own view, so the row traits a list reads —
-/// `swipeActions` among them — arrive from where SwiftUI looks for them.
+/// A `List` rather than a `LazyVStack`, on both platforms. It was chosen for
+/// `swipeActions` — a hand-rolled swipe fights the scroll view for the gesture,
+/// re-implements the full-swipe threshold, and is invisible to VoiceOver — and
+/// **that reason expired in 6.4, when the phone's cards stopped swiping at
+/// all**. It is kept rather than re-chosen: the two are not interchangeable, and
+/// the difference runs the wrong way for a swap made on tidiness alone. A `List`
+/// handles drags inside its own bounds, which is why `InboxPanel` and the
+/// board's columns are stacks — so moving *to* a stack here would be a change to
+/// what a drop on these surfaces does, measured, and not a deletion.
 struct TaskListView<Card: View, Trailing: View>: View {
     typealias Metrics = TaskListMetrics
 

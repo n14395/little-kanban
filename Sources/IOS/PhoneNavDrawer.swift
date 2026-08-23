@@ -5,6 +5,11 @@ import SwiftUI
 /// The slide-over board list. The design specifies a drawer at 84% width with a
 /// scrim, so this stays a custom overlay rather than a navigation split view.
 struct PhoneNavDrawer: View {
+    /// How much of the screen the panel takes — the design's 84%. Shared rather
+    /// than spelled here alone, because a finger dragging the drawer in has to
+    /// know how far it has to come before it is all the way in.
+    static let widthFraction: CGFloat = 0.84
+
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
     @Environment(\.dayClock) private var dayClock
@@ -19,9 +24,23 @@ struct PhoneNavDrawer: View {
     @State private var editingBoard: Board?
     @AccessibilityFocusState private var isTitleFocused: Bool
 
+    /// How far in the drawer is: 0 shut, 1 open.
+    ///
+    /// **1 everywhere except under a finger.** The hamburger, the edge-swipe's
+    /// own settle and every row that closes the drawer leave this alone and let
+    /// `.transition(.move(edge: .leading))` do the sliding — one animation,
+    /// written once. A pan in flight is the other case: it is not an animation
+    /// at all but a position, arriving a frame at a time, and a transition
+    /// running alongside it would be a second opinion about where the panel is.
+    /// See `PhoneRootView.drawerPan`.
+    var progress: CGFloat = 1
+
     var body: some View {
         ZStack(alignment: .leading) {
-            palette.ink(0.3)
+            // The scrim darkens as the panel comes in, so a drag half-way in is
+            // half-way to hiding the board rather than a panel floating over an
+            // untouched one. `scrim` rather than `ink`: see `Palette.scrim`.
+            palette.scrim(progress)
                 .ignoresSafeArea()
                 .onTapGesture { store.isNavDrawerOpen = false }
                 .transition(.opacity)
@@ -31,7 +50,16 @@ struct PhoneNavDrawer: View {
                 .accessibilityHidden(true)
 
             panel
-                .containerRelativeFrame(.horizontal) { width, _ in width * 0.84 }
+                .containerRelativeFrame(.horizontal) { width, _ in width * Self.widthFraction }
+                // `visualEffect` rather than `.offset`, for the width: the panel
+                // is the only thing that knows how wide 84% turned out to be,
+                // and this is where it can be asked without a `GeometryReader`
+                // around the drawer or the number being computed twice. At
+                // `progress == 1` the shift is zero, so every non-interactive
+                // way in is left to the transition below, untouched.
+                .visualEffect { content, proxy in
+                    content.offset(x: parked(by: proxy.size.width))
+                }
                 .transition(.move(edge: .leading))
                 // `@AccessibilityFocusState`, not the keyboard's — this moves
                 // the VoiceOver cursor into the drawer, and `focusWhenReady` is
@@ -66,6 +94,14 @@ struct PhoneNavDrawer: View {
             // so taking the drawer down with it is safe.
             store.isNavDrawerOpen = false
         }
+    }
+
+    /// How far out of sight the panel is drawn, in points, in whichever
+    /// direction "out" is: `.offset` is a raw coordinate and does not mirror
+    /// itself, the same trap the panel's shadow falls into below.
+    private func parked(by width: CGFloat) -> CGFloat {
+        let hidden = (1 - progress) * width
+        return layoutDirection == .rightToLeft ? hidden : -hidden
     }
 
     private var panel: some View {

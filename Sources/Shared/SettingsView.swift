@@ -40,6 +40,73 @@ enum AppAppearance: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// The subjects Settings is divided into, in the order they are shown.
+///
+/// One list, read by both platforms, so that a subject cannot exist on one and
+/// go missing on the other — which is exactly what had happened. **System** was
+/// in the macOS `TabView` with no `.tabItem` on it, and a tab with no label is a
+/// blank slot in the toolbar: the pane was reachable only by clicking the gap
+/// where its name should have been. The title and the symbol now come from here,
+/// once, rather than from a `Label` in one place and a `section(_:)` string in
+/// another.
+///
+/// **Four, where there were eight.** Trash, Appearance, Board, Notifications,
+/// Sync, System, Labels and Data was a list long enough that finding a setting
+/// meant reading every name on the way to it — and on a phone, where three chips
+/// fit across the strip, most of those names were off the side of the screen. A
+/// subject that holds one switch is not a subject; it is a row that has been
+/// given a tab of its own. So the four that are left are the questions somebody
+/// actually arrives with:
+///
+/// - **General** — what the app looks like and how it comes up: the accent, the
+///   light/dark override, and what is on screen at launch. The desk's two —
+///   login registration and the menu bar item — are rows in here now rather than
+///   a **System** pane of their own, which is also the end of the one case that
+///   had to be compiled out on iOS.
+/// - **Board** — how a board behaves: the order cards sit in, how much a card
+///   shows, where new ones land and when they are due, when Done is swept, what
+///   a week means, and the label vocabulary the cards are tagged from.
+/// - **Notifications** — due-date reminders, which is the one subject that was
+///   already the right size.
+/// - **Data** — where the board lives and how to get it back: iCloud, how long
+///   things are kept, export, import, the file itself, the backups, and starting
+///   over.
+///
+/// **The Trash is not here at all** — it never belonged in a preferences
+/// surface. It is the user's own work rather than a setting about the app, so it
+/// has a door of its own: the bin at the foot of the source list on macOS and
+/// iPad, and the board menu on the phone. See **The trash** in the README.
+enum SettingsTab: String, CaseIterable, Identifiable, Sendable {
+    case general, board, notifications, data
+
+    var id: String { rawValue }
+
+    /// The chip's identifier on iOS, shared with `UITests/SettingsTabsTests`
+    /// through the source rather than by both spelling the same string — the
+    /// same arrangement `BoardToolbar.inboxToggleID` has. The name alone would
+    /// not do: "Board" is a word the board behind the sheet uses for its own
+    /// controls, and a query by label picks whichever it reaches first.
+    var chipID: String { "SettingsTab.\(rawValue)" }
+
+    var title: String {
+        switch self {
+        case .general: String(localized: "General", comment: "Settings section heading")
+        case .board: String(localized: "Board", comment: "Settings section heading")
+        case .notifications: String(localized: "Notifications", comment: "Settings section heading")
+        case .data: String(localized: "Data", comment: "Settings section heading")
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .general: "gearshape"
+        case .board: "square.grid.2x2"
+        case .notifications: "bell"
+        case .data: "externaldrive"
+        }
+    }
+}
+
 /// Everything global, in one place: the accent and the appearance, how the
 /// board orders its cards, the label vocabulary, and the board file itself.
 ///
@@ -48,10 +115,14 @@ enum AppAppearance: String, CaseIterable, Identifiable, Sendable {
 /// pane inside a window that already has a title bar and a sheet that has to
 /// draw its own header and 44pt rows.
 ///
-/// Notifications sit under **Board** and bind straight to
-/// ``NotificationScheduler/shared`` rather than to `@AppStorage`: the scheduler
-/// has to *act* on a change — moving the time of day moves every pending
-/// request — so it owns the values and writes them to `UserDefaults` itself.
+/// Four subjects — see ``SettingsTab`` for what is in each and why there are
+/// four. The Trash is not one of them: it is the user's own work rather than a
+/// setting, and it has a door of its own.
+///
+/// Notifications bind straight to ``NotificationScheduler/shared`` rather than
+/// to `@AppStorage`: the scheduler has to *act* on a change — moving the time of
+/// day moves every pending request — so it owns the values and writes them to
+/// `UserDefaults` itself.
 struct SettingsView: View {
     struct Metrics {
         /// A fixed pane on the desk, the whole sheet on a phone — hence optional.
@@ -70,32 +141,21 @@ struct SettingsView: View {
         var controlRadius: CGFloat
         var accent: AccentPicker.Metrics
         var labelManager: LabelManagerView.Metrics
-        var trash: TrashView.Metrics
         /// Whether the surface draws its own header. The desk's pane sits in a
         /// window that already has a title bar and a close button.
         var showsHeader: Bool
-        /// Whether the sections are tabs of a window or a single scroll.
-        ///
-        /// The desk's are tabs, which is what a macOS settings window is: a
-        /// toolbar of subjects, one on screen at a time, the window sized to
-        /// whichever is showing. The sheet's are not, and this is not a
-        /// concession — a phone settings sheet is a scroll everywhere on the
-        /// system, and a seven-item tab bar on a 402pt screen collapses into a
-        /// "More" menu that hides most of what it is for. Same sections either
-        /// way; only how they are reached differs.
-        var usesTabs: Bool
 
         static let desk = Metrics(
             width: 520, minHeight: 460, padding: 20, sectionSpacing: 22, rowSpacing: 8,
             panelRadius: 12, titleSize: 15, rowFont: 12.5, noteFont: 11.5, rowHit: 0,
-            controlRadius: 8, accent: .desk, labelManager: .desk, trash: .desk,
-            showsHeader: false, usesTabs: true
+            controlRadius: 8, accent: .desk, labelManager: .desk,
+            showsHeader: false
         )
         static let sheet = Metrics(
             width: nil, minHeight: nil, padding: 18, sectionSpacing: 26, rowSpacing: 10,
             panelRadius: 14, titleSize: 17, rowFont: 15, noteFont: 13, rowHit: 44,
-            controlRadius: 10, accent: .drawer, labelManager: .sheet, trash: .sheet,
-            showsHeader: true, usesTabs: false
+            controlRadius: 10, accent: .drawer, labelManager: .sheet,
+            showsHeader: true
         )
     }
 
@@ -140,17 +200,21 @@ struct SettingsView: View {
     @State private var isShowingBackups = false
     @State private var pendingRestore: BoardBackup?
     @State private var notice: SettingsNotice?
+    #if os(iOS)
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Which subject the strip is showing. iOS only: the desk's `TabView` keeps
+    /// its own selection, and keeps it across openings of the window, which a
+    /// `@State` on a sheet that is rebuilt every time it is raised cannot.
+    /// Starting at `.general` each time is the same choice as putting it first.
+    @State private var selection: SettingsTab = .general
+    #endif
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if metrics.showsHeader {
                 header.hairline(.bottom, color: palette.ink(0.08))
             }
-            if metrics.usesTabs {
-                tabs
-            } else {
-                scroll
-            }
+            subjects
         }
         .frame(width: metrics.width)
         .frame(minHeight: metrics.minHeight)
@@ -203,46 +267,121 @@ struct SettingsView: View {
         }
     }
 
-    /// The desk: one subject at a time, chosen from the window's toolbar.
-    ///
-    /// **Trash leads**, ahead of the six that were here before it. It is the one
-    /// tab that is about the user's own work rather than about how the app
-    /// behaves — everything else in this window is a preference, and a preference
-    /// can wait; a card thrown away on Tuesday cannot wait past the thirtieth
-    /// day. Putting it first is also the only way somebody who does not already
-    /// know the feature exists will find out that a thrown-away board is still
-    /// gettable back.
-    private var tabs: some View {
+    // MARK: The subjects
+
+    #if os(macOS)
+    /// The desk: one subject at a time, chosen from the window's toolbar, which
+    /// is what a macOS settings window *is*.
+    private var subjects: some View {
         TabView {
-            pane(trashSection)
-                .tabItem { Label("Trash", systemImage: "trash") }
-            pane(appearanceSection)
-                .tabItem { Label("Appearance", systemImage: "paintbrush") }
-            pane(boardSection)
-                .tabItem { Label("Board", systemImage: "square.grid.2x2") }
-            pane(notificationsSection)
-                .tabItem { Label("Notifications", systemImage: "bell") }
-            pane(syncSection)
-                .tabItem { Label("Sync", systemImage: "icloud") }
-            #if os(macOS)
-            pane(systemSection)
-            #endif
-            pane(labelsSection)
-                .tabItem { Label("Labels", systemImage: "tag") }
-            pane(dataSection)
-                .tabItem { Label("Data", systemImage: "externaldrive") }
+            ForEach(SettingsTab.allCases) { tab in
+                pane(tab)
+                    .tabItem { Label(tab.title, systemImage: tab.symbol) }
+            }
+        }
+    }
+    #else
+    /// iOS: the same subjects, reached from a strip under the sheet's header
+    /// instead of one long scroll through all of them.
+    ///
+    /// **The strip is at the top, and it is not a `TabView`.** A tab bar on iOS
+    /// is at the bottom, and it would land on top of the version row this sheet
+    /// already puts in its bottom safe area. A row of chips under the title is
+    /// both the thing that fits and the closer likeness to the desk, whose
+    /// subjects are also along the top. It kept its sideways scroll and its
+    /// fade after the eight subjects became four — four chips fit across a
+    /// phone at the system type size and stop fitting a size or two up, and a
+    /// strip that can scroll costs nothing on the day it does not need to.
+    ///
+    /// `pane` is rebuilt on `.id(selection)` so a new subject opens at its own
+    /// top rather than at the offset the last one was left at.
+    private var subjects: some View {
+        VStack(spacing: 0) {
+            strip
+            pane(selection).id(selection)
         }
     }
 
-    /// One tab's worth. Scrolling inside the pane rather than resizing the
-    /// window past it: Data and Trash both grow with what the user has — a
-    /// backup list, thirty days of thrown-away cards — and a settings window
-    /// that grows to a thousand points because somebody deleted a lot of columns
-    /// is a window that has stopped being a settings window.
-    private func pane(_ content: some View) -> some View {
+    private var strip: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal) {
+                HStack(spacing: 8) {
+                    ForEach(SettingsTab.allCases) { tab in
+                        chip(tab)
+                    }
+                }
+                .padding(.horizontal, metrics.padding)
+                .padding(.vertical, 8)
+                .motionAnimation(.snappy(duration: 0.2), value: selection)
+            }
+            .scrollIndicators(.hidden)
+            .scrollBounceBehavior(.basedOnSize)
+            // A chip cut off by a fade reads as "there is more this way"; one
+            // cut off by the sheet's own edge reads as the end of the list —
+            // which is what the strip looked like when it held eight and the
+            // fifth finished a few points short of the iPad's edge, leaving the
+            // last two invisible with nothing to say they were there.
+            // `.leading`/`.trailing` are semantic, so unlike `UIRectEdge` in
+            // `EdgeSwipe` this mirrors itself.
+            .mask {
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: .black, location: 0.04),
+                        .init(color: .black, location: 0.96),
+                        .init(color: .clear, location: 1),
+                    ],
+                    startPoint: .leading, endPoint: .trailing
+                )
+            }
+            // Centring the chip that was chosen is what brings the next one
+            // within reach — a phone shows about three at a time — and it is
+            // also what keeps the chosen chip on screen at all, since the
+            // strip otherwise stays wherever the last flick left it.
+            .onChange(of: selection) { _, tab in
+                Motion.run(.easeOut(duration: 0.25), reduceMotion: reduceMotion) {
+                    proxy.scrollTo(tab.id, anchor: .center)
+                }
+            }
+        }
+        .hairline(.bottom, color: palette.ink(0.08))
+    }
+
+    /// One subject, as a chip. The whole 44pt is the target — a chip is a word
+    /// and a glyph, which is around 20pt of drawn height on its own.
+    private func chip(_ tab: SettingsTab) -> some View {
+        let isCurrent = tab == selection
+        return Button { selection = tab } label: {
+            HStack(spacing: 6) {
+                Image(systemName: tab.symbol)
+                    .font(SimpleKanbanFont.ui(metrics.noteFont, .semibold, relativeTo: .caption))
+                Text(tab.title)
+                    .font(SimpleKanbanFont.ui(metrics.rowFont - 1.5, .bold, relativeTo: .subheadline))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(isCurrent ? palette.onAccent : palette.inkText(0.55))
+            .padding(.horizontal, 13)
+            .frame(minHeight: metrics.rowHit)
+            .background {
+                Capsule().fill(isCurrent ? palette.accent : palette.card)
+            }
+            .contentShape(.capsule)
+        }
+        .buttonStyle(.bare)
+        .accessibilityIdentifier(tab.chipID)
+        .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
+    }
+    #endif
+
+    /// One subject's worth. Scrolling inside the pane rather than resizing the
+    /// window past it: Data grows with what the user has — four groups, and a
+    /// backup list under one of them — and a settings window that grows to a
+    /// thousand points because somebody has a fortnight of backups is a window
+    /// that has stopped being a settings window.
+    private func pane(_ tab: SettingsTab) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: metrics.sectionSpacing) {
-                content
+                content(of: tab)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(metrics.padding)
@@ -250,30 +389,13 @@ struct SettingsView: View {
         .scrollBounceBehavior(.basedOnSize)
     }
 
-    /// The sheet: every section in one scroll, in the order they were always in,
-    /// with Trash at the head for the reason `tabs` gives.
-    private var scroll: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: metrics.sectionSpacing) {
-                trashSection
-                appearanceSection
-                boardSection
-                notificationsSection
-                syncSection
-                #if os(macOS)
-                systemSection
-                #endif
-                labelsSection
-                dataSection
-            }
-            .padding(metrics.padding)
-        }
-        .scrollBounceBehavior(.basedOnSize)
-    }
-
-    private var trashSection: some View {
-        section(String(localized: "Trash", comment: "Settings section heading")) {
-            TrashView(metrics: metrics.trash)
+    @ViewBuilder
+    private func content(of tab: SettingsTab) -> some View {
+        switch tab {
+        case .general: generalSection
+        case .board: boardSection
+        case .notifications: notificationsSection
+        case .data: dataSection
         }
     }
 
@@ -300,108 +422,179 @@ struct SettingsView: View {
 
     // MARK: Sections
 
-    private var appearanceSection: some View {
-        section(String(localized: "Appearance", comment: "Settings section heading")) {
-            row {
-                AccentPicker(metrics: metrics.accent)
-            }
-            rule
-            row {
-                choice(
-                    String(localized: "Theme", comment: "Settings row: light, dark or system"),
-                    value: appearance.label
-                ) {
-                    ForEach(AppAppearance.allCases) { option in
-                        pick(option.label, isCurrent: option == appearance) { appearance = option }
+    /// What the app looks like and how it comes up.
+    ///
+    /// The desk's two rows are the whole of what used to be a **System** pane —
+    /// a subject with two switches in it, which is a group and not a subject.
+    /// They are still the desk's alone, but the `#if` is now around two rows
+    /// rather than around a case of `SettingsTab`, so `allCases` is the same
+    /// list on both platforms and nothing has to remember to filter it.
+    private var generalSection: some View {
+        VStack(alignment: .leading, spacing: metrics.sectionSpacing) {
+            group(String(localized: "Appearance", comment: "Settings group heading")) {
+                row {
+                    AccentPicker(metrics: metrics.accent)
+                }
+                rule
+                row {
+                    choice(
+                        String(localized: "Theme", comment: "Settings row: light, dark or system"),
+                        value: appearance.label
+                    ) {
+                        ForEach(AppAppearance.allCases) { option in
+                            pick(option.label, isCurrent: option == appearance) { appearance = option }
+                        }
                     }
                 }
             }
+
+            group(String(localized: "At launch", comment: "Settings group heading")) {
+                row {
+                    Toggle(isOn: $resumesLastPlace) {
+                        Text("Reopen the view I was on")
+                            .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                    }
+                }
+                rule
+                row {
+                    Toggle(isOn: $opensInboxAtLaunch) {
+                        Text("Open the Inbox with the board")
+                            .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                    }
+                }
+            }
+
+            #if os(macOS)
+            macSystemGroup
+            #endif
         }
     }
 
-    private var boardSection: some View {
-        section(String(localized: "Board", comment: "Settings section heading")) {
+    #if os(macOS)
+    /// The two things this app asks of the Mac rather than of the board.
+    ///
+    /// Login registration is read back from `SMAppService` rather than from the
+    /// stored key, because System Settings can revoke it and a switch that
+    /// reads on while nothing happens at login is worse than no switch at all.
+    private var macSystemGroup: some View {
+        group(String(localized: "This Mac", comment: "Settings group heading over the desk-only rows")) {
             row {
-                choice(
-                    String(localized: "Order cards by", comment: "Settings row: how a column sorts its cards"),
-                    value: store.sortOrder.label,
-                    note: store.sortOrder == .manual
-                        ? nil
-                        : String(localized: "Cards cannot be dragged while another order is deciding where they sit.",
-                                 comment: "Settings note explaining why drag is off")
-                ) {
-                    ForEach(BoardSortOrder.allCases) { option in
-                        pick(option.label, isCurrent: option == store.sortOrder) { store.sortOrder = option }
-                    }
-                }
-            }
-            rule
-            row {
-                choice(String(localized: "Card detail", comment: "Settings row: how much a card shows"),
-                       value: density.label,
-                       note: String(localized: "Compact keeps the title and the due date and drops the rest.",
-                                    comment: "Settings note under the card detail row")) {
-                    ForEach(CardDensity.allCases) { option in
-                        pick(option.label, isCurrent: option == density) { density = option }
-                    }
-                }
-            }
-            rule
-            row {
-                choice(String(localized: "New tasks go to", comment: "Settings row: where a new task lands"),
-                       value: newTasks.label) {
-                    ForEach(NewTaskDestination.allCases) { option in
-                        pick(option.label, isCurrent: option == newTasks) { newTasks = option }
-                    }
-                }
-            }
-            rule
-            row {
-                choice(String(localized: "New tasks are due", comment: "Settings row: a new task's due date"),
-                       value: defaultDue.label) {
-                    ForEach(DefaultDueDate.allCases) { option in
-                        pick(option.label, isCurrent: option == defaultDue) { defaultDue = option }
-                    }
-                }
-            }
-            rule
-            row {
-                choice(String(localized: "Archive finished cards",
-                              comment: "Settings row: when Done cards are archived"),
-                       value: autoArchive.label,
-                       note: String(localized: "Done is the one column that only grows.",
-                                    comment: "Settings note under the auto-archive row")) {
-                    ForEach(AutoArchive.allCases) { option in
-                        pick(option.label, isCurrent: option == autoArchive) {
-                            autoArchive = option
-                            store.sweepDone()
+                Toggle(isOn: Binding(get: { launchesAtLogin }, set: { wanted in
+                    LaunchAtLogin.set(wanted)
+                    launchesAtLogin = LaunchAtLogin.isOn
+                })) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Open at login")
+                            .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                        if LaunchAtLogin.needsApproval {
+                            Text("Waiting to be allowed in System Settings ▸ General ▸ Login Items.")
+                                .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                                .foregroundStyle(palette.inkText(0.45))
                         }
                     }
                 }
             }
             rule
             row {
-                choice(String(localized: "A week means", comment: "Settings row: what this week means"),
-                       value: weekMeaning.label,
-                       note: String(localized: "What Due this week counts, and where the week turns over.",
-                                    comment: "Settings note under the week row")) {
-                    ForEach(WeekMeaning.allCases) { option in
-                        pick(option.label, isCurrent: option == weekMeaning) { weekMeaning = option }
+                Toggle(isOn: $showsMenuBarExtra) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Show the menu bar item")
+                            .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                        Text("Quick capture from any app, without leaving it.")
+                            .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                            .foregroundStyle(palette.inkText(0.45))
                     }
                 }
             }
-            rule
-            row {
-                Toggle(isOn: $resumesLastPlace) {
-                    Text("Reopen the view I was on")
-                        .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+        }
+    }
+    #endif
+
+    /// How a board behaves — and, at the foot of it, the vocabulary its cards
+    /// are tagged from. Labels were a subject of their own holding a single row
+    /// that opens a sheet; the labels are the board's, so the row is here.
+    private var boardSection: some View {
+        VStack(alignment: .leading, spacing: metrics.sectionSpacing) {
+            group(String(localized: "Cards", comment: "Settings group heading")) {
+                row {
+                    choice(
+                        String(localized: "Order cards by", comment: "Settings row: how a column sorts its cards"),
+                        value: store.sortOrder.label,
+                        note: store.sortOrder == .manual
+                            ? nil
+                            : String(localized: "Cards cannot be dragged while another order is deciding where they sit.",
+                                     comment: "Settings note explaining why drag is off")
+                    ) {
+                        ForEach(BoardSortOrder.allCases) { option in
+                            pick(option.label, isCurrent: option == store.sortOrder) { store.sortOrder = option }
+                        }
+                    }
+                }
+                rule
+                row {
+                    choice(String(localized: "Card detail", comment: "Settings row: how much a card shows"),
+                           value: density.label,
+                           note: String(localized: "Compact keeps the title and the due date and drops the rest.",
+                                        comment: "Settings note under the card detail row")) {
+                        ForEach(CardDensity.allCases) { option in
+                            pick(option.label, isCurrent: option == density) { density = option }
+                        }
+                    }
+                }
+                rule
+                row {
+                    choice(String(localized: "New tasks go to", comment: "Settings row: where a new task lands"),
+                           value: newTasks.label) {
+                        ForEach(NewTaskDestination.allCases) { option in
+                            pick(option.label, isCurrent: option == newTasks) { newTasks = option }
+                        }
+                    }
+                }
+                rule
+                row {
+                    choice(String(localized: "New tasks are due", comment: "Settings row: a new task's due date"),
+                           value: defaultDue.label) {
+                        ForEach(DefaultDueDate.allCases) { option in
+                            pick(option.label, isCurrent: option == defaultDue) { defaultDue = option }
+                        }
+                    }
+                }
+                rule
+                row {
+                    choice(String(localized: "Archive finished cards",
+                                  comment: "Settings row: when Done cards are archived"),
+                           value: autoArchive.label,
+                           note: String(localized: "Done is the one column that only grows.",
+                                        comment: "Settings note under the auto-archive row")) {
+                        ForEach(AutoArchive.allCases) { option in
+                            pick(option.label, isCurrent: option == autoArchive) {
+                                autoArchive = option
+                                store.sweepDone()
+                            }
+                        }
+                    }
+                }
+                rule
+                row {
+                    choice(String(localized: "A week means", comment: "Settings row: what this week means"),
+                           value: weekMeaning.label,
+                           note: String(localized: "What Due this week counts, and where the week turns over.",
+                                        comment: "Settings note under the week row")) {
+                        ForEach(WeekMeaning.allCases) { option in
+                            pick(option.label, isCurrent: option == weekMeaning) { weekMeaning = option }
+                        }
+                    }
                 }
             }
-            rule
-            row {
-                Toggle(isOn: $opensInboxAtLaunch) {
-                    Text("Open the Inbox with the board")
-                        .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+
+            group(String(localized: "Labels", comment: "Settings group heading")) {
+                action(
+                    String(localized: "Manage labels", comment: "Settings row that opens the label manager"),
+                    note: String(localized: "Rename, recolour and delete the board's labels.",
+                                 comment: "Settings note under the label manager row"),
+                    trailing: "\(store.labels.count)"
+                ) {
+                    isManagingLabels = true
                 }
             }
         }
@@ -410,7 +603,7 @@ struct SettingsView: View {
     private var notificationsSection: some View {
         @Bindable var scheduler = NotificationScheduler.shared
 
-        return section(String(localized: "Notifications", comment: "Settings section heading")) {
+        return panel {
             row {
                 Toggle(isOn: $scheduler.isEnabled) {
                     Text("Remind me on the due date")
@@ -478,25 +671,77 @@ struct SettingsView: View {
         }
     }
 
-    private var syncSection: some View {
-        section(String(localized: "Sync", comment: "Settings section heading")) {
-            row {
-                Toggle(isOn: $isSyncOn) {
-                    Text("Keep this board on my other devices")
-                        .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+    /// Where the board lives and every way of getting it back. Sync was a
+    /// subject of its own holding one switch and a paragraph explaining it;
+    /// "is this board on my other devices" is the same question as "where is
+    /// this board kept", so it leads this one.
+    private var dataSection: some View {
+        VStack(alignment: .leading, spacing: metrics.sectionSpacing) {
+            group(String(localized: "iCloud", comment: "Settings group heading")) {
+                row {
+                    Toggle(isOn: $isSyncOn) {
+                        Text("Keep this board on my other devices")
+                            .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                    }
+                    // A build with no iCloud entitlement cannot sync whatever
+                    // this says, and a switch that flips with nothing behind it
+                    // is worse than one that admits it. The note underneath
+                    // says why.
+                    .disabled(!SyncPreference.isAvailable)
                 }
-                // A build with no iCloud entitlement cannot sync whatever this
-                // says, and a switch that flips with nothing behind it is worse
-                // than one that admits it. The note underneath says why.
-                .disabled(!SyncPreference.isAvailable)
+                rule
+                row {
+                    Text(syncExplanation)
+                        .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                        .foregroundStyle(palette.inkText(0.45))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
-            rule
-            row {
-                Text(syncExplanation)
-                    .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
-                    .foregroundStyle(palette.inkText(0.45))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+
+            group(String(localized: "Kept copies", comment: "Settings group heading")) {
+                row {
+                    choice(String(localized: "The Trash keeps things for",
+                                  comment: "Settings row: how long deleted items are kept"),
+                           value: trashRetention.label) {
+                        ForEach(TrashRetention.allCases) { option in
+                            pick(option.label, isCurrent: option == trashRetention) {
+                                trashRetention = option
+                                store.sweepTrash()
+                            }
+                        }
+                    }
+                }
+                rule
+                row {
+                    choice(String(localized: "Backups to keep",
+                                  comment: "Settings row: how many board backups are retained"),
+                           value: backupsKept.label,
+                           note: String(localized: "Each one is a whole copy of the board.",
+                                        comment: "Settings note under the backup count row")) {
+                        ForEach(BackupsKept.allCases) { option in
+                            pick(option.label, isCurrent: option == backupsKept) { backupsKept = option }
+                        }
+                    }
+                }
+                rule
+                backupsRow
+                if isShowingBackups { backupList }
+            }
+
+            group(String(localized: "The board file", comment: "Settings group heading")) {
+                transferRows
+                rule
+                boardFileRow
+            }
+
+            group(String(localized: "Starting over", comment: "Settings group heading")) {
+                action(String(localized: "Delete everything…", comment: "Settings row that throws the board away"),
+                       note: String(localized: "Throws away every board, card and label, then asks what to start from again.",
+                                    comment: "Settings note under the delete-everything row"),
+                       isDestructive: true) {
+                    isConfirmingReset = true
+                }
             }
         }
     }
@@ -534,102 +779,6 @@ struct SettingsView: View {
             localized: "Last change from another device: \(when.formatted(.relative(presentation: .numeric))).",
             comment: "Settings note naming when another device's change last arrived"
         )
-    }
-
-    #if os(macOS)
-    /// The two things this app asks of the Mac rather than of the board.
-    ///
-    /// Login registration is read back from `SMAppService` rather than from the
-    /// stored key, because System Settings can revoke it and a switch that
-    /// reads on while nothing happens at login is worse than no switch at all.
-    private var systemSection: some View {
-        section(String(localized: "System", comment: "Settings section heading")) {
-            row {
-                Toggle(isOn: Binding(get: { launchesAtLogin }, set: { wanted in
-                    LaunchAtLogin.set(wanted)
-                    launchesAtLogin = LaunchAtLogin.isOn
-                })) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Open at login")
-                            .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
-                        if LaunchAtLogin.needsApproval {
-                            Text("Waiting to be allowed in System Settings ▸ General ▸ Login Items.")
-                                .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
-                                .foregroundStyle(palette.inkText(0.45))
-                        }
-                    }
-                }
-            }
-            rule
-            row {
-                Toggle(isOn: $showsMenuBarExtra) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Show the menu bar item")
-                            .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
-                        Text("Quick capture from any app, without leaving it.")
-                            .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
-                            .foregroundStyle(palette.inkText(0.45))
-                    }
-                }
-            }
-        }
-    }
-    #endif
-
-    private var labelsSection: some View {
-        section(String(localized: "Labels", comment: "Settings section heading")) {
-            action(
-                String(localized: "Manage labels", comment: "Settings row that opens the label manager"),
-                note: String(localized: "Rename, recolour and delete the board's labels.",
-                             comment: "Settings note under the label manager row"),
-                trailing: "\(store.labels.count)"
-            ) {
-                isManagingLabels = true
-            }
-        }
-    }
-
-    private var dataSection: some View {
-        section(String(localized: "Data", comment: "Settings section heading")) {
-            row {
-                choice(String(localized: "The Trash keeps things for",
-                              comment: "Settings row: how long deleted items are kept"),
-                       value: trashRetention.label) {
-                    ForEach(TrashRetention.allCases) { option in
-                        pick(option.label, isCurrent: option == trashRetention) {
-                            trashRetention = option
-                            store.sweepTrash()
-                        }
-                    }
-                }
-            }
-            rule
-            row {
-                choice(String(localized: "Backups to keep",
-                              comment: "Settings row: how many board backups are retained"),
-                       value: backupsKept.label,
-                       note: String(localized: "Each one is a whole copy of the board.",
-                                    comment: "Settings note under the backup count row")) {
-                    ForEach(BackupsKept.allCases) { option in
-                        pick(option.label, isCurrent: option == backupsKept) { backupsKept = option }
-                    }
-                }
-            }
-            rule
-            transferRows
-            rule
-            boardFileRow
-            rule
-            backupsRow
-            if isShowingBackups { backupList }
-            rule
-            action(String(localized: "Delete everything…", comment: "Settings row that throws the board away"),
-                   note: String(localized: "Throws away every board, card and label, then asks what to start from again.",
-                                comment: "Settings note under the delete-everything row"),
-                   isDestructive: true) {
-                isConfirmingReset = true
-            }
-        }
     }
 
     @ViewBuilder
@@ -732,21 +881,34 @@ struct SettingsView: View {
 
     // MARK: Building blocks
 
-    /// A titled panel of rows — or, in the tabbed window, an untitled one.
+    /// A panel of rows under a heading — what a pane holding more than one of
+    /// them is built from.
     ///
-    /// The heading is what separates one section from the next in a single
-    /// scroll, and there is nothing for it to separate once each section is a
-    /// tab of its own: the toolbar has just said the word, and the window title
-    /// says it again above that. Three copies of "Appearance" stacked down the
-    /// left of a pane is how a settings window looks when it was a scroll last
-    /// week.
-    private func section<Content: View>(
+    /// **The rule is: a heading only where there is something to separate.** A
+    /// pane with a single panel in it gets none, because the desk's toolbar has
+    /// just said the word and the window title says it again above that, and the
+    /// sheet's chosen chip is sitting directly over the panel with the same word
+    /// in it — three copies of "Notifications" down the left of a pane is how a
+    /// settings surface looks when it was a scroll last week. A pane holding
+    /// four groups is the other case: with four subjects where there were eight,
+    /// a pane is a page rather than a list, and a page without headings is one
+    /// long strip of switches to read from the top every time.
+    private func group<Content: View>(
         _ title: String, @ViewBuilder content: () -> Content
     ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .sectionLabelStyle(size: metrics.noteFont - 1.5, opacity: Palette.readableInk)
+                .padding(.horizontal, 2)
+                .accessibilityAddTraits(.isHeader)
+            panel { content() }
+        }
+    }
+
+    /// A panel of rows, and no heading over it — see ``group(_:content:)`` for
+    /// when each is right.
+    private func panel<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: metrics.rowSpacing) {
-            if !metrics.usesTabs {
-                Text(title).sectionLabelStyle(opacity: Palette.readableInk)
-            }
             VStack(spacing: 0) { content() }
                 .background {
                     RoundedRectangle(cornerRadius: metrics.panelRadius)
@@ -756,8 +918,18 @@ struct SettingsView: View {
         }
     }
 
+    /// One row of a panel.
+    ///
+    /// **Full width, leading-aligned.** A `Toggle` and a `DatePicker` are as
+    /// wide as their own label and no wider, so left to themselves they *centre*
+    /// in a panel whose width some other row decided — which nothing shows while
+    /// a pane is one long list of `choice` rows holding the panel open, and
+    /// which is glaring the moment a group holds two switches and nothing else.
+    /// Measured: **At launch**'s two sat in the middle of the panel with a
+    /// finger's width of nothing either side of them.
     private func row<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .frame(minHeight: metrics.rowHit)

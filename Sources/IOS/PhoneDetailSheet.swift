@@ -4,7 +4,7 @@ import SwiftUI
 import UIKit
 
 /// The task detail bottom sheet — the same fields as the macOS inspector, sized
-/// for touch and presented in a native sheet at full height.
+/// for touch and presented in a native sheet at four fifths of the screen.
 struct PhoneDetailSheet: View {
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
@@ -44,14 +44,32 @@ struct PhoneDetailSheet: View {
             }
         }
         .background(palette.sheet)
-        // Full height, not the design's 82%. A sheet held at any detent below
-        // `.large` floats inset from the screen edges on this OS and is scaled
-        // to compensate — 0.9602 on a 402pt-wide phone, 0.9573 on a 375pt one —
-        // so every 44pt control in here rendered at 42.25pt, under the touch
-        // minimum. The factor is the inset over the screen width, so it differs
-        // per device and no amount of padding the shared `.sheet` presets can
-        // buy it back. Height was the cheaper thing to give up.
-        .presentationDetents([.large])
+        // Four fifths of the screen, near enough the design's 82%, and back
+        // from the `.large` this was raised to. The board it came up over stays
+        // legible above it, which is the whole point of a sheet that is not a
+        // page.
+        //
+        // **It costs the touch targets 4%, knowingly.** A sheet held at any
+        // detent below `.large` is laid out at the full screen width and then
+        // transformed: inset 8pt each side and scaled by `(W - 16) / W`. So a
+        // 44pt control renders smaller than 44pt. Measured at both detents with
+        // the Close button, which is exactly 44pt as drawn:
+        //
+        //   iPhone 17 Pro (402pt)   44.0 at `.large`   42.2487 here
+        //   iPhone 17e    (390pt)   44.0 at `.large`   42.1949 here
+        //
+        // — 0.96019 and 0.95897, which is `(W - 16) / W` to five places on both.
+        // The factor is the inset over the screen width, so it differs per
+        // device and no fixed padding in the shared `.sheet` presets can buy it
+        // back; a preset that did would have to be `44 * W / (W - 16)`, which is
+        // 45.82pt here and 45.96pt on the narrowest iPhone this build runs on.
+        // Nothing in this sheet has been bumped to cover it, so every 44pt
+        // target in here is a measured ~42.2pt on screen — see **Touch targets**
+        // in the README for the two ways to have both the height and the 44,
+        // neither of which is a smaller edit than this one.
+        //
+        // `UITests/DetailSheetHeightTests` pins the height itself.
+        .presentationDetents([.fraction(0.8)])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(28)
         .presentationBackground(palette.sheet)
@@ -161,12 +179,12 @@ struct PhoneDetailSheet: View {
         }
     }
 
-    /// Closing the sheet is where a quick capture nobody typed into goes away
-    /// again (1.14). The id has to be read before the sheet is torn down.
+    /// Closing the sheet is where a quick capture nothing was filled into goes
+    /// away again (1.14). The id has to be read before the sheet is torn down.
     private func dismiss() {
         let id = task.id
         store.sheetID = nil
-        store.discardIfUntouched(id)
+        store.discardIfBlank(id)
     }
 
     /// Where the card lives, in the two halves it now has: which board, and
@@ -298,6 +316,55 @@ struct PhoneDetailSheet: View {
     /// once it reached Done.
     private var destructiveTone: (background: Color, foreground: Color) {
         palette.dueTone(urgency: .overdue, role: .backlog)
+    }
+}
+
+/// The task editor, put up by whatever is on screen when a card is tapped.
+///
+/// **Two call sites, one live at a time.** A sheet is presented *by* a view
+/// controller, and the root's cannot present a second one while the Inbox — a
+/// sheet itself now — is over it: UIKit refuses, and the tap does nothing. So
+/// the root carries this for a card tapped on the board, ``PhoneInboxSheet``
+/// carries it for a card tapped in the Inbox, and `isEnabled` keeps exactly one
+/// of them holding the binding. `PhoneNavDrawer` hosts its own sheets for the
+/// same reason, and says so in the same words.
+extension View {
+    func phoneTaskDetailSheet(isEnabled: Bool = true) -> some View {
+        modifier(PhoneTaskDetailSheet(isEnabled: isEnabled))
+    }
+}
+
+private struct PhoneTaskDetailSheet: ViewModifier {
+    @Environment(BoardStore.self) private var store
+    @Environment(\.palette) private var palette
+    @Environment(\.dayClock) private var dayClock
+
+    let isEnabled: Bool
+
+    func body(content: Content) -> some View {
+        content.sheet(isPresented: presentation) {
+            if let task = store.sheetTask {
+                PhoneDetailSheet(task: task)
+                    .environment(store)
+                    .environment(\.palette, palette)
+                    .environment(\.dayClock, dayClock)
+            }
+        }
+    }
+
+    /// Dismissing the sheet is also where a quick capture the user filled
+    /// nothing into is thrown away (1.14). This covers the drag-down and any
+    /// other route SwiftUI takes to close it; the sheet's own × goes through the
+    /// same pair of calls.
+    private var presentation: Binding<Bool> {
+        Binding(
+            get: { isEnabled && store.sheetID != nil },
+            set: { isPresented in
+                guard !isPresented, let id = store.sheetID else { return }
+                store.sheetID = nil
+                store.discardIfBlank(id)
+            }
+        )
     }
 }
 

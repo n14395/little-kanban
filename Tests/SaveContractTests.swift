@@ -128,9 +128,9 @@ import Testing
         let captured = store.addTask(to: .inbox, title: "")
         try await Task.sleep(for: .milliseconds(900))
         #expect(board.file.writeCount == 1)
-        store.discardIfUntouched(captured)
+        store.discardIfBlank(captured)
         try await Task.sleep(for: .milliseconds(900))
-        #expect(board.file.writeCount == 2, "discardIfUntouched never reached the disk")
+        #expect(board.file.writeCount == 2, "discardIfBlank never reached the disk")
     }
 
     /// The two mutations that replace the whole board. Both write *twice* on

@@ -3,6 +3,32 @@
 import SwiftUI
 import UIKit
 
+/// One report from a pan that began at the leading edge, measured the way the
+/// thing it opens moves.
+///
+/// **Nothing here is mirrored, and that is the point.** The recognizer watches
+/// the right edge in a right-to-left layout and its translations then run
+/// negative, which is a fact about `UIRectEdge` rather than about the gesture —
+/// see ``View/leadingEdgeSwipe(perform:)``. `distance` and `velocity` are
+/// flipped back on the way out, so a caller reads "how far in" and "how fast
+/// inwards" and never has to know which way the layout runs.
+struct EdgePan {
+    enum Phase {
+        case began, changed, ended, cancelled
+    }
+
+    var phase: Phase
+    /// How far in from the edge the finger has come, in points. Never negative:
+    /// a pan dragged back past where it started reads 0.
+    var distance: CGFloat
+    /// Points per second inwards, negative for a finger heading back out. Only
+    /// `.ended` has anything useful to say.
+    var velocity: CGFloat
+    /// The width of the surface being crossed, so a caller can turn `distance`
+    /// into a fraction of whatever it is that opens.
+    var width: CGFloat
+}
+
 extension View {
     /// Opens something when a pan starts at the screen's leading edge and moves
     /// inwards — the gesture every other iOS app uses to reach what is parked
@@ -18,19 +44,30 @@ extension View {
     /// so it is one of the two values in this app that do *not* mirror
     /// themselves — the drawer panel's shadow offset is the other — and it
     /// flips by hand off `layoutDirection`.
+    ///
+    /// This spelling fires once, when the pan begins. A panel that follows the
+    /// finger wants ``leadingEdgePan(_:)`` instead.
     func leadingEdgeSwipe(perform action: @escaping () -> Void) -> some View {
-        modifier(LeadingEdgeSwipe(action: action))
+        leadingEdgePan { pan in
+            if pan.phase == .began { action() }
+        }
+    }
+
+    /// The same gesture, reported frame by frame, for a panel that is dragged
+    /// in rather than merely triggered.
+    func leadingEdgePan(_ handle: @escaping (EdgePan) -> Void) -> some View {
+        modifier(LeadingEdgeSwipe(handle: handle))
     }
 }
 
 private struct LeadingEdgeSwipe: ViewModifier {
     @Environment(\.layoutDirection) private var layoutDirection
-    let action: () -> Void
+    let handle: (EdgePan) -> Void
 
     func body(content: Content) -> some View {
         content.background {
             EdgePanAnchor(
-                edge: layoutDirection == .rightToLeft ? .right : .left, action: action
+                mirrored: layoutDirection == .rightToLeft, handle: handle
             )
             .frame(width: 0, height: 0)
             .allowsHitTesting(false)
@@ -45,8 +82,9 @@ private struct LeadingEdgeSwipe: ViewModifier {
 /// **Why UIKit, when the rest of this app is SwiftUI.** A `DragGesture` on a
 /// strip at the edge is the obvious spelling and it loses. The board is a
 /// horizontal scroll view on both idioms, and a pan that lands anywhere over it
-/// is claimed by that scroll view's own recognizer — the same rule that took
-/// the swipe actions off the board's rows (see `BoardStore.isColumnPaging`).
+/// is claimed by that scroll view's own recognizer — the same rule that cost the
+/// board's rows their swipe actions while those existed (they were removed
+/// outright in 6.4; see ``PhoneTaskRowActions``).
 /// `UIScreenEdgePanGestureRecognizer` is the recognizer built for this case —
 /// it is what a navigation controller's interactive pop is made of — and
 /// SwiftUI exposes nothing like it. Being one is not by itself enough to win;
@@ -62,10 +100,10 @@ private struct LeadingEdgeSwipe: ViewModifier {
 /// the controller and to say when the tree goes away; the recognizer it carries
 /// lives further up.
 private struct EdgePanAnchor: UIViewRepresentable {
-    let edge: UIRectEdge
-    let action: () -> Void
+    let mirrored: Bool
+    let handle: (EdgePan) -> Void
 
-    func makeCoordinator() -> Coordinator { Coordinator(action: action) }
+    func makeCoordinator() -> Coordinator { Coordinator(handle: handle) }
 
     func makeUIView(context: Context) -> AnchorView {
         AnchorView(recognizer: context.coordinator.recognizer)
@@ -75,8 +113,9 @@ private struct EdgePanAnchor: UIViewRepresentable {
         // The closure captures the store and the environment, so it is a new one
         // on every pass; the recognizer is not, and must not be re-made or the
         // pan in flight is cancelled under the finger.
-        context.coordinator.action = action
-        context.coordinator.recognizer.edges = edge
+        context.coordinator.handle = handle
+        context.coordinator.mirrored = mirrored
+        context.coordinator.recognizer.edges = mirrored ? .right : .left
     }
 
     static func dismantleUIView(_ view: AnchorView, coordinator: Coordinator) {
@@ -87,7 +126,8 @@ private struct EdgePanAnchor: UIViewRepresentable {
     /// where its action arrives; a bare `NSObject` is `nonisolated` and
     /// cannot hold one as a stored property.
     @MainActor final class Coordinator: NSObject, UIGestureRecognizerDelegate {
-        var action: () -> Void
+        var handle: (EdgePan) -> Void
+        var mirrored = false
 
         lazy var recognizer: UIScreenEdgePanGestureRecognizer = {
             let pan = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(edgePanned))
@@ -95,8 +135,8 @@ private struct EdgePanAnchor: UIViewRepresentable {
             return pan
         }()
 
-        init(action: @escaping () -> Void) {
-            self.action = action
+        init(handle: @escaping (EdgePan) -> Void) {
+            self.handle = handle
         }
 
         /// **The line that makes the gesture work at all.** Being a screen-edge
@@ -122,14 +162,36 @@ private struct EdgePanAnchor: UIViewRepresentable {
             other is UIPanGestureRecognizer
         }
 
-        /// `.began`, not `.ended`. The recognizer has already required a touch
-        /// down within the system's edge margin and movement inwards by the time
-        /// it fires, so the drawer opens under the finger that asked for it
-        /// rather than after it lifts — which is the difference between the
-        /// gesture feeling like the drawer and feeling like a delayed button.
+        /// Every phase, not just the end. The recognizer has already required a
+        /// touch down within the system's edge margin and movement inwards by
+        /// the time `.began` fires, so a panel can come into the tree under the
+        /// finger that asked for it and be positioned by the `.changed` reports
+        /// after — which is the difference between the gesture feeling like the
+        /// drawer and feeling like a delayed button.
+        ///
+        /// A pan that is cancelled — the app going to the background mid-drag,
+        /// or the system claiming the touch — is reported as such rather than
+        /// dropped, because whatever came into the tree at `.began` has to be
+        /// put away by somebody.
         @objc private func edgePanned(_ pan: UIScreenEdgePanGestureRecognizer) {
-            guard pan.state == .began else { return }
-            action()
+            guard let view = pan.view else { return }
+            let phase: EdgePan.Phase
+            switch pan.state {
+            case .began: phase = .began
+            case .changed: phase = .changed
+            case .ended: phase = .ended
+            case .cancelled, .failed: phase = .cancelled
+            default: return
+            }
+            // Inwards is negative x on the trailing edge, which is where this
+            // recognizer sits in a right-to-left layout.
+            let inwards: CGFloat = mirrored ? -1 : 1
+            handle(EdgePan(
+                phase: phase,
+                distance: max(0, pan.translation(in: view).x * inwards),
+                velocity: pan.velocity(in: view).x * inwards,
+                width: view.bounds.width
+            ))
         }
     }
 

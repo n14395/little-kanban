@@ -21,6 +21,9 @@ struct PhoneHeader: View {
     /// of portrait, which left the columns a single card tall. Everything this
     /// gates is vertical space (5.5).
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    /// A strip that jumps to the current chip is motion like any other: the
+    /// chip still has to be in view, it just arrives at once.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @FocusState private var isSearchFocused: Bool
     @State private var isManagingLabels = false
@@ -57,10 +60,10 @@ struct PhoneHeader: View {
             if store.tab == .search {
                 searchField
             } else if store.isColumnPaging, !isShort {
-                // Dropped on a short screen, where the pages carry their own
-                // headings and the strip below still jumps between them: the
-                // chips are the third thing naming the same column, and the one
-                // that costs a card's worth of height to say it.
+                // Dropped on a short screen, where two pages are side by side
+                // under headings of their own: the chips would be a second
+                // thing naming the same columns, and the one that costs a
+                // card's worth of height to say it.
                 columnChips
             }
 
@@ -145,6 +148,21 @@ struct PhoneHeader: View {
                 }
                 .disabled(!store.isFiltering)
             }
+
+            // The phone's door to the Trash, which used to be a tab of Settings
+            // two surfaces away — see `BoardStore.isShowingTrash` for why it is
+            // not a setting. A section of its own at the foot of the menu: it is
+            // not a board action, and it is the one item here that is about work
+            // the user has already thrown away.
+            //
+            // The count is in the title rather than beside it because a menu row
+            // has nowhere to put a trailing anything, and "Trash" alone makes
+            // opening it the only way to learn there is nothing in it.
+            Section {
+                Button { store.isShowingTrash = true } label: {
+                    Label(trashTitle, systemImage: store.trashCount > 0 ? "trash.fill" : "trash")
+                }
+            }
         } label: {
             Image(systemName: "ellipsis")
                 .font(SimpleKanbanFont.ui(15, .extraBold, relativeTo: .subheadline))
@@ -169,6 +187,16 @@ struct PhoneHeader: View {
         }
         .menuIndicator(.hidden)
         .accessibilityLabel("Board actions")
+    }
+
+    /// "Trash", or "Trash (4)" while there is something in it.
+    private var trashTitle: String {
+        let count = store.trashCount
+        guard count > 0 else {
+            return String(localized: "Trash", comment: "Phone board menu item that opens the Trash")
+        }
+        return String(localized: "Trash (\(count))",
+                      comment: "Phone board menu item that opens the Trash, with how much is in it")
     }
 
     /// What is on screen when the columns are not: the view's name, the length
@@ -289,6 +317,18 @@ struct PhoneHeader: View {
                 .contentShape(.rect)
                 .onTapGesture { isSearchFocused = true }
         }
+        // Arriving on the Search tab is asking to search: the field opens with
+        // the keyboard up, the way every other field in this app that is opened
+        // *by* something does. `focusWhenReady` rather than `onAppear`, which
+        // lands before the field can hold the keyboard and is dropped on the
+        // floor — the modifier has the long version.
+        .focusWhenReady($isSearchFocused)
+        // And the same request arriving while the field is already on screen:
+        // the Search tab tapped again, or ⌘F from a hardware keyboard. A token
+        // rather than a flag so a second ask is still a change — see
+        // `BoardStore.searchFocusToken`, and `BoardToolbar`, which watches it
+        // for the desk.
+        .onChange(of: store.searchFocusToken) { _, _ in isSearchFocused = true }
     }
 
     /// Emptying the field from the field itself, which neither surface offered
@@ -309,7 +349,36 @@ struct PhoneHeader: View {
         .accessibilityLabel("Clear search")
     }
 
+    /// The chips, and **the strip keeping the current one in view**.
+    ///
+    /// Four columns with ordinary names overrun a phone's width — the seed
+    /// board's Done chip is cut off at 19 of its 70 points, measured — and the
+    /// strip never moved, so paging to the last column highlighted a chip that
+    /// was half off the screen and left it there. The chip that says where you
+    /// are is the one that has to be legible.
+    ///
+    /// `scrollTo` with no anchor is the *minimum* scroll that makes the chip
+    /// whole, and no scroll at all when it is whole already, which is what the
+    /// board's own reveal does on the desk — see `BoardScrollView`. Centring it
+    /// instead would shuffle the strip under every page turn, including the
+    /// ones that needed nothing.
+    ///
+    /// `onAppear` as well as `onChange`, because a board is not always opened on
+    /// its first column: the strip has to start where the board does, and that
+    /// one is not animated because there is nothing to have moved from.
     private var columnChips: some View {
+        ScrollViewReader { strip in
+            chips
+                .onChange(of: store.mobileColumnID) { _, id in
+                    Motion.run(.snappy(duration: 0.28), reduceMotion: reduceMotion) {
+                        strip.scrollTo(id)
+                    }
+                }
+                .onAppear { strip.scrollTo(store.mobileColumnID) }
+        }
+    }
+
+    private var chips: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 6) {
                 ForEach(store.pagerColumns) { column in
@@ -332,88 +401,13 @@ struct PhoneHeader: View {
                     }
                     .buttonStyle(.bare)
                     .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
+                    // What the strip above scrolls to.
+                    .id(column.id)
                 }
             }
             .padding(.bottom, 4)
         }
         .scrollIndicators(.hidden)
-    }
-}
-
-/// Previous / dots / next, stepping through the workflow columns.
-///
-/// Every one of the three is a real control. The dots were decoration — the one
-/// part of the spec's pager that said where you were and offered no way to go
-/// anywhere — so each is now the button for its column, which is also the
-/// non-gesture way to page for a reader who cannot swipe (7.1).
-/// Drawn in portrait only — see `PhoneRootView`. On its side the phone puts two
-/// columns on screen under headings of their own, which say what the dots say
-/// and say it by name; this row would be a second answer in the dimension that
-/// shape has least of. It carried a compact-height preset of its own until then,
-/// and that preset is gone with the case it was for rather than left behind as a
-/// branch nothing can take.
-struct PhoneColumnPager: View {
-    @Environment(\.palette) private var palette
-    @Environment(BoardStore.self) private var store
-
-    var body: some View {
-        HStack(spacing: 10) {
-            stepButton(systemName: "chevron.left", label: "Previous column") {
-                store.stepMobileColumn(by: -1)
-            }
-
-            dots
-
-            stepButton(systemName: "chevron.right", label: "Next column") {
-                store.stepMobileColumn(by: 1)
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 14)
-        .padding(.bottom, 10)
-    }
-
-    /// The drawn capsules keep the design's size; the target around each is a
-    /// share of the strip, capped at a finger's width so four dots do not
-    /// spread across a phone and floored by the `HStack` when a board has more
-    /// columns than the strip has room for.
-    private var dots: some View {
-        HStack(spacing: 0) {
-            ForEach(store.pagerColumns) { column in
-                let isCurrent = column.id == store.mobileColumnID
-                Button { store.mobileColumnID = column.id } label: {
-                    Capsule()
-                        .fill(isCurrent ? palette.accent : palette.ink(0.18))
-                        .frame(width: isCurrent ? 22 : 5, height: 5)
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                        .contentShape(.rect)
-                }
-                .buttonStyle(.bare)
-                .accessibilityLabel(column.name)
-                .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
-            }
-        }
-        .frame(maxWidth: CGFloat(store.pagerColumns.count) * 44)
-        .frame(maxWidth: .infinity)
-        .motionAnimation(.snappy(duration: 0.2), value: store.mobileColumnID)
-    }
-
-    private func stepButton(systemName: String, label: LocalizedStringKey, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(SimpleKanbanFont.ui(12, .semibold, relativeTo: .footnote))
-                .foregroundStyle(palette.inkText(0.6))
-                .frame(minWidth: 30, minHeight: 30)
-                .background(palette.ink(0.06), in: .circle)
-                .frame(minWidth: 44, minHeight: 44)
-                // The arrow is the button, so it must not also be an element
-                // inside it: "Previous column" containing an `Image` called
-                // "Back" is one control named twice and differently.
-                .accessibilityHidden(true)
-        }
-        .buttonStyle(.bare)
-        .contentShape(.circle)
-        .accessibilityLabel(label)
     }
 }
 

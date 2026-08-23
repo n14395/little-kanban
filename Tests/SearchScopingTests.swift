@@ -177,15 +177,20 @@ import Testing
         #expect(store.activeView == nil)
     }
 
-    /// The Inbox is a panel over the board now, and raising it leaves the saved
-    /// view for the same reason picking a tab does — the card a quick capture
-    /// makes lands in the Inbox, and a filter it is unlikely to match is not
-    /// where the user should be left looking.
-    @Test func aQuickCaptureRaisesTheInboxAndLeavesTheSavedViewBehind() {
+    /// A quick capture leaves the saved view — the card it makes lands in the
+    /// Inbox, and a filter it is unlikely to match is not where the user should
+    /// be left looking once the sheet closes.
+    ///
+    /// **It does not raise the Inbox**, which it used to. The panel came up
+    /// behind the detail sheet, so it was never seen while it mattered and was
+    /// left standing over the board once the sheet was dismissed. Leaving the
+    /// view and opening a panel were one line together and are not the same
+    /// decision; only the second was wrong.
+    @Test func aQuickCaptureLeavesTheSavedViewBehindWithoutRaisingTheInbox() {
         let store = TestBoard.store()
         store.activeView = .today
         store.quickCapture()
-        #expect(store.isInboxOpen)
+        #expect(!store.isInboxOpen)
         #expect(store.activeView == nil)
         #expect(store.inboxTasks.count == 2)
     }

@@ -171,9 +171,9 @@ import Testing
         let fresh = try #require(store.sheetTask)
         #expect(fresh.isUnfiled)
         #expect(fresh.boardID == nil)
-        // The Inbox comes up over the board rather than replacing it, so the
-        // card the sheet is about is in a list that is already showing.
-        #expect(store.isInboxOpen)
+        // And it raises nothing: the Inbox panel used to come up behind the
+        // sheet, where it could not be seen and had to be put away afterwards.
+        #expect(!store.isInboxOpen)
     }
 
     @Test func theInboxAndEachBoardCountOnlyTheirOwn() {
@@ -340,7 +340,7 @@ import Testing
         let store = Self.store()
         let id = store.addTask(to: .inbox, title: "", fromPhone: true, log: .captured)
         #expect(store[id]?.code == "IN-143")
-        store.discardIfUntouched(id)
+        store.discardIfBlank(id)
         let next = store.addTask(to: Self.alphaTodo.id, title: "Real")
         #expect(store[next]?.code == "AL-143")
     }

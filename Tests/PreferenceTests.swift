@@ -214,6 +214,7 @@ import UserNotifications
         store.isInspectorOpen.toggle()
         store.isNavDrawerOpen.toggle()
         store.isShowingShortcuts.toggle()
+        store.isShowingTrash.toggle()
         store.tab = .search
         store.showInbox()
         store.query = "palette"

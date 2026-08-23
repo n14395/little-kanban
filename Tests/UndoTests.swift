@@ -217,7 +217,7 @@ import Testing
         step(undo) { id = store.addTask(to: BoardColumn.inbox.id, title: "", fromPhone: true, log: .captured) }
         let capture = try #require(id)
         #expect(undo.undoActionName == "New Task")
-        step(undo) { store.discardIfUntouched(capture) }
+        step(undo) { store.discardIfBlank(capture) }
         #expect(undo.undoActionName == "Discard Capture")
 
         undo.undo()

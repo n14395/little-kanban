@@ -22,8 +22,10 @@ import Testing
 /// `dropDestination` closure calls, with the arguments it has to hand:
 /// `BoardTaskCard` and `PhoneTaskCard` both call
 /// `move(dropped, to: target.placement, before: target.id)`, and
-/// `BoardColumnView` calls `move(dropped, to: column.id)`. Both directions are
-/// asserted, so neither can be made to pass by deleting the other's behaviour.
+/// `BoardColumnView` and `PhoneColumnPage` — the column's ground on each
+/// surface — call `drop(dropped, onGroundOf: the column's placement)`. Both
+/// directions are asserted, so neither can be made to pass by deleting the
+/// other's behaviour.
 @MainActor
 @Suite struct DragReorderTests {
     // MARK: A board with room to get it wrong
@@ -210,6 +212,11 @@ import Testing
     /// card dropped on every column must land in that column and nowhere else —
     /// including the column it is already in, where the drop is a no-op rather
     /// than a trip to the bottom of the list.
+    ///
+    /// *Where* in the column it lands is `DropCaretTests`': the ground keeps the
+    /// row the card was on. This is the claim underneath that one — that the
+    /// column resolved is the column dropped on — and it holds whichever row the
+    /// card ends up in.
     @Test func aDropOnAColumnResolvesToThatColumn() throws {
         for column in Self.allColumns {
             for card in Self.tasks.map(\.id) {
@@ -217,7 +224,7 @@ import Testing
                 let was = try #require(store[card]).placement
                 let orderBefore = siblings(store, was)
 
-                store.move(card, to: column.id)
+                store.drop(card, onGroundOf: store.placement(forColumn: column.id))
 
                 let moved = try #require(store[card])
                 #expect(moved.columnID == column.id,
@@ -249,15 +256,31 @@ import Testing
         guard SourceTree.isReachable else { return }
         let expected = [
             // The desk and iPad board card, and the phone's list row: both drop
-            // onto a *card*, so both resolve to that card's placement.
-            // `onto:` rather than `before:`, because a drop is not an insertion
-            // point: dragging downwards onto the card below you means landing
-            // *after* it, and `before: task.id` put the card back where it
-            // started. The store owns that arithmetic so both surfaces get it.
-            "Shared/BoardTaskCard.swift": "store.move(dropped.id, onto: task.id)",
-            "IOS/PhoneTaskCard.swift": "store.move(dropped.id, onto: task.id)",
-            // The column drops onto a column, so it names the column.
-            "Shared/BoardColumnView.swift": "store.move(dropped.id, to: column.id)",
+            // into the **gap the caret named**, which is the half of the card
+            // the pointer was in. It used to be `move(_:onto:)` — a drop that
+            // names a card, with the side worked out from the direction of
+            // travel — and that could not express the head of a list at all.
+            // See `DropCaretTests`.
+            "Shared/BoardTaskCard.swift": "store.drop(dropped.id, at: caret)",
+            "IOS/PhoneTaskCard.swift": "store.drop(dropped.id, at: caret)",
+            // A column — the desk's strip and the phone's page are both one —
+            // and the Inbox panel take the drops that landed on a list's
+            // *ground* rather than in a gap between two of its cards.
+            // Those name no gap, so the card keeps the row it was on — see
+            // `BoardStore.drop(_:onGroundOf:)` — and neither may go back to
+            // `move(_:to:)`, which appends.
+            "Shared/BoardColumnView.swift":
+                "store.drop(dropped.id, onGroundOf: store.placement(forColumn: column.id))",
+            "IOS/PhoneColumnPage.swift":
+                "store.drop(dropped.id, onGroundOf: store.placement(forColumn: column.id))",
+            "Shared/InboxPanel.swift": "store.drop(dropped.id, onGroundOf: .inbox)",
+        ]
+        // The phone's *card* asks `allowsCardDrag` outside its closure — the
+        // whole destination is behind the guard — so the question is put to the
+        // four that ask it inside, which is where a copy-paste would lose it.
+        let guardedInside: Set<String> = [
+            "Shared/BoardTaskCard.swift", "Shared/BoardColumnView.swift",
+            "IOS/PhoneColumnPage.swift", "Shared/InboxPanel.swift",
         ]
         var seen: Set<String> = []
         for file in SourceTree.files() {
@@ -267,28 +290,33 @@ import Testing
             guard let drop = drops.first else { continue }
             let body = file.block(after: drop.offset + drop.text.count)
             #expect(body.contains(call), "\(file.path)'s drop does not call \(call): \(body)")
+            if guardedInside.contains(file.path) {
+                #expect(body.contains("store.allowsCardDrag"),
+                        "\(file.path) accepts a card while the board is not in its own order")
+            }
             seen.insert(file.path)
         }
         #expect(seen == Set(expected.keys), "a card drop closure has moved file: found \(seen)")
     }
 
     /// And the drops that legitimately resolve somewhere other than where the
-    /// pointer is, because a destination is a *place* rather than an insertion
-    /// point: the source list's board row files onto that board's landing
-    /// column, and the toolbar's Inbox button and the Inbox panel take a card
-    /// back out of whatever board it was on.
+    /// pointer is, because a destination is a *place* rather than a list with
+    /// rows in it: the source list's board row files onto that board's landing
+    /// column, and the toolbar's Inbox button takes a card back out of whatever
+    /// board it was on.
     ///
-    /// Three closures that all mean "put it there" and none of which may quietly
-    /// become "put it next to that", which a copy-paste between them would do.
-    /// The Inbox has two of them because it has two faces: the panel when it is
-    /// out, and the button when it is not — and with the panel shut the button
-    /// is the only way back by pointer.
+    /// Two closures that both mean "put it there" and neither of which may
+    /// quietly become "put it next to that", which a copy-paste between them
+    /// would do. The toolbar's button is here and the Inbox *panel* is with the
+    /// ground drops above, which is the difference between the Inbox's two
+    /// faces: the panel is a list on screen with rows to land between, and the
+    /// button — the only way back by pointer while the panel is shut — is a
+    /// target with no list behind it at all.
     @Test func everyDestinationDropNamesThePlaceRatherThanTheCard() {
         guard SourceTree.isReachable else { return }
         let expected = [
             "Shared/BoardSidebar.swift": "store.file(dropped.id, onto: board.id)",
             "Shared/BoardToolbar.swift": "store.unfile(dropped.id)",
-            "Shared/InboxPanel.swift": "store.unfile(dropped.id)",
         ]
         var seen: Set<String> = []
         for file in SourceTree.files() {

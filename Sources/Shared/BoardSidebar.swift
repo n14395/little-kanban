@@ -36,16 +36,24 @@ struct BoardSidebar: View {
         var sectionSpacing: CGFloat
         var dots: DotPicker.Metrics
         var labelManager: LabelManagerView.Metrics
+        /// The Trash, which hangs off the bin at the foot of the list in a
+        /// popover — so the iPad's copy is at `.sheet`'s touch sizes even
+        /// though it is not a sheet.
+        var trash: TrashView.Metrics
+        /// The disc the bin is drawn in. It is smaller than the capture button
+        /// beside it on purpose: one is what this surface is *for* and the other
+        /// is a door to somewhere the user goes rarely.
+        var footerButton: CGFloat
 
         static let desk = Metrics(
             width: 232, trafficLightInset: 16, rowFont: 13, rowVerticalPadding: 7,
             rowRadius: 9, rowHit: 0, rowGlyph: 14, fieldHit: 0, sectionSpacing: 22,
-            dots: .desk, labelManager: .desk
+            dots: .desk, labelManager: .desk, trash: .desk, footerButton: 30
         )
         static let pad = Metrics(
             width: nil, trafficLightInset: 0, rowFont: 15, rowVerticalPadding: 10,
             rowRadius: 11, rowHit: 44, rowGlyph: 17, fieldHit: 44, sectionSpacing: 24,
-            dots: .sheet, labelManager: .sheet
+            dots: .sheet, labelManager: .sheet, trash: .sheet, footerButton: 36
         )
     }
 
@@ -139,10 +147,10 @@ struct BoardSidebar: View {
             settingsRow
                 .padding(.horizontal, 8)
 
-            // The rows sit at the top of the column; capture sits at the foot of
-            // it, under everything it is not one of.
+            // The rows sit at the top of the column; the footer sits at the
+            // foot of it, under everything it is not one of.
             Spacer(minLength: 0)
-            captureButton
+            footer
         }
         .padding(.top, 14)
         .padding(.bottom, 12)
@@ -418,6 +426,102 @@ struct BoardSidebar: View {
         #endif
     }
 
+    // MARK: The foot of the list
+
+    /// The bottom row: capture on the left, the Trash on the right.
+    ///
+    /// Two things that are not rows and do not belong in the list, put where a
+    /// window's own furniture goes. Capture is the desk's alone — the iPad's
+    /// toolbar already carries New task — so on that platform this row is the
+    /// bin and the space it sits at the end of, which is still the right place
+    /// for it: the far corner, away from everything that is a destination.
+    private var footer: some View {
+        HStack(spacing: 8) {
+            captureButton
+            Spacer(minLength: 0)
+            trashButton
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 14)
+    }
+
+    /// The way into the Trash on both pointer surfaces.
+    ///
+    /// **A bin rather than a row.** It was a tab of Settings, which is the
+    /// wrong shelf — see ``BoardStore/isShowingTrash`` — but it is also not a
+    /// destination: the list above is places the board's work *is*, and this is
+    /// where work goes when it stops being work. A glyph in the corner is the
+    /// shape the Finder, Mail and Photos all give it.
+    ///
+    /// **It says whether there is anything in it before it is opened.** The
+    /// glyph takes the accent while the trash holds something and the ink's
+    /// quiet grey while it does not, and the count is the button's accessibility
+    /// value. Without that the only way to learn the trash is empty is to open
+    /// it, and the one thing this button is for is the day something is in there.
+    ///
+    /// The popover hangs off the trailing edge for the capture button's reason:
+    /// the button is at the bottom of the window and above it is the list.
+    private var trashButton: some View {
+        @Bindable var store = store
+        let hasItems = store.trashCount > 0
+        return Button { store.isShowingTrash = true } label: {
+            Image(systemName: hasItems ? "trash.fill" : "trash")
+                .symbolSize(metrics.rowFont, weight: .semibold, relativeTo: .subheadline)
+                .foregroundStyle(hasItems ? palette.accent : palette.inkText(0.45))
+                .frame(width: chrome(metrics.footerButton), height: chrome(metrics.footerButton))
+                .background(palette.ink(0.06), in: .circle)
+                // Touch needs its 44 on the iPad; the disc stays the size it is
+                // drawn and the target grows around it, the trade the phone's
+                // header makes for its own discs.
+                .frame(minWidth: metrics.rowHit, minHeight: metrics.rowHit)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.bare)
+        .help("Show the Trash")
+        // Substituted rather than named: an `Image` inside a button's label is
+        // published as an element of its own whatever else is asked of it, and
+        // the row would read "Trash" and then "trash.fill" from Apple's
+        // catalogue — `manageLabelsRow`'s problem and its remedy.
+        .accessibilityRepresentation {
+            Button(String(localized: "Trash",
+                          comment: "Accessibility name of the button that opens the Trash")) {
+                store.isShowingTrash = true
+            }
+                .accessibilityValue(Text(verbatim: "\(store.trashCount)"))
+        }
+        .accessibilityIdentifier(Self.trashButtonID)
+        .popover(isPresented: $store.isShowingTrash, arrowEdge: .trailing) {
+            trashPopover
+        }
+    }
+
+    /// The identifier `UITests/TrashSurfaceTests` finds the bin by, shared
+    /// through the source rather than by both spelling the same string — the
+    /// arrangement `BoardToolbar.inboxToggleID` and `SettingsTab.chipID` have.
+    static let trashButtonID = "Sidebar.trash"
+
+    /// The Trash itself, at a width of its own.
+    ///
+    /// A popover sizes itself to its content, and this content is a list that is
+    /// empty on most days and thirty items long on one of them — so the scroll
+    /// is capped rather than fixed. `TrashView` is short when the trash is
+    /// empty and the box is short with it; past the cap the box stops growing
+    /// and the list scrolls inside it.
+    private var trashPopover: some View {
+        ScrollView {
+            TrashView(metrics: metrics.trash)
+                .padding(14)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(width: chrome(Self.trashPopoverWidth, cap: 1.3))
+        .frame(maxHeight: Self.trashPopoverHeight)
+        .environment(store)
+        .environment(\.palette, palette)
+    }
+
+    private static let trashPopoverWidth: CGFloat = 380
+    private static let trashPopoverHeight: CGFloat = 460
+
     // MARK: Capture
 
     /// Quick capture, at the foot of the list: one press makes a card in the
@@ -457,9 +561,6 @@ struct BoardSidebar: View {
         .buttonStyle(.bare)
         .help("Capture a task in the Inbox")
         .accessibilityLabel("Capture a task")
-        .padding(.horizontal, 16)
-        .padding(.top, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
         // Out to the side rather than up: the button is at the bottom-left of
         // the window, so above it is the list it was just put under.
         .popover(item: capturing, arrowEdge: .trailing) { capture in
@@ -478,8 +579,9 @@ struct BoardSidebar: View {
     /// out of it goes through one place.
     ///
     /// Light dismissal — clicking away, Escape — is the reason it cannot simply
-    /// be `$capture`: a capture nobody typed into has to be dropped again, and
-    /// SwiftUI reports that dismissal by writing `nil` here and nowhere else.
+    /// be `$capture`: a capture nothing was filled into has to be dropped
+    /// again, and SwiftUI reports that dismissal by writing `nil` here and
+    /// nowhere else.
     private var capturing: Binding<Capture?> {
         Binding(
             // Deleting the card from inside the popover takes the popover with
@@ -493,11 +595,12 @@ struct BoardSidebar: View {
         )
     }
 
-    /// Closes the popover, and takes the card with it when the user gave it
-    /// nothing — see `BoardStore.discardIfUntouched`. Pressing ✕ and clicking
-    /// away are the same act and land here alike.
+    /// Closes the popover, and takes the card with it when every control in it
+    /// is still as capture left it — see `BoardStore.discardIfBlank`, which is
+    /// what decides. Pressing ✕ and clicking away are the same act and land
+    /// here alike.
     private func endCapture() {
-        if let capture { store.discardIfUntouched(capture.id) }
+        if let capture { store.discardIfBlank(capture.id) }
         capture = nil
     }
 

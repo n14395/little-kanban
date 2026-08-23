@@ -3,10 +3,15 @@ import SwiftUI
 /// The Trash: what has been thrown away, how long is left on it, and the two
 /// things that can still be done about it.
 ///
-/// A tab of Settings rather than a place on the board, because it is not part of
-/// the work — it is where the work goes when it stops being work. See
-/// ``TrashedItem`` for what is kept and why the three kinds are not the same
-/// shape.
+/// **A surface of its own, not a tab of Settings.** It was one, and it was the
+/// wrong shelf: everything else in there is a preference about how the app
+/// behaves, and this is the user's own work sitting out a thirty-day countdown.
+/// A preference can wait; a card thrown away on Tuesday cannot wait past the
+/// thirtieth day. So it hangs off a bin at the foot of the source list on macOS
+/// and iPad — a popover beside the button, which is where the list it is about
+/// already is — and off the board menu on the phone, which is that surface's
+/// drawer for everything with no other home. See ``TrashedItem`` for what is
+/// kept and why the three kinds are not the same shape.
 ///
 /// **Restore is the ordinary button and Delete is the guarded one**, which is
 /// the reverse of the rest of the app. Everywhere else a delete happens and ⌘Z
@@ -231,5 +236,55 @@ struct TrashView: View {
                 .background(palette.accentSoft, in: .rect(cornerRadius: metrics.rowRadius))
         }
         .buttonStyle(.bare)
+    }
+}
+
+/// The Trash as a sheet, which is the phone's shape for it: no source list to
+/// hang a popover off, and a board menu that can only raise something.
+///
+/// The header is `SettingsView`'s — a title and a Done — because the two are the
+/// same kind of surface from the outside, and a second spelling of the same bar
+/// is how two surfaces start to drift.
+struct TrashSheet: View {
+    @Environment(\.palette) private var palette
+    @Environment(\.dismiss) private var dismiss
+    @Environment(BoardStore.self) private var store
+
+    var metrics: TrashView.Metrics = .sheet
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header.hairline(.bottom, color: palette.ink(0.08))
+            ScrollView {
+                TrashView(metrics: metrics)
+                    .padding(18)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(palette.sheet)
+        .presentationBackground(palette.sheet)
+    }
+
+    private var header: some View {
+        HStack(spacing: 8) {
+            Text("Trash")
+                .font(SimpleKanbanFont.ui(17, .bold, relativeTo: .headline))
+                .foregroundStyle(palette.ink)
+                .accessibilityAddTraits(.isHeader)
+            CountPill(count: store.trashCount)
+            Spacer(minLength: 0)
+            Button { dismiss() } label: {
+                Text("Done")
+                    .font(SimpleKanbanFont.ui(metrics.rowFont, .bold, relativeTo: .footnote))
+                    .foregroundStyle(palette.accent)
+                    .padding(.horizontal, 8)
+                    .frame(minHeight: max(metrics.rowHit, 30))
+            }
+            .buttonStyle(.bare)
+            .hoverBackground(palette.ink(0.06), radius: 8)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 13)
     }
 }

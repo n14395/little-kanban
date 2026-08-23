@@ -189,6 +189,40 @@ struct TaskItem: Identifiable, Hashable, Codable, Sendable {
 
     var isArchived: Bool { archivedAt != nil }
 
+    /// Whether every control on this card's editor still reads the way it did
+    /// on `other` — the question a dismissed quick capture is judged by.
+    ///
+    /// **What the controls write, and nothing else.** The code, the two
+    /// timestamps and the activity feed are the card's *record* rather than
+    /// anything filled into it, and a capture whose only difference from the
+    /// one that was minted is that it has been looked at has had nothing filled
+    /// in.
+    ///
+    /// **Measured against the card as it was made, not against a row of empty
+    /// values**, because two of these controls do not start empty. `mintTask`
+    /// gives a new card `Preferences.defaultDueDate` and the placement the `+`
+    /// was pressed in, so "no due date, in the Inbox" is the empty state on one
+    /// machine and a card somebody filled in on another. Asking what changed
+    /// needs the before as well as the after.
+    ///
+    /// The two free-text fields are compared trimmed: a title of spaces is a
+    /// title nobody typed, and it is exactly what a field the user clicked into
+    /// holds before an editing session ends and tidies it.
+    func hasSameContent(as other: TaskItem) -> Bool {
+        Self.trimmed(title) == Self.trimmed(other.title)
+            && Self.trimmed(note) == Self.trimmed(other.note)
+            && labelKeys == other.labelKeys
+            && due == other.due
+            && priority == other.priority
+            && subtasks == other.subtasks
+            && placement == other.placement
+            && archivedAt == other.archivedAt
+    }
+
+    private static func trimmed(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     var completedSubtaskCount: Int { subtasks.filter(\.done).count }
     var hasSubtasks: Bool { !subtasks.isEmpty }
     /// `2/3` on a card. Localized rather than interpolated so a right-to-left

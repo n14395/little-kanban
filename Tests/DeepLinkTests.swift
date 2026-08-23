@@ -119,9 +119,9 @@ import Testing
         // the board back *and* the panel out.
         #expect(store.surface == .board)
         #expect(store.isInboxShowing)
-        #if os(iOS)
-        #expect(store.tab == .inbox)
-        #endif
+        // The Inbox stopped being a tab when it became a panel, so there is no
+        // tab left to check: `isInboxShowing` is the whole of the claim, and
+        // `.board` above says what is under it.
     }
 
     @Test func aLinkToATaskOnAnotherBoardGoesToThatBoard() {

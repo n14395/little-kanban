@@ -31,6 +31,11 @@ struct BoardTaskCard: View {
         /// fitted to the desk drew the pad's selection 2pt inside its own edge.
         var selectionRing: Ring
         var focusRing: Ring
+        /// How far the two insertion targets reach past the card, into the gap
+        /// either side of it. Half the column's own `cardSpacing`, so one
+        /// card's reach meets the next one's exactly in the middle and a
+        /// pointer between two cards is always over one of them.
+        var dropReach: CGFloat
 
         /// How far the toggle's hit square overhangs the box it draws, which is
         /// what the overlay is pulled back by so the circle lands on the
@@ -41,7 +46,8 @@ struct BoardTaskCard: View {
             toggle: .desk, toggleSpacing: 9, cornerRadius: 12, horizontalPadding: 12,
             topPadding: 11, bottomPadding: 10, titleSize: 13.5, noteSize: 11.5, restoreHit: 0,
             selectionRing: Ring(cornerRadius: 12, lineWidth: 2, inset: 0),
-            focusRing: Ring(cornerRadius: 9, lineWidth: 1.5, inset: 3)
+            focusRing: Ring(cornerRadius: 9, lineWidth: 1.5, inset: 3),
+            dropReach: 4
         )
         /// A card under a finger. The tick claims 44, so the gutter and the
         /// card's own margins grow with it rather than letting the circle sit
@@ -50,7 +56,8 @@ struct BoardTaskCard: View {
             toggle: .sheet, toggleSpacing: 10, cornerRadius: 14, horizontalPadding: 14,
             topPadding: 13, bottomPadding: 12, titleSize: 15, noteSize: 12.5, restoreHit: 44,
             selectionRing: Ring(cornerRadius: 14, lineWidth: 2, inset: 0),
-            focusRing: Ring(cornerRadius: 11, lineWidth: 1.5, inset: 3)
+            focusRing: Ring(cornerRadius: 11, lineWidth: 1.5, inset: 3),
+            dropReach: 5
         )
     }
 
@@ -145,6 +152,97 @@ struct BoardTaskCard: View {
     private var isDragging: Bool { store.draggingID == task.id }
     private var isDone: Bool { store.isDone(task) }
 
+    /// Which edge of this card the drop would land against, or `nil` when it
+    /// would not land here. `BoardStore.dropCaret` is where the answer is
+    /// worked out; the card only draws it.
+    private var dropCaretEdge: Alignment? {
+        switch store.dropCaret {
+        case .above(let id) where id == task.id: .top
+        case .below(let id) where id == task.id: .bottom
+        default: nil
+        }
+    }
+
+    /// The card's two halves, as separate insertion targets: the top half means
+    /// *above this card*, the bottom half means *below it*.
+    ///
+    /// **Halves rather than one target for the whole card**, because a drop
+    /// that names a card can only ever mean one gap, and the rule that picked
+    /// which one — the direction the drag came from — could not name the top of
+    /// a list at all. See `BoardStore.dropTargetCaret`.
+    ///
+    /// **Over the card, and only while something is in the air.** They are plain
+    /// hit-testable views, so over a card nobody is dropping on they would take
+    /// the click that opens it — and during a drag there is no click to take,
+    /// which is the whole window they need to exist in. Behind the card was the
+    /// other spelling and it does not work: measured on an iPad, a drop whose
+    /// only target was a background zone landed nowhere, because the card's own
+    /// content is in front of it and a drop stops at what it lands on.
+    ///
+    /// They reach `dropReach` past the card at each end, so the two halves of
+    /// one card and the halves of the next meet in the middle of the gap: a
+    /// pointer between two cards is over one of them rather than over neither,
+    /// which is what made the caret blink out and jump to the foot of the
+    /// column.
+    @ViewBuilder private var dropZones: some View {
+        if store.allowsCardDrag, store.draggingID != nil {
+            VStack(spacing: 0) {
+                dropZone(.above(task.id))
+                dropZone(.below(task.id))
+            }
+            .padding(.vertical, -metrics.dropReach)
+        }
+    }
+
+    private func dropZone(_ caret: DropCaret) -> some View {
+        Color.clear
+            .contentShape(.rect)
+            .dropDestination(for: TaskTransfer.self) { items, _ in
+                guard store.allowsCardDrag, let dropped = items.first, store[dropped.id] != nil
+                else { return false }
+                store.drop(dropped.id, at: caret)
+                return true
+            } isTargeted: { targeted in
+                guard store.allowsCardDrag else { return }
+                if targeted { store.dropTargetColumnID = task.columnID }
+                // An unfiled card is in the Inbox panel, which is not a column
+                // and so cannot be named by the line above. Without this the
+                // panel goes dark the moment the pointer crosses one of its own
+                // cards.
+                if task.isUnfiled { store.isInboxDropTarget = targeted }
+                // Cleared only by the half that set it: leaving one for the
+                // next fires this one's `false` after the other's `true`, and
+                // an unguarded clear would take the new target down with it —
+                // the order `ChecklistView` guards against between its rows.
+                if targeted {
+                    store.dropTargetCaret = caret
+                } else if store.dropTargetCaret == caret {
+                    store.dropTargetCaret = nil
+                }
+            }
+    }
+
+    /// The insertion point: the line that says *here*, on the edge the card
+    /// would go against. The same mark `ChecklistView` draws between its rows,
+    /// a shade thicker because a column's gaps are wider than a checklist's.
+    ///
+    /// On the edge rather than floating in the gap above it: an overlay knows
+    /// the card's bounds and not the column's spacing, and a line drawn against
+    /// the card it names cannot be read as belonging to the one on the other
+    /// side of the gap.
+    @ViewBuilder private var dropCaret: some View {
+        if dropCaretEdge != nil {
+            Capsule()
+                .fill(palette.accent)
+                .frame(height: 3)
+                .padding(.horizontal, 1)
+                // A mark, not a target. Without this it is a hole in the card
+                // it is drawn on, and the drop under it goes nowhere.
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
     var body: some View {
         Button {
             click()
@@ -154,6 +252,7 @@ struct BoardTaskCard: View {
         .buttonStyle(.bare)
         .overlay(alignment: .topLeading) { completionToggle }
         .overlay(alignment: .bottomTrailing) { restoreButton }
+        .overlay(alignment: dropCaretEdge ?? .top) { dropCaret }
         .opacity(isDragging ? 0.4 : 1)
         .offset(y: isHovering && !reduceMotion ? -1 : 0)
         .motionAnimation(.easeOut(duration: 0.12), value: isHovering)
@@ -163,20 +262,7 @@ struct BoardTaskCard: View {
             transfer: TaskTransfer(task)
         ))
         .modifier(CardDragSession(id: task.id))
-        .dropDestination(for: TaskTransfer.self) { items, _ in
-            guard store.allowsCardDrag, let dropped = items.first,
-                  dropped.id != task.id, store[dropped.id] != nil
-            else { return false }
-            store.move(dropped.id, onto: task.id)
-            return true
-        } isTargeted: { targeted in
-            guard store.allowsCardDrag else { return }
-            if targeted { store.dropTargetColumnID = task.columnID }
-            // An unfiled card is in the Inbox panel, which is not a column and
-            // so cannot be named by the line above. Without this the panel goes
-            // dark the moment the pointer crosses one of its own cards.
-            if task.isUnfiled { store.isInboxDropTarget = targeted }
-        }
+        .overlay { dropZones }
         .contextMenu {
             // In the Archive the verb is Restore, and only Restore. Ticking a
             // filed card used to move it to Done — silently choosing where it
@@ -647,6 +733,8 @@ private struct MoveActions: ViewModifier {
 /// sentence because "clear the search" would be advice about a search the user
 /// has not typed.
 private struct DraggableWhenOrdered: ViewModifier {
+    @Environment(BoardStore.self) private var store
+
     let isEnabled: Bool
     let isFiltering: Bool
     let transfer: TaskTransfer
@@ -654,7 +742,21 @@ private struct DraggableWhenOrdered: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
         if isEnabled {
+            #if os(macOS)
             content.draggable(transfer)
+            #else
+            if #available(iOS 27.0, *) {
+                content.draggable(transfer)
+            } else {
+                // `CardDragSession` is the tidy way to know a card is in the
+                // air and it is iOS **27**, so on an iPad running 26 nothing
+                // set `draggingID` at all: no dimmed card, no column
+                // highlight, and — once there was one to draw — no insertion
+                // caret either. The payload being asked for is the only signal
+                // this build has, and it is the one the phone has always used.
+                content.draggable(lifted())
+            }
+            #endif
         } else {
             content
                 .opacity(0.88)
@@ -662,5 +764,12 @@ private struct DraggableWhenOrdered: ViewModifier {
                       ? "Clear the search to drag cards between columns"
                       : "Go back to the board to drag cards between columns")
         }
+    }
+
+    /// The payload, and the lift with it. See ``BoardStore/beginDrag(_:onLift:)``
+    /// for the latch and the expiry this needs.
+    private func lifted() -> TaskTransfer {
+        store.beginDrag(transfer.id)
+        return transfer
     }
 }

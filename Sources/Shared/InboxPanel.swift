@@ -110,8 +110,10 @@ struct InboxPanel: View {
             guard store.allowsCardDrag, let dropped = items.first, store[dropped.id] != nil
             else { return false }
             // A card already in the Inbox has landed on empty panel rather
-            // than on one of its neighbours; `unfile` knows that is not a move.
-            store.unfile(dropped.id)
+            // than on one of its neighbours, which is not a move — and one
+            // arriving off a board keeps the row it was on, the way a column's
+            // ground keeps it. Both are `drop(_:onGroundOf:)`'s.
+            store.drop(dropped.id, onGroundOf: .inbox)
             return true
         } isTargeted: { targeted in
             if store.allowsCardDrag { store.isInboxDropTarget = targeted }
@@ -120,16 +122,16 @@ struct InboxPanel: View {
 
     /// **A column's stack, not `TaskListView`'s `List`.**
     ///
-    /// The list is the right container for the flat surfaces — it is where
-    /// `swipeActions` come from, and the phone needs those. Here it is the
-    /// wrong one for the reason this panel exists: a `List` handles drags
-    /// inside its own bounds, so a card dropped anywhere but exactly on top of
-    /// another card never reached the panel's drop destination behind it. The
-    /// columns have always used `ScrollView` + `LazyVStack`, which is why
-    /// dropping between them has always worked, and the panel is a column.
+    /// A `List` is the wrong container for the reason this panel exists: it
+    /// handles drags inside its own bounds, so a card dropped anywhere but
+    /// exactly on top of another card never reached the panel's drop destination
+    /// behind it. The columns have always used `ScrollView` + `LazyVStack`,
+    /// which is why dropping between them has always worked, and the panel is a
+    /// column.
     ///
-    /// Nothing is lost by the swap: swipe actions are a phone affordance and
-    /// the panel is on the desk and the iPad only.
+    /// Nothing is lost by the swap. It cost the rows their `swipeActions` when
+    /// this was written, and it costs nothing at all since 6.4 — no card in the
+    /// app swipes now, on any surface.
     private func cards(_ tasks: [TaskItem]) -> some View {
         ScrollViewReader { proxy in
             ScrollView {

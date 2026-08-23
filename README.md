@@ -78,7 +78,9 @@ Sources/
   Mac/                 What only a window has: the root layout, the status strip, the
                        shortcuts sheet, the due-date sheet and the menu bar extra
   IOS/                 PhoneRootView — header, pager, cards, tab bar, drawer, Inbox, detail
-                       sheet; PadRootView — the desk's three panes in a split view
+                       sheet; PhoneColumnPage — one column of that pager, cards and the
+                       ground around them; PadRootView — the desk's three panes in a
+                       split view
   Shared/              The board itself — scroller, column, card, composer, keyboard map
                        — plus InboxPanel, the global Inbox standing beside it
                        — plus the sidebar, the toolbar, the inspector, chips (label, due,
@@ -100,11 +102,18 @@ Tests/                 Swift Testing suites — model, store, boards, columns an
                        of those and the app
   Fixtures/            board-v1*.json … board-v5.json — real older boards, kept to migrate against
 UITests/               XCUITest, iOS simulator only, on a scheme of its own — the drag
-                       between the Inbox panel and the board, the leading-edge
-                       swipe that opens the drawer and the source list, and the
-                       column strip's portrait-only rule: which recognizer wins a
-                       pan, and what a size class draws, are the things no unit
-                       test can reach
+                       between the Inbox panel and the board, where a card dropped on
+                       a column's ground lands on either idiom, the leading-edge
+                       swipe that opens the drawer and the source list, the
+                       column strip's portrait-only rule, the tab bar standing up
+                       on its side, cards that no longer swipe open, the detail
+                       sheet stopping short of the top, the "+" raising no panel
+                       behind it, and Settings showing one subject at a time:
+                       which recognizer wins a pan, what a size class draws, where
+                       a control *lands*, what a row does under a finger, how tall
+                       UIKit made a sheet, what is left standing once a sheet is
+                       dismissed, and which of seven panes is built, are the
+                       things no unit test can reach
 Resources/
   Fonts/               Manrope + Instrument Serif (OFL), registered on first use
   Assets.xcassets      AccentColor; AppIcon — one iOS slot and ten macOS renditions,
@@ -132,7 +141,7 @@ side, wrapped in mock chrome. Natively the OS supplies that chrome, so:
 | Light/Dark toggle in the page header | Follows the system appearance; both palettes come straight from the spec's theme blocks |
 | `--glass` tab bar + `backdrop-filter: blur(20px)` | `glassEffect` inside a `GlassEffectContainer` (the spec's light-mode `--glass` is a self-referential CSS variable and resolves to nothing — Liquid Glass replaces it) |
 | Absolutely-positioned label picker | Native `.popover` |
-| `animation: sheetUp`, `max-height: 82%` | Native `.sheet`, but `.presentationDetents([.large])` — the 82% could not be kept without shrinking every control inside it; see **Touch targets** |
+| `animation: sheetUp`, `max-height: 82%` | Native `.sheet` at `.presentationDetents([.fraction(0.8)])` — four fifths, near enough the spec's figure. It shrinks every control inside it by 4%, which is a cost this app now takes deliberately; see **Touch targets** |
 | HTML5 drag events | `.draggable` / `.dropDestination` with `onDragSessionUpdated`, over the app's own `TaskTransfer` type rather than loose text; see **Drag and drop** |
 | Due chips tinted by matching the strings `"Today"` / `"Thu"` / `"Fri"` | Real calendar days; `DueDate` derives both the chip text and its urgency from the day distance those literals encoded |
 | `min-width` on the status segments | Border-box, so the frame wraps the padding; `ViewThatFits` gives the spec's `flex: 1 0 auto` **and** its `overflow-x: auto` fallback |
@@ -341,19 +350,36 @@ File menu's now and no substituted control in this app carries a key of its own
 the smaller fix: their context menu is the only route rename, recolour, reorder
 and delete have.
 
-**The detail sheet is `.large` only, and that is a touch-target decision rather
-than a layout one.** A sheet held at any detent below `.large` floats inset 8pt
-from each screen edge on this OS and is *scaled* to compensate, so its whole
-content renders smaller than it lays out. At `.fraction(0.82)` every nominal 44pt
-control in the sheet measured **42.2488pt on a 402pt-wide phone** and
-**42.1227pt on a 375pt one** — Close, Add label, the checklist toggles, the
-Move-to chips, Due date and Priority, all of them under the minimum. The factor
-is `(width - 16) / width`, which is 0.96020 and 0.95733 for those two widths, so
-it differs per device and no constant inflation of the shared `.sheet` presets
-can clear 44 everywhere. The presets therefore still claim exactly 44 and the
-sheet gave up its height instead: at `.large` the same controls measure
-**44.0000 x 44.0000 on both devices**. `TouchTargetTests` cannot see any of
-this — it reads the presets, and the presets were right the whole time.
+**The detail sheet is the one surface that knowingly renders under 44pt.** A
+sheet held at any detent below `.large` is laid out at the full screen width and
+then *transformed* — inset 8pt from each screen edge and scaled by
+`(width - 16) / width` — so its whole content renders smaller than it lays out.
+Measured with the Close button, which is exactly 44pt as drawn:
+
+| Device | Width | `.large` | `.fraction(0.8)` | Factor |
+| --- | --- | --- | --- | --- |
+| iPhone 17 Pro | 402pt | 44.0000 | **42.2487** | 0.96019 |
+| iPhone 17e | 390pt | 44.0000 | **42.1949** | 0.95897 |
+
+`(width - 16) / width` to five places on both, so the arithmetic is the whole
+story and it holds for every control in there — Close, Add label, the checklist
+toggles, the Move-to chips, Due date and Priority.
+
+**The sheet was `.large` for exactly that reason and is not any more**, because
+four fifths is what it was asked for. The factor differs per device, so no
+constant inflation of the shared `.sheet` presets clears 44 everywhere; a preset
+that did would have to be `44 * width / (width - 16)`, which is 45.82pt on a
+402pt phone and 45.96pt on the narrowest iPhone this build runs on. Rounding all
+of them up to 46 would clear it — at the cost of every other surface those
+presets are shared with. The alternative is not to be a sheet at all: a
+`PhoneNavDrawer`-shaped overlay takes any share of the screen without a
+transform, which is what `PhoneInboxSheet` is and why. Neither is a smaller
+change than the detent, so neither was made on the way past; the 4% is recorded
+here and in the source rather than discovered later.
+
+`TouchTargetTests` cannot see any of this — it reads the presets, and the presets
+still claim exactly 44. What it does not know is that this one surface is scaled
+after the fact. `UITests/DetailSheetHeightTests` pins the height that costs it.
 
 The board itself now carries the pair too. `BoardTaskCard`, `BoardColumnView`,
 `BoardScrollView`, `BoardTaskComposer`, `BoardSidebar`, `BoardToolbar` and
@@ -546,7 +572,9 @@ panel vanished the moment a card was deselected and the board reflowed under the
 pointer, which made the inspector toggle look broken. It now renders at its own
 width with a placeholder. And **the iOS empty column does not use
 `EmptyStateView.column`** — that copy says "Drag a card here, or start one", and
-the phone has no card drag; `PhoneRootView.emptyColumn` says "Add the first task
+on a surface showing one column at a time the card to drag is on another screen.
+A drag does land there now (see **Drag and drop**), but it is the second way in
+rather than the one to name: `PhoneRootView.emptyColumn` says "Add the first task
 to this column, or swipe to another" instead.
 
 ## What the spec does not define
@@ -744,9 +772,9 @@ they are the same `BoardTaskCard` a column draws.
 a style preference: a `List` handles drags inside its own bounds, so a card
 dropped anywhere in the panel except squarely on top of another card never
 reached the panel's drop destination behind it. Dragging *out* of the panel
-worked the whole time, which is what made it look finished. The list is still
-right for the flat surfaces — it is where `swipeActions` come from, and the phone
-needs those; the panel is desk and iPad only, so it loses nothing.
+worked the whole time, which is what made it look finished. The swap cost the
+panel's rows their `swipeActions` when it was made, and costs nothing at all now
+that no card in the app has any.
 
 `isInboxDropTarget` lights the panel, and lives on the store rather than in the
 panel because a drop destination nested inside another takes the hover from its
@@ -817,8 +845,9 @@ On macOS, drag a card onto a board row in the sidebar to file it there and onto 
 Inbox row to unfile it, or use the inspector's board menu and its "Move to"
 segments. On iOS, the detail sheet's board row and the card's "Move to ▸" context
 submenu do the same. The board menu — the row above the segments, on both
-surfaces — is the route back: it lists the Inbox first, and the phone has no card
-drag, so without it filing a card would be a one-way door.
+surfaces — is the route back: it lists the Inbox first, and the phone's card drag
+reaches the board's own columns and nothing else — there is no Inbox panel on
+that surface to drop onto — so without it filing a card would be a one-way door.
 
 ### Codes
 
@@ -992,8 +1021,8 @@ track the real calendar.
 ### Completing, reopening and deleting
 
 A task reaches Done three ways now: dragged there, sent there from "Move to", or
-completed where it stands — a circular checkbox on either card, a leading swipe
-on iOS, a context-menu item on macOS. The checkbox is `CompletionToggle`, which
+completed where it stands — a circular checkbox on either card, and a
+context-menu item on both platforms. The checkbox is `CompletionToggle`, which
 is also what the checklist rows are drawn from: same accent fill, same border,
 same tick glyph, so the board and the checklist cannot drift into two ideas of
 what "done" looks like. Only the corner radius is a metric, because a card wants
@@ -1008,9 +1037,10 @@ refuse an archived task outright, where Restore is the only verb — see
 **Saved views and the archive**.
 
 **The verb is Trash, and it happens immediately.** It is a context-menu item and
-an inspector button on macOS, and a trailing swipe plus a row at the foot of the
-sheet on iOS; each swipe action is duplicated in the row's context menu, because
-a swipe is unreachable with VoiceOver or Switch Control. Trashing a task takes
+an inspector button on macOS, and the long-press menu plus a row at the foot of
+the sheet on iOS. It had a trailing swipe on the flat surfaces until the swipes
+went; the menu carried the same verb the whole time, because a swipe is
+unreachable with VoiceOver or Switch Control. Trashing a task takes
 its drafts, its open editing sessions and its search memo with it, and the
 selection falls to the next card in the same column — else the one above it —
 rather than jumping the board. A one-line field that an open session had emptied
@@ -1019,18 +1049,49 @@ lands an untitled card on the board. There is still no confirmation, and now
 there are two things behind it rather than one: ⌘Z, and thirty days in the trash.
 See **The trash**.
 
-The iOS quick-capture button creates its task untitled and opens the sheet with
-the title focused, so closing that sheet without typing anything would leave an
-untitled card behind. It does not: dismissing takes the card away again — by the
-× or by the drag-down, both of which go through the same pair of calls — but
-only while the task is still *exactly* as capture made it. A task the user
-touched once is theirs, whatever they emptied it back to afterwards.
+Every `+` that opens an editor rather than a one-line composer — the iOS
+quick-capture button, and the source list's capture popover on the desk —
+creates its card untitled and opens the editor with the title field focused, so
+closing it again without filling anything in would leave an untitled card
+behind. It does not: the dismissal takes the card away again, by the ×, by the
+drag-down, or by clicking away from the popover, all of which land on
+`BoardStore.discardIfBlank`.
 
-The iOS list is a real `List` rather than the `LazyVStack` it started as, purely
-for `swipeActions`: a hand-rolled swipe has to fight the scroll view for the
-gesture, re-implement the full-swipe threshold, and is invisible to VoiceOver.
-The rows are stripped back to clear backgrounds, no separators and the design's
-10pt gap, so the cards look exactly as they did.
+**What it asks is what the editor was closed with, not whether anything was ever
+typed in it** — which is the way round this used to have it. It tracked *touch*:
+any mutation at all disqualified a card for good, so a capture whose priority was
+tried and put back, or whose title was typed and deleted, or which merely started
+with a due date because of Settings ▸ **New tasks**, stayed on the board as an
+untitled card nobody asked for. Now the card is kept beside a copy of itself *as
+capture made it*, and the dismissal compares the two —
+`TaskItem.hasSameContent(as:)`, which is the fields the controls write and
+nothing else, the code and the timestamps and the activity feed being the card's
+record rather than anything filled into it.
+
+Comparing against what was made rather than against a row of empty values is the
+only honest way to ask, because two of those controls do not start empty: a new
+card carries `Preferences.defaultDueDate` and the placement the `+` was pressed
+in, so "no due date, in the Inbox" is the empty state on one machine and a card
+somebody filled in on another. It also makes the editor's own board menu count —
+a capture filed onto a board with nothing else in it is a card the user meant.
+And it is asked exactly once: whatever the card is when the editor closes, it is
+one the user kept, and opening and closing it again never takes it away.
+
+The iOS **flat** list is a real `List` rather than the `LazyVStack` it started
+as. It was made one purely for `swipeActions` — a hand-rolled swipe has to fight
+the scroll view for the gesture, re-implement the full-swipe threshold, and is
+invisible to VoiceOver — and **that reason expired when the cards stopped
+swiping**. It is kept there rather than re-chosen: the two containers are not
+interchangeable, and on Search, a saved view and the Inbox sheet the difference
+does not arise, because none of those is a place a card can be dropped. The rows
+are stripped back to clear backgrounds, no separators and the design's 10pt gap,
+so the cards look exactly as they did.
+
+**The board's own pages are the other container**, and that is the difference
+spelled out: a `List` handles drags inside its own bounds, which is why
+`InboxPanel` and the board's columns are stacks, and a column page that stayed a
+`List` took no drop anywhere on it. `PhoneColumnPage` is that stack — see **Drag
+and drop**.
 
 ### The trash
 
@@ -1038,8 +1099,38 @@ The rows are stripped back to clear backgrounds, no separators and the design's
 containers-and-cards the user can get rid of — a task, a column, a board — all
 say **Trash** now rather than Delete, and what they remove goes into
 `BoardSnapshot.trash` as a `TrashedItem`: what it was, and enough about where it
-was to put it back. Settings ▸ **Trash** lists them with a countdown, a Restore
-and a Delete; after thirty days they go on their own.
+was to put it back. `TrashView` lists them with a countdown, a Restore and a
+Delete; after thirty days they go on their own.
+
+**Where it is reached from, and why it is not Settings.** It was a tab of
+Settings, and it was on the wrong shelf: every other subject in there is a
+preference about how the app behaves, and this is the user's own work sitting out
+a thirty-day countdown. A preference can wait; a card thrown away on Tuesday
+cannot wait past the thirtieth day, and getting it back should not be three taps
+into a preferences sheet. So it has three doors, all raising the one flag,
+`BoardStore.isShowingTrash`:
+
+- **macOS and iPad** — a bin at the foot of the source list, in the row that also
+  carries the desk's capture "+", with the Trash itself in a popover beside it.
+  A glyph in the corner rather than a row in the list, because the rows above are
+  places the board's work *is* and this is where work goes when it stops being
+  work — the shape the Finder, Mail and Photos all give it. The glyph takes the
+  accent while there is something in there and the ink's quiet grey while there is
+  not, so the one thing the button is for is legible before it is pressed.
+- **iPhone** — the board menu at the top right, which is that surface's drawer for
+  everything with no other home. It reads "Trash (4)" while there is something in
+  it: a menu row has nowhere to put a trailing count, and "Trash" alone makes
+  opening it the only way to learn there is nothing in it. The sheet is presented
+  by `PhoneRootView` rather than by the header, because a menu can raise a flag
+  and not a sheet — the same split `SettingsSheet` makes for the drawer's Settings
+  row, and the reason the flag is on the store rather than in a view.
+
+`Tests/TrashSurfaceTests` reads the source for both halves — that `SettingsView`
+builds no `TrashView` any more, and that each surface has a door — and
+`UITests/TrashSurfaceTests` presses the phone's and checks the Trash is what comes
+up. Neither throws anything away first: what the list holds depends on what the
+user has deleted, and a fixture that has to be empty is one the suite running
+before it can break.
 
 This sits *beside* ⌘Z rather than replacing it, because the two answer different
 questions. Undo answers "I did not mean that", and answers it better — it puts
@@ -1079,8 +1170,8 @@ half seconds. Trashing has no confirmation and never had one, so until this the
 only sign that a board had gone was that it was no longer there — fine for a card
 clicked in a column, thin for a board deleted out of a menu, and the only place
 in the app where something sizeable could leave without the screen saying so. It
-also teaches the trash exists, which is otherwise a thing you have to go into
-Settings to find out.
+also teaches the trash exists, which is otherwise a thing you have to notice a bin
+in the corner to find out.
 
 It is a **message rather than a control**: no Undo button, because ⌘Z is the undo
 and is on the Edit menu naming the exact step, and a button that is there for
@@ -1389,8 +1480,8 @@ not work in progress, so its completion toggle is not drawn: `BoardTaskCard` mak
 was drawn over with it, so the Archive's rows close up instead of every one of
 them keeping a hole; `PhoneTaskCard` puts a Restore disc in the same 22pt circle
 at the same 44pt target. The context menu offers Restore *in place of*
-Complete/Reopen, the leading swipe on the phone restores rather than completes,
-and the macOS rotor action for completion is suppressed. Left live, the tick did
+Complete/Reopen — at the head of the menu, where completion sits everywhere else
+— and the macOS rotor action for completion is suppressed. Left live, the tick did
 two invisible things: it moved the card to Done — silently choosing the column it
 would reappear in — and on the way in it ticked off whatever sub-tasks were left.
 Neither showed, because the Archive is ordered by `archivedAt` and the row did
@@ -1464,10 +1555,11 @@ carrying a second copy of them. Three things about it are load-bearing:
   static `if Trailing.self != EmptyView.self`, because an `EmptyView` wrapped in a
   row modifier is a view like any other and a `List` is entitled to give it a
   row's worth of insets.
-- **Swipe actions arrive through the card, not the list.** `PlatformTaskCard` is
-  the one place a `#if os()` picks the platform's card — the desk and the iPad
-  draw `ListCard`, the phone draws `PhoneTaskCard` with `PhoneTaskRowActions`. List-row traits are read off the
-  row's own view, so this is where SwiftUI looks for them.
+- **Row actions arrive through the card, not the list.** `PlatformTaskCard` is
+  the one place a `#if os()` picks the platform's card — macOS draws `ListCard`,
+  iOS draws `PhoneTaskCard` with `PhoneTaskRowActions`. List-row traits are read
+  off the row's own view, so this is where SwiftUI looks for them; that mattered
+  for `swipeActions` while there were any, and still does for the context menu.
 
 `PhoneRootView.taskList` is now a call to that view and its `BareRow` is gone.
 
@@ -1507,28 +1599,104 @@ These rules are the iPhone's alone:
   over a saved view included, because a panel over the top is showing whether or
   not a view is under it.
 
-  It is **hand-rolled rather than a `.sheet` with detents**, for the measured
-  reason `PhoneDetailSheet` gave up its 82% height to: a sheet held below
-  `.large` floats inset and is *scaled* to compensate — 0.9602 on a 402pt-wide
-  phone — so every 44pt control in it lands at 42.25pt, under the touch minimum,
-  and the factor differs per device so no padding buys it back. This panel wants
-  to be short, so it is a `PhoneNavDrawer`-shaped overlay instead: a scrim, a
-  transition, `.isModal`, and a drag-down to dismiss — the drawer's own answer,
-  rotated a quarter turn. It sits **under** the drawer in the overlay order,
+  It is **a real `.sheet` held at a detent, the same kind of thing as
+  `PhoneDetailSheet`** — and it was hand-rolled until it wasn't. The reason for
+  hand-rolling was measured and is still true: a sheet below `.large` floats
+  inset and is *scaled* to compensate — 0.9602 on a 402pt-wide phone — so every
+  44pt control in it lands at ~42.2, and the factor differs per device so no
+  padding buys it back (see **Touch targets**). The editor pays that knowingly
+  at four fifths; this pays it at nine tenths, because everything the
+  hand-rolled panel did was a worse copy of what the system already does.
+
+  Four pieces of this file went away with the swap — the scrim and its fade, the
+  insertion and removal transitions, the live drag offset with its
+  spring-back-or-let-go rule, and the `scrollDisabled` that decided whether a pan
+  belonged to the list or to the panel — and what arrived is the platform's own
+  physics: rubber banding, a flick that carries, the drag handed to the list
+  while the list can use it and taken back at the top of it, `.isModal` without
+  being asked, and a grabber drawn by `presentationDragIndicator` rather than by
+  a `Capsule` of ours.
+
+  **A card tapped in the Inbox opens the editor over it**, and that is the one
+  thing the swap put at risk: a sheet is presented *by* whatever is on screen,
+  and the root cannot put a second one up while this one is over it — the tap
+  would do nothing at all. So `phoneTaskDetailSheet` has two call sites with one
+  rule between them: the root holds it while the Inbox is shut, the Inbox holds
+  it while it is open, and exactly one is live. `PhoneNavDrawer` hosts its own
+  sheets for the same reason and says so in the same words.
+
+  **The drag cannot be tested from here**, which is why the four tests that
+  covered the hand-rolled version went with it. A synthetic
+  `press(forDuration:thenDragTo:)` does not drive a system sheet's pan — a
+  recording of the simulator shows the sheet perfectly still through a 500pt drag
+  that dismisses it under a real finger. `UITests/InboxPanelTests` pins what is
+  left and reachable: the height, the × , and the editor coming up over the
+  Inbox and the Inbox still being there afterwards. `DetailSheetHeightTests`
+  reaches the same wall for the editor and answers it the same way.
+
+  It sits **under** the drawer in the overlay order,
   because the drawer is the way to a *board* and a board list half-covered by the
   Inbox is the wrong way round; the drawer's Inbox row closes the drawer on its
-  way. Its height is a *maximum* rather than a height (72% of the screen), so an
-  Inbox with two cards in it is a panel two cards tall.
+  way. Its height is a **share of the screen — 90% of it** — rather than the
+  height of what is in it: the list inside is `TaskListView`, `TaskListView` is a
+  `List`, and a `List` reports no useful intrinsic height, so under `fixedSize`
+  it collapses and the panel draws as a header over a hole. It was two thirds and
+  is most of the screen now, because the Inbox is a list you work *through* and
+  two thirds of a phone is four cards and a scroll for the rest. What the strip
+  along the top buys is the thing a panel has over the page this used to be: the
+  board is still there, and it is obvious that tapping it puts you back.
+
+  **The condition lives inside the panel, not around it.** `PhoneRootView` used
+  to hold `if store.isInboxOpen { PhoneInboxSheet() }`, with the move and the
+  fade written on the two views one level further in — and neither ran: a
+  transition belongs to the view that is *itself* appearing, and on a subtree
+  that arrives all at once SwiftUI animates the outermost view and ignores what
+  is written inside it. So the panel faded up at its final height in about four
+  frames, which reads as no animation rather than as a quick one. A recording of
+  the simulator, stepped frame by frame, is what settled that — the same
+  instrument the drop flash was found with. With the `if` inside, the scrim and
+  the panel are each inserted in their own right and keep their own arrivals.
+  **`PhoneNavDrawer` is built the same way and has the same fade**; it is next.
+  Timing stays `PhoneRootView`'s `motionAnimation`, which is what makes both of
+  them nothing at all under Reduce Motion.
+- **The chips strip follows the column you are on.** Four columns with ordinary
+  names overrun a phone — on the seed board the strip clips at 370pt and the Done
+  chip runs to 389 — and the strip never moved, so paging to the last column
+  highlighted a chip with 19 of its 70 points off the screen and left it there.
+  It is a `ScrollViewReader` now, scrolled on every change of `mobileColumnID`
+  and once on appear, because a board is not always opened on its first column.
+  `scrollTo` with **no anchor** is the minimum scroll that makes the chip whole
+  and no scroll at all when it is whole already — the board's own rule on the
+  desk, for the reason `BoardScrollView` gives: centring instead would shuffle
+  the strip under every page turn, including the ones that needed nothing. The
+  chips are the only thing on the surface that names the column you are on, so
+  `UITests/ColumnChipTests` matches them by their combined `Name, count` label —
+  a page heading names its column too, and it is static text rather than a
+  button.
+
 - **Picking a tab leaves the view.** `mobileTasks` lets a view outrank the tab,
   so without this, tapping "Board" showed Today. `selectTab(_:)` and
   `quickCapture()` both clear it, and no tab is highlighted while a view is open
   — highlighting one would name a place that is not what is on screen.
+- **The "+" raises nothing but the card it makes.** `quickCapture()` used to
+  open the Inbox panel as well, on the reasoning that the card lands there and
+  should be visible once the sheet closes. In practice it opened a second
+  surface *behind* one the user is already typing into: never seen while it
+  mattered, and left standing over the board afterwards for somebody who never
+  asked for it. Capture is one act and it moves the user nowhere. The card is
+  still in the Inbox, and the sheet says so while it is being typed into — the
+  Move-to row names where it lives. Leaving a saved view stays, because that is
+  a different question: a filter the new card is unlikely to match is not a list
+  to strand somebody in whether or not a panel comes up over it.
+  `UITests/QuickCaptureTests` checks it **after the sheet closes**, which is
+  where it showed — a presented sheet marks what is under it inaccessible, so a
+  test that looked while the sheet was up would have passed against the bug.
 - **The `…` button is a real `Menu`.** It was a decorated `Image` — no action, no
   accessibility label, no tap target — sitting beside a hamburger that worked. It
   now has a 44pt target and carries the board-level actions with no other home on
   touch: the saved views, Archive completed, Manage labels and Clear search.
 - **Column chips are on Search and every saved view, never the Board tab**
-  (`showsMobileColumnChips`), where the pager directly above names the column.
+  (`showsMobileColumnChips`), where the strip in the header names the column.
   The Inbox's panel drops them too, and makes that call for itself: every card in
   it is unfiled, so the list would read "INBOX" under a panel titled Inbox.
 - **Everything below the drawer's title scrolls, and the indicators show.**
@@ -1640,7 +1808,14 @@ sheet at all.
 - ⌘F reaches a search field it cannot see: `focusSearch()` bumps
   `searchFocusToken`, which the toolbar's field watches. A counter rather than a
   flag, because with the field already focused a flag is already true and a
-  second ⌘F would be no change at all.
+  second ⌘F would be no change at all. **The phone's field watches it too**, and
+  `selectTab(.search)` bumps it: Search is a tab you go to in order to type in
+  it, and it used to arrive as an empty field with no keyboard and no caret, so
+  reaching it cost a second tap that had to find the field's own 22pt band of
+  text. The field opens through `focusWhenReady` like every other field in this
+  app that is opened *by* something, and answers the token for the times it is
+  already on screen. `UITests/SearchFocusTests` holds it: the tab, then the
+  keyboard, then a letter that has to land in the field.
 
 ### The menu bar
 
@@ -2144,8 +2319,8 @@ margins would still fit beside it; below that it is a trailing overlay. An iPad
 mini in portrait with the source list out leaves 166pt of detail beside a 348pt
 panel, and 166pt is half a column.
 
-What the iPad does *not* take from the phone: the tab bar, the column pager, the
-drawer and the detail sheet. Its cards are `BoardTaskCard`, so a tap selects and
+What the iPad does *not* take from the phone: the tab bar, the column chips and
+their paging, the drawer and the detail sheet. Its cards are `BoardTaskCard`, so a tap selects and
 fills the inspector rather than raising a sheet, and `store.sheetID` is never set.
 The Inbox and saved-view surfaces are `TaskListView` under a heading — there is no
 "← Board" button because every destination is a row in the sidebar, which is the
@@ -2156,9 +2331,7 @@ and `pasteDestination` are macOS 13 but iOS **27**, and this app deploys to iOS
 26, so `CardPasteboard` puts them behind an availability check and an iPad on 26
 keeps every other key on the card. `onDragSessionUpdated` is the same story
 (macOS 26, iOS 27), so on iOS 26 a lifted card does not dim while it is in the
-air — the drop handlers still clear the highlight. And the **flat lists on iPad
-lose the row swipe actions**, because they draw the desk's card rather than
-`PhoneTaskCard`; the long-press menu carries the same verbs.
+air — the drop handlers still clear the highlight.
 
 **Every menu-bar key is the card's on iPad.** `BoardKeyboard.menuOwnedShortcuts`
 is the set a card must *not* claim, because a menu key equivalent is dispatched
@@ -2249,6 +2422,128 @@ goes through `BoardStore.endDrag()` for that reason, and `DragLiftTests` pins
 both halves — the store's, by calling it, and the view's, by reading which phase
 the source listens to, since a drag session cannot be started from a test.
 
+### The card in the air says where it is going
+
+A lifted card dimmed and the column under the pointer lit up, and that was the
+whole of the feedback. It answers **which list** and says nothing about **where
+in it** — which is the entire content of a reorder. Worse, the answer is not the
+one anybody would guess: `before:` can only spell "ahead of that one", so a card
+dropped onto a card *below* it lands **after** that card, and one dropped onto a
+card *above* it lands **before**. The same target, two different results,
+depending on which way you came.
+
+**And the rule itself had to go.** Reading the side off the direction of travel
+is the only thing "dropped onto this card" *can* mean, and it cannot name the top
+of a list: a card dragged from anywhere earlier in board order onto the first
+card of a later column landed after it, so no gesture on the board put a card at
+the head of another column. The caret, drawing that faithfully, kept appearing on
+the far side of the card the pointer was on.
+
+So a caret names a **gap**, and each card offers its two halves as separate drop
+targets — `BoardTaskCard.dropZones`. The top half means *above this card*, the
+bottom half *below it*, and `BoardStore.drop(_:at:)` inserts into exactly that
+gap: `before:` the card for the top half, before whatever follows it *in that
+list* for the bottom, appending when nothing does. Nothing is inferred, so
+`move(_:onto:)` is no longer what a board card calls. A drop into the gap the
+card already occupies is a no-op that registers no step — a ⌘Z that takes back a
+card which never moved is worse than no ⌘Z at all.
+
+`dropTargetCaret` joins `dropTargetColumnID` and `isInboxDropTarget` on the
+store, cleared by `endDrag` with them, and set by whichever half the pointer is
+in with the same clear-only-if-it-is-still-mine guard the checklist rows use:
+leaving one for the next fires this one's `false` *after* the other's `true`. The
+card named draws a 3pt accent capsule on the edge named — the mark
+`ChecklistView` already draws between its rows, a shade thicker because a
+column's gaps are wider than a checklist's.
+
+Two things about those zones are load-bearing and were both found by measuring.
+They are **over** the card, not behind it: a drop stops at what it lands on, and
+with the zones in the background a drag released on a card landed nowhere. And
+they exist **only while something is in the air**, because they are plain
+hit-testable views and over an idle card they would take the click that opens it
+— during a drag there is no click to take. They reach half the column's
+`cardSpacing` past each end, so one card's halves meet the next card's in the
+middle of the gap and a pointer between two cards is over one of them rather than
+over neither, which is what made the caret blink out and jump to the foot of the
+column.
+
+**The iPad had no caret at all**, and the reason was upstream of the caret.
+`onDragSessionUpdated` — what `CardDragSession` uses to know a card is in the air
+— is macOS 26 but iOS **27**, and this app deploys to iOS 26, so on an iPad
+running 26 nothing ever set `draggingID`: no dimmed card, no column highlight,
+and nothing for a caret to hang off. `DraggableWhenOrdered` now takes the phone's
+own trick on that build — the payload being asked for is the lift — and the latch
+and expiry that make one pick-up one lift moved to `BoardStore.beginDrag(_:onLift:)`
+so both surfaces share them. The caret itself no longer *needs* the flag either:
+it is a fact about where the pointer is, and the card in the air is something it
+checks against rather than something it requires.
+
+**The iPhone's board pages take drops now, and used to take none at all.** They
+were `TaskListView`'s `List` — rows hosted in collection view cells — and a card
+released on one landed nowhere whether the target was the whole row or half of
+it, measured with the zones and with a plain whole-row destination; the space
+*around* the cards reached nothing either, so a column with nothing in it could
+not be dragged to by any gesture. A `List` handles drags inside its own bounds,
+which is the same sentence `InboxPanel` is a stack for. So a page is
+`PhoneColumnPage` now: a `ScrollView` and a `LazyVStack`, the container the
+desk's columns have always used, with the column's own drop destination around
+it. The card's two half-row zones work on that surface for the first time, and
+the ground under the last card and the whole of an empty column take a drop and
+land it in that column. `UITests/CardDropTargetTests` runs on both idioms rather
+than skipping the phone, and `UITests/ColumnDropTests` has a phone half of its
+own — turned on its side, which is the one shape where two columns share a phone
+screen and a drop can therefore cross one.
+
+The flat surfaces are still a `List`: Search, a saved view and the Inbox sheet
+have no ground that means anything, because none of them is a place a card can be
+put. What the swap costs is the rows' `swipeActions`, and no card in this app has
+swiped since 6.4.
+
+**A drop on a list's own ground keeps the row the card was on.** The ground is
+the space around a column's cards — its header, the gap under the last one, an
+empty column — and it names no gap of its own, so something has to be the
+default. That default used to be *append*: the caret went under whatever was
+last there, and the drop followed it. It is the wrong answer for the gesture
+people actually make. A board's columns are stages of one piece of work and a
+card is dragged **sideways** across them; the row it was on is where the eye is,
+and a card third in Doing that reappeared at the foot of a Backlog twenty cards
+long had to be found again before it could be put back. So third out is third
+in — `BoardStore.groundCaret(for:in:)` reads the rank the card holds in the list
+it is leaving and the caret goes above whatever holds that rank in the list it is
+arriving at.
+
+A pointer *inside* a card has named a gap, and that always wins: the rank is a
+default for a drop that did not say where, and nothing more. Appending is still
+the answer when the destination is the shorter list — a card fifth in its column
+dropped on a column holding two has no fifth place to keep, and the foot is the
+nearest thing to it — and an empty list gets no caret at all, because a caret is
+drawn *by* a card on one of its edges and there is no card there to draw it. The
+drop still lands; the column highlight is the whole of the feedback for that one.
+
+`drop(_:onGroundOf:)` is what the column and the Inbox panel call, and it is
+deliberately **not** `move(_:to:)`. Rank is a fact about a *drag*. Every other
+route into a column — the move-to menu, the source list's board rows, a bulk
+move, filing from the Inbox — is a card arriving from somewhere with no row to
+keep, and those go on landing at the end.
+
+The exception is a column the card is already in: a drop aimed at no particular
+card is aimed at where the card already is, so it moves nothing, registers no
+step, and draws no caret. The column still lights up. The two marks say different
+things — the highlight is *which list the pointer is in*, the caret is *where the
+card would go* — and there being nowhere for it to go is a true thing to draw.
+
+`DropCaretTests` asserts the pair rather than the implementation: for each
+direction it reads the caret, performs the move the drop closure would perform,
+and reads the board order back, so a caret that lied would fail. The seed
+fixture's columns hold one and two cards, which cannot tell "kept its row" from
+"landed at the foot", so the ground tests deepen it to five and three. The edge itself
+is a claim about pixels, so it is measured like one — the card is rendered
+through `ImageRenderer` with and without the mark and the rows that changed are
+compared, the way `AddColumnStripTests` measures its turned label. Swapping
+`.top` and `.bottom` in the card fails that test and nothing else, which is
+exactly what it is for. The raster's row order is measured rather than assumed,
+by rendering a tile that is black on top and white below.
+
 ## Gestures and haptics on iOS
 
 **The board pages one column at a time**, which seed task `t4` has described
@@ -2257,17 +2552,35 @@ no way at all. It is a horizontal `ScrollView` with a page per column, held by
 `.scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))` and bound to
 `store.mobileColumnID` through `.scrollPosition`. `.viewAligned` rather than
 `.paging` because a page is not always the viewport: in landscape two columns
-share the screen, and `.paging` would step past one of them. The chevrons stay,
-and **the dots are buttons now** — 44pt tall, named for their column, and marked
-selected — so paging has a target as well as a gesture.
+share the screen, and `.paging` would step past one of them.
+
+**The chips are the whole of the non-gesture route.** There was a second row
+under them — a chevron either side of a strip of dots, each dot a button for its
+column — which said in an alphabet of its own what the chips said by name,
+directly above, in 46pt of a screen that has none to spare. It is gone;
+`PhoneColumnPager` went with it, and so did the `Previous column` / `Next column`
+strings. Tapping a chip still jumps to its column, the strip still scrolls the
+current one into view, and the swipe is unchanged.
+
+**A launch lands on a column the board has.** `mobileColumnID` is session state —
+where the user is looking rather than anything about the board — so it is out of
+`BoardSnapshot` and every run starts at the property's default, which is a *seed*
+column's id. A board made in the app carries ids of its own
+(`Board.startingColumns()`), so opening straight onto one left the phone naming a
+column that is on no board: every chip in the strip unlit, while the list, the
+heading and the add row all showed the first column through `mobileColumnIndex`'s
+`?? 0` — the surface disagreeing with itself about where it was. `init` now ends
+in `detachSurfacesFromMissingColumns()`, the same reconciler `selectBoard`, a
+column delete and an undo already run, so a launch is no longer the one way onto
+a board that skipped it. A board that *has* the default keeps it, which is why
+the seed board still opens on In Progress.
 
 **The strip is portrait's.** Turned on its side the phone draws two columns at
 once, each under a heading that gives its dot, its name and its count, so the
-dots would be a second and vaguer answer to a question already answered — in the
-dimension a phone in landscape has least of. `PhoneColumnPager` is behind
-`!isShort` in `PhoneRootView` and its own compact-height preset went with the
-case it was for. The swipe is untouched in both shapes, and so is every route
-through the header.
+chips would be a second answer to a question already answered — in the dimension
+a phone in landscape has least of. `columnChips` is behind `!isShort` in
+`PhoneHeader`. The paging swipe is untouched in both shapes, and so is every
+route through the header.
 
 **Reorder within a column is a long press and a drag**, the same
 `.draggable`/`.dropDestination` pair and the same `move(_:to:before:)` the desk
@@ -2275,26 +2588,48 @@ uses, under the same `allowsCardDrag` guard: where the cards on screen are not i
 the board's own order, there is nothing a drop could mean. The lift is a long
 press and the page turn is a pan, so the two do not compete. The non-drag
 equivalent is **Move Up / Move Down in the long-press menu**, offered only where
-there is somewhere to go. There is no cross-column drag on the phone: the pager
-does not auto-scroll during a drag session, so a lift can only land in its own
-column, and cross-column filing stays on "Move to ▸".
+there is somewhere to go.
 
-**Board rows give up their swipe actions to pay for paging.** A pan that begins
-on a list row is claimed by whichever recognizer reaches it first, and an
-enclosing scroll view always does. Measured both ways round — a paging
-`ScrollView` and a `TabView(.page)` — the leading swipe never revealed Complete;
-the board simply turned to the next column. The failure requirement that would
-settle it the other way needs a recognizer you own to state it on, and this one
-is SwiftUI's: the row's swipe handler is a `_UISwipeActionPanGestureRecognizer`
-inside a `List`, with no delegate of ours and no seam to reach it through. **The
-edge swipe below is the same rule won rather than lost**, and the difference is
-exactly that: the recognizer there is one this app makes. So `PhoneTaskRowActions`
-withholds both edges where `BoardStore.isColumnPaging` rather than drawing an
-affordance that cannot fire, and every verb they carried is on the long press,
-which is where VoiceOver and Switch Control read them from anyway. **Off the
-board — the Inbox, Search, a saved view, the Archive — nothing competes and both
-swipes are untouched**; that is the same predicate answering "who owns a
-horizontal drag here", which is why it is one property and not two.
+**A card can now be dragged to another column**, which it could not while the
+pages were a `List`. Two things changed together. The page takes drops anywhere
+in it — see `PhoneColumnPage` under **Drag and drop** — and, because the pager's
+own scroll view now has drop destinations in its content rather than inside
+collection view cells, it auto-scrolls under a lifted card: held at the leading
+or trailing edge the page turns, and the card lands in whatever column it turns
+to. Measured on an iPhone in portrait, from In Progress to Done, with the card
+ticked on arrival the way every route into Done ticks one. Turned on its side two
+columns share the screen and the drag needs no page turn at all. "Move to ▸" is
+still there and is still the way a screen reader does it.
+
+**No card swipes.** A card moves sideways once it has been picked up, and that
+is the only time a sideways finger moves one. The two edges are gone from
+`PhoneTaskRowActions`, which is now a context menu and nothing else, and the
+paging swipe is untouched in both orientations.
+
+This settles a disagreement the app was carrying. **The board's rows had already
+given their swipe actions up to pay for paging**: a pan beginning on a list row is
+claimed by whichever recognizer reaches it first and an enclosing scroll view
+always does — measured both ways round, with a paging `ScrollView` and with a
+`TabView(.page)`, and the leading swipe never revealed Complete; the board simply
+turned to the next column. The failure requirement that would settle it the other
+way needs a recognizer you own to state it on, and that one was SwiftUI's: a
+`_UISwipeActionPanGestureRecognizer` inside a `List`, with no delegate of ours and
+no seam to reach it through. (**The edge swipe below is the same rule won rather
+than lost**, and the difference is exactly that: the recognizer there is one this
+app makes.) So a sideways drag on a card meant one thing on the board and another
+in the Inbox, which is worse than either answer on its own.
+
+**Nothing became unreachable.** The menu was never a duplicate of the two edges:
+it carries Move to, Archive, the reorder items and Copy Link, which no edge ever
+offered, and it was already the only route for a reader on VoiceOver or Switch
+Control, to whom a swipe is invisible. What the edges held — Complete and Trash —
+is still the first and last thing in it. `BoardStore.isColumnPaging` keeps only
+the layout question it was named for; it is no longer the answer to "who owns a
+horizontal drag here", because that question now has one answer everywhere.
+`UITests/RowSwipeTests` swipes a real card both ways on both surfaces and insists
+that nothing comes out from under it — and, on the flat list, that the card has
+not moved at all, since a row that slides 60pt and springs back has still opened
+under the finger.
 
 **Haptics are `.sensoryFeedback(_:trigger:)` throughout** — no generator to
 prepare, and the system setting is honoured by the API. `.selection` on paging
@@ -2303,12 +2638,22 @@ going *into* done, gated to fire once and only on that edge, so it plays whereve
 the tick came from and never on a reopen; `.impact(.light)` on a lift and on a
 drop. Nothing per keystroke.
 
-The drop bump is a counter local to the card rather than `store.draggingID`,
-which the desk card keeps in step through `onDragSessionUpdated` — that is iOS
-27, and this target is iOS 26. A lift with no matching end would leave the store
-saying a card is in flight long after it landed, so the phone's card does not dim
-while dragging either. Both fold into `onDragSessionUpdated` when the target
-moves.
+**The lift bump is latched, because SwiftUI asks for the payload more than
+once.** `.draggable` takes the payload as an autoclosure, and the comment here
+used to say it is called when a session begins — it is called again for the
+preview, and again as the view updates under the finger. Logged at three to six
+calls for one pick-up, each of them a tap: what a card in the air felt like was
+a rattle rather than a knock. `draggingID` is what tells one lift from the next,
+and the payload closure is the phone's only signal for setting it — the desk sets
+it from `onDragSessionUpdated`, which is iOS **27** against this target's 26
+(checked in the SDK, not assumed). Every drop clears it through `endDrag`, so the
+ordinary case is exact. The one case with no callback at all is a card let go
+over nothing, which ends the session without telling anybody; a 20-second sleep
+releases the flag so that card can tap again, longer than any drag a hand makes
+and short enough to be forgotten before the same hand tries again. The drop bump
+next to it is a plain counter — a drop has a handler, so it needs no latch. Both
+fold into `onDragSessionUpdated` when the target moves, which is also when the
+phone's card can start dimming while it is carried.
 
 ### The edge swipe
 
@@ -2320,8 +2665,9 @@ iOS app opens by pulling from that edge.
 `View.leadingEdgeSwipe(perform:)` in `Sources/IOS/EdgeSwipe.swift` is the whole
 of it, and it is UIKit rather than SwiftUI on purpose. A `DragGesture` on a strip
 at the edge is the obvious spelling and it loses to the board, for the same
-reason the rows lost their swipe actions: the board is a horizontal scroll view
-on both idioms and its recognizer takes any pan that lands on it.
+reason the board's rows never managed to keep swipe actions: the board is a
+horizontal scroll view on both idioms and its recognizer takes any pan that
+lands on it.
 `UIScreenEdgePanGestureRecognizer` is the one recognizer built for this — it is
 what a navigation controller's interactive pop is made of — and SwiftUI exposes
 nothing like it, so a `UIViewRepresentable` hangs one on the view controller
@@ -2340,6 +2686,38 @@ swipe out. Simultaneous recognition was the other spelling and is the wrong one 
 it opens the drawer *and* turns the board to the next column, which is two
 answers to one swipe. `UITests/EdgeSwipeTests` holds both halves: the pull that
 opens, and a swipe from the middle of the board that must still page it.
+
+**The drawer comes in under the finger**, which it did not at first. The
+recognizer reported only `.began` and the handler set `isNavDrawerOpen = true`,
+so the panel arrived whole and slid itself in over its own 0.28s while the finger
+went wherever it liked: a pull of a fifth of the screen and a pull of all of it
+were the same act, and neither had anything to do with where the drawer was
+drawn. `EdgePan` reports every phase now — `distance` and `velocity` flipped back
+to *inwards* on the way out, so no call site has to know which way the layout
+runs — and `PhoneRootView.drawerPan` turns the distance into a fraction of the
+panel's 84% and hands it to `PhoneNavDrawer.progress`. The panel is offset by
+what is left of that fraction and the scrim darkens with it, so a drag half-way
+in is half-way to hiding the board.
+
+Three things fall out of that being a *position* rather than an animation. The
+panel comes into the tree inside a transaction with animations off, because its
+own `.transition(.move(edge: .leading))` would otherwise be a second opinion
+about where it is. The lift is the only animated part: past halfway it settles
+open, short of that it goes back, and either way a throw over 350pt/s decides
+instead — which is how every drawer on this platform reads a pan. And the closing
+settle has to *finish* before `isNavDrawerOpen` goes false, so `Motion.run` grew
+a completion-carrying spelling; under Reduce Motion the animation is `nil` and
+the completion runs at once, which is the right answer rather than a special
+case. Once the drag is over, `progress` goes back to 1 and the drawer is the
+transition's again — the hamburger, the rows and the ✕ never learned about any
+of this.
+
+`EdgeSwipeTests` gained the half that can tell the two behaviours apart. An
+intermediate frame is not something XCUITest can be asked about, but the two ends
+of the same *slow* drag are: a fifth of the screen has to leave the drawer shut
+and four fifths has to open it, and under the old rule both opened it. Slowly in
+both cases, because a throw is allowed to open the drawer from anywhere — which
+is also what makes the full-width swipe above pass whatever its distance.
 
 The iPad's half is not a gap SwiftUI fills either. `UISplitViewController` has
 `presentsWithGesture` and it is on by default, but measured on an iPad Pro 13" in
@@ -2371,22 +2749,68 @@ for the rule that replaced it.
 
 A short screen is 402pt tall, and the portrait chrome left **191pt of list** in
 it: one card. So the compact height sheds chrome rather than columns — the serif
-title drops 30 → 22pt and one line, the stack spacing 16 → 9, and **both column
-selectors go**: the chips row, and under it the pager's chevrons and dots with
-the 46pt they sat in — a 44pt target under 2pt of padding, which was the whole of
-that row's compact-height preset. The list's top inset falls to 0 and its bottom
-to 92. That was **277pt of list, two columns of two cards**, before the strip's
-46 went back into it. Portrait is byte-for-byte unchanged: `isShort` is false
-everywhere in it. What names the column instead is the page's own dot-name-count
-heading, drawn whenever more than one page shares the screen — which is exactly
-the case where the two selectors are gone.
+title drops 30 → 22pt and one line, the stack spacing 16 → 9, and **the column
+selector goes**: the chips row, with the 10pt of clearance the pages take below
+it. (There was a second row here — the chevrons and dots — costing another 46;
+it is gone from both shapes now, and portrait got that back too.) The list's top
+inset falls to 0, and its bottom — once 92, the room to scroll a last card clear
+of a floating bar — to 24, because the bar is not down there any more. Portrait
+is byte-for-byte unchanged otherwise: `isShort` is false everywhere in it. What
+names the column instead is the page's own dot-name-count heading, drawn whenever
+more than one page shares the screen — which is exactly the case where the chips
+are gone.
 
 Two things follow from two columns being visible at once. `mobileColumnID` is the
 **leading** one, because `.scrollPosition(anchor: .center)` lands between pages —
 so with the board scrolled to the end the last column is on screen without its
-dot lit. And the add row, the empty state and the add action all take the
+chip lit. And the add row, the empty state and the add action all take the
 *page's* column rather than the current one, since the page a finger is over is
 not always the one the pager is on.
+
+**The tab bar stands up, and the words come off it.** Board, Inbox, Search and
+the quick-capture **+** ran along the foot, where between them they cost 130pt of
+a 402pt screen: the pill, the button, and the room under the last card to scroll
+clear of both. That is a third of the axis this shape has least of, and about a
+tenth of the axis it has to spare — so `PhoneTabBar` takes an `axis`, and
+landscape stands it on the leading edge. Same three slots in the same order, top
+to bottom where they were leading to trailing, same button under them. The rail
+is around 76pt wide, and the **+** is what makes it that: three 44pt glyph
+squares are narrower than the button under them.
+
+Each slot is a glyph and a word along the foot and **the glyph alone up the
+rail**. The glyphs are the app's own vocabulary rather than a new set — the
+board's `square.grid.2x2`, the tray `SavedView.inbox` is drawn with everywhere
+else, and the header's magnifier — so the same place has the same mark wherever
+it is named. Dropping the words on the rail is not only tidiness: three of them
+standing on end cost 260pt of a 390pt run, which left the **+** hanging off the
+end at an accessibility size, and a word read bottom-to-top is slower to take in
+than the icon it was sitting next to. Each button says its own name through
+`accessibilityLabel`, so VoiceOver meets the same three names in both shapes and
+never sees the difference. The one place the glyph gives way is the *portrait*
+bar at an accessibility size: a 12pt label there is already scaling to its floor
+to fit a third of a phone's width, and a glyph beside it takes the last of that
+room and truncates the word — so above `dynamicTypeSize.isAccessibilitySize` the
+word takes the slot back.
+
+The rail goes on through **`.safeAreaInset(edge: .leading)`** rather than as an
+overlay with a padding to match, and that is the whole difference between a rail
+and a bar. A card under a floating pill can be scrolled clear of it; a card under
+a rail cannot, so the board has to be *given* what is left rather than laid
+underneath. The inset also measures the rail rather than being told its width,
+which matters because the width is not a constant — the glyphs grow with the
+reader's type. `AnyLayout` switches the two stacks instead of an `if`, so turning
+the phone does not hand the same three buttons a new identity and a fresh glass
+material. The leading-edge swipe still opens the drawer over the top of it: that
+recognizer lives on the hosting view controller's view and never saw this tree to
+begin with.
+
+`UITests/TabRailTests` is the only thing that can check it, for
+`ColumnStripTests`'s reason and one more: it is a size class, and it is a
+*frame*. It turns the phone and reads where the **+** and the Board slot landed,
+that the slot on the rail is a 44pt square rather than the ~100pt run a word
+would need — which is what pins "only the glyphs remain" — and that the header's
+hamburger starts after the rail ends, which is the board being beside it rather
+than under it.
 
 The add-column composer is the one place landscape is worse: 402pt minus a
 software keyboard leaves 238pt for a composer around 200pt tall, so its last row
@@ -2575,37 +2999,116 @@ other way round, and `PaletteSemanticTests` holds all eight accent-by-scheme
 pairs above 4.5:1, which is the only property of a colour pair a test can hold
 and the only one that matters here.
 
+**`palette.scrim(_:)` is the same trap from the other end.** The two panels that
+*cover* a surface rather than sitting beside it — the iPhone's navigation drawer
+and its Inbox slide-over — both wrote their wash as `ink(0.3)`, and ink in dark
+mode is that same 0xEEEAE2. Opening either one laid a near-white veil over the
+board: the screen lit up instead of dimming, which is the one thing a scrim
+exists not to do. A scrim is a **shadow** rather than an ink — it is the absence
+of what is behind it — and `shadow(_:)` is already the colour that goes to pure
+black after dark, for precisely this reason. It went unnoticed for as long as it
+did because the two spellings are the same 0x171310 in light mode, so the scheme
+anybody checks is the scheme where they agree; light mode is unchanged to the
+byte. Dark mode is *heavier*, at 0.5, because the board is 0x131110 to begin with
+and black at 0.3 over near-black is not a wash anybody can see. The fraction is
+for a panel being dragged in, whose scrim arrives with it. `PaletteSemanticTests`
+composites the scrim over the board and asserts it came out darker, in both
+schemes — because the wrong one is the one nobody looks at.
+
 ## Settings
 
 One `SettingsView` in `Sources/Shared/`, at `.desk` inside the macOS `Settings { }`
 scene — which is where ⌘, comes from, so `AppCommand` neither declares it nor has
-to — and at `.sheet` on iOS, raised by `store.isShowingSettings`. Seven subjects:
-**Trash** (see **The trash**), **Appearance** (accent, and a light/dark/system
-override), **Board** (how a column orders its cards), **Notifications** (due-date
-reminders and the time of day they arrive), **Sync** (iCloud), **Labels** (the
-Phase B manager, opened as a sheet from a row so there is one label surface and
-not two), and **Data** (export, import, the board file, restore from a backup,
-delete everything and start over).
+to — and at `.sheet` on iOS, raised by `store.isShowingSettings`.
 
-**The desk draws them as tabs and the sheet as one scroll** — `Metrics.usesTabs`,
-and the sheet's is not a concession. A macOS settings window *is* a toolbar of
-subjects with one on screen at a time, sized to whichever is showing; an iOS
-settings sheet is a scroll everywhere on the system, and a seven-item tab bar on a
-402pt screen collapses into a "More" menu that hides most of what it is for. The
-same section views feed both, so there is one Notifications pane and not two.
-Under `usesTabs` the `section(_:)` helper draws its panel **without** the heading:
-the toolbar has just said the word and the window title says it again above that,
-and three copies of "Appearance" stacked down the left of a pane is how a settings
-window looks when it was a scroll last week. Each pane scrolls inside itself
-rather than growing the window — Trash and Data both grow with what the user has,
-and a settings window a thousand points tall because somebody deleted a lot of
-columns has stopped being a settings window.
+**Four subjects, where there were eight.** Trash, Appearance, Board,
+Notifications, Sync, System, Labels and Data was a list long enough that finding
+a setting meant reading every name on the way to it, and half of those names led
+to a pane holding a single row: Sync was one switch and a paragraph, Labels was
+one button that opens a sheet, System was two switches, Appearance was a swatch
+row and a menu. A subject that holds one control is not a subject; it is a row
+that has been given a tab of its own, and everybody pays for it on the way past.
+They paid hardest on the phone, where the strip shows about three chips at a time
+and the other five were off the side of the screen. So:
 
-**Trash leads.** It is the one tab about the user's own work rather than about how
-the app behaves — everything else here is a preference, and a preference can wait;
-a card thrown away on Tuesday cannot wait past the thirtieth day. It is also the
-only way somebody who does not know the feature exists finds out that a
-thrown-away board is still gettable back.
+- **General** — what the app looks like and how it comes up. *Appearance* (the
+  accent and a light/dark/system override) and *At launch* (reopen the last view,
+  open the Inbox with the board), plus *This Mac* on the desk: open at login and
+  the menu bar item. Those last two are still the desk's alone, but the `#if` is
+  now around **two rows** rather than around a case of `SettingsTab`, so
+  `allCases` is the same list on both platforms and neither has to filter it.
+- **Board** — how a board behaves: the order cards sit in, how much a card shows,
+  where new ones land and when they are due, when Done is swept, what a week
+  means — and, under *Labels*, the Phase B manager, opened as a sheet from a row
+  so there is one label surface and not two. The labels are the board's, so the
+  row is on the board's pane.
+- **Notifications** — due-date reminders and the time of day they arrive. The one
+  subject that was already the right size, and the only pane that is still a
+  single panel.
+- **Data** — where the board lives and every way of getting it back: *iCloud*,
+  *Kept copies* (how long the Trash holds things, how many backups, and the
+  restore list), *The board file* (export, Markdown export, import, and the file
+  itself), and *Starting over*.
+
+**The Trash is not in Settings at all** — see **The trash** for where it went and
+why.
+
+**Both surfaces show one subject at a time**, and both read the same
+`SettingsTab` — one `CaseIterable` carrying each subject's name and glyph, which
+the desk turns into `.tabItem`s and the sheet into a strip of chips. The list was
+made shared because the two had already drifted: **System** sat in the macOS
+`TabView` with no `.tabItem` on it at all, so its pane was reachable only by
+clicking the unlabelled gap in the toolbar where its name should have been. A
+case that carries its own name cannot go unlabelled, and `SettingsTabTests` asks
+the rest — that there are at most four, that the names are distinct, that a glyph
+is one the system actually has (an unresolved `systemImage` draws nothing and
+says nothing), and that the Trash is not among them.
+
+**The iOS strip is at the top, and it is deliberately not a `TabView`.** A tab bar
+on iOS is at the bottom, and it would land on top of the version row this sheet
+already puts in its bottom safe area. A row of chips under the title is both the
+thing that fits and the closer likeness to the desk, whose subjects are also
+along the top. It kept its sideways scroll and its masked ends after eight became
+four — four chips fit across a phone at the system type size and stop fitting a
+size or two up, and a strip that can scroll costs nothing on the day it does not
+need to. The mask is there because a chip cut off by a fade reads as "there is
+more this way" while one cut off by the sheet's own edge reads as the end of the
+list, which is what the strip looked like at eight: measured on an iPad, the
+fifth chip finished a few points short of the edge and the last two subjects were
+invisible with nothing to say they were there. Choosing a chip scrolls it to the
+centre, and the pane is rebuilt on `.id(selection)` so a new subject opens at its
+own top rather than at the offset the last one was left at.
+
+The same section views feed both surfaces, so there is one Notifications pane and
+not two. **A pane holding more than one panel puts a heading over each** —
+`group(_:content:)` — and a pane holding one puts none: a heading is what
+separates one section from the next, and there is nothing to separate when the
+desk's toolbar has just said the word and the window title says it again above
+that, and the sheet's chosen chip is sitting directly over the panel with the
+same word in it. Three copies of "Notifications" down the left of a pane is how a
+settings surface looks when it was a scroll last week. With four subjects instead
+of eight, a pane is a page rather than a list, and a page of four groups without
+headings is one long strip of switches to read from the top every time. Each pane
+scrolls inside itself rather than growing the window — Data grows with what the
+user has, and a settings window a thousand points tall because somebody has a
+fortnight of backups has stopped being a settings window.
+
+**Rows are full-width and leading-aligned**, which is `row(_:)`'s doing and was
+not always true. A `Toggle` and a `DatePicker` are as wide as their own label and
+no wider, so left to themselves they *centre* in a panel whose width some other
+row decided. Nothing shows that while a pane is one long list of `choice` rows
+holding the panel open; it is glaring the moment a group holds two switches and
+nothing else, which is what **At launch** is — measured, its two sat in the
+middle of the panel with a finger's width of nothing either side.
+
+**`UITests/SettingsTabsTests` is what can tell a strip from a scroll.** Every
+section view is the same object it was when they were stacked in one `ScrollView`;
+what changed is that three of them are not *built* while the fourth is showing,
+and no store knows that. So it opens the sheet on both idioms, walks the chips,
+and checks each subject's own control arrives **and the one before it has gone** —
+which a scroll would fail on the second half while passing the first. Each
+marker is picked from a group its pane holds alone, so a marker two panes could
+show cannot pass the suite while the strip does nothing.
 
 The version is at the bottom of the iOS sheet, in a 44pt row reading
 "Simple Kanban · Version 1.0 (1)"; macOS has the app menu's About window instead,
@@ -3193,7 +3696,7 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | --- | --- |
 | `CalendarDayTests` | day arithmetic, month/leap/DST boundaries, `Codable` round-trip, stability across time zones |
 | `DueDateTests` | every label and urgency boundary, against an injected `today` |
-| `BoardStoreMutationTests` | move and its Done tick, add, delete and where the selection falls, complete/reopen, discarding an untouched capture, the sub-task reorder offset, the phone's column pager, label toggle, priority, due, `updatedAt` and the header counts |
+| `BoardStoreMutationTests` | move and its Done tick, add, delete and where the selection falls, complete/reopen, discarding a capture nothing was filled into — emptied again, pickers that came home, whitespace, a default due date, and the seven fills that keep it, including the board menu's — the sub-task reorder offset, the column a launch opens on and the phone's column step and its wrap, label toggle, priority, due, `updatedAt` and the header counts |
 | `EditingSessionTests` | one entry per session; none when nothing changed; a blank title or sub-task restored; first naming is not a rename; independence per surface, per task and per sub-task row — driven through the selection and sheet changes that end a session, which is where the scoping actually lives |
 | `DraftTests` | sub-task and label drafts are per (surface, task), and go when the task does |
 | `UndoTests` | every mutation undoes and redoes; a deleted task returns to its own index; a text session is one step while each picker change inside one is its own; keystrokes typed before an interleaved step are still reachable, and a ⌘Z aimed at an older step keeps what is still being typed; the Done tick's sub-task flags come back exactly; a blank title restored before the step opens on the bulk delete as well as the singular one, which is the only place that ordering can go wrong |
@@ -3234,10 +3737,13 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `IntentTests` | `AddTaskIntent` and `ShowTodayIntent` through `TaskIntentBridge` — no destination landing in the Inbox under an `IN-` code, a named column and a named board each landing where they say and minting from that board's prefix, a due date reaching the card, a column no board has refused rather than guessed at, and the entity queries offering what the board actually has, each column named with its board. All of it on the one store the app is holding, because a second store would be a board of its own written over the real one |
 | `SystemWiringTests` | the handovers every other Phase F suite passes without: the scheduler reconciled from the board, `.systemEntryPoints()` attached to a view, a store adopted into the intent bridge — **from the app's `init()`**, not a view's `.onAppear`, because an intent can perform before any scene exists — both detail surfaces publishing their task for Handoff, the settings surface reachable, and exactly one store over the real file. Read out of the source the way `MenuDeclarationTests` reads the menu: a scene has nothing to enumerate at runtime, and a modifier commented out of a `body` is invisible to everything else. This is `UndoHandoverTests`' question asked of the other joins. The three that were open at the end of Phase F were wrapped in `withKnownIssue` rather than deleted or left red — Swift Testing fails a block that *stops* failing, so wiring one up told the next agent to take the wrapper off in the same run, which is what happened |
 | `DragReorderTests` | the card-to-card drop as a property rather than as an example, which is what the iPad needs: for **every** ordered pair of cards sharing a place — each column of each board, and the Inbox — the drop `BoardTaskCard` and `PhoneTaskCard` make must leave the card in that place, not change its completion, and not touch its sub-tasks, with the place holding the same set of cards afterwards. Then that it genuinely reorders — the card lands immediately ahead of the one it was dropped on, in every pair — so the first claim cannot be satisfied by a `move` that does nothing. Then the contrast, over every pair of *different* places, including a card into Done still being ticked; the column's own drop closure resolving to that column for every card on the board and staying a no-op on the column a card is already in; a drag refused under a query, under a sort and inside a saved view; and an archived card unreachable by either closure |
+| `DropCaretTests` | where a dragged card says it will land, and whether it is telling the truth. A caret names a *gap*: the head of another list — the one thing the old direction-of-travel rule could not express at all — the foot of one, the two names for one gap meaning one place, and a card coming from below landing where it was pointed rather than on the other side. A drop into the gap the card is already in moving nothing *and registering no step*. A list's own ground keeping the row the card was on — third out, third in — in a column and in the Inbox panel, with the foot as the fallback where the destination is the shorter list and no caret at all over an empty one, which still takes the card; the pointer inside a card beating the rank, because a named gap is not a default; `move(_:to:)` still appending, because only a drag has a row to keep; the column a card is already in offering none, because that drop moves nothing and registers no step; and none at all with nothing in the air or with a query narrowing the board. Then the caret drawn without a drag session to name the card, which is the iPad's case. Then the half that is a claim about pixels: the card rendered and the accent-coloured row found in it — looked for rather than diffed against a plain card, because in a full parallel run the same card came out 83pt where it is 110pt alone and a third of it differed for reasons that had nothing to do with a caret — against a raster whose row order is itself measured rather than assumed |
 | `DragLiftTests` | when a card stops looking as though it is being carried, which the reported flash was a hundred milliseconds late for. `BoardStore.endDrag()` taking the lift off the card *and* the highlight off both places one can be — the column and the Inbox panel — and a move, including the drop that lands where the card already is, going through it. Then the half no unit test can drive, read off the source the way `DragReorderTests` reads the drop closures: nothing in the session handler ends a lift by hand, a drop carrying a card falls through the `ended` arm untouched, and the arm that ends the lift is `dataTransferCompleted` |
 | `BoardRevealTests` | how far the board moves when focus arrives, and who decides. Every surface that scrolls a card into view — the strip, the column, the Inbox panel — read off the source: none of them hangs a `scrollTo` off `focus`, which is what made a click scroll the board; each answers **both** manners, centring what a key revealed and giving a click's reveal no anchor at all, so the rule cannot be met by dropping the scroll and stranding the arrow keys nor by answering a click with the centring that was the complaint; and the two routes that raise one are the keyboard, only ever centred, and the card's click, only ever into view. The scroll counts per file are asserted too, so a new one cannot be added without this being read. Then the arithmetic that keeps the reveal margin free: the inset plus what is left of the spacing is the gutter, and the inset plus what is left of the strip's margin is the strip's margin — both remainders being negative at the current inset, which is why it is asked as a sum |
 | `FieldFocusTests` | that a field which opens, opens with the keyboard in it. Nothing in the app writes a `@FocusState` from `onAppear` — the line that shipped three fields unfocused — told apart from the `@AccessibilityFocusState` the phone's drawer sets there on purpose by how the property is declared, so a file nobody has thought about is covered too. Then the other half, without which the rule is met by a field that never focuses at all: the set of files using `focusWhenReady` is the set named in the test. Then what the modifier must do — yield *before* it asks, and not go back to waiting a fixed number of milliseconds |
 | `PreferenceBehaviourTests` | the twelve settings added at once, and chiefly that **the default of each leaves the app exactly as it was** — the cheapest way to ship a bug is to move a default while adding the switch that names it, so every default is written out here and cannot change without this test being edited. Then a stored value this build has no case for falling back rather than reading as nothing (what a downgrade leaves), a switch turned *off* being told from one never touched, the rolling and calendar weeks disagreeing where they should, the auto-archive sweep waiting for a card to settle and naming no undo step, and the view being written down whichever way the resume switch is set |
+| `SettingsTabTests` | the list Settings divides into, on whichever platform the suite is run: **at most four subjects**, because a pane holding one switch is a row that has been given a tab of its own and everybody pays for it on the way past; the Trash not among them, since it is the user's own work rather than a preference; no two subjects drawn under one name; each glyph resolving as a symbol the system actually has — an unresolved `systemImage` draws nothing and reports nothing, which is a toolbar item that is a word with a hole above it; General first, because both surfaces open on whatever is first and that is a decision rather than an accident of typing order; and the same four on both platforms, the desk's two extra switches being rows inside General rather than a case compiled out on iOS, so `allCases` is the whole truth about what gets drawn and nothing has to remember to filter it |
+| `TrashSurfaceTests` | where the Trash is now that it is not a settings tab: the flag being session state that starts shut and changes nothing about the board, `SettingsView` building no `TrashView` and holding no trash pane, each of the two door-bearing surfaces — the source list on macOS and iPad, the board menu on the phone — raising `isShowingTrash`, and the phone's sheet being presented by the root rather than by the header that opens it, which is a thing a menu cannot do |
 | `ScaleTests` | 7.4 — five hundred cards on six boards, thirty columns, twenty-four labels and eleven thousand activity entries, and what each hot path costs on it. Nothing asserts a wall-clock time: every bound is a *ratio* between two timings taken in the same process on the same data, which cancels the machine out and leaves the shape of the algorithm. See **Scale** |
 | `FirstRunTests` | 7.5 — a first launch starting on nothing at all rather than on the sample; the picker never standing in front of the test host; the sample offered rather than first; the three starters carrying none of the sample's cards; and then the property over all five templates — folded into the empty board a first launch actually builds, each one satisfies the placement invariant, resolves every label key it wears, mints no duplicate code, has a landing column and a Done column, survives a relaunch card for card, and takes a card added, dated, completed and archived on it. Choosing is one ⌘Z |
 | `PackagingTests` | 7.6 — what the *built* bundle carries, read off `Bundle.main`, which under `xcodebuild test` is the app: a marketing version and a numeric build; the version the About panel shows being the one in the plist rather than a second copy of it; `PrivacyInfo.xcprivacy` present, declaring no tracking and no collection, and naming a reason for each required-reason API it touches; the copyright line the macOS About panel reads; `UILaunchScreen` naming a colour rather than being the empty dict that flashes white; every UTI, document type, URL scheme and activity type the code assumes; and the update check's repository, releases page and version comparison |
@@ -3385,7 +3891,7 @@ one handed to a *helper* of your own that takes one — and extracts nothing at 
 from a literal passed to a `String` parameter, which is a finished string rather
 than a key. Seven small view helpers (`sectionHeader`, `field`, `columnField`,
 `fieldName`, `stepButton`, `attributeCard`) took their title as `String`, so
-"Boards", "Short", "Previous column", "Next column" and "No due date" reached the
+"Boards", "Short", "Move Up", "Move Down" and "No due date" reached the
 screen in English whatever the language was. They now take `LocalizedStringKey`.
 `??` has the same edge: `.accessibilityValue(text ?? "No due date")` picks the
 `StringProtocol` overload and never looks in the catalogue, so the fallback is

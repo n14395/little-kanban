@@ -33,12 +33,14 @@ import Testing
         let store = TestBoard.store()
         store.draggingID = TestBoard.dragDrop
         store.dropTargetColumnID = backlog
+        store.dropTargetCaret = .above(TestBoard.cafe)
         store.isInboxDropTarget = true
 
         store.endDrag()
 
         #expect(store.draggingID == nil)
         #expect(store.dropTargetColumnID == nil)
+        #expect(store.dropTargetCaret == nil)
         #expect(store.isInboxDropTarget == false)
     }
 
@@ -50,12 +52,14 @@ import Testing
         let store = TestBoard.store()
         store.draggingID = TestBoard.dragDrop
         store.dropTargetColumnID = doing
+        store.dropTargetCaret = .above(TestBoard.cafe)
         store.isInboxDropTarget = true
 
         store.move(TestBoard.dragDrop, to: doing)
 
         #expect(store.draggingID == nil)
         #expect(store.dropTargetColumnID == nil)
+        #expect(store.dropTargetCaret == nil)
         #expect(store.isInboxDropTarget == false)
     }
 
@@ -67,6 +71,7 @@ import Testing
         let before = store.tasks
         store.draggingID = TestBoard.dragDrop
         store.dropTargetColumnID = backlog
+        store.dropTargetCaret = .above(TestBoard.cafe)
         store.isInboxDropTarget = true
 
         store.move(TestBoard.dragDrop, to: backlog)
@@ -74,6 +79,7 @@ import Testing
         #expect(store.tasks == before)
         #expect(store.draggingID == nil)
         #expect(store.dropTargetColumnID == nil)
+        #expect(store.dropTargetCaret == nil)
         #expect(store.isInboxDropTarget == false)
     }
 

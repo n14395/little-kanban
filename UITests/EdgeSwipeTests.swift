@@ -45,10 +45,13 @@ final class EdgeSwipeTests: XCTestCase {
     /// Where a pan starts and where it lets go. `dx: 0` is the screen's own
     /// edge, which is what the recognizer requires; `dy: 0.5` puts it squarely
     /// over the pager, which is the container that would otherwise claim it.
-    private func swipe(_ app: XCUIApplication, fromX: CGFloat, toX: CGFloat) {
+    private func swipe(
+        _ app: XCUIApplication, fromX: CGFloat, toX: CGFloat,
+        velocity: XCUIGestureVelocity = .default
+    ) {
         let start = app.coordinate(withNormalizedOffset: CGVector(dx: fromX, dy: 0.5))
         let end = app.coordinate(withNormalizedOffset: CGVector(dx: toX, dy: 0.5))
-        start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .default,
+        start.press(forDuration: 0.05, thenDragTo: end, withVelocity: velocity,
                     thenHoldForDuration: 0.1)
     }
 
@@ -63,6 +66,38 @@ final class EdgeSwipeTests: XCTestCase {
 
         XCTAssertTrue(app.buttons[drawerClose].waitForExistence(timeout: 5),
                       "the edge swipe did not open the drawer")
+    }
+
+    /// The drawer follows the finger, so where the finger stops decides.
+    ///
+    /// **This is the check that the pan is being *followed* rather than merely
+    /// noticed.** It used to arrive whole on the recognizer's first report and
+    /// slide itself in over its own 0.28s while the finger went wherever it
+    /// liked, so a pull of a fifth of the screen and a pull of most of it were
+    /// the same act and both ended with the drawer open. Now the panel is
+    /// wherever the finger is and the lift decides. An intermediate frame is not
+    /// something XCUITest can be asked about, but the two ends of the same slow
+    /// drag are, and under the old rule they could not have differed.
+    ///
+    /// **Slowly**, both of them. A throw is allowed to open the drawer from
+    /// anywhere — that is what `drawerFlick` is for, and it is what makes the
+    /// full-width swipe above pass whatever its distance — so a test about
+    /// *distance* has to take the throw out of it.
+    func testASlowPullIsJudgedOnHowFarItCame() throws {
+        let app = try launched(on: .phone)
+        let hamburger = app.buttons["Show boards"]
+        XCTAssertTrue(hamburger.waitForExistence(timeout: 10), "the board never came up")
+
+        // A fifth of the screen is a quarter of the way in: not far enough.
+        swipe(app, fromX: 0, toX: 0.2, velocity: .slow)
+        XCTAssertTrue(app.buttons[drawerClose].waitForNonExistence(timeout: 5),
+                      "a slow pull that stopped short left the drawer open")
+        XCTAssertTrue(hamburger.exists, "the board did not come back")
+
+        // The same drag, taken past the middle of the panel.
+        swipe(app, fromX: 0, toX: 0.8, velocity: .slow)
+        XCTAssertTrue(app.buttons[drawerClose].waitForExistence(timeout: 5),
+                      "a slow pull that came most of the way did not open the drawer")
     }
 
     /// The other half, and the one that fails if the gesture is too greedy.

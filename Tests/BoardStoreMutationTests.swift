@@ -300,13 +300,13 @@ import Testing
         #expect(store.isEditing(.title, on: TestBoard.cafe, scope: .sheet) == false)
     }
 
-    // MARK: Discarding an untouched capture
+    // MARK: Discarding a capture nothing was filled into
 
-    @Test func anUntouchedCaptureIsDiscardedAndHandsItsCodeBack() {
+    @Test func aBlankCaptureIsDiscardedAndHandsItsCodeBack() {
         let store = TestBoard.store()
         let id = store.addTask(to: .inbox, title: "", fromPhone: true, log: .captured)
         #expect(store[id]?.code == "IN-140")
-        store.discardIfUntouched(id)
+        store.discardIfBlank(id)
         #expect(store[id] == nil)
         #expect(store.sheetID == nil)
         // The next capture takes the number back rather than leaving a gap.
@@ -314,18 +314,91 @@ import Testing
         #expect(store[next]?.code == "IN-140")
     }
 
-    @Test func aCaptureThatWasEverTouchedIsKept() {
+    /// The rule the old one had backwards: what matters is what the editor was
+    /// closed with, not whether anything was ever typed in it. Every one of
+    /// these was *touched*, and every one of them is empty again by the end.
+    @Test func aCaptureTypedIntoAndEmptiedAgainIsDiscarded() {
         let store = TestBoard.store()
         let id = store.addTask(to: BoardColumn.inbox.id, title: "", fromPhone: true, log: .captured)
         store.setText("Something", field: .title, on: id)
-        store.setText("", field: .title, on: id)      // emptied again, but no longer untouched
-        store.discardIfUntouched(id)
+        store.setText("", field: .title, on: id)
+        store.discardIfBlank(id)
+        #expect(store[id] == nil)
+    }
+
+    @Test func aCaptureWhosePickersCameHomeAgainIsDiscarded() {
+        let store = TestBoard.store()
+        let id = store.addTask(to: .inbox, title: "", fromPhone: true, log: .captured)
+        let made = store[id]
+        store.setPriority(.high, on: id)
+        store.setPriority(made?.priority ?? .medium, on: id)
+        store.setDue(TestBoard.dueDay, on: id)
+        store.setDue(made?.due, on: id)
+        store.toggleLabel("design", on: id)
+        store.toggleLabel("design", on: id)
+        store.discardIfBlank(id)
+        #expect(store[id] == nil)
+    }
+
+    /// A title of spaces is a title nobody typed — and it is what the field
+    /// holds until the editing session ends and trims it, which is after the
+    /// dismissal has already asked this question.
+    @Test func aCaptureHoldingOnlyWhitespaceIsDiscarded() {
+        let store = TestBoard.store()
+        let id = store.addTask(to: .inbox, title: "", fromPhone: true, log: .captured)
+        store.setText("   ", field: .title, on: id)
+        store.discardIfBlank(id)
+        #expect(store[id] == nil)
+    }
+
+    @Test func aCaptureWithAnythingInItIsKept() {
+        let fills: [(BoardStore, TaskItem.ID) -> Void] = [
+            { store, id in store.setText("Real", field: .title, on: id) },
+            { store, id in store.setText("A note", field: .note, on: id) },
+            { store, id in store.setPriority(.high, on: id) },
+            { store, id in store.setDue(TestBoard.laterDay, on: id) },
+            { store, id in store.toggleLabel("design", on: id) },
+            { store, id in _ = store.addSubtask(to: id, text: "One thing") },
+            // The editor's own board menu: filed from the Inbox onto a board,
+            // with every other control still exactly as capture left it.
+            { store, id in store.move(id, to: BoardColumn.backlog.id) },
+        ]
+        for fill in fills {
+            let store = TestBoard.store()
+            let id = store.addTask(to: .inbox, title: "", fromPhone: true, log: .captured)
+            fill(store, id)
+            store.discardIfBlank(id)
+            #expect(store[id] != nil)
+        }
+    }
+
+    /// A card born with a due date because of the preference is still a card
+    /// nobody filled anything into: the empty state is what capture made, not a
+    /// row of nils.
+    @Test func aCaptureIsMeasuredAgainstWhatCaptureMadeRatherThanAgainstNothing() {
+        let store = TestBoard.store()
+        store.defaultDueDate = .tomorrow
+        let id = store.addTask(to: .inbox, title: "", fromPhone: true, log: .captured)
+        #expect(store[id]?.due != nil)
+        store.discardIfBlank(id)
+        #expect(store[id] == nil)
+    }
+
+    /// Asked once. Whatever the card is after the editor closes, it is one the
+    /// user kept — reopening and closing it again must not take it away.
+    @Test func aCaptureThatSurvivedItsDismissalIsNeverAskedAgain() {
+        let store = TestBoard.store()
+        let id = store.addTask(to: .inbox, title: "", fromPhone: true, log: .captured)
+        store.setText("Real", field: .title, on: id)
+        store.discardIfBlank(id)
+        store.setText("", field: .title, on: id)
+        store.discardIfBlank(id)
         #expect(store[id] != nil)
     }
 
     @Test func discardingLeavesAnOrdinaryTaskAlone() {
         let store = TestBoard.store()
-        store.discardIfUntouched(TestBoard.cafe)
+        store.discardIfBlank(TestBoard.cafe)
         #expect(store[TestBoard.cafe] != nil)
     }
 
@@ -393,7 +466,29 @@ import Testing
                 == [TestBoard.keyboard, TestBoard.lift, TestBoard.dropTargets])
     }
 
-    // MARK: The phone's column pager
+    // MARK: The phone's column
+
+    @Test func aBoardWithColumnsOfItsOwnOpensOnOneOfThem() {
+        // `mobileColumnID` is session state — not saved — so every launch starts
+        // at the property's default, which is a *seed* column's id. A board made
+        // in the app carries ids of its own, so a store opened straight onto one
+        // named a column that is on no board: every chip in the phone's strip
+        // unlit, while the list and the add row showed the first column through
+        // `mobileColumnIndex`'s `?? 0`. Switching boards and undoing already
+        // reconciled; a launch is the third way onto a board.
+        let store = TestBoard.store(boards: [TestBoard.support])
+        #expect(store.mobileColumnID == TestBoard.queue.id)
+        #expect(store.mobileColumn.id == store.mobileColumnID)
+    }
+
+    @Test func aBoardThatHasTheDefaultColumnOpensOnIt() {
+        // The other half: the fallback is for an id that is *not there*, and a
+        // board that has the default keeps it. Without this, moving every launch
+        // to the first column would pass the test above and change where the
+        // seed board opens.
+        let store = TestBoard.store()
+        #expect(store.mobileColumnID == BoardColumn.inProgress.id)
+    }
 
     @Test func steppingBackFromTheFirstColumnWrapsToTheLast() {
         // Swift's `%` takes the sign of the dividend, so `(0 - 1) % 4` is -1 and

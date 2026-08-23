@@ -1,7 +1,7 @@
 import XCTest
 
-/// The phone's column strip — the two chevrons and the dots between them — is
-/// drawn in portrait and not when the phone is on its side.
+/// The phone's strip of column chips is drawn in portrait and not when the
+/// phone is on its side, where each page carries a heading of its own.
 ///
 /// **A UI test because the claim is a size class.** `verticalSizeClass` is read
 /// in a view body and answers to the shape of the screen, so nothing a store
@@ -37,18 +37,18 @@ final class ColumnStripTests: XCTestCase {
         app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES"]
         app.launch()
 
-        // The chevron rather than a dot: the dots are named for their columns,
-        // which are the user's and can be renamed or deleted, and the arrows
-        // are the strip itself.
-        let back = app.buttons["Previous column"]
-        XCTAssertTrue(back.waitForExistence(timeout: 15), "no column strip in portrait")
+        // A chip, by the label its row combines — the name and its count. The
+        // buttons rather than every element with that label: on its side the
+        // page headings name the same columns, and they are static text.
+        let chip = app.buttons.matching(NSPredicate(format: "label == %@", "Backlog, 4")).firstMatch
+        XCTAssertTrue(chip.waitForExistence(timeout: 15), "no column strip in portrait")
 
         XCUIDevice.shared.orientation = .landscapeLeft
-        XCTAssertTrue(back.waitForNonExistence(timeout: 5),
+        XCTAssertTrue(chip.waitForNonExistence(timeout: 5),
                       "the strip is still drawn with the phone on its side")
 
         XCUIDevice.shared.orientation = .portrait
-        XCTAssertTrue(back.waitForExistence(timeout: 5),
+        XCTAssertTrue(chip.waitForExistence(timeout: 5),
                       "the strip did not come back on the way to portrait")
     }
 }

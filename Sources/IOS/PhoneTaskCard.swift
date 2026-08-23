@@ -3,8 +3,9 @@
 import SwiftUI
 
 /// A card in the phone list. Tapping it raises the detail sheet; the circle in
-/// its leading gutter completes it. The swipe and context-menu actions live in
-/// ``PhoneTaskRowActions``, which the list applies to the row itself.
+/// its leading gutter completes it. Everything else a card can be told to do is
+/// in ``PhoneTaskRowActions``' long-press menu, which the list applies to the
+/// row itself.
 struct PhoneTaskCard: View {
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
@@ -46,8 +47,8 @@ struct PhoneTaskCard: View {
         .modifier(ReorderableCard(task: task))
         // The one act on this surface that deserves `.success` (5.8). Read off
         // the card's own state rather than counted in the store, so it fires
-        // once wherever the tick came from — the gutter, the swipe or the
-        // menu — and only on the way *into* done.
+        // once wherever the tick came from — the gutter, the menu or the detail
+        // sheet — and only on the way *into* done.
         .sensoryFeedback(.success, trigger: isDone) { was, now in now && !was }
     }
 
@@ -134,56 +135,118 @@ struct PhoneTaskCard: View {
 /// offered — see `BoardStore.allowsCardDrag`.
 ///
 /// The lift is a long press and the page turn is a pan, so the two do not
-/// compete for the horizontal drag the way a hand-rolled swipe would; the
-/// row's own swipe actions are a pan on the row and win it, which is why the
-/// pager is a scroll view rather than a gesture of ours.
+/// compete for the horizontal drag the way a hand-rolled swipe would. **A card
+/// moves sideways only once it has been picked up**, which is now the whole of
+/// what a sideways finger on a card can mean: the rows carried swipe actions
+/// until 6.4 and no longer do — see ``PhoneTaskRowActions``.
 private struct ReorderableCard: ViewModifier {
+    @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
 
     let task: TaskItem
 
     /// Bumped as this card leaves the hand, and again as another lands on it —
-    /// the `.impact` half of 5.8. A counter local to the card rather than
-    /// `store.draggingID`, which the desk card keeps in step through
-    /// `onDragSessionUpdated`: that is iOS 27, and a lift with no matching end
-    /// would leave the store saying a card is in flight long after it landed.
+    /// the `.impact` half of 5.8. A counter local to the card, because the two
+    /// things it counts happen to *this* card.
     @State private var jolts = 0
 
     @ViewBuilder
     func body(content: Content) -> some View {
         if store.allowsCardDrag {
             content
+                // The same insertion point the desk draws, for the same reason
+                // and by the same rule — see `BoardStore.dropCaret`. A finger
+                // hides more of the board than a pointer does, so if anything
+                // this surface needs it more.
+                .overlay(alignment: dropCaretEdge ?? .top) { dropCaret }
+                .overlay { dropZones }
                 .draggable(lifted())
-                .dropDestination(for: TaskTransfer.self) { items, _ in
-                    guard let dropped = items.first, dropped.id != task.id,
-                          store[dropped.id] != nil
-                    else { return false }
-                    store.move(dropped.id, onto: task.id)
-                    jolts += 1
-                    return true
-                }
                 .sensoryFeedback(.impact(weight: .light), trigger: jolts)
         } else {
             content
         }
     }
 
+    /// The row's two halves, as separate insertion targets — the desk's
+    /// ``BoardTaskCard/dropZones`` on a phone, and every word of that comment
+    /// applies here. The reach is `TaskListMetrics.sheet.rowSpacing` halved,
+    /// which is the gap on both of the containers a phone card is drawn in:
+    /// ``PhoneColumnPage``'s stack on the board, and `TaskListView`'s `List` on
+    /// the flat surfaces, which spends the same gap as two half-row insets.
+    @ViewBuilder private var dropZones: some View {
+        if store.allowsCardDrag, store.draggingID != nil {
+            VStack(spacing: 0) {
+                dropZone(.above(task.id))
+                dropZone(.below(task.id))
+            }
+            .padding(.vertical, -TaskListMetrics.sheet.rowSpacing / 2)
+        }
+    }
+
+    private func dropZone(_ caret: DropCaret) -> some View {
+        Color.clear
+            .contentShape(.rect)
+            .dropDestination(for: TaskTransfer.self) { items, _ in
+                guard let dropped = items.first, store[dropped.id] != nil else { return false }
+                store.drop(dropped.id, at: caret)
+                jolts += 1
+                return true
+            } isTargeted: { targeted in
+                if targeted {
+                    store.dropTargetCaret = caret
+                } else if store.dropTargetCaret == caret {
+                    store.dropTargetCaret = nil
+                }
+            }
+    }
+
+    private var dropCaretEdge: Alignment? {
+        switch store.dropCaret {
+        case .above(let id) where id == task.id: .top
+        case .below(let id) where id == task.id: .bottom
+        default: nil
+        }
+    }
+
+    @ViewBuilder private var dropCaret: some View {
+        if dropCaretEdge != nil {
+            Capsule()
+                .fill(palette.accent)
+                .frame(height: 3)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
     /// The payload, and the lift with it. `.draggable` takes this as an
     /// autoclosure and calls it when a session begins rather than when the card
     /// is drawn, which makes it the one place at this deployment target that
-    /// knows a card has been picked up. The bump is deferred a turn so it
-    /// cannot land inside a view update if SwiftUI ever asks early.
+    /// knows a card has been picked up — the desk's ``CardDragSession`` is iOS
+    /// 27. The latch and the expiry that make one pick-up one lift are
+    /// ``BoardStore/beginDrag(_:onLift:)``'s; the bump is this card's, because
+    /// it is this card that was picked up.
     private func lifted() -> TaskTransfer {
-        Task { @MainActor in jolts += 1 }
+        store.beginDrag(task.id) { jolts += 1 }
         return TaskTransfer(task)
     }
+
 }
 
-/// Complete and Trash on a task row, reachable three ways: a leading swipe, a
-/// trailing swipe, and a long press.
+/// Everything a card can be told to do, in one long-press menu.
 ///
-/// The context menu is not a duplicate for its own sake — a swipe is unreachable
-/// with VoiceOver or Switch Control, and the menu is what those read instead.
+/// **The rows do not swipe.** Complete had the leading edge and Trash the
+/// trailing one until 6.4, and both are gone: a card that slides out from under
+/// a sideways finger is the one thing on this surface that moves without having
+/// been picked up, and being picked up is what moving a card is supposed to
+/// mean. The board's rows had already given theirs up to the pager — so the
+/// surfaces disagreed about what a sideways drag on a card did, which is worse
+/// than either answer — and the pager keeps its swipe.
+///
+/// **Nothing became unreachable.** The menu was never a duplicate of the swipes:
+/// it carried Move to, Archive, the reorder items and Copy Link, which no edge
+/// ever offered, and it was already the only route for a reader on VoiceOver or
+/// Switch Control, to whom a swipe is invisible. What the two edges held —
+/// Complete and Trash — is still the first and last thing in it.
 ///
 /// Applied by the list to the row rather than by the card to itself: list-row
 /// traits are read off the row's own view, and burying them a body deeper is
@@ -205,21 +268,12 @@ struct PhoneTaskRowActions: ViewModifier {
                 copyLink
                 deletion
             }
-            // Withheld on the board, where the pager has the horizontal drag —
-            // see `BoardStore.isColumnPaging` for what was measured and why the
-            // menu above carries the same verbs. Everywhere else the row is the
-            // only thing asking for the gesture and keeps both edges.
-            .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                if !store.isColumnPaging { leadingAction }
-            }
-            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                if !store.isColumnPaging { deletion }
-            }
     }
 
     /// Restore is the only thing worth doing to an archived row, so it takes the
-    /// leading swipe that completion holds everywhere else: a card in the
-    /// Archive is not work in progress, and offering to tick it would be.
+    /// place at the head of the menu that completion holds everywhere else: a
+    /// card in the Archive is not work in progress, and offering to tick it
+    /// would be.
     @ViewBuilder private var leadingAction: some View {
         if task.isArchived { restoration } else { completion }
     }
@@ -241,9 +295,10 @@ struct PhoneTaskRowActions: ViewModifier {
         .tint(palette.accent)
     }
 
-    /// Only in the long-press menu. A card leaving the board on a swipe someone
-    /// half-meant is the same mistake as a swipe-to-delete, and unlike delete it
-    /// leaves no gap to notice.
+    /// A card leaving the board on a gesture someone half-meant is the same
+    /// mistake as a swipe-to-delete, and unlike delete it leaves no gap to
+    /// notice — which is why filing never had an edge of its own even while the
+    /// edges existed.
     ///
     /// The submenu is the flat lists' way back: on the Inbox tab, in Search and
     /// in a saved view there is no column under the card saying where it is, and
@@ -262,9 +317,10 @@ struct PhoneTaskRowActions: ViewModifier {
         }
     }
 
-    /// The card's `simplekanban://` link. Only in the menu: it is the one verb
-    /// here that does nothing to the board, and a swipe that silently changed
-    /// the pasteboard would be indistinguishable from a swipe that missed.
+    /// The card's `simplekanban://` link — the one verb here that does nothing
+    /// to the board, which is why it never had an edge of its own: a swipe that
+    /// silently changed the pasteboard would have been indistinguishable from a
+    /// swipe that missed.
     private var copyLink: some View {
         Button { TaskLink.copyToPasteboard(task.id) } label: {
             Label("Copy Link", systemImage: "link")
@@ -281,7 +337,7 @@ struct PhoneTaskRowActions: ViewModifier {
 }
 
 private extension BoardStore {
-    /// The one verb behind the checkbox and the leading swipe alike.
+    /// The one verb behind the checkbox and the menu's first item alike.
     func toggleCompletion(of task: TaskItem) {
         if isDone(task) {
             reopen(task.id)

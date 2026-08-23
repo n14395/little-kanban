@@ -23,6 +23,20 @@ enum Motion {
     ) rethrows -> Result {
         try withAnimation(Self.animation(animation, reduceMotion: reduceMotion), body)
     }
+
+    /// The same, for a change something has to happen *after*: a panel dragged
+    /// back out of sight is only taken out of the tree once it has finished
+    /// going. Under Reduce Motion the animation is `nil` and the completion
+    /// runs at once, which is the right answer rather than a special case.
+    @MainActor
+    static func run<Result>(
+        _ animation: Animation?, reduceMotion: Bool,
+        _ body: () throws -> Result, completion: @escaping () -> Void
+    ) rethrows -> Result {
+        try withAnimation(
+            Self.animation(animation, reduceMotion: reduceMotion), body, completion: completion
+        )
+    }
 }
 
 private struct MotionAnimation<Value: Equatable>: ViewModifier {

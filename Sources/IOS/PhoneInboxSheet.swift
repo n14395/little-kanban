@@ -12,36 +12,48 @@ import SwiftUI
 /// that with a panel beside the board. A phone has nothing to put a panel
 /// beside, so this one goes over the top and takes the height it needs.
 ///
-/// **Hand-rolled rather than a `.sheet` with detents**, and for a measured
-/// reason rather than a stylistic one. A sheet held at any detent below `.large`
-/// floats inset from the screen edges on this OS and is *scaled* to compensate —
-/// 0.9602 on a 402pt-wide phone — so every 44pt control inside it lands at
-/// 42.25pt, under the touch minimum, and the factor differs per device so no
-/// amount of padding buys it back. `PhoneDetailSheet` gave up its 82% height to
-/// that and takes `.large`. This panel wants to be *short*, so it is a
-/// `PhoneNavDrawer`-shaped overlay instead: a scrim, a transition, and
-/// `.isModal` — the drawer's own answer, rotated a quarter turn.
+/// **A real `.sheet` held at a detent, the same as ``PhoneDetailSheet``.** It
+/// was hand-rolled for a while — an overlay with a scrim, a transition, a drag
+/// gesture and an offset of its own — to dodge the one thing a detent below
+/// `.large` costs: the sheet is laid out at the full screen width and then
+/// inset 8pt each side and scaled by `(W - 16) / W`, so a 44pt control renders
+/// at about 42.2. The editor pays that knowingly and this pays it too, because
+/// everything else the hand-rolled panel did was a worse copy of what the
+/// system already does. What went away with the swap: the scrim and its fade,
+/// the insertion and removal transitions, the live drag offset and the rule for
+/// how far is far enough, the `scrollDisabled` that decided whether a pan
+/// belonged to the list or to the panel, and `.isModal`. What arrived: the
+/// platform's own physics — rubber banding, a flick that carries, the drag
+/// handed to the list while the list can use it and taken back at the top of
+/// it, and VoiceOver's cursor moved and trapped without being asked.
+///
+/// See **Touch targets** in the README for the two ways to have both the height
+/// and the 44pt, neither of which is a smaller edit than accepting the 4%.
 struct PhoneInboxSheet: View {
     struct Metrics {
         /// How much of the screen the panel takes.
         ///
         /// A fixed share rather than "as tall as its contents, up to a ceiling",
         /// which is what this wanted to be and cannot be: the list inside is
-        /// `TaskListView`, and `TaskListView` is a `List` — for `swipeActions`,
-        /// which no hand-rolled scroll view offers — and a `List` reports no
+        /// `TaskListView`, `TaskListView` is a `List`, and a `List` reports no
         /// useful intrinsic height. Under `fixedSize` it collapses to nothing
         /// and the panel draws as a header over a hole; measured, that is
         /// exactly what happened. A share of the screen is what every detent on
         /// this platform is anyway.
         ///
-        /// Two thirds: room for four cards, and short enough that the board it
-        /// came up over is still legible above it — which is the whole reason
-        /// this is a panel rather than the page it used to be.
+        /// Most of the screen, with the board's own title row left showing: the
+        /// Inbox is a list you work *through* — file this one, keep that one —
+        /// and two thirds of a phone was four cards and a scroll for the rest.
+        /// What the strip along the top buys is the thing a panel has over the
+        /// page this used to be: you can still see what you left, and it is
+        /// obvious that tapping it puts you back.
         var heightFraction: CGFloat
+        /// The sheet's own corner radius, which is the editor's — two sheets
+        /// coming up over the same board should not be different shapes.
         var cornerRadius: CGFloat
         var titleSize: CGFloat
 
-        static let phone = Metrics(heightFraction: 0.66, cornerRadius: 24, titleSize: 19)
+        static let phone = Metrics(heightFraction: 0.90, cornerRadius: 28, titleSize: 19)
     }
 
     @Environment(\.palette) private var palette
@@ -51,68 +63,31 @@ struct PhoneInboxSheet: View {
 
     var metrics: Metrics = .phone
 
+    /// The sheet's contents. Everything about *how* it arrives — the slide, the
+    /// scrim, the drag, the corner, what a reader's cursor does — is the four
+    /// presentation modifiers at the bottom and the system behind them.
     var body: some View {
-        ZStack(alignment: .bottom) {
-            palette.ink(0.3)
-                .ignoresSafeArea()
-                .onTapGesture { store.isInboxOpen = false }
-                .transition(.opacity)
-                // The scrim is the panel's ground, not a control — see
-                // `PhoneNavDrawer`, which makes the same claim about its own.
-                .accessibilityHidden(true)
-
-            panel
-                .containerRelativeFrame(.vertical, alignment: .bottom) { height, _ in
-                    height * metrics.heightFraction
-                }
-                .transition(.move(edge: .bottom))
-                // The VoiceOver cursor, not the keyboard's. `PhoneNavDrawer`
-                // has the long version of why the two are different focuses.
-                .onAppear { isTitleFocused = true }
-        }
-        // What actually keeps a reader inside the panel: `PhoneRootView`'s
-        // `accessibilityHidden` takes the bars behind it out of the tree but
-        // cannot reach the list's cells, so without this every card on the board
-        // under the scrim is still reachable by swiping past the last row here.
-        .accessibilityAddTraits(.isModal)
-    }
-
-    private var panel: some View {
         VStack(spacing: 0) {
-            grabber
             header
             list
         }
         .frame(maxWidth: .infinity)
-        .background {
-            UnevenRoundedRectangle(
-                topLeadingRadius: metrics.cornerRadius, topTrailingRadius: metrics.cornerRadius
-            )
-            .fill(palette.sheet)
-            .shadow(color: palette.shadow(0.28), radius: 18, y: -6)
-            .ignoresSafeArea(edges: .bottom)
-        }
-        // Dragged down to dismiss, which is what the grabber promises and the
-        // one gesture anybody tries on a panel with one drawn on it. Only
-        // downwards counts: there is nowhere further up for it to go.
-        .gesture(
-            DragGesture(minimumDistance: 20)
-                .onEnded { drag in
-                    guard drag.translation.height > 60 else { return }
-                    store.isInboxOpen = false
-                }
-        )
-    }
-
-    /// The handle every bottom sheet on this platform draws, so the panel says
-    /// it can be dragged before anybody tries.
-    private var grabber: some View {
-        Capsule()
-            .fill(palette.ink(0.18))
-            .frame(width: 36, height: 5)
-            .padding(.top, 8)
-            .padding(.bottom, 4)
-            .accessibilityHidden(true)
+        .background(palette.sheet)
+        // The editor's presentation, to the point: same detent arithmetic, same
+        // indicator, same corner, same ground. The height is this panel's own —
+        // the Inbox is a list to work through and the editor is one card.
+        .presentationDetents([.fraction(metrics.heightFraction)])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(metrics.cornerRadius)
+        .presentationBackground(palette.sheet)
+        // A card tapped in here opens the editor, and the root cannot put that
+        // sheet up while this one is over it — see `phoneTaskDetailSheet`.
+        .phoneTaskDetailSheet()
+        // The VoiceOver cursor, not the keyboard's. The system moves it into a
+        // sheet on its own; this puts it on the title rather than on whatever
+        // the first element happens to be. `PhoneNavDrawer` has the long version
+        // of why the two are different focuses.
+        .onAppear { isTitleFocused = true }
     }
 
     private var header: some View {
@@ -136,6 +111,11 @@ struct PhoneInboxSheet: View {
             .buttonStyle(.bare)
             .contentShape(.circle)
             .accessibilityLabel("Close")
+            // Named as well as labelled: the editor's × is called Close too,
+            // and once a card in here can raise that sheet over this one, both
+            // are on screen at the same time. `InboxToggle` in the toolbar was
+            // added for the same collision, one floor up.
+            .accessibilityIdentifier("InboxClose")
         }
         .padding(.horizontal, TaskListMetrics.sheet.horizontalPadding)
         .padding(.bottom, 6)
@@ -149,8 +129,9 @@ struct PhoneInboxSheet: View {
     /// a panel titled Inbox. That is the argument `showsMobileColumnChips`
     /// makes about the board, from the other end.
     ///
-    /// The list is what fills the panel and what scrolls in it; the grabber and
-    /// the header above it do not go anywhere.
+    /// The list is what fills the sheet and what scrolls in it; the header
+    /// above it does not go anywhere — and the drag indicator over that is the
+    /// system's, drawn by `presentationDragIndicator`.
     private var list: some View {
         TaskListView(tasks: store.inboxTasks, metrics: .sheet, showsColumn: false) {
             if store.inboxTasks.isEmpty {

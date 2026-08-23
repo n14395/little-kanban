@@ -373,12 +373,12 @@ import Testing
         step(undo) { captured = store.addTask(to: .inbox, title: "") }
         let withCapture = board(store)
         let id = try #require(captured)
-        step(undo) { store.discardIfUntouched(id) }
+        step(undo) { store.discardIfBlank(id) }
         #expect(board(store) != withCapture)
         #expect(undo.undoActionName == "Discard Capture")
         undo.undo()
         #expect(board(store) == withCapture)
-        named["discardIfUntouched"] = "Discard Capture"
+        named["discardIfBlank"] = "Discard Capture"
 
         // Every one of them named itself, which is what the Edit menu shows.
         #expect(named.values.allSatisfy { !$0.isEmpty })

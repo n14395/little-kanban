@@ -21,6 +21,29 @@ extension Palette {
         }
     }
 
+    /// The wash over whatever a panel is covering: the iPhone's navigation
+    /// drawer and its Inbox slide-over, which are the two things in this app
+    /// that cover a surface rather than sitting beside it.
+    ///
+    /// **Not `ink(0.3)`, which is what both of them used to be** — the same
+    /// trap ``onAccent`` documents from the other end. Ink is the *text* colour
+    /// and in dark mode it is 0xEEEAE2, so a scrim written as ink laid a
+    /// near-white veil over the board: opening either panel lit the screen up
+    /// instead of dimming it, which is the one thing a scrim exists not to do.
+    ///
+    /// A scrim is a **shadow** rather than an ink — it is the absence of what
+    /// is behind it — and `shadow(_:)` is already the colour that goes to pure
+    /// black in dark mode, for this exact reason. Light mode is unchanged to
+    /// the byte: shadow and ink are the same 0x171310 there, which is why this
+    /// went unnoticed.
+    ///
+    /// Heavier in the dark, because the board is 0x131110 to begin with and
+    /// black at 0.3 over near-black is not a wash anybody can see. `fraction`
+    /// is for a panel being dragged in, whose scrim arrives with it.
+    func scrim(_ fraction: Double = 1) -> Color {
+        shadow((isDarkScheme ? 0.5 : 0.3) * fraction)
+    }
+
     /// Ink for text and for the glyphs read as text, with a floor under the
     /// opacity the design asks for.
     ///

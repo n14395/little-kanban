@@ -21,6 +21,17 @@ enum PhoneTab: String, CaseIterable, Identifiable, Sendable {
         case .search: String(localized: "Search", comment: "Phone tab showing the search results")
         }
     }
+
+    /// The glyph beside the word on the phone's bar — and, with the phone on
+    /// its side, instead of it. The Inbox slot is not one of these and takes
+    /// ``SavedView/inbox``'s, which is the tray the desk's own Inbox row draws:
+    /// one place, one glyph.
+    var symbol: String {
+        switch self {
+        case .board: "square.grid.2x2"
+        case .search: "magnifyingglass"
+        }
+    }
 }
 
 /// What the main surface is showing: the active board, or a saved view
@@ -321,6 +332,24 @@ struct BoardMutation: Equatable, Sendable {
     var trash: [TrashedItem]
 }
 
+/// Which edge of which card a dragged one would land against.
+///
+/// Two cases rather than an index, because an index is a fact about the board
+/// and this is a fact about the *screen*: the caret is drawn by whichever card
+/// it names, on the side it names, and no card has to know how far down the
+/// column it is to draw its own edge. See ``BoardStore/dropCaret``.
+enum DropCaret: Hashable, Sendable {
+    case above(TaskItem.ID)
+    case below(TaskItem.ID)
+
+    /// The card the caret is drawn against.
+    var card: TaskItem.ID {
+        switch self {
+        case .above(let id), .below(let id): id
+        }
+    }
+}
+
 /// Board state and every mutation the design defines.
 ///
 /// This is a port of the `Component extends DCLogic` class in
@@ -418,6 +447,25 @@ final class BoardStore {
 
     var draggingID: TaskItem.ID?
     var dropTargetColumnID: BoardColumn.ID?
+    /// Which insertion point the pointer is over, set by the half of the card
+    /// it is in — `nil` when it is over a list's own ground rather than over a
+    /// card at all.
+    ///
+    /// **Where the pointer is, not where the card came from.** This used to be
+    /// the card under the pointer, with the side worked out from the direction
+    /// of travel, because that is what `move(_:onto:)` does. It cannot express
+    /// the top of a list: a card dragged from anywhere earlier in board order
+    /// onto the first card of a later column lands *after* it, so there was no
+    /// gesture at all that put a card at the head of another column. Each card
+    /// now offers its two halves separately — see `BoardTaskCard.dropZones` —
+    /// and this is whichever one the pointer is in.
+    ///
+    /// Beside `dropTargetColumnID` rather than inside a card, because the card
+    /// under the pointer and the card that has to *draw* the answer are not
+    /// always the same one: a drop aimed at a column's ground is drawn against
+    /// whichever of its cards holds the rank the dragged one is leaving, which
+    /// is a card the pointer never touched. See ``dropCaret``.
+    var dropTargetCaret: DropCaret?
     var query: String = ""
     /// Where the inline "Task title, then ⏎" composer is open, or `nil` for
     /// none. A place rather than a column id, so the Inbox can have one too.
@@ -476,6 +524,20 @@ final class BoardStore {
     /// shortcuts sheet is: on macOS the `Settings` scene opens it, on iOS a
     /// drawer row does, and neither can reach the other's view tree.
     var isShowingSettings: Bool = false
+    /// Whether the Trash is up.
+    ///
+    /// **It used to be a tab of Settings, and it was never a setting.** Every
+    /// other subject in there is a preference about how the app behaves; this
+    /// one is the user's own work, waiting thirty days to be either wanted again
+    /// or gone. A preference can wait, and a card thrown away on Tuesday cannot
+    /// wait past the thirtieth day, so it has a door of its own now: the bin at
+    /// the foot of the source list on macOS and iPad, and the board menu on the
+    /// phone.
+    ///
+    /// On the store rather than in a view because the three doors are in three
+    /// different trees — `BoardSidebar` on two platforms, `PhoneHeader` on the
+    /// third — and the phone's sheet is presented by the root, which is neither.
+    var isShowingTrash: Bool = false
     /// Whether File ▸ Export… / Import… has asked for its panel. On the store
     /// for the reason the shortcuts sheet is: the menu bar lives outside every
     /// window's view tree, and the panels are presented by a view inside one.
@@ -507,11 +569,21 @@ final class BoardStore {
     private var subtaskDrafts: [DraftKey: String] = [:]
     private var labelDrafts: [DraftKey: String] = [:]
 
-    /// Tasks quick capture created untitled that have not been given anything
-    /// since. Membership is what makes a dismissal a discard: it says the task
-    /// *never* had content, so one the user deliberately emptied later — which
-    /// looks identical from the outside — is left alone.
-    @ObservationIgnored private var untouchedCaptures: Set<TaskItem.ID> = []
+    /// Cards a `+` made empty, each kept beside the card *as it was made*, so
+    /// that closing the editor can ask whether anything in it was filled in.
+    /// Membership is what keeps the question to captures: an ordinary card the
+    /// user opens and closes again is not in here and is never at risk.
+    ///
+    /// **A capture that was typed into and emptied again is discarded too**,
+    /// which is the rule this used to have the other way round. It tracked
+    /// *touch* — any mutation at all took a card out of here for good — so a
+    /// capture whose priority was tried and put back, or whose title was typed
+    /// and deleted, or which merely started with a default due date, was left
+    /// on the board as an untitled card nobody asked for. What the dismissal
+    /// actually has to ask is whether the editor was closed with anything in
+    /// it, and only the card itself can answer that: see
+    /// ``TaskItem/hasSameContent(as:)``.
+    @ObservationIgnored private var blankCaptures: [TaskItem.ID: TaskItem] = [:]
 
     /// One open editing session. Keyed by surface as well as task and field so
     /// two surfaces editing the same title cannot share — and corrupt — one
@@ -769,6 +841,16 @@ final class BoardStore {
         let picked = tasks.first { $0.id == SeedData.dragAndDropTaskID }?.id ?? tasks.first?.id
         self.selection = picked.map { [$0] } ?? []
         self.selectionAnchor = picked
+        // Which column the phone opens on is session state, so it is not saved
+        // and every launch starts at the property's default — which is a *seed*
+        // column id, and a board the user made carries ids of its own
+        // (`Board.startingColumns()`). Opening on one of those left
+        // `mobileColumnID` naming no column on the board: every chip unlit,
+        // while the list and the add row showed the first column through
+        // `mobileColumnIndex`'s `?? 0`. Switching boards and undoing already
+        // move the phone off a column that is not there; a launch is the third
+        // way onto a board and had nowhere to do it.
+        detachSurfacesFromMissingColumns()
         #if DEBUG
         applyLaunchOverrides()
         #endif
@@ -1453,6 +1535,7 @@ final class BoardStore {
     ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenSheet NW-118
     ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenDrawer YES
     ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenSettings YES
+    ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenTrash YES
     ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanTab search
     private func applyLaunchOverrides() {
         let defaults = UserDefaults.standard
@@ -1465,6 +1548,9 @@ final class BoardStore {
         }
         if defaults.bool(forKey: "SimpleKanbanOpenSettings") {
             isShowingSettings = true
+        }
+        if defaults.bool(forKey: "SimpleKanbanOpenTrash") {
+            isShowingTrash = true
         }
         if let raw = defaults.string(forKey: "SimpleKanbanTab"), let parsed = PhoneTab(rawValue: raw) {
             tab = parsed
@@ -2141,7 +2227,207 @@ final class BoardStore {
     func endDrag() {
         draggingID = nil
         dropTargetColumnID = nil
+        dropTargetCaret = nil
         isInboxDropTarget = false
+    }
+
+    /// Says a card has been picked up, from the one signal a build without
+    /// `onDragSessionUpdated` has: the moment `.draggable` is asked for its
+    /// payload.
+    ///
+    /// **Once per pick-up, which takes a latch.** SwiftUI does not ask for a
+    /// payload once — it asks again for the preview, and again as the view
+    /// updates under the finger, three to six times for a single lift — so the
+    /// first ask is the lift and the rest are noise.
+    ///
+    /// **All of it deferred a turn**, because the ask can land inside a view
+    /// update and this writes state the board is drawn from.
+    ///
+    /// The expiry is for the case that has no callback at all before
+    /// `onDragSessionUpdated`: a card let go over nothing ends its session
+    /// without telling anybody, and without this the board would stay dimmed
+    /// and highlighted until the next pick-up. Every drop clears the lift on
+    /// the way through `endDrag`, so the ordinary case never reaches it.
+    func beginDrag(_ id: TaskItem.ID, onLift: @escaping () -> Void = {}) {
+        Task { @MainActor [weak self] in
+            guard let self, draggingID != id else { return }
+            draggingID = id
+            onLift()
+            try? await Task.sleep(for: .seconds(Self.liftExpiry))
+            if draggingID == id { endDrag() }
+        }
+    }
+
+    /// How long a lift nobody ended is believed. Long enough to cross a board
+    /// with, short enough that a session lost to a gesture the OS ate does not
+    /// outlive the user's patience.
+    static let liftExpiry: TimeInterval = 20
+
+    /// Where the card in flight would land if it were let go now.
+    ///
+    /// **Because until now nothing said.** A lifted card dimmed and the column
+    /// under the pointer lit up, which answers *which list* and not *where in
+    /// it* — and "where in it" is the whole of what a reorder is. Worse, the
+    /// answer is not the obvious one: dropping onto a card lands **after** it
+    /// when the drag came from above and **before** it when it came from below,
+    /// which is `move(_:onto:)`'s off-by-one and is impossible to guess from
+    /// the outside. This is that rule, read back.
+    ///
+    /// `nil` where a release would move nothing — over the dragged card itself,
+    /// or over the ground of the column it already sits in, which the drop
+    /// treats as aimed at where the card already is. The column stays lit in
+    /// that last case: the highlight says which list the pointer is in, and the
+    /// caret says where the card would go, and there being nowhere for it to go
+    /// is a true thing to draw.
+    var dropCaret: DropCaret? {
+        guard allowsCardDrag else { return nil }
+        if let caret = dropTargetCaret {
+            // Not on the card in the air: it is about to leave, and a line
+            // against a card that is going says nothing about where anything
+            // lands. `draggingID` is *not* required for the rest — a caret is a
+            // fact about the pointer, and on a build with no drag-session
+            // callback there may be nothing in `draggingID` to compare with.
+            return caret.card == draggingID ? nil : caret
+        }
+        // The pointer is on a list's own ground rather than on a gap it has
+        // named, so the card keeps the rank it came in with — see
+        // ``groundCaret(for:in:)``.
+        guard let dragging = draggingID,
+              let destination = hoveredDropPlacement,
+              self[dragging]?.placement != destination
+        else { return nil }
+        return groundCaret(for: dragging, in: destination)
+    }
+
+    /// Where a drop on a list's *ground* lands: the space around its cards,
+    /// which names no gap of its own.
+    ///
+    /// **At the rank the card is leaving.** A card third in the column it came
+    /// from lands third in the column it is dropped on. This used to append —
+    /// the caret went under whatever was last there — and appending is the
+    /// wrong answer for the gesture people actually make: a card is dragged
+    /// *sideways*, across a board whose columns are stages of one piece of
+    /// work, and the row it was on is where the eye is. A card third in Doing
+    /// that reappeared at the foot of a Backlog twenty cards long had to be
+    /// found again before it could be put back.
+    ///
+    /// Only the ground answers this way. A pointer inside a card has named a
+    /// gap — `dropTargetCaret`, the branch above — and an explicit aim always
+    /// beats the rank, which is only ever a default for a drop that did not say.
+    ///
+    /// Appending is still the answer when the destination is the shorter list:
+    /// a card fifth in its column dropped on the ground of one holding two has
+    /// no fifth place to keep, and the foot is the nearest thing to it. An empty
+    /// list has no card to draw a caret against at all, so it gets none — the
+    /// column highlight is the whole of the feedback there, and ``drop(_:onGroundOf:)``
+    /// takes that drop the plain way.
+    private func groundCaret(for id: TaskItem.ID, in destination: TaskPlacement) -> DropCaret? {
+        let list = tasks(in: destination)
+        guard let last = list.last else { return nil }
+        guard let rank = rank(of: id), rank < list.count else { return .below(last.id) }
+        return .above(list[rank].id)
+    }
+
+    /// How far down its own list a card sits — which is what crossing to
+    /// another list preserves. Counted over the same `tasks(in:)` the caret and
+    /// the drop are counted over, so the three cannot disagree.
+    private func rank(of id: TaskItem.ID) -> Int? {
+        guard let placement = self[id]?.placement else { return nil }
+        return tasks(in: placement).firstIndex { $0.id == id }
+    }
+
+    /// Puts the dragged card exactly where the caret says, which is the one
+    /// place a drop is allowed to land now that the caret has promised it.
+    ///
+    /// This replaced `move(_:onto:)` on the board's cards. That one resolved a
+    /// drop by *direction of travel* — the only thing "dropped onto this card"
+    /// can mean when the drop names a card rather than a gap — and the price
+    /// was that the head of a list was unreachable from above it. A caret names
+    /// a gap, so this inserts into that gap and nothing has to be inferred.
+    func drop(_ id: TaskItem.ID, at caret: DropCaret) {
+        guard id != caret.card, let target = self[caret.card] else { return }
+        let placement = target.placement
+        // A drop that puts the card back where it already is costs a ⌘Z and
+        // writes "Move Task" into the history of a card that did not move.
+        guard !isAlready(id, at: caret) else { return endDrag() }
+
+        let before: TaskItem.ID?
+        switch caret {
+        case .above:
+            before = caret.card
+        case .below:
+            // The next card *in the target's own list*, which is where the
+            // caret was drawn — not the next card in the board array, which
+            // may belong to another column entirely.
+            before = neighbour(after: caret.card, in: placement)?.id
+        }
+        undoable(Self.moveName(for: placement)) {
+            performMove(id, to: placement, before: before, toTheEnd: before == nil)
+        }
+    }
+
+    /// The drop a list's own ground takes — the column around its cards, the
+    /// Inbox panel around its own — which names no gap, so it lands where
+    /// ``groundCaret(for:in:)`` promised the caret would.
+    ///
+    /// **Separate from `move(_:to:)`, which still appends.** Rank is a fact
+    /// about a *drag*: the card was on a row and the eye is on that row. Every
+    /// other route into a column — the move-to menu, the sidebar's board rows,
+    /// a bulk move, filing from the Inbox — is a card arriving from somewhere
+    /// with no row to keep, and those go on landing at the end.
+    ///
+    /// A drop on the ground of the list the card is already in is aimed at
+    /// where it already is: `performMove` returns without moving it and
+    /// `unfile` says the same about the Inbox, so this refuses it up front
+    /// rather than spending a ⌘Z on a card that did not go anywhere.
+    func drop(_ id: TaskItem.ID, onGroundOf placement: TaskPlacement) {
+        guard isPlaceable(placement), let task = self[id] else { return }
+        guard task.placement != placement else { return endDrag() }
+        // An empty list has no card to insert ahead of, and no caret was drawn
+        // over it either; the plain move appends into the empty place.
+        guard let caret = groundCaret(for: id, in: placement) else {
+            return move(id, to: placement)
+        }
+        drop(id, at: caret)
+    }
+
+    /// Whether the card is already sitting in the gap the caret names.
+    private func isAlready(_ id: TaskItem.ID, at caret: DropCaret) -> Bool {
+        guard let target = self[caret.card], self[id]?.placement == target.placement else {
+            return false
+        }
+        let list = tasks(in: target.placement).map(\.id)
+        guard let dragged = list.firstIndex(of: id), let anchor = list.firstIndex(of: caret.card)
+        else { return false }
+        switch caret {
+        case .above: return anchor == dragged + 1
+        case .below: return anchor == dragged - 1
+        }
+    }
+
+    /// The card after `id` in the list it is in.
+    private func neighbour(after id: TaskItem.ID, in placement: TaskPlacement) -> TaskItem? {
+        let list = tasks(in: placement)
+        guard let index = list.firstIndex(where: { $0.id == id }), index + 1 < list.count
+        else { return nil }
+        return list[index + 1]
+    }
+
+    /// Which list the pointer is over, as a placement — the Inbox panel being
+    /// the one that is not a column.
+    private var hoveredDropPlacement: TaskPlacement? {
+        if isInboxDropTarget { return .inbox }
+        guard let columnID = dropTargetColumnID else { return nil }
+        let placement = placement(forColumn: columnID)
+        return isPlaceable(placement) ? placement : nil
+    }
+
+    /// The cards in a place, in board order.
+    private func tasks(in placement: TaskPlacement) -> [TaskItem] {
+        switch placement {
+        case .inbox: inboxTasks
+        case .column(_, let columnID): visibleTasks(in: columnID)
+        }
     }
 
     // MARK: - Moving
@@ -2371,25 +2657,29 @@ final class BoardStore {
         return removed
     }
 
-    /// Drops a task that quick capture created and the user never gave anything
-    /// to — the untitled card left behind by opening the capture sheet and
-    /// dismissing it again.
+    /// Drops a card that a `+` created and the user filled nothing into — the
+    /// untitled card otherwise left behind by opening the capture editor and
+    /// closing it again.
+    ///
+    /// "Filled nothing in" means every control is back where capture left it,
+    /// which is not the same as every control being empty: a card filed onto a
+    /// board from the editor's own board menu stays even with nothing else in
+    /// it, and one that starts with a default due date still goes. A card typed
+    /// into and emptied again goes as well — the user closed the editor with
+    /// nothing in it, and how long they spent getting there is not this rule's
+    /// business.
     ///
     /// It registers a step, even though nothing the user meant to keep is being
     /// lost. It used to not, on the grounds that the capture and the discard
     /// cancel out — but they only cancel out on the board, not on the stack, and
     /// an unregistered removal sitting on top of the capture's step is exactly
     /// the shape that lets a later ⌘Z put the discarded card back.
-    func discardIfUntouched(_ id: TaskItem.ID) {
-        guard untouchedCaptures.contains(id), let task = self[id] else { return }
-        // The marker says it was never touched; the shape says it is still
-        // empty. Both have to hold before anything is thrown away.
-        guard task.title.isEmpty, task.note.isEmpty, task.labelKeys.isEmpty,
-              task.due == nil, task.subtasks.isEmpty, task.activity.count <= 1
-        else {
-            untouchedCaptures.remove(id)
-            return
-        }
+    func discardIfBlank(_ id: TaskItem.ID) {
+        // The dismissal ends the capture either way: whatever the card is from
+        // here on, it is one the user kept, and it is not asked again.
+        guard let made = blankCaptures.removeValue(forKey: id), let task = self[id],
+              task.hasSameContent(as: made)
+        else { return }
         undoable(String(localized: "Discard Capture", comment: "Undo action name for dropping an unused quick capture")) {
             // Hand the code back when it was the last one minted, so a capture
             // the user thought better of leaves no gap in the numbering.
@@ -2409,7 +2699,7 @@ final class BoardStore {
         // Before the removal, so a session on the doomed task cannot be ended
         // against it and log a rename on the way out.
         clearDrafts(for: id)
-        untouchedCaptures.remove(id)
+        blankCaptures[id] = nil
         let removed = tasks.remove(at: index)
         if pendingTitleFocusID == id { pendingTitleFocusID = nil }
         if draggingID == id { draggingID = nil }
@@ -2893,7 +3183,7 @@ final class BoardStore {
         // ends the sessions the surface left on the task it came from, and those
         // must file their own text rather than collapsing into this step.
         pendingTitleFocusID = title.isEmpty ? id : nil
-        if title.isEmpty { untouchedCaptures.insert(id) }
+        if title.isEmpty { rememberCapture(id) }
         draft = ""
         addingPlacement = nil
         if fromPhone {
@@ -2923,8 +3213,15 @@ final class BoardStore {
     func captureToInbox() -> TaskItem.ID {
         let id = mintTask(to: .inbox, title: "", log: .captured)
         pendingTitleFocusID = id
-        untouchedCaptures.insert(id)
+        rememberCapture(id)
         return id
+    }
+
+    /// Files a card a `+` has just made empty, exactly as it was made, so that
+    /// closing its editor can tell whether anything was filled in. See
+    /// ``blankCaptures``.
+    private func rememberCapture(_ id: TaskItem.ID) {
+        blankCaptures[id] = self[id]
     }
 
     /// Adds several tasks as one step — what ⌘V of a list of lines is for, and
@@ -3096,9 +3393,6 @@ final class BoardStore {
     private func markChanged(_ id: TaskItem.ID) {
         revisionCounter &+= 1
         taskRevisions[id] = revisionCounter
-        // Any mutation at all counts as content: a task that has been touched
-        // once is the user's, whatever they empty it back to afterwards.
-        untouchedCaptures.remove(id)
     }
 
     @ObservationIgnored private var taskRevisions: [TaskItem.ID: Int] = [:]
@@ -3635,9 +3929,13 @@ final class BoardStore {
         return nil
     }
 
-    /// Moves the session off a column that is no longer there — after a delete,
-    /// after switching boards, and after an undo that restored a board from
-    /// before a column was added.
+    /// Moves the session off a column that is no longer there — at launch,
+    /// after a delete, after switching boards, and after an undo that restored
+    /// a board from before a column was added.
+    ///
+    /// Launch is the one that is not about something going away: `mobileColumnID`
+    /// is session state and starts every run at a seed column's id, which is on
+    /// no board the user made. See `init`.
     private func detachSurfacesFromMissingColumns() {
         let ids = Set(columns.map(\.id))
         if let first = columns.first?.id, !ids.contains(mobileColumnID) {
@@ -3874,21 +4172,38 @@ final class BoardStore {
         // still set here to leave whatever saved view was standing in.
         surface = .board
         self.tab = tab
+        // Search is a tab you go to in order to type in it. It used to arrive
+        // as an empty field with no keyboard and no caret, so reaching it cost
+        // two taps and the second one had to find a 22pt band of text. Every
+        // route through here asks for the field, and the field decides whether
+        // it is in a position to take it — see `PhoneHeader.searchField`.
+        if tab == .search { focusSearch() }
     }
 
-    /// The floating "+" button: raise the Inbox and start a new capture in it.
+    /// The floating "+" button: start a new capture in the Inbox.
     ///
     /// The task is created untitled and its sheet opens with the title field
     /// focused, so the capture is finished by typing rather than by editing a
-    /// placeholder afterwards. `showInbox()` leaves a saved view for the same
-    /// reason `selectTab` does: the card lands in the Inbox, and a filter it is
+    /// placeholder afterwards. Leaving a saved view is for the same reason
+    /// `selectTab` does it: the card lands in the Inbox, and a filter it is
     /// unlikely to match is not where the user should be left looking.
     func quickCapture() {
-        // The card lands in the Inbox, so the Inbox comes up — which on this
-        // platform is the slide-over. The detail sheet opens over the top of it
-        // to be typed into, and closing that leaves the new card in a list that
-        // is already showing rather than on a board it is not on.
-        showInbox()
+        // **The Inbox does not come up.** It used to: the card lands there, so
+        // the panel was raised to leave it visible once the detail sheet was
+        // closed. What that actually did was open a second surface *behind* a
+        // sheet the user is already typing into — the panel is never seen while
+        // it matters, and dismissing the sheet reveals a slide-over nobody
+        // asked for and now has to put away. Capture is one act, and it should
+        // move the user nowhere.
+        //
+        // The card is still in the Inbox and the sheet says so while it is being
+        // typed into: `PhoneDetailSheet`'s Move-to row names where it lives.
+        //
+        // Leaving a saved view stays, and is a different question — a filter the
+        // new card is unlikely to match is not a list to strand somebody in
+        // whether or not a panel comes up over it. See
+        // `SearchScopingTests.aQuickCaptureLeavesTheSavedViewBehindWithoutRaisingTheInbox`.
+        surface = .board
         addTask(to: .inbox, title: "", fromPhone: true, log: .captured)
     }
 

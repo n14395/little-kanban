@@ -212,7 +212,6 @@ import Testing
             "Boards", "Views", "Labels", "Reminders",   // sidebar and drawer section headings
             "Name", "Short",                            // the column editors, both platforms
             "Due", "Priority",                          // inspector field names, phone attribute cards
-            "Previous column", "Next column",           // the phone pager's arrows
             "Move Up", "Move Down",                     // the drawer's column stepper
             "No due date",                              // the due chip's spoken value
         ]
