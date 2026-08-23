@@ -59,6 +59,20 @@ struct PhoneHeader: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityAddTraits(.isHeader)
 
+                // The phone on its side puts the tab bar here, between the
+                // title and the ⋯. Nowhere else on this shape is free: along
+                // the foot it cost a third of the height, and up the leading
+                // edge it cost the board 76pt of width — while this row is
+                // already drawn, already 44pt tall, and holds one line of
+                // serif with the whole middle of the screen after it. The
+                // title takes what is left rather than the bar taking what
+                // the title leaves, which is what `maxWidth: .infinity` above
+                // already said.
+                //
+                // Portrait keeps the bar floating over the foot, where a thumb
+                // reaches it — see ``PhoneTabBar`` and `PhoneRootView`.
+                if isShort { PhoneTabBar(placement: .header) }
+
                 boardMenu
             }
 

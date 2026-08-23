@@ -47,9 +47,12 @@ import Testing
             #expect(Preferences.weekMeaning == .rollingSevenDays)
             #expect(Preferences.resumesLastPlace == false)
             #expect(Preferences.opensInboxAtLaunch == false)
-            // The one that defaults *on*: the menu bar item is this app's only
-            // route in from another app.
+            // The two that default *on*. The menu bar item is this app's only
+            // route in from another app; the card's tick is a verb, and a
+            // switch that arrives having taken one off a surface is not a
+            // default, it is a change nobody asked for.
             #expect(Preferences.showsMenuBarExtra)
+            #expect(Preferences.showsCardTick)
         }
     }
 
@@ -69,6 +72,15 @@ import Testing
         }
         Preferences.reading(suite([:])) {
             #expect(Preferences.showsMenuBarExtra)
+        }
+        // The second of the two, asked the same way. A `bool(forKey:)` reader
+        // would pass the first line here and fail the second, which is the
+        // whole shape of the bug.
+        Preferences.reading(suite([Preferences.cardTickKey: false])) {
+            #expect(Preferences.showsCardTick == false)
+        }
+        Preferences.reading(suite([:])) {
+            #expect(Preferences.showsCardTick)
         }
     }
 
@@ -217,10 +229,25 @@ import Testing
                 "the view was not written down, so turning the setting on would resume nothing")
     }
 
-    @Test func returningToTheBoardForgetsTheView() {
+    /// **The board is written down too, and that is the fix rather than the
+    /// bug.** Going back to it used to *clear* the key, which was sound while
+    /// every launch landed on the board: "nothing stored" and "the board" were
+    /// the same answer, so the difference could not be seen. They stopped being
+    /// the same answer when the phone started landing on Today — see
+    /// `BoardStore.landingSurface`. With the key cleared, somebody who had
+    /// **Reopen the view I was on** switched on and quit from the board would
+    /// have been put on Today, which is the one thing that setting promises not
+    /// to do.
+    @Test func returningToTheBoardIsRememberedAsTheBoard() {
         let store = TestBoard.store()
         store.selectSurface(.view(.archive))
+        #expect(store.lastSurfaceName == "archive")
         store.selectSurface(.board)
-        #expect(store.lastSurfaceName == nil)
+        #expect(store.lastSurfaceName == BoardStore.boardSurfaceName,
+                "the board was forgotten, so resuming from it would land somewhere else")
+        // And it is not a `SavedView` — the name has to be one no case answers
+        // to, or the resume would read it back as a view that does not exist
+        // and fall through to the landing surface anyway.
+        #expect(SavedView(rawValue: BoardStore.boardSurfaceName) == nil)
     }
 }

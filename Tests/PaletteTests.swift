@@ -86,7 +86,7 @@ import Testing
     /// `.white`. Three of the four accents are dark, saturated colours in either
     /// scheme and white is right on them — but `.ink` *is* the ink colour, and
     /// ink in dark mode is 0xEEEAE2. White on that is white on near-white: the
-    /// toolbar's New task button, the completion tick, the phone's pager chips
+    /// source list's capture button, the completion tick, the pager chips
     /// and the due-date presets were all blank for anyone using the ink accent
     /// after dark, in both the app and the previews.
     ///

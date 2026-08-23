@@ -68,6 +68,10 @@ struct BoardTaskCard: View {
     /// `Preferences`, because the board has to redraw the moment it changes and
     /// a plain read is a value nothing is watching.
     @AppStorage(CardDensity.storageKey) private var density = CardDensity.fallback
+    /// Whether the card draws its tick at all — see ``Preferences/cardTickKey``.
+    /// `@AppStorage` for the same reason `density` is: every card on the board
+    /// has to close its gutter the moment the switch is flipped.
+    @AppStorage(Preferences.cardTickKey) private var showsCardTick = true
     /// Where a click says which card the board should show whole. Optional
     /// because the phone's card and a preview have no board around them.
     @Environment(BoardFocusRelay.self) private var relay: BoardFocusRelay?
@@ -409,15 +413,23 @@ struct BoardTaskCard: View {
         return store.visibleTasks(in: columnID).map(\.id)
     }
 
+    /// Whether the card draws a tick, which is also whether `content` leaves it
+    /// a gutter. Asked in one place so the overlay and the space it is drawn
+    /// over cannot disagree — the failure that would leave is an empty column
+    /// of nothing down the leading edge of every card.
+    ///
+    /// Two ways to answer no. An archived card has never had one: in the
+    /// Archive the verb is Restore and only Restore, see the context menu. The
+    /// switch is the new one, and it is a preference — see
+    /// ``Preferences/cardTickKey`` for why.
+    private var drawsToggle: Bool { !task.isArchived && showsCardTick }
+
     /// Sits over the card rather than inside its label: a button nested in
     /// another button's label never sees the click, and completing a task must
     /// not also open the inspector.
-    ///
-    /// Absent on an archived card — see the context menu — which is why the
-    /// gutter it is drawn over is conditional too.
     @ViewBuilder
     private var completionToggle: some View {
-        if !task.isArchived {
+        if drawsToggle {
             CompletionToggle(isDone: isDone, metrics: metrics.toggle) {
                 store.toggleCompletion(task.id)
             }
@@ -470,10 +482,11 @@ struct BoardTaskCard: View {
 
     private var content: some View {
         HStack(alignment: .top, spacing: metrics.toggleSpacing) {
-            // Holds the gutter the completion toggle is drawn over. An archived
-            // card has no toggle, and the Archive is all archived cards, so the
-            // whole list closes up rather than each row leaving a hole.
-            if !task.isArchived {
+            // Holds the gutter the completion toggle is drawn over, and only
+            // when there is a toggle to draw: the space is reserved by this
+            // spacer alone, so a card with no tick starts its text at the
+            // card's own margin rather than leaving a hole where one was.
+            if drawsToggle {
                 Color.clear
                     .frame(width: metrics.toggle.size, height: metrics.toggle.size)
             }

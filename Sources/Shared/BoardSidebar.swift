@@ -446,7 +446,7 @@ struct BoardSidebar: View {
     ///
     /// Two things that are not rows and do not belong in the list, put where a
     /// window's own furniture goes. Capture is the desk's alone — the iPad's
-    /// toolbar already carries New task — so on that platform this row is the
+    /// toolbar carries a `+` of its own — so on that platform this row is the
     /// bin and the space it sits at the end of, which is still the right place
     /// for it: the far corner, away from everything that is a destination.
     private var footer: some View {
@@ -552,8 +552,9 @@ struct BoardSidebar: View {
     /// where a card is by being nowhere.
     ///
     /// macOS only. `PadRootView` draws this same list, but a popover that size
-    /// wants touch metrics and its own width, and the iPad's toolbar already
-    /// carries New task.
+    /// wants touch metrics and a width of its own, and the iPad's toolbar
+    /// carries capture itself — a circle with a `+` in it, at the right of the
+    /// bar. See ``BoardToolbar/captureButton``.
     @ViewBuilder private var captureButton: some View {
         #if os(macOS)
         Button { capture = Capture(id: store.captureToInbox()) } label: {

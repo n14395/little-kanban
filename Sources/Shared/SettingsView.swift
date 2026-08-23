@@ -166,6 +166,7 @@ struct SettingsView: View {
 
     @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
     @AppStorage(CardDensity.storageKey) private var density = CardDensity.fallback
+    @AppStorage(Preferences.cardTickKey) private var showsCardTick = true
     @AppStorage(NewTaskDestination.storageKey) private var newTasks = NewTaskDestination.fallback
     @AppStorage(DefaultDueDate.storageKey) private var defaultDue = DefaultDueDate.fallback
     @AppStorage(AutoArchive.storageKey) private var autoArchive = AutoArchive.fallback
@@ -538,6 +539,18 @@ struct SettingsView: View {
                                         comment: "Settings note under the card detail row")) {
                         ForEach(CardDensity.allCases) { option in
                             pick(option.label, isCurrent: option == density) { density = option }
+                        }
+                    }
+                }
+                rule
+                row {
+                    Toggle(isOn: $showsCardTick) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Tick cards off from the board")
+                                .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                            Text("The circle in a card's leading corner. Turned off, cards close the gutter up; the tick beside the title in the detail panel still finishes one.")
+                                .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                                .foregroundStyle(palette.inkText(0.45))
                         }
                     }
                 }

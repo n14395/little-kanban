@@ -110,6 +110,45 @@ struct BoardScrollView: View {
                     scroll { proxy.scrollTo(columnID) }
                 }
             }
+            // The panel opens *beside* the board and takes its width out of
+            // the board's, so a card picked at the right-hand edge is behind
+            // the panel by the time the panel is there: selected, and no longer
+            // on screen. This is `.intoView` again — the least the board can do
+            // — asked of the width the board is left with rather than the one
+            // it had when the card was clicked.
+            //
+            // **Why it waits.** The reveal the click itself raises cannot
+            // answer this: it is measured while the board is still whole, and
+            // the minimum scroll that makes a column whole in a board about to
+            // lose a third of itself is no scroll at all. Nor is measuring the
+            // new width enough. Both were tried, in a 1240pt window with the
+            // panel closed and the card at x=1234–1486: the layout reports
+            // 672pt the instant the panel opens, and a scroll issued then — or
+            // one runloop turn later — still left the card exactly where it
+            // was, with the board's right-hand edge arriving at x=1312 over the
+            // top of it. The scroll view's own visible rect follows the panel's
+            // animation rather than jumping to the end of it, so the wait is
+            // for that: the same measurement with the scroll taken after
+            // `panelTravel` put the card at x=1034–1286, clear of the panel.
+            //
+            // Only on the way *open*. Closing the panel hands the width back,
+            // and a column that was whole in the narrow board is whole in the
+            // wide one.
+            //
+            // Nothing moves where the panel is drawn *over* the board instead,
+            // which is the shape an iPad falls back to when there is not a
+            // column's width left beside it — see
+            // `PadRootView.hasRoomBesideTheBoard`. The board keeps its width
+            // there, so the minimum scroll is none, which is the honest answer:
+            // the panel is covering the board because there is nowhere else to
+            // put it.
+            .onChange(of: store.isInspectorOpen) { _, isOpen in
+                guard isOpen, let columnID = store.selectedTask?.columnID else { return }
+                Task { @MainActor in
+                    try? await Task.sleep(for: Self.panelTravel)
+                    scroll { proxy.scrollTo(columnID) }
+                }
+            }
             .onDisappear { relay?.focusedColumnID = nil }
         }
     }
@@ -123,6 +162,15 @@ struct BoardScrollView: View {
     private func scroll(_ body: () -> Void) {
         Motion.run(.easeOut(duration: 0.16), reduceMotion: reduceMotion, body)
     }
+
+    /// How long to leave the detail panel to take its width before measuring
+    /// the board against what is left.
+    ///
+    /// `MacRootView` and `PadRootView` both animate the panel over 0.16s, and
+    /// the slack is three frames on top — the wait is for the scroll view's
+    /// visible rect to have finished following it, and a scroll one frame early
+    /// is a scroll measured against a board that is still moving.
+    static let panelTravel: Duration = .milliseconds(210)
 
     /// The gap the design puts between two columns, and the board's own margin
     /// at either end of the strip. What the board must still measure once the

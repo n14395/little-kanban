@@ -33,11 +33,11 @@ import Testing
     private static let fields = [
         "Shared/BoardTaskComposer.swift",   // a column's + , and the Inbox panel's
         "Shared/BoardSidebar.swift",        // New board, and renaming one
-        "Shared/BoardToolbar.swift",        // the board's name in the title bar
+        "Shared/BoardToolbar.swift",        // the board’s name, and the search field the bar folds into a button
         "Shared/BoardColumnView.swift",     // Add column, and the column editor
         "Shared/LabelEditor.swift",         // the new-label field in the popover
         "Mac/MenuBarQuickAdd.swift",        // ⌃⌘N, where the field is the window
-        "IOS/PhoneNavDrawer.swift",         // the phone's rename sheet, when it was opened to rename
+        "Shared/BoardSettingsView.swift",   // the board's name, when the sheet was opened to rename
         "IOS/PhoneHeader.swift",            // the phone's search field, on arriving at the Search tab
     ]
 

@@ -107,10 +107,10 @@ import Testing
 
     /// The composer names the column and does nothing else. The four role
     /// segments under the field are gone, which takes `.done` with them: a
-    /// column added from the board is a `.backlog` one, and the phone's drawer
-    /// is the only place left that chooses. `BoardStore` still has no
-    /// `setColumnRole`, so this is the whole of what a pointer can say about a
-    /// new column's role — see ``AddColumnTile``.
+    /// column added from the board is a `.backlog` one, and the board settings
+    /// sheet is the only place left that chooses. `BoardStore` still has no
+    /// `setColumnRole`, so a role is settled when the column is made and this is
+    /// the whole of what the board itself can say about it — see ``AddColumnTile``.
     @Test func theComposerAsksForANameAndNothingElse() {
         guard SourceTree.isReachable else { return }
         guard let file = SourceTree.files().first(where: { $0.path == "Shared/BoardColumnView.swift" })
@@ -121,10 +121,12 @@ import Testing
         #expect(file.source.contains("rolePicker") == false,
                 "the board's add-column composer has a role picker under it again")
 
-        // The phone still has one, and is now the only surface that does. If
-        // this goes, no surface can make a Done column at all.
-        let phone = SourceTree.files().first { $0.path == "IOS/PhoneNavDrawer.swift" }
-        #expect(phone?.source.contains("rolePicker") == true,
+        // The board settings sheet has one, and is now the only surface that
+        // does — it took the picker off the phone's drawer when it took that
+        // drawer's board editor, which is why every platform can now make a Done
+        // column rather than only the phone. If this goes, none of them can.
+        let sheet = SourceTree.files().first { $0.path == "Shared/BoardSettingsView.swift" }
+        #expect(sheet?.source.contains("rolePicker") == true,
                 "no surface left can give a board a Done column")
     }
 }

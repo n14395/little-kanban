@@ -94,11 +94,11 @@ struct PadRootView: View {
     ///
     /// The panel is laid out here rather than taken from `.inspector` on the
     /// detail column. That spelling put the panel over the *whole* column,
-    /// toolbar included: in portrait with the source list out, the New task
-    /// button measured 117×44 at x=839 inside a 1032pt window and reported
-    /// `hittable=false`, because the inspector was drawn on top of it. The
-    /// primary action of the surface was unreachable in one of the two
-    /// orientations. An `HStack` under the toolbar is what macOS does with the
+    /// toolbar included: in portrait with the source list out, the bar's capture
+    /// button — a labelled **New task** then, 117×44 — measured at x=839 inside
+    /// a 1032pt window and reported `hittable=false`, because the inspector was
+    /// drawn on top of it. The primary action of the surface was unreachable in
+    /// one of the two orientations. An `HStack` under the toolbar is what macOS does with the
     /// same three pieces — see `MacRootView` — and it cannot cover a sibling.
     private var detail: some View {
         HStack(spacing: 0) {

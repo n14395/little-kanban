@@ -96,11 +96,39 @@ struct PhoneDetailSheet: View {
 
     // MARK: Editable text
 
-    /// The title, on its own — the same row `TaskInspector` draws, at this
-    /// surface's sizes, and it lost its tick when that one did. See there for
-    /// why completion is the card's control rather than this surface's.
+    /// The title and its tick, aligned `.top` so the tick stays on the title's
+    /// first line rather than halfway down a title that wrapped.
+    ///
+    /// **The one detail surface that still keeps its tick beside the title.**
+    /// The desk and the iPad moved theirs into the header, where it stands with
+    /// the trash and the close ✕ at their size — see ``TaskInspector/header``.
+    /// This sheet's header has the ✕ and nothing else: the trash is a row at the
+    /// foot of the sheet, so there is no set of verbs up there for the tick to
+    /// join, and a lone tick beside a lone ✕ is not that row.
+    ///
+    /// The phone needs it somewhere for a reason the desk does not: it is the
+    /// surface where the card's own gutter can be the *only* tick, so turning
+    /// that gutter off — see ``Preferences/cardTickKey`` — would otherwise leave
+    /// completing a card to the row's long-press menu alone.
     private var titleRow: some View {
-        titleField
+        HStack(alignment: .top, spacing: 10) {
+            titleField
+            completionTick
+        }
+    }
+
+    /// Not drawn on an archived card: the Archive's verb is Restore, which is
+    /// the row's own control. Disabled rather than hidden where there is no
+    /// Done column to complete into — see ``TaskInspector/completionButton``.
+    @ViewBuilder private var completionTick: some View {
+        if !task.isArchived {
+            let isEnabled = store.canToggleCompletion(task.id)
+            CompletionToggle(isDone: store.isDone(task), metrics: .sheetPanel) {
+                store.toggleCompletion(task.id)
+            }
+            .disabled(!isEnabled)
+            .opacity(isEnabled ? 1 : 0.4)
+        }
     }
 
     /// Single-line on purpose: a title is one line by definition, and on a

@@ -1159,23 +1159,53 @@ round trip rather than a one-way door. Neither verb applies to a filed card: `co
 refuse an archived task outright, where Restore is the only verb — see
 **Saved views and the archive**.
 
-**The detail surfaces have no tick.** They carried one for a while, at the top
-right, level with the title — the panel's one *state* control among a column of
-fields. It is gone from both, and the reasoning that put it there is what takes
-it away again: this is the surface for *editing* a card, and the one place where
-a half-considered tap costs the most. Done is where a card stops being work in
-progress, and the panel is open precisely when somebody is in the middle of that
-work. Completion is the card's own control and stays reachable four ways — the
-circle in the card's leading gutter on both platforms, the first item in its
-context menu, and ⌘↩ plus the Task menu on the desk. `CompletionToggle`'s
-`.deskPanel` and `.sheetPanel` presets went with it, rather than being left
-behind as sizes nothing can ask for.
+**The detail surfaces carry a tick**, and it is another door onto
+`toggleCompletion` rather than a second verb: pressing it moves the card to its
+board's Done column, which is the rightmost column on every board the app seeds,
+and pressing it again reopens the card. A tick a finger cannot take back is a
+trap.
+
+**Where it sits is not the same on all three surfaces**, because the row it can
+join is not:
+
+| surface | where | drawn from |
+| --- | --- | --- |
+| macOS, iPad | `TaskInspector.header`, with the trash and the close ✕ | `CompletionToggle.deskHeader` / `.sheetHeader` |
+| phone | `PhoneDetailSheet.titleRow`, level with the title | `CompletionToggle.sheetPanel` |
+
+On the desk and the iPad the panel's header is one row of three verbs — finish
+the card, throw it away, put the panel down — and **all three claim the same
+square**: `TaskInspector.Metrics.headerButton`, 32pt on the desk and 48pt on the
+iPad, with one `headerGlyph` size inside it. The tick brings its own button, so
+its `hitSize` is the only place that agreement can be *stated* rather than
+happening to hold, which is what `TouchTargetTests` asks. It was beside the title
+before, where it was the only control in a column of fields — a state verb in the
+middle of an editing surface, sized against a 26pt serif line rather than against
+anything it shared a row with.
+
+The phone keeps its tick beside the title because its header has the ✕ and
+nothing else: the trash is a row at the foot of the sheet, so there is no set of
+verbs up there to join, and a lone tick beside a lone ✕ is not that row. It stays
+`.top`-aligned there for the reason it always was — a centred row puts the circle
+halfway down a title that wrapped, which is beside no line at all, and the 44pt
+touch square is exactly twice the 13pt radius either way, so the circle lands on
+the title's *first* line without a nudge and the alignment survives two lines.
+
+**Disabled rather than hidden** where there is nothing to complete into, which a
+board arriving from a hand-edited file with no Done column can be. A control that
+vanishes on one card and not the next reads as a bug rather than as a board
+missing a column. On an archived card it *is* absent, because there the verb is
+Restore and only Restore — see **Saved views and the archive**.
+
+The panel's tick is drawn whatever **Tick cards off from the board** says, and
+that is the point of it: with the card's own circle switched off, this and the
+context menu are what is left. See **What a card shows**.
 
 **`BoardStore.toggleCompletion(_:)` is still the one act**, because the board
 card, the panel and the sheet had each spelled out `isDone ? reopen : complete`
 for themselves, and three copies of a two-line rule is two chances for one
 surface to answer differently from the one beside it. `canToggleCompletion(_:)`
-is the matching question and now has no drawn control asking it: the two
+is the matching question, and the detail panels' tick is what asks it: the two
 directions have different conditions — reopening needs only that the card is in
 Done, so on a completed card `canComplete` is *false* while the toggle is still
 live, and completing needs a Done column to complete into, which a hand-edited
@@ -1534,6 +1564,12 @@ clear it.**
   There is deliberately no "Filtered" indicator here: the indicator exists for a
   query whose field is off screen, which on macOS never happens. Both fields do
   carry an `xmark.circle.fill` clear button while non-empty.
+- **iPad** — the same toolbar, and the same rule, through the one case where the
+  field is not in it: a narrow column folds the field into a button, and a *live
+  query* is enough on its own to keep the row under it open. So the query is never
+  narrowing this board without its own field and clear button on screen, and
+  closing that row clears the query rather than outliving it. See **The header
+  folds when its column runs out of width**.
 - **iOS Search tab** — the field is on screen; the flat list honours it.
 - **iOS Board tab** — the query is ignored outright
   (`BoardStore.boardTasks(in:)`). `PhoneHeader` only shows the field on Search,
@@ -1620,11 +1656,15 @@ the board — and comes back where it was. `archiveCompleted()` is one step, so 
 user tidying up after a week presses ⌘Z once rather than once per card.
 
 **In the Archive the verb is Restore, and it is the only one.** A filed card is
-not work in progress, so its completion toggle is not drawn: `BoardTaskCard` makes
-`completionToggle` a `@ViewBuilder` that yields nothing and drops the gutter it
-was drawn over with it, so the Archive's rows close up instead of every one of
-them keeping a hole; `PhoneTaskCard` puts a Restore disc in the same 22pt circle
-at the same 44pt target. The context menu offers Restore *in place of*
+not work in progress, so its completion toggle is not drawn: `BoardTaskCard`
+answers `drawsToggle` false, which yields nothing from `completionToggle` *and*
+drops the gutter it was drawn over, so the Archive's rows close up instead of
+every one of them keeping a hole. One property rather than two conditions, so
+the overlay and the space beneath it cannot disagree — the same one the **Tick
+cards off from the board** switch flips, which is why that switch closes the
+same gutter the same way. `PhoneTaskCard` keeps its gutter here and puts a
+Restore disc in the same 22pt circle at the same 44pt target, and the switch
+does not silence it: Restore is a filed card's only way back. The context menu offers Restore *in place of*
 Complete/Reopen — at the head of the menu, where completion sits everywhere else
 — and the macOS rotor action for completion is suppressed. Left live, the tick did
 two invisible things: it moved the card to Done — silently choosing the column it
@@ -2179,9 +2219,36 @@ Focus moved by anything else — Tab under Full Keyboard Access, a VoiceOver cur
 — scrolls only as far as the system scrolls it, which for VoiceOver is all the
 way and for Tab is nothing on this board.
 
-`BoardRevealTests` pins the wiring and the arithmetic; nothing can pin the
-pixels, because `scrollTo` goes to a `ScrollViewProxy` that keeps no record of
-having been called. The behaviour was measured against the built app through the
+**The panel is the other thing that can take a card off the screen, and it does
+it without moving the card.** The inspector opens *beside* the board and takes
+its width out of the board's, so a card picked at the right-hand edge is behind
+the panel by the time the panel is there: selected, its own detail on screen, and
+the card itself gone. The reveal the click raises cannot answer that one — it is
+measured while the board is still whole, and the minimum scroll that makes a
+column whole in a board about to lose a third of itself is no scroll at all. So
+`BoardScrollView` asks for the same `.intoView` again when `isInspectorOpen` goes
+true, **after `panelTravel`**, and the wait is the part that cannot be read off
+the source. Measured on the desk in a 1240pt window with the panel closed and the
+card at x=1234–1486: a scroll issued as the panel opens left the card exactly
+there, and so did one issued a runloop turn later. The layout reports the board's
+new 672pt immediately, but the scroll view's own visible rect follows the panel's
+animation rather than jumping to the end of it, so a scroll taken then is
+measured against a board that is still moving. The same measurement taken after
+`panelTravel` put the card at x=1034–1286, clear of a panel arriving at x=1312.
+Only on the way *open* — closing the panel hands the width back, and a column
+whole in the narrow board is whole in the wide one. And nothing moves on an iPad
+narrow enough that the panel is drawn *over* the board instead: the board keeps
+its width, so the minimum scroll is none, which is the honest answer when there
+is nowhere else to put the card.
+
+`BoardRevealTests` pins the wiring and the arithmetic; `UITests/InspectorRevealTests`
+is the one place the pixels are asserted rather than measured by hand, because the
+iPad is the surface a test can drive: it taps the rightmost card the board is
+showing whole, insists that card *was* behind the panel — a run on an iPad wide
+enough that nothing was covered proves nothing — and waits for it to come clear,
+with a second case on a card at the far left that must not move the board at all.
+Nothing can pin the desk's pixels, because `scrollTo` goes to a `ScrollViewProxy`
+that keeps no record of having been called. The behaviour was measured against the built app through the
 accessibility API instead — `AXPress` on a card and a key posted to the process,
 neither of which touches the host's pointer or keyboard. In a 372pt board with
 272pt columns: a click on a column already whole moved it 0pt, a click on one
@@ -2379,6 +2446,27 @@ list starts level with the seam under the header beside it. With the sidebar
 hidden there is nothing to hold that gap, and the toolbar takes a 68pt leading
 inset instead.
 
+**The desk's header carries no capture button, and the iPad's does.** A labelled
+**New task** sat at the right of this row on both platforms until 8.2. The desk's
+went and did not come back: the foot of its source list already has a capture
+button, ⌘N is on the File menu, the menu-bar extra takes one from anywhere, and
+every column heading has a `+` — five ways to make a card, one of them in the
+narrowest row in the window.
+
+The iPad kept one, because it has no menu bar and therefore no ⌘N: without it the
+only ways to make a card there are a column heading's `+` and the Inbox panel's,
+both of which decide where the card goes before you have decided what it is. But
+it is **a circle with a `+` in it now, and no word** — the same control the phone
+floats over its tab bar, at the 44pt square every other control in this row
+claims. The label was 117pt of a row whose only compressible piece is the board's
+name; the glyph is 44. That is 73 points back to the name and a fold line 73
+points lower, and the word it dropped is carried by the accessibility label, which
+is what a reader was getting either way.
+
+`BoardToolbar.Metrics.capture` is how the two presets differ — a diameter on the
+iPad and `nil` on the desk, in the shape `ColumnEditorMetrics.arrowEdge` uses,
+rather than an `#if os()` in a shared body (C1).
+
 There are two more scenes beside it. `Settings { }` is a root of its own and
 inherits nothing from the window, so the palette, the tint and the appearance
 override are all resolved again in `SettingsWindow`. `MenuBarQuickAdd` is a
@@ -2459,8 +2547,9 @@ desk, and `toggleSidebar` is `nil` there.
 
 **The inspector is laid out, not presented.** It was `.inspector(isPresented:)`
 on the detail column, which drew the panel over the *whole* column — the toolbar
-included. In portrait with the source list out, the toolbar's **New task** button
-measured 117×44 at x=839 inside a 1032pt window and reported `hittable=false`: the
+included. In portrait with the source list out, the toolbar's **New task** button —
+which the bar carried then — measured 117×44 at x=839 inside a 1032pt window and
+reported `hittable=false`: the
 surface's primary action was unreachable in one of the two orientations, and a
 card reorder dragged inside Backlog, hundreds of points from where the panel was
 drawn, silently did nothing. `PadRootView.detail` is now the toolbar above an
@@ -2476,6 +2565,72 @@ the toolbar, which is the whole point. `PadRootView` measures the row with
 margins would still fit beside it; below that it is a trailing overlay. An iPad
 mini in portrait with the source list out leaves 166pt of detail beside a 348pt
 panel, and 166pt is half a column.
+
+### The header folds when its column runs out of width
+
+The bar is a fixed-width search field, a capture button and three toggles, and
+none of them gives ground — the only thing in it that can be squeezed is the
+board's name. So a
+narrow detail column squeezes the name and nothing else, and the name is the one
+thing in that row you cannot look up somewhere else. Measured on a 13" iPad in
+portrait with the Inbox panel open, back when the row also carried New task: the
+bar laid out at 712pt and drew "Northwind iOS 3.0" as **"Northwind i…"** in 131
+of them, beside an empty 220pt field.
+
+**Below 700pt the field folds into a magnifying-glass button**, and the name gets
+those 220 points back — the same board draws its full title with room over. (The
+line was 773 while capture was a labelled New task button; drawing it as a circle
+gave the bar back 73pt, so on a 13" the source list and the Inbox panel now have
+to be out *together* before it folds. With only the panel out that bar clears the
+line by twelve points, which `Tests/ToolbarFoldTests` states rather than hides.)
+Pressing the button drops the field into a row of its own under the bar, focused,
+with the keyboard already up: it was folded away *from* a field, so arriving at
+anything else would cost the reader a press and then a hunt for the field's own
+22pt band of text. It is the same field either way (`searchField(fills:)`) rather
+than a second copy, since a second copy is a second place for the clear button,
+the hit area and the ⌘F token to drift out of step.
+
+**A row rather than an overlay**, which is the tempting spelling: an overlay hangs
+over the top of the board, and the top of the board is where the cards a live
+search has just matched are. The bar grows for as long as the field is up and the
+board starts lower.
+
+Three things follow from the field being the only place this surface shows the
+query:
+
+- **A live query keeps its field.** A window dragged narrow around a search folds
+  the bar, and `showsSearchRow` is the flag *or* a non-empty query — otherwise the
+  board would sit there filtered with nothing on screen saying so. The button is
+  outlined in the accent while a query is running, for the same reason.
+- **Putting the row away is a cancel**, query and all. Leaving the query behind
+  would hide the filter and its only undo in one press.
+- **A row that appeared on its own does not take the keyboard.** `focusWhenReady`
+  is conditioned on the flag, not on the row: a resize that raises a keyboard is a
+  resize typing into a text field.
+
+`Metrics.searchFits(barWidth:…)` is the decision, and it is an *estimate* — it has
+to be. Measuring the squeeze means measuring the bar with the field in it, and
+taking the field out on the strength of that measurement gives the name room,
+which puts the field back, which squeezes the name: it would oscillate at exactly
+the width it matters at. So the one control that sizes to its own content — the
+Inbox toggle, whose badge is a number that grows — carries its measured width in
+the preset, and `titleFloor` — 160pt, about fourteen
+characters of the pad's 26pt serif — is the line. `Tests/ToolbarFoldTests` pins
+the arithmetic, including that the fold happens *before* the row overflows rather
+than after, and that it is monotonic in width so no drag can make it flicker.
+`UITests/ToolbarFoldTests` is the half only a live layout can answer, and
+`UITests/PadCaptureTests` is the capture button's: a `+` with no word publishes
+as a button with an empty name unless something gives it one, and a missing
+`accessibilityLabel` changes nothing on screen — so the test presses the button
+the header's row carries and checks it reaches a composer.
+
+**The desk does not fold, and not because its windows are wide.** Its bar *is* the
+title bar: the traffic lights are moved onto the row it lays out at and
+`MacRootView` measures the bar to find that row, so a second row under it would
+take the lights down with it — see **The header is the title bar**. What keeps the
+desk's bar in one piece instead is `MacRootView.floor`, the window's own minimum,
+which the same test checks still holds everything in the row. `Metrics.foldsSearch`
+is how the two presets differ, rather than an `#if os()` inside a shared view.
 
 What the iPad does *not* take from the phone: the tab bar, the column chips and
 their paging, the drawer and the detail sheet. Its cards are `BoardTaskCard`, so a tap selects and
@@ -3300,7 +3455,7 @@ button's label, the tick inside a completed checkbox, the current chip in a row
 of chips. Seven views wrote it as a literal `.white`, which is a C2 violation and
 also wrong: three of the four accents are dark, saturated colours in either
 scheme and white is right on them, but `.ink` *is* the ink colour, and ink in dark
-mode is 0xEEEAE2. White on it scores 1.2:1 — the toolbar's New task button, the
+mode is 0xEEEAE2. White on it scores 1.2:1 — the source list's capture button, the
 completion tick, the phone's pager chips and the due-date presets were all blank
 for anyone using the ink accent after dark. On-accent follows the scheme the
 other way round, and `PaletteSemanticTests` holds all eight accent-by-scheme
@@ -3502,6 +3657,7 @@ twice: it is a schema change needing a version bump and a migration (C7), and it
   | Archive finished cards | `sweepDone(now:after:)` | never |
   | A week means | `SavedView.dueThisWeek` and the weekly figures | the rolling seven days |
   | Card detail | `BoardTaskCard` | comfortable |
+  | Tick cards off from the board | `BoardTaskCard`, `PhoneTaskCard` | on |
   | Reopen the view I was on | `applyStoredPreferences()` | off |
   | Open the Inbox with the board | `applyStoredPreferences()`, on the board only | off |
   | The Trash keeps things for | `TrashedItem.isExpired(at:days:)` | 30 days |
@@ -3509,6 +3665,30 @@ twice: it is a schema change needing a version bump and a migration (C7), and it
   | Also remind me the day before | a second `TaskReminder` per card | off |
   | Tell me daily while anything is overdue | one repeating request | off |
   | Open at login · Show the menu bar item | `SMAppService`, `MenuBarExtra(isInserted:)` | off · on |
+
+  **What a card shows** is two of those rows. *Card detail* drops the
+  description and the meta chips; **Tick cards off from the board** takes away
+  the circle in a card's leading gutter — `Preferences.cardTickKey`, read as
+  `@AppStorage` by `BoardTaskCard` and `PhoneTaskCard` alike so every card on
+  the board closes up the moment it is flipped. It is the only switch here whose
+  off state takes a *verb* off a surface, which is exactly why it is a
+  preference rather than a decision: the circle is the fastest way to finish
+  something and the easiest thing to catch with a thumb on a board being dragged
+  around, and which of those matters more is not a question this app can answer
+  for somebody.
+
+  The gutter is held by a single `Color.clear` spacer in `content`, so switching
+  it off shifts the card's text out to the card's own margin rather than leaving
+  a hole where the circle was — the same closing-up an archived card has always
+  done, now with a second reason to ask for it. The phone pays its leading
+  margin back explicitly: the 5pt inset there is the *gutter's*, because a 44pt
+  square overhangs the 22pt circle it draws by 11 either side, so with no gutter
+  `PhoneTaskCard` owes its text the 15 its trailing edge already pays. Neither
+  card silences the Archive's Restore, which uses the same gutter for the one
+  verb a filed card has. What is left to finish a card with: its context menu,
+  ⌘↩ and the Task menu on the desk, and the detail surface's own tick — in the
+  panel's header on the desk and the iPad, beside the title on the phone — which
+  is drawn whatever this says. See **Completing, reopening and deleting**.
 
   **Where a launch lands** is `BoardStore.landingSurface`, and it is not the same
   answer everywhere. The **desk and the iPad open on the board**, because on
@@ -4092,7 +4272,7 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `MenuKeyOwnershipByPlatformTests` | the other half of `KeyOwnershipTests`, and in a file that is not `#if os(macOS)` so it can say it: the menu bar takes keys off a card only on the platform that has one. On macOS ⌘⌫ and ⌘⏎ reach no card; on iOS `menuOwnedShortcuts` is empty and both reach the card, because `BoardCommands` is built into the macOS scene alone and nothing on iPad was taking them first. Space, a bare ⏎ and ⌥← are unchanged on both |
 | `RootSurfaceTests` | iOS only — which of the two layouts a window gets. An iPad at regular width takes the desk's; a phone takes the phone's at *every* width it can reach, which is the blocker: a Max-class iPhone in landscape is a regular horizontal size class and drew the iPad's split view; an iPad in Slide Over takes the phone's; and an unresolved size class is not a licence to draw three panes |
 | `PadListMetricTests` | `TaskListMetrics.pad` exists and is named beside its siblings — room under the last card but not the phone's tab-bar's worth, and a row capped and centred rather than stretched across 13 inches |
-| `TouchTargetTests` | every touch `Metrics` preset claims 44pt — the iPad's `.pad` board presets included, since the iPad draws the desk's board at touch sizes — and no pointer preset inflates the desk; the checklist box's overhang; the chip name's ceiling; the swatch rows fitting a 375pt phone, `Board.dotPalette` staying the size and shape that row is drawn against, and every swatch on offer — board dot and label tone alike — carrying a name rather than a position. See **Touch targets** for what this suite can and cannot see |
+| `TouchTargetTests` | every touch `Metrics` preset claims 44pt — the iPad's `.pad` board presets included, since the iPad draws the desk's board at touch sizes — and no pointer preset inflates the desk; the detail panel's three header controls — the tick, the trash, the ✕ — claiming one square on both idioms, which is the only place that agreement can be stated because the tick brings its own button, plus the drawn box fitting inside it and the desk's square holding the size it was raised to; the checklist box's overhang; the chip name's ceiling; the swatch rows fitting a 375pt phone, `Board.dotPalette` staying the size and shape that row is drawn against, and every swatch on offer — board dot and label tone alike — carrying a name rather than a position. See **Touch targets** for what this suite can and cannot see |
 | `ExportImportTests` | the export document — every field through an encode and a decode, the bytes matching what `BoardFile` writes so an export and a `board.json` are one format, and the exporter being handed the whole board rather than the visible one. Then the **merge**, which is where an import destroys work: both sets of tasks kept, an id collision keeping *both* cards under two ids, a code collision re-minted on the arriving card, the serial climbing above both files so the next code is free, the label vocabulary growing without being rewritten, the arriving board landing beside the one already here, a column id already in use re-minted, a board already here keeping its name and gaining only the columns it is missing, the placement invariant holding after a stranger's file is folded in, the same file twice costing nothing and no ⌘Z — collision included — and neither the accent nor the active board being the file's to change. Plus a corrupt, newer or older file each answered properly, the Markdown export's shape, and the board type matching what `project.yml` declares |
 | `BackupRestoreTests` | `BoardFile.restore(from:)` and the caller it waited for — an older backup migrated on the way in, a damaged or newer one failing loudly rather than restoring an empty board, a restore replacing the live board as one ⌘Z that comes off cleanly, the board as it stood copied aside before it goes, a restore that could not read its backup costing nothing at all, and the race Phase A's per-URL write ordering exists for: a debounced write armed *before* a restore — from this store, and from a second store over the same path, where nothing can reach in and cancel it — dropped rather than landing on top of the restored board |
 | `NotificationTests` | due-date reminders against a fake `TaskNotificationCenter` and a throwaway defaults suite, never the machine's own — one request per due date and no more, a change rescheduling under the same identifier rather than adding a second, completing, reopening, archiving, deleting and undoing a delete each cancelling or restoring, no due date scheduling nothing however much the card is edited, a day already gone scheduling nothing, and the 64 nearest kept when the board wants more than the system will hold. Then the identifier: the task's id through every rename, move, archive and delete, and never anything that changes. Then permission: asked on the first due date *set* rather than at launch, never twice, never after a refusal, nothing published while it is refused or the switch is off, and everything the board wanted published the moment it arrives |
@@ -4103,11 +4283,12 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `DragReorderTests` | the card-to-card drop as a property rather than as an example, which is what the iPad needs: for **every** ordered pair of cards sharing a place — each column of each board, and the Inbox — the drop `BoardTaskCard` and `PhoneTaskCard` make must leave the card in that place, not change its completion, and not touch its sub-tasks, with the place holding the same set of cards afterwards. Then that it genuinely reorders — the card lands immediately ahead of the one it was dropped on, in every pair — so the first claim cannot be satisfied by a `move` that does nothing. Then the contrast, over every pair of *different* places, including a card into Done still being ticked; the column's own drop closure resolving to that column for every card on the board and staying a no-op on the column a card is already in; a drag refused under a query, under a sort and inside a saved view; and an archived card unreachable by either closure |
 | `DropCaretTests` | where a dragged card says it will land, and whether it is telling the truth. A caret names a *gap*: the head of another list — the one thing the old direction-of-travel rule could not express at all — the foot of one, the two names for one gap meaning one place, and a card coming from below landing where it was pointed rather than on the other side. A drop into the gap the card is already in moving nothing *and registering no step*. A list's own ground landing the card at the foot — in a column and in the Inbox, and from the top row of the list it left as readily as from the bottom, because "always the foot" is only a rule if the row the card came from cannot change the answer — with no caret at all over an empty one, which still takes the card; the pointer inside a card beating the ground, because a named gap is not a default; `move(_:to:)` landing a card in the same place a drag does, since a ground drop is now that call; the column a card is already in offering none, because that drop moves nothing and registers no step; and none at all with nothing in the air or with a query narrowing the board. Then the caret drawn without a drag session to name the card, which is the iPad's case. Then the half that is a claim about pixels: the card rendered and the accent-coloured row found in it — looked for rather than diffed against a plain card, because in a full parallel run the same card came out 83pt where it is 110pt alone and a third of it differed for reasons that had nothing to do with a caret — against a raster whose row order is itself measured rather than assumed |
 | `DragLiftTests` | when a card stops looking as though it is being carried, which the reported flash was a hundred milliseconds late for. `BoardStore.endDrag()` taking the lift off the card *and* the highlight off both places one can be — the column and the Inbox panel — and a move, including the drop that lands where the card already is, going through it. Then the half no unit test can drive, read off the source the way `DragReorderTests` reads the drop closures: nothing in the session handler ends a lift by hand, a drop carrying a card falls through the `ended` arm untouched, and the arm that ends the lift is `dataTransferCompleted` |
-| `BoardRevealTests` | how far the board moves when focus arrives, and who decides. Every surface that scrolls a card into view — the strip, the column, the Inbox panel — read off the source: none of them hangs a `scrollTo` off `focus`, which is what made a click scroll the board; each answers **both** manners, centring what a key revealed and giving a click's reveal no anchor at all, so the rule cannot be met by dropping the scroll and stranding the arrow keys nor by answering a click with the centring that was the complaint; and the two routes that raise one are the keyboard, only ever centred, and the card's click, only ever into view. The scroll counts per file are asserted too, so a new one cannot be added without this being read. Then the arithmetic that keeps the reveal margin free: the inset plus what is left of the spacing is the gutter, and the inset plus what is left of the strip's margin is the strip's margin — both remainders being negative at the current inset, which is why it is asked as a sum |
+| `BoardRevealTests` | how far the board moves when focus arrives, and who decides. Every surface that scrolls a card into view — the strip, the column, the Inbox panel — read off the source: none of them hangs a `scrollTo` off `focus`, which is what made a click scroll the board; each answers **both** manners, centring what a key revealed and giving a click's reveal no anchor at all, so the rule cannot be met by dropping the scroll and stranding the arrow keys nor by answering a click with the centring that was the complaint; and the two routes that raise one are the keyboard, only ever centred, and the card's click, only ever into view. The scroll counts per file are asserted too, so a new one cannot be added without this being read. The detail panel's own reveal is pinned the same way: hung off `isInspectorOpen` and only on the way open, with no anchor, and waiting `panelTravel` — plus a check that `panelTravel` covers the whole of the 0.16s both roots animate the panel over, since a shorter wait is a measurement taken mid-flight rather than a near miss. Then the arithmetic that keeps the reveal margin free: the inset plus what is left of the spacing is the gutter, and the inset plus what is left of the strip's margin is the strip's margin — both remainders being negative at the current inset, which is why it is asked as a sum |
 | `FieldFocusTests` | that a field which opens, opens with the keyboard in it. Nothing in the app writes a `@FocusState` from `onAppear` — the line that shipped three fields unfocused — told apart from the `@AccessibilityFocusState` the phone's drawer sets there on purpose by how the property is declared, so a file nobody has thought about is covered too. Then the other half, without which the rule is met by a field that never focuses at all: the set of files using `focusWhenReady` is the set named in the test. Then what the modifier must do — yield *before* it asks, and not go back to waiting a fixed number of milliseconds |
 | `PreferenceBehaviourTests` | the twelve settings added at once, and chiefly that **the default of each leaves the app exactly as it was** — the cheapest way to ship a bug is to move a default while adding the switch that names it, so every default is written out here and cannot change without this test being edited. Then a stored value this build has no case for falling back rather than reading as nothing (what a downgrade leaves), a switch turned *off* being told from one never touched, the rolling and calendar weeks disagreeing where they should, the auto-archive sweep waiting for a card to settle and naming no undo step, and the view being written down whichever way the resume switch is set |
 | `SettingsTabTests` | the list Settings divides into, on whichever platform the suite is run: **at most four subjects**, because a pane holding one switch is a row that has been given a tab of its own and everybody pays for it on the way past; the Trash not among them, since it is the user's own work rather than a preference; no two subjects drawn under one name; each glyph resolving as a symbol the system actually has — an unresolved `systemImage` draws nothing and reports nothing, which is a toolbar item that is a word with a hole above it; General first, because both surfaces open on whatever is first and that is a decision rather than an accident of typing order; and the same four on both platforms, the desk's two extra switches being rows inside General rather than a case compiled out on iOS, so `allCases` is the whole truth about what gets drawn and nothing has to remember to filter it |
 | `BoardSettingsTests` | what the board settings sheet promises before it changes a board: the refuge a trashed column's cards move to being the one `deleteColumn` actually moves them to and the column itself landing in the Trash; the count including archived cards, because the move does; an empty column's warning saying only the part that is still true; and the reorder question — every move on a one-Done board leaving completed work exactly where it lands, a second Done column crossing the first changing it, `doneColumnID(afterMoving:toOffset:)` naming the right column before the move, and confirming performing the move that was described rather than one worked out again |
+| `ToolbarFoldTests` | at what width the board header folds its search field into a button, which is arithmetic because the bar's width is whatever the split view left the detail column: the fold happening *before* the row runs out of room rather than after, and leaving the board's name something worth reading; the decision being monotonic in width, so no drag across the line can make it flicker; where the line falls on the shapes real iPads have — a 13" in portrait keeping its field with the board to itself *and* with either column beside it, losing it only when both are out, and an 11" in portrait losing it to the source list alone; each control in the row and the traffic lights' 68pt band moving the line, the capture button included, which is also where the iPad having one and the desk not is pinned; larger type folding sooner and stopping at the chrome caps; and the desk not folding at all, with its own window floor checked to still hold the bar that decision leans on. `UITests/ToolbarFoldTests` presses the button |
 | `TrashSurfaceTests` | where the Trash is now that it is not a settings tab: the flag being session state that starts shut and changes nothing about the board, `SettingsView` building no `TrashView` and holding no trash pane, each of the two door-bearing surfaces — the source list on macOS and iPad, the board menu on the phone — raising `isShowingTrash`, and the phone's sheet being presented by the root rather than by the header that opens it, which is a thing a menu cannot do |
 | `ScaleTests` | 7.4 — five hundred cards on six boards, thirty columns, twenty-four labels and eleven thousand activity entries, and what each hot path costs on it. Nothing asserts a wall-clock time: every bound is a *ratio* between two timings taken in the same process on the same data, which cancels the machine out and leaves the shape of the algorithm. See **Scale** |
 | `FirstRunTests` | 7.5 — a first launch starting on nothing at all rather than on the sample; the picker never standing in front of the test host; the sample offered rather than first; the three starters carrying none of the sample's cards; and then the property over all five templates — folded into the empty board a first launch actually builds, each one satisfies the placement invariant, resolves every label key it wears, mints no duplicate code, has a landing column and a Done column, survives a relaunch card for card, and takes a card added, dated, completed and archived on it. Choosing is one ⌘Z |

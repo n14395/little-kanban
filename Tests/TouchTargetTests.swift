@@ -14,10 +14,36 @@ import Testing
     /// Apple's minimum. Named so a failure says what the number is for.
     private static let finger: CGFloat = 44
 
+    /// The detail panel's header is one row of three controls — the tick, the
+    /// trash, the ✕ — and what makes it read as a row rather than as three
+    /// controls that happen to sit together is that all three claim the *same*
+    /// square. Two of them are drawn straight off `headerButton`; the tick
+    /// brings its own button and so its `hitSize` is the only place the
+    /// agreement can be stated, which makes it the only place it can silently
+    /// stop being true.
+    @Test func theDetailPanelsThreeHeaderControlsClaimOneSquare() {
+        for (name, metrics) in [("desk", TaskInspector.Metrics.desk), ("pad", TaskInspector.Metrics.pad)] {
+            #expect(metrics.tick.hitSize == metrics.headerButton,
+                    "the \(name) panel's tick no longer claims the square its neighbours do")
+            // And the drawn box sits inside that square rather than filling or
+            // overflowing it, which is what leaves room for the hover chip.
+            #expect(metrics.tick.size < metrics.headerButton,
+                    "the \(name) panel's tick is drawn as large as the square it sits in")
+        }
+    }
+
     @Test func everyTouchPresetClaimsAFingersWorth() {
         let targets: [(String, CGFloat)] = [
             ("CompletionToggle.sheet.hitSize", CompletionToggle.Metrics.sheet.hitSize),
             ("CompletionToggle.sheetRow.hitSize", CompletionToggle.Metrics.sheetRow.hitSize),
+            // The tick on both touch detail surfaces, which now draw it in two
+            // different places: the phone's beside the sheet's title, and the
+            // iPad's in the inspector's header with the trash and the ✕ — named
+            // twice there, once as the preset and once through the panel that
+            // asks for it, because it is the panel's square it has to match.
+            ("CompletionToggle.sheetPanel.hitSize", CompletionToggle.Metrics.sheetPanel.hitSize),
+            ("CompletionToggle.sheetHeader.hitSize", CompletionToggle.Metrics.sheetHeader.hitSize),
+            ("TaskInspector.pad.tick.hitSize", TaskInspector.Metrics.pad.tick.hitSize),
             ("LabelManagerView.sheet.swatchHit", LabelManagerView.Metrics.sheet.swatchHit),
             ("LabelManagerView.sheet.glyphHit", LabelManagerView.Metrics.sheet.glyphHit),
             ("LabelManagerView.sheet.rowMinHeight", LabelManagerView.Metrics.sheet.rowMinHeight),
@@ -59,6 +85,10 @@ import Testing
             ("BoardSidebar.pad.fieldHit", BoardSidebar.Metrics.pad.fieldHit),
             ("BoardToolbar.pad.control", BoardToolbar.Metrics.pad.control),
             ("BoardToolbar.pad.fieldHit", BoardToolbar.Metrics.pad.fieldHit),
+            // The bar's capture button, which is the iPad's alone — `nil` on the
+            // desk, and force-unwrapped here rather than defaulted so that
+            // taking it off the iPad has to be a decision made in this file too.
+            ("BoardToolbar.pad.capture", BoardToolbar.Metrics.pad.capture!),
             ("TaskInspector.pad.headerButton", TaskInspector.Metrics.pad.headerButton),
             ("TaskInspector.pad.fieldHit", TaskInspector.Metrics.pad.fieldHit),
         ]
@@ -100,6 +130,11 @@ import Testing
         // The two that claim rather than pass, both the extent already drawn.
         #expect(BoardColumnView.Metrics.desk.headerButton < Self.finger)
         #expect(TaskInspector.Metrics.desk.headerButton < Self.finger)
+        // Being a pointer target is not a licence to be tiny: the desk's header
+        // controls are the panel's three verbs and were raised to be hit
+        // without aiming. Below this they are back to the 24pt squares they
+        // were, which is the change this number records.
+        #expect(TaskInspector.Metrics.desk.headerButton >= 32)
         // The desk names the side its column popover hangs off; the iPad names
         // none, because its header sits 134pt from the top of the display and a
         // popover pinned above it opened off the screen — see

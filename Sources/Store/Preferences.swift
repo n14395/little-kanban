@@ -289,6 +289,18 @@ extension Preferences {
     static let lastSurfaceKey = "SimpleKanbanLastSurface"
     /// Bring the Inbox panel up with the board.
     static let inboxAtLaunchKey = "SimpleKanbanOpenInboxAtLaunch"
+    /// Draw the tick in a card's leading gutter.
+    ///
+    /// **On by default, and the only one of these switches whose off state
+    /// takes a verb off a surface** — which is why it is a preference rather
+    /// than a decision. The circle is the fastest way to finish something and
+    /// the easiest thing to hit by accident on a board being dragged around,
+    /// and which of those matters more is not a question this app can answer
+    /// for somebody. Turned off, the gutter closes up and the card's text
+    /// starts at its own margin; completing a card is then the context menu,
+    /// ⌘↩, and the tick beside the title in the detail panel, which is drawn
+    /// whatever this says.
+    static let cardTickKey = "SimpleKanbanShowsCardTick"
     /// Keep the ⌃⌘N status item in the menu bar. On by default, because it is
     /// the app's one route in from another app.
     static let menuBarExtraKey = "SimpleKanbanShowsMenuBarExtra"
@@ -376,6 +388,7 @@ extension Preferences {
 
     static var resumesLastPlace: Bool { flag(resumeKey) }
     static var opensInboxAtLaunch: Bool { flag(inboxAtLaunchKey) }
+    static var showsCardTick: Bool { flag(cardTickKey, fallback: true) }
     static var showsMenuBarExtra: Bool { flag(menuBarExtraKey, fallback: true) }
     static var launchesAtLogin: Bool { flag(launchAtLoginKey) }
 }

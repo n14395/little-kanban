@@ -10,7 +10,7 @@ extension Palette {
     /// also wrong. Three of the four accents are dark, saturated colours in
     /// either scheme and white is right on them — but `.ink` *is* the ink
     /// colour, and ink in dark mode is 0xEEEAE2. A white label on the ink accent
-    /// in dark mode is white on near-white: the toolbar's New task button, the
+    /// in dark mode is white on near-white: the source list's capture button, the
     /// completion tick, the pager chips and the due-date presets all read as
     /// blank. On-accent is the colour the accent is not, so it follows the
     /// scheme the other way round.

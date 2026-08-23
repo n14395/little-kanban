@@ -10,6 +10,10 @@ struct PhoneTaskCard: View {
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
     @Environment(\.dayClock) private var dayClock
+    /// Whether the gutter is drawn at all — see ``Preferences/cardTickKey``.
+    /// It does not silence the Archive's Restore, which uses the same gutter
+    /// for a different verb and is the only way off that list.
+    @AppStorage(Preferences.cardTickKey) private var showsCardTick = true
 
     let task: TaskItem
     /// Set on the flat lists — Search, Inbox and any saved view — where a card
@@ -21,7 +25,7 @@ struct PhoneTaskCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 4) {
-            leadingControl
+            if hasLeadingControl { leadingControl }
             Button {
                 store.sheetID = task.id
             } label: {
@@ -34,7 +38,12 @@ struct PhoneTaskCard: View {
         // gives it the first pixel and the summary carries the visual padding
         // instead, which keeps the circle level with the first line rather than
         // 11pt below it.
-        .padding(.leading, 5)
+        //
+        // The leading inset is the gutter's, not the card's — 5, because the
+        // 44pt square overhangs the 22pt circle it draws by 11 either side. So
+        // with no gutter the card owes its text the margin the gutter was
+        // standing in for, and pays the 15 its trailing edge already does.
+        .padding(.leading, hasLeadingControl ? 5 : 15)
         .padding(.trailing, 15)
         .padding(.top, 1)
         .padding(.bottom, 12)
@@ -90,6 +99,11 @@ struct PhoneTaskCard: View {
         }
         .padding(.top, 11)
     }
+
+    /// Whether the leading gutter is drawn. The Archive's Restore is not a
+    /// preference — it is a filed card's only way back, and the switch below it
+    /// is about the tick.
+    private var hasLeadingControl: Bool { task.isArchived || showsCardTick }
 
     /// In the Archive the verb is Restore, not Complete. The tick was still
     /// live on an archived card, and it did two invisible things: it moved the

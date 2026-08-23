@@ -19,11 +19,19 @@ struct TaskInspector: View {
         var noteSize: CGFloat
         var fieldNameSize: CGFloat
         var fieldNameWidth: CGFloat
-        /// The square the header's two buttons claim.
+        /// The square each of the header's three controls claims — the tick,
+        /// the trash and the close ✕ alike. See ``TaskInspector/header``.
         var headerButton: CGFloat
         var headerButtonRadius: CGFloat
+        /// The symbol inside it. One size for all three, so the row reads as a
+        /// set rather than as three controls that happen to sit together.
+        var headerGlyph: CGFloat
         /// What the two text fields claim — see ``FieldHitArea``.
         var fieldHit: CGFloat
+        /// The tick, which is one of the three controls in the header. Its own
+        /// preset rather than the card's, because what it has to match here is
+        /// the square its neighbours claim — see ``TaskInspector/header``.
+        var tick: CompletionToggle.Metrics
         var destination: BoardDestinationMenu.Metrics
         var moveTo: MoveToPicker.Metrics
         var due: DueDateField.Metrics
@@ -34,15 +42,17 @@ struct TaskInspector: View {
 
         static let desk = Metrics(
             width: 336, horizontalPadding: 18, sectionSpacing: 18, titleSize: 26, noteSize: 13,
-            fieldNameSize: 12.5, fieldNameWidth: 84, headerButton: 24, headerButtonRadius: 7,
-            fieldHit: 0, destination: .desk, moveTo: .desk, due: .desk, priority: .desk,
-            labels: .desk, checklist: .desk, activity: .desk
+            fieldNameSize: 12.5, fieldNameWidth: 84, headerButton: 32, headerButtonRadius: 9,
+            headerGlyph: 13,
+            fieldHit: 0, tick: .deskHeader, destination: .desk, moveTo: .desk, due: .desk,
+            priority: .desk, labels: .desk, checklist: .desk, activity: .desk
         )
         static let pad = Metrics(
             width: nil, horizontalPadding: 20, sectionSpacing: 20, titleSize: 29, noteSize: 14.5,
-            fieldNameSize: 14, fieldNameWidth: 92, headerButton: 44, headerButtonRadius: 12,
-            fieldHit: 44, destination: .sheet, moveTo: .sheet, due: .sheet, priority: .sheet,
-            labels: .sheet, checklist: .sheet, activity: .sheet
+            fieldNameSize: 14, fieldNameWidth: 92, headerButton: 48, headerButtonRadius: 14,
+            headerGlyph: 17,
+            fieldHit: 44, tick: .sheetHeader, destination: .sheet, moveTo: .sheet, due: .sheet,
+            priority: .sheet, labels: .sheet, checklist: .sheet, activity: .sheet
         )
     }
 
@@ -88,7 +98,7 @@ struct TaskInspector: View {
             VStack(alignment: .leading, spacing: 0) {
                 header
                 VStack(alignment: .leading, spacing: metrics.sectionSpacing) {
-                    titleRow
+                    titleField
                     noteField
                     status
                     attributes
@@ -156,7 +166,23 @@ struct TaskInspector: View {
         focusedField = .title
     }
 
-    /// The panel's own row: what closes it, and what throws the card away.
+    /// The panel's own row: what finishes the card, what throws it away, and
+    /// what closes the panel — in that order, left to right, so the two that
+    /// end the card's life on this surface sit furthest from the one that only
+    /// ends the *view* of it.
+    ///
+    /// **All three claim the same square**, `headerButton`, and carry the same
+    /// `headerGlyph` inside it. The size is one number rather than three that
+    /// agree, because three that agree is a thing an edit quietly breaks — and
+    /// what is being claimed here is that they read as one set of controls, not
+    /// that they were each given a plausible size on their own.
+    ///
+    /// **The tick moved here from beside the title.** It sat at the trailing
+    /// edge of the title row, where it was the only control in a column of
+    /// *fields* — a state verb standing in the middle of an editing surface,
+    /// sized against a 26pt serif line rather than against anything it shared a
+    /// row with. In the header it stands with the panel's other two verbs, at
+    /// their size.
     ///
     /// **The task code is not in it.** `NW-118` sat at the leading edge of every
     /// editor on both platforms, and it is the one thing on this panel that
@@ -169,27 +195,19 @@ struct TaskInspector: View {
     private var header: some View {
         HStack(spacing: 8) {
             Spacer(minLength: 0)
+            completionButton
             // No confirmation: the delete happens and ⌘Z is the way back.
             // Both roots re-read `selectedTask`, so the panel follows the
             // selection onto the neighbouring card instead of holding this one.
             Button(role: .destructive) { store.trashTask(task.id) } label: {
-                Image(systemName: "trash")
-                    .font(.callout.weight(.semibold))
-                    .imageScale(.small)
-                    .foregroundStyle(palette.inkText(0.5))
-                    .frame(minWidth: chrome(metrics.headerButton), minHeight: chrome(metrics.headerButton))
-                    .contentShape(.rect)
+                glyph("trash")
             }
             .buttonStyle(.bare)
             .hoverBackground(palette.ink(0.08), radius: metrics.headerButtonRadius)
             .help("Trash task")
             .accessibilityLabel("Trash task")
             Button { close() } label: {
-                Image(systemName: "xmark")
-                    .symbolSize(11, weight: .semibold, relativeTo: .caption)
-                    .foregroundStyle(palette.inkText(0.5))
-                    .frame(minWidth: chrome(metrics.headerButton), minHeight: chrome(metrics.headerButton))
-                    .contentShape(.rect)
+                glyph("xmark")
             }
             .buttonStyle(.bare)
             .hoverBackground(palette.ink(0.08), radius: metrics.headerButtonRadius)
@@ -199,22 +217,54 @@ struct TaskInspector: View {
         .padding(.top, 16)
     }
 
-    // MARK: Editable text
-
-    /// The title, on its own.
-    ///
-    /// **The tick that used to sit at the trailing edge of this row is gone**,
-    /// from here and from the phone's sheet with it. Completion is the card's
-    /// own control: the circle in its leading gutter on both platforms, the
-    /// first item in its context menu, ⌘↩ and the Task menu on the desk. A
-    /// second copy of a verb on the surface for *editing* a card is a state
-    /// control standing in a column of fields, and the one place a
-    /// half-considered tap costs the most — the Done column is where a card
-    /// stops being work in progress, and this panel is where somebody is in the
-    /// middle of the work.
-    private var titleRow: some View {
-        titleField
+    /// A symbol in the header's square. The square is what the pointer and the
+    /// finger get, so it is the frame rather than the glyph that is sized to
+    /// `headerButton`, and `.contentShape` is what makes the empty corners of
+    /// it live.
+    private func glyph(_ symbol: String) -> some View {
+        Image(systemName: symbol)
+            .symbolSize(metrics.headerGlyph, weight: .semibold, relativeTo: .body)
+            .foregroundStyle(palette.inkText(0.5))
+            .frame(minWidth: chrome(metrics.headerButton), minHeight: chrome(metrics.headerButton))
+            .contentShape(.rect)
     }
+
+    /// The first of the three, and the only one that is not a glyph: it is the
+    /// card's own tick, drawn as `CompletionToggle` draws it everywhere else.
+    ///
+    /// **It is the card's tick, not a second verb.** It calls
+    /// `toggleCompletion`, which is what the circle in the card's gutter, the
+    /// first item in its context menu and ⌘↩ all call: completing a card *is*
+    /// moving it to its board's Done column — the rightmost column on every
+    /// board this app seeds — so there is one rule and this is another door
+    /// onto it. Pressing it again reopens the card, for the same reason the
+    /// card's does: a tick a finger cannot take back is a trap.
+    ///
+    /// A shape rather than a `checkmark` glyph because it has to say whether
+    /// the card *is* done as well as offer to finish it, and the drawn box is
+    /// the app's one answer to that question. Its `hitSize` is the header's
+    /// square, so the toggle claims exactly what its neighbours do.
+    ///
+    /// Drawn on anything that is not archived — in the Archive the verb is
+    /// Restore and only Restore, which is the card's own button and not this
+    /// panel's. Disabled rather than hidden when there is nowhere to complete
+    /// *to*: a board can arrive from a hand-edited file with no Done column at
+    /// all, and a control that vanishes on one card and not the next reads as
+    /// a bug rather than as a board missing a column.
+    @ViewBuilder private var completionButton: some View {
+        if !task.isArchived {
+            let isEnabled = store.canToggleCompletion(task.id)
+            CompletionToggle(isDone: store.isDone(task), metrics: metrics.tick) {
+                store.toggleCompletion(task.id)
+            }
+            .disabled(!isEnabled)
+            .opacity(isEnabled ? 1 : 0.4)
+            .hoverBackground(palette.ink(0.08), radius: metrics.headerButtonRadius)
+            .help(store.isDone(task) ? "Reopen task" : "Complete task")
+        }
+    }
+
+    // MARK: Editable text
 
     /// A title is one line. On a vertical-axis field Return inserts a newline
     /// and `.onSubmit` never fires, so a pasted paragraph became a title the

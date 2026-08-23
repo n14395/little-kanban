@@ -4,15 +4,22 @@ import XCTest
 ///
 /// **A UI test because the claim is a size class and a rotation.** `isShort` is
 /// read in a view body and answers to the shape of the screen, so no store can
-/// be asked; and what is being checked here is a *frame* — that the bar is up
-/// the leading edge rather than along the foot, and that a slot on the rail is
-/// a glyph in a square rather than a glyph and a word. Neither is visible to a
-/// unit test. `ColumnStripTests` makes the same argument about the pager.
+/// be asked; and what is being checked here is a *frame* — that the bar has left
+/// the foot for the header's title row, and that a slot up there is a glyph in a
+/// square rather than a glyph and a word. Neither is visible to a unit test.
+/// `ColumnStripTests` makes the same argument about the pager.
+///
+/// **The name is older than the shape.** The bar stood on end up the leading
+/// edge for a while, and this suite was written for that rail; landscape now
+/// puts it in the header instead, beside the board's name. What is being pinned
+/// has not changed — *the bar is not along the foot, and the words are gone* —
+/// only where the frames have to land.
 ///
 /// **iPhone simulator only** — the iPad has no tab bar; it has a source list.
 ///
 ///     xcodebuild test -scheme SimpleKanbanUITests \
-///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+///       -destination 'platform=iOS Simulator,name=iPhone 17' \
+///       -only-testing:SimpleKanbanUITests/TabRailTests
 final class TabRailTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -25,7 +32,25 @@ final class TabRailTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
     }
 
-    func testTheBarIsAWordedFootInPortraitAndAGlyphRailInLandscape() throws {
+    /// Turns the device and waits for the *shape* to have changed rather than
+    /// for an element to appear: every control here exists in both, so there is
+    /// nothing whose arrival would mean the rotation had landed.
+    private func turn(_ app: XCUIApplication, to orientation: UIDeviceOrientation) {
+        XCUIDevice.shared.orientation = orientation
+        let wants = orientation == .portrait
+        let turned = expectation(description: "the screen turned")
+        let poll = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { timer in
+            let isPortrait = app.frame.height > app.frame.width
+            if isPortrait == wants {
+                timer.invalidate()
+                turned.fulfill()
+            }
+        }
+        wait(for: [turned], timeout: 10)
+        poll.invalidate()
+    }
+
+    func testTheBarIsAWordedFootInPortraitAndGlyphsInTheHeaderInLandscape() throws {
         try XCTSkipUnless(
             UIDevice.current.userInterfaceIdiom == .phone,
             "the tab bar is the phone's — the iPad has a source list"
@@ -33,7 +58,12 @@ final class TabRailTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
 
         let app = XCUIApplication()
-        app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES"]
+        // On the board, and said rather than left to the launch: a cold launch
+        // lands on Today — see `BoardStore.landingSurface` — and the shape this
+        // suite is about is the one the board is drawn in, two columns wide
+        // under a header that has given up its chips. `ColumnStripTests` names
+        // the tab for the same reason.
+        app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES", "-SimpleKanbanTab", "board"]
         app.launch()
 
         // The quick-capture button is the bar's far end and is the one control
@@ -53,50 +83,65 @@ final class TabRailTests: XCTestCase {
             "the Board slot's word is not running across the bar in portrait"
         )
 
-        XCUIDevice.shared.orientation = .landscapeLeft
-        // The rotation is not instant and the frames are read straight off the
-        // tree, so wait for the shape to have actually changed rather than for
-        // an element to appear — every one of them exists in both.
-        let landscape = expectation(description: "the screen turned")
-        let poll = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { timer in
-            if app.frame.width > app.frame.height {
-                timer.invalidate()
-                landscape.fulfill()
-            }
-        }
-        wait(for: [landscape], timeout: 10)
-        poll.invalidate()
-
+        turn(app, to: .landscapeLeft)
         let turned = app.frame
 
-        // A quarter of the width is generous: the rail is around 76pt of an
-        // 850pt screen. What is being ruled out is the bar still being a bar.
+        // **The header's row, which is the top eighth of a screen this shape.**
+        // A quarter would pass with the bar still floating over the middle of
+        // it; the row itself is 47pt of around 400, so an eighth is generous
+        // and still rules out anywhere else it has ever been.
         XCTAssertLessThan(
-            capture.frame.maxX, turned.width * 0.25,
-            "the quick-capture button is not on the leading edge in landscape"
+            capture.frame.maxY, turned.height * 0.2,
+            "the quick-capture button is not in the header in landscape"
         )
         XCTAssertLessThan(
-            board.frame.maxX, turned.width * 0.25,
-            "the Board slot is not on the leading edge in landscape"
+            board.frame.maxY, turned.height * 0.2,
+            "the Board slot is not in the header in landscape"
         )
+
         // A word standing on end made the slot about 100pt long; a glyph in its
         // square is 44 by 44. This is what pins "only the icons remain".
         XCTAssertLessThan(
             board.frame.height, 60,
-            "the Board slot still carries its word on the rail"
+            "the Board slot still carries its word in the header"
         )
         XCTAssertEqual(
             board.frame.height, board.frame.width, accuracy: 12,
             "the Board slot is not a glyph in a square"
         )
-        // The board itself has to have been given the rest, rather than the rail
-        // being laid over the top of it: the header's own control starts after
-        // the rail ends.
+
+        // **Between the title and the ⋯**, which is the whole of where it went:
+        // after the drawer button that leads the row, and before the board menu
+        // that ends it. Ordering rather than absolute position, because what is
+        // between them is a serif title whose width is the board's name.
         let drawer = app.buttons["Show boards"]
         XCTAssertTrue(drawer.exists, "no header in landscape")
         XCTAssertGreaterThan(
-            drawer.frame.minX, capture.frame.maxX,
-            "the rail is drawn over the board rather than beside it"
+            board.frame.minX, drawer.frame.maxX,
+            "the tab bar is not after the drawer button in the header row"
         )
+        let menu = app.buttons["Board actions"]
+        XCTAssertTrue(menu.exists, "no board menu in the header")
+        XCTAssertLessThan(
+            capture.frame.maxX, menu.frame.minX + 1,
+            "the tab bar has run past the ⋯ at the end of the header row"
+        )
+
+        // And the board got the leading edge back — the rail used to hold the
+        // first 76pt of it, and `safeAreaInset` moved the header along with the
+        // rest. The drawer button is the header's first control, so its position
+        // is where the whole surface starts.
+        XCTAssertLessThan(
+            drawer.frame.minX, turned.width * 0.1,
+            "something is still inset from the leading edge in landscape"
+        )
+
+        // Kept whatever the result, because the point of it is to be looked at
+        // — the default lifetime throws it away on a pass, which is exactly the
+        // run whose layout somebody wants to see.
+        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        shot.name = "landscape-header"
+        shot.lifetime = .keepAlways
+        add(shot)
     }
 }

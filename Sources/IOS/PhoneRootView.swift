@@ -66,23 +66,23 @@ struct PhoneRootView: View {
                         // heading crowding the title is most obvious — hence the
                         // larger of the two numbers, not the smaller.
                         .padding(.top, isShort ? 14 : 10)
+                        .clipped()
                 } else {
                     taskList(tasks)
                 }
             }
-            // Turned on its side the bar becomes a rail on the leading edge —
-            // see ``PhoneTabBar``, which has the arithmetic. `safeAreaInset`
-            // rather than an overlay and a matching padding: the rail's width is
-            // its own business and grows with the reader's text, and this is the
-            // one spelling where the board is inset by exactly what the rail
-            // turned out to need. In portrait it holds nothing and insets by
-            // nothing.
-            .safeAreaInset(edge: .leading, spacing: 0) {
-                if isShort { PhoneTabBar(axis: .vertical) }
-            }
-
-            // Portrait keeps it floating over the foot of the list, which is
-            // what the gradient behind it is for.
+            // Portrait keeps the bar floating over the foot of the list, which
+            // is what the gradient behind it is for, and which is where a thumb
+            // is. **Turned on its side it is drawn by `PhoneHeader` instead**,
+            // in the title row — so it is not here at all, and the board is not
+            // inset for it.
+            //
+            // It was a rail up the leading edge before that, held by a
+            // `safeAreaInset(edge: .leading)`, which bought back the 130pt of
+            // height the floating bar cost and charged the board 76pt of width
+            // for it. The header row was the third answer and is the only one
+            // that costs nothing: it is already drawn, already 44pt tall, and
+            // the space between the board's name and the ⋯ was empty.
             if !isShort { PhoneTabBar() }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

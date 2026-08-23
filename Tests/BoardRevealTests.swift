@@ -38,7 +38,7 @@ import Testing
     /// added without this test being read: the composer's and the add-column
     /// tile's are the ones that are not about focus at all.
     private static let surfaces = [
-        "Shared/BoardScrollView.swift": 4,
+        "Shared/BoardScrollView.swift": 5,
         "Shared/BoardColumnView.swift": 3,
         "Shared/InboxPanel.swift": 2,
     ]
@@ -156,6 +156,55 @@ import Testing
         #expect(body.contains("focus?.wrappedValue = task.id"), "a click no longer takes the keyboard")
         #expect(body.contains("relay?.reveal = .intoView(task.id)"),
                 "a click no longer asks for its column: \(body)")
+    }
+
+    /// The other thing that can take a card off the screen, and the only one
+    /// that does it without moving anything: the detail panel opens *beside*
+    /// the board and takes its width out of the board's, so a card picked at
+    /// the right-hand edge is behind the panel by the time the panel is there.
+    ///
+    /// This is the reveal a click asks for, asked again of the width the board
+    /// is left with. What it must keep is the click's own restraint — no
+    /// anchor, so a column that is still whole in the narrow board does not
+    /// move — and the wait, which is the part that cannot be inferred from
+    /// reading it: measured, a scroll issued as the panel opens, and one issued
+    /// a runloop turn later, both leave the card exactly where it was. See the
+    /// numbers in `BoardScrollView`.
+    @Test func theBoardMovesOutFromUnderTheDetailPanel() {
+        guard SourceTree.isReachable else { return }
+        guard let file = self.file("Shared/BoardScrollView.swift") else { return }
+        let source = file.source
+        guard let head = source.range(of: ".onChange(of: store.isInspectorOpen)") else {
+            Issue.record("the board no longer follows the panel, so a card picked at its edge stays behind it")
+            return
+        }
+        let body = file.block(after: source.distance(from: source.startIndex, to: head.lowerBound))
+
+        #expect(body.contains("guard isOpen"),
+                "the board is scrolled when the panel *closes* as well, which gives width back: \(body)")
+        #expect(body.contains("proxy.scrollTo"), "the panel opening no longer moves the board: \(body)")
+        #expect(body.contains("anchor") == false,
+                "the panel's reveal has an anchor, so it moves a column that was never covered: \(body)")
+        #expect(body.contains("panelTravel"),
+                "the scroll no longer waits for the panel, so it measures a board still moving: \(body)")
+    }
+
+    /// And the wait is long enough to be one. Both roots animate the panel over
+    /// 0.16s; a wait shorter than that is a measurement taken mid-flight, which
+    /// is the failure this was written against rather than a near miss.
+    @Test func theBoardWaitsForTheWholeOfThePanelsTravel() {
+        #expect(BoardScrollView.panelTravel >= .milliseconds(160))
+        guard SourceTree.isReachable else { return }
+        for path in ["Mac/MacRootView.swift", "IOS/PadRootView.swift"] {
+            guard let file = SourceTree.files().first(where: { $0.path == path }) else {
+                Issue.record("\(path) has moved or gone")
+                continue
+            }
+            #expect(
+                file.source.contains("motionAnimation(.easeOut(duration: 0.16), value: store.isInspectorOpen)"),
+                "\(path) animates the panel over something other than 0.16s, so `panelTravel` is short"
+            )
+        }
     }
 
     // MARK: The margin, and what it costs
