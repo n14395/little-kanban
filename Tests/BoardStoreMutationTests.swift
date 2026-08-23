@@ -269,6 +269,20 @@ import Testing
         #expect(store[first]?.activity.map(\.kind) == [.created])
     }
 
+    /// **Every door mints the same card.** A quick capture, the inline
+    /// composer, the board menu and a bulk add all go through `mintTask`, which
+    /// is the only place a priority is chosen — and it chooses `Priority.default`
+    /// rather than a case of its own, so the two spellings of "what a card
+    /// starts on" cannot drift apart. `PriorityTests` holds what that constant
+    /// is; this holds that the store uses it.
+    @Test func anAddedTaskStartsAtTheDefaultPriority() {
+        let store = TestBoard.store()
+        #expect(store[store.addTask(to: backlog, title: "Typed")]?.priority == Priority.default)
+        #expect(store[store.captureToInbox()]?.priority == Priority.default)
+        #expect(store.addTasks(to: backlog, titles: ["A", "B"])
+            .allSatisfy { store[$0]?.priority == Priority.default })
+    }
+
     @Test func addingSelectsOnTheDeskAndOpensTheSheetOnThePhone() {
         let store = TestBoard.store()
         let desk = store.addTask(to: backlog, title: "Desk")

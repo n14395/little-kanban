@@ -153,7 +153,7 @@ enum BoardMarkdown {
     private static func trailer(_ task: TaskItem, labels: [String: String]) -> String {
         var parts: [String] = []
         if let due = task.due { parts.append("due \(due.description)") }
-        if task.priority != .medium { parts.append(task.priority.displayName.lowercased()) }
+        if task.priority != .default { parts.append(task.priority.displayName.lowercased()) }
         parts += task.labelKeys.map { labels[$0] ?? $0 }
         return parts.isEmpty ? "" : " — _\(parts.joined(separator: ", "))_"
     }

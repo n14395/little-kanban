@@ -152,12 +152,12 @@ import Testing
     @Test func openingALinkClearsAQueryThatWouldHideIt() {
         let store = TestBoard.store()
         store.query = "sync"
-        #expect(store.visibleTasks.contains { $0.id == TestBoard.cafe } == false)
+        #expect(store.searchResults.contains { $0.id == TestBoard.cafe } == false)
 
         let router = opened(TaskLink.url(for: TestBoard.cafe), in: store)
         #expect(router.failure == nil)
         #expect(store.query.isEmpty)
-        #expect(store.visibleTasks.contains { $0.id == TestBoard.cafe })
+        #expect(store.searchResults.contains { $0.id == TestBoard.cafe })
     }
 
     // MARK: Saying so when it cannot

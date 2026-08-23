@@ -48,28 +48,49 @@ struct PriorityDot: View {
         )
     }
 
-    /// Filled disc, filled square, ring — heaviest to lightest, so the shapes
-    /// rank the way the priorities do.
+    /// Point, filled disc, filled square, ring — heaviest to lightest, so the
+    /// shapes rank the way the priorities do.
+    ///
+    /// Max is the triangle for the reason `SavedView.highPriority` is drawn
+    /// with `exclamationmark.triangle`: it is the shape that means *look at
+    /// this* rather than one more rounded thing, and at 6pt it is the only one
+    /// of the four that could not be mistaken for another at a glance.
     @ViewBuilder
     private var mark: some View {
         switch Self.mark(for: priority) {
+        case .triangle: Triangle()
         case .disc: Circle()
         case .square: RoundedRectangle(cornerRadius: size * 0.22)
         case .ring: Circle().strokeBorder(lineWidth: max(1, size * 0.3))
         }
     }
 
-    /// Which of the three the mark is. Named rather than switched inline
+    /// Which of the four the mark is. Named rather than switched inline
     /// because a shape drawn in a body is invisible to the suite, and the whole
-    /// claim being made here is that the three differ.
-    enum Mark: Hashable { case disc, square, ring }
+    /// claim being made here is that the four differ.
+    enum Mark: Hashable { case triangle, disc, square, ring }
 
     static func mark(for priority: Priority) -> Mark {
         switch priority {
+        case .max: .triangle
         case .high: .disc
         case .medium: .square
         case .low: .ring
         }
+    }
+}
+
+/// The one shape SwiftUI does not ship. Point up, sitting on its own base, and
+/// drawn to whatever square it is given — see ``PriorityDot``, which is the
+/// only thing that asks for it.
+struct Triangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }
 

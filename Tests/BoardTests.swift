@@ -407,22 +407,51 @@ import Testing
         #expect(store.boards.count == 2)
     }
 
-    @Test func aNewBoardStartsWithColumnsOfItsOwn() throws {
+    /// **A new board is blank.** It used to arrive holding a copy of the seed
+    /// workflow, and the first thing anyone making a board of their own did was
+    /// delete four columns they had not asked for.
+    @Test func aNewBoardStartsWithNoColumnsAtAll() throws {
         let store = Self.store()
         let id = try #require(store.createBoard(named: "Gamma"))
         let fresh = try #require(store.board(id: id))
-        #expect(fresh.columns.map(\.name) == BoardColumn.workflow.map(\.name))
-        #expect(fresh.columns.map(\.role) == BoardColumn.workflow.map(\.role))
-        // Fresh ids: a shared one would have each board drawing the other's
-        // cards, and deleting a column on one moving both boards' cards.
-        #expect(Set(fresh.columns.map(\.id)).isDisjoint(with: Set(BoardColumn.workflow.map(\.id))))
-        #expect(Set(fresh.columns.map(\.id)).isDisjoint(with: Set(Self.alpha.columns.map(\.id))))
+        #expect(fresh.columns.isEmpty)
+        // …and the store is *on* it, which is what makes the empty board
+        // surface — and its offer of a first column — the thing on screen.
+        #expect(store.activeBoardID == id)
+        #expect(store.columns.isEmpty)
+    }
+
+    /// The other half of blank: a card added on the phone while a board has no
+    /// columns goes to the Inbox rather than onto whichever board the pager was
+    /// last pointed at.
+    ///
+    /// `mobileColumnID` is session state that outlives the board switch, and
+    /// `placement(forColumn:)` resolves an id against *every* board — so the
+    /// stale id names a real, placeable column on the board before this one.
+    /// Without the guard in `mobileAddPlacement` the card lands there: on a
+    /// board the user is not looking at, with nothing on screen to say so.
+    @Test func aCardAddedOnABlankBoardGoesToTheInboxRatherThanTheLastBoard() throws {
+        let store = Self.store()
+        let firstColumn = try #require(store.columns.first?.id)
+        store.mobileColumnID = firstColumn
+
+        let blank = try #require(store.createBoard(named: "Gamma"))
+        #expect(store.mobileColumnID == firstColumn, "the stale id is the premise of this test")
+        #expect(store.mobileAddPlacement == .inbox)
+
+        store.addTaskToCurrentMobileColumn()
+        let added = try #require(store.sheetTask)
+        #expect(added.isUnfiled, "a card added on a blank board landed on another board")
+        #expect(store.board(id: blank)?.columns.isEmpty == true)
     }
 
     @Test func aBoardWithNoPrefixTakesItsInitials() throws {
         let store = Self.store()
         let id = try #require(store.createBoard(named: "Website refresh"))
         #expect(store.board(id: id)?.codePrefix == "WR")
+        // A new board is blank, so it is given a column before it is given a
+        // card — which is the order the surfaces put the user through too.
+        store.addColumn(named: "Doing", role: .backlog)
         let added = store.addTask(to: .column(board: id, column: try #require(store.columns.first?.id)), title: "First")
         #expect(store[added]?.code.hasPrefix("WR-") == true)
     }
@@ -607,7 +636,9 @@ import Testing
         let made = relaunched.createBoard(named: "Fresh", dot: .accent)
         #expect(relaunched.boards.map(\.name) == ["Fresh"])
         #expect(relaunched.activeBoardID == made)
-        #expect(relaunched.columns.isEmpty == false, "a board arrived with nowhere to put a card")
+        // Blank, and deliberately: the board surface's own offer is a first
+        // column rather than a first card. See `aNewBoardStartsWithNoColumnsAtAll`.
+        #expect(relaunched.columns.isEmpty)
     }
 
     // MARK: Migration — v4 → v5

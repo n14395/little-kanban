@@ -6,7 +6,11 @@ import SwiftUI
 ///
 /// A menu rather than segments on both surfaces: the inspector's value sits in a
 /// two-column grid and the sheet's in a half-width card, and neither has the
-/// room for three segments.
+/// room for four segments.
+///
+/// **Least urgent first**, which is `Priority.leastFirst` rather than
+/// `allCases` — the one surface that runs the scale upwards. See that property
+/// for why the board's own order is the other way round.
 struct PriorityPicker: View {
     struct Metrics {
         var font: CGFloat
@@ -34,7 +38,7 @@ struct PriorityPicker: View {
 
     var body: some View {
         Menu {
-            ForEach(Priority.allCases) { option in
+            ForEach(Priority.leastFirst) { option in
                 Button {
                     // A menu is one click, so the pick brackets its own session
                     // when the menu's lifecycle did not — `beginSession` is a

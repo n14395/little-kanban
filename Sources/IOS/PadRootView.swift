@@ -142,6 +142,10 @@ struct PadRootView: View {
 
             VStack(spacing: 0) {
             BoardToolbar(metrics: .pad, toggleSidebar: toggleSidebar)
+                // The search results hang out of the bar and over the board and
+                // the inspector, which are the next two siblings down — see
+                // `BoardToolbar.resultsPanel`.
+                .zIndex(1)
             HStack(spacing: 0) {
                 surface
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -255,16 +259,22 @@ struct PadRootView: View {
     /// comment describes — the button drawn over and unhittable. So it waits
     /// instead.
     ///
-    /// **What it used to wait for was the user to work it out.** An 11" in
-    /// portrait with the source list out has no room for a third column, and the
-    /// Inbox button simply did nothing there. The list gets out of the way now —
-    /// see ``hasRoomForBothSidebars`` — so what is left for this to decline is a
-    /// window with no room for the panel even with the list gone, which is a
-    /// genuinely tiny one.
+    /// **And it waits for the board alone.** The inspector's width used to count
+    /// against this too, which looked like arithmetic and behaved like a dead button:
+    /// an 11" in portrait is 834pt, and 834 less the inspector's 348 and the
+    /// panel's 320 is 166 — so with a task selected the panel went on declining
+    /// *after* the source list had closed to make room for it, and the Inbox
+    /// button did nothing but put the source list away. The inspector needs no
+    /// room reserved here precisely because it has its own answer to being
+    /// squeezed: it draws over the board. This one counts what cannot move.
+    ///
+    /// What is left for it to decline is a detail column with no room for a
+    /// panel and a board at all — 672pt, down where `RootSurface` is about to
+    /// hand the window to the phone's layout anyway.
     private var hasRoomForTheInbox: Bool {
-        guard detailWidth > 0 else { return true }
-        let beside = store.isInspectorOpen ? inspectorWidth : 0
-        return detailWidth - beside - chrome(InboxPanel.Metrics.pad.width) >= boardFloor
+        Self.holdsTheInbox(
+            detail: detailWidth, panel: chrome(InboxPanel.Metrics.pad.width), floor: boardFloor
+        )
     }
 
     /// The two things the main area can be, exactly as on the desk. The Inbox
@@ -314,6 +324,21 @@ struct PadRootView: View {
     ) -> Bool {
         guard window > 0 else { return true }
         return window - sidebar - inspector - panel >= floor
+    }
+
+    /// Whether a detail column this wide holds the Inbox panel and a board.
+    ///
+    /// The inspector is deliberately not an argument — ``hasRoomForTheInbox``
+    /// says why — and the pair of rules have an invariant between them that only
+    /// a test can hold: every window ``holdsBothSidebars`` turns down is a window
+    /// this has to accept once the source list has gone. Where it does not, the
+    /// Inbox button closes the source list and nothing else happens.
+    ///
+    /// Zero reads as *room* for the same reason as above: the first layout pass
+    /// must not shut a panel on the way in.
+    static func holdsTheInbox(detail: CGFloat, panel: CGFloat, floor: CGFloat) -> Bool {
+        guard detail > 0 else { return true }
+        return detail - panel >= floor
     }
 
     /// `.automatic` is whatever the system chose, and the first press has to
@@ -399,15 +424,11 @@ struct PadRootView: View {
         .hairline(.bottom, color: palette.ink(0.07))
     }
 
-    @ViewBuilder
+    /// One emptiness now: a view with nothing in it. The query opens
+    /// ``SearchResultsPanel`` over the board rather than narrowing what is
+    /// behind it, so a view the search emptied is not a state this can be in.
     private func savedViewEmptyState(_ view: SavedView) -> some View {
-        if store.isFiltering {
-            EmptyStateView.noResults(query: store.query, metrics: .sheet) {
-                store.clearQuery()
-            }
-        } else {
-            EmptyStateView.savedView(view, metrics: .sheet)
-        }
+        EmptyStateView.savedView(view, metrics: .sheet)
     }
 }
 

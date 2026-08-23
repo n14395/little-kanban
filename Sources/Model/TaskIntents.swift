@@ -136,7 +136,7 @@ final class DeepLinkRouter {
             )
             return
         }
-        reveal(task, in: store)
+        store.reveal(task.id)
     }
 
     /// Merges an opened board file, which is the same act as Settings ▸ Import
@@ -146,39 +146,6 @@ final class DeepLinkRouter {
         notice = .importing(url, into: store)
     }
 
-    /// Puts a task in front of the user on whichever surface is showing. The
-    /// search is cleared first: a link that lands on a board filtered to
-    /// something the task does not match would open onto an empty column, which
-    /// reads as the link having failed.
-    ///
-    /// Every detail surface the app has is raised, rather than the one this
-    /// platform was assumed to have. The `#if os(iOS)` here used to set only the
-    /// phone's — its column, its tab, its sheet — so a `simplekanban://` link, a
-    /// notification tap, a Handoff or a Spotlight hit selected the task on an
-    /// iPad and then showed nothing at all whenever the inspector was closed.
-    /// The two do not collide: the phone has no inspector to open, the iPad
-    /// presents no sheet, and each surface reads the one piece of state it has.
-    ///
-    /// Getting to the card's board is `showPlace(of:)`, which the board menu
-    /// also goes through — this is that plus the two things only an arrival
-    /// from outside needs: the card selected, and a detail surface opened on it.
-    /// An archived card is the one place they part company, having no board to
-    /// be taken to.
-    private func reveal(_ task: TaskItem, in store: BoardStore) {
-        store.clearQuery()
-        if task.isArchived {
-            store.activeView = .archive
-        } else {
-            store.showPlace(of: task.id)
-        }
-        store.select(task.id)
-        // The desk and the iPad: the panel beside the board.
-        store.isInspectorOpen = true
-        #if os(iOS)
-        store.isNavDrawerOpen = false
-        store.sheetID = task.id
-        #endif
-    }
 }
 
 extension View {

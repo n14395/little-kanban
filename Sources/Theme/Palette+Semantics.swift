@@ -22,8 +22,14 @@ extension Palette {
     }
 
     /// The wash over whatever a panel is covering: the iPhone's navigation
-    /// drawer and its Inbox slide-over, which are the two things in this app
-    /// that cover a surface rather than sitting beside it.
+    /// drawer, which is the one thing in this app that covers a surface of its
+    /// own accord rather than sitting beside it. The Inbox's slide-over is
+    /// covered too, by the system's own dimming — it is a real sheet, and a
+    /// sheet dims what it is presented over without being asked. On its side,
+    /// where that sheet is laid out at the whole screen and there is nothing
+    /// behind it to dim, it paints the app's ground instead: see
+    /// `PhoneInboxSheet.ground`, and note that a wash over a bare window is not
+    /// a wash but a slab.
     ///
     /// **Not `ink(0.3)`, which is what both of them used to be** — the same
     /// trap ``onAccent`` documents from the other end. Ink is the *text* colour
@@ -71,8 +77,16 @@ extension Palette {
     static let readableInk: Double = 0.68
 
     /// The dot beside a card's metadata row.
+    ///
+    /// **Max is the one that does not take the accent.** High is the accent, so
+    /// it is Ember's rust on one board and Pine's green on another — a mark
+    /// that says *this one* against the cards around it. Max has to say it
+    /// against High as well, and a fifth tone of the accent would not; it takes
+    /// the red the overdue chip already uses, which is this app's one alarm
+    /// colour and reads as one under Pine and Indigo too.
     func priorityColor(_ priority: Priority) -> Color {
         switch priority {
+        case .max: isDarkScheme ? Color(hex: 0xF05A5A) : Color(hex: 0xA32222)
         case .high: accent
         case .medium: isDarkScheme ? Color(hex: 0xE0A83A) : Color(hex: 0xC98A16)
         case .low: isDarkScheme ? ink(0.38) : Color(hex: 0xB4AEA4)

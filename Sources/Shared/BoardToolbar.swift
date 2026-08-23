@@ -68,6 +68,10 @@ struct BoardToolbar: View {
         /// because a split view can hand it whatever is left after the source
         /// list and the Inbox panel have taken theirs.
         var foldsSearch: Bool
+        /// What the results panel under the field is drawn at. A field of this
+        /// table rather than a `#if os()` in the body, for `capture`'s reason:
+        /// the two bars differ by their presets and by nothing else.
+        var results: SearchResultsPanel.Metrics
 
         // The desk's height is the row the window's traffic lights sit on —
         // there is no title bar, so this bar *is* the chrome rather than a
@@ -78,12 +82,14 @@ struct BoardToolbar: View {
         static let desk = Metrics(
             height: 50, spacing: 14, horizontalPadding: 20, titleSize: 24, searchWidth: 216,
             searchFont: 13, control: 34, controlRadius: 10, glyph: 12,
-            fieldHit: 0, titleFloor: 140, inboxWidth: 56, capture: nil, foldsSearch: false
+            fieldHit: 0, titleFloor: 140, inboxWidth: 56, capture: nil, foldsSearch: false,
+            results: .desk
         )
         static let pad = Metrics(
             height: 72, spacing: 14, horizontalPadding: 18, titleSize: 26, searchWidth: 220,
             searchFont: 15, control: 44, controlRadius: 12, glyph: 15,
-            fieldHit: 44, titleFloor: 160, inboxWidth: 68, capture: 44, foldsSearch: true
+            fieldHit: 44, titleFloor: 160, inboxWidth: 68, capture: 44, foldsSearch: true,
+            results: .pad
         )
 
         /// Whether the bar can hold the search field at this width.
@@ -159,14 +165,29 @@ struct BoardToolbar: View {
     @State private var isInboxDropTarget = false
     /// Whether the folded field has been asked for. Only ever read while the
     /// bar is folded — see ``showsSearchRow``, which is the flag *and* the
-    /// query, because a query with no field on screen is a filter the surface
-    /// gives no way back out of.
+    /// query, because a query with no field on screen is a search the reader
+    /// has no way back to.
     @State private var isSearchOpen = false
     /// What the row actually laid out at. The iPad's detail column is whatever
     /// the split view has left after the source list and the Inbox panel, so
     /// this is measured rather than reasoned about from the screen's width —
     /// the same thing `PadRootView` does with the room beside the board.
     @State private var barWidth: CGFloat = 0
+    /// Whether the results panel is under the field. Not simply "the field has
+    /// focus": clicking a result moves focus out of the field on macOS, and a
+    /// panel that vanished on that would be a panel whose rows cannot be
+    /// clicked. It is opened by asking for the field and closed by the four
+    /// things that end a search — Escape, a result, the × , and putting the
+    /// folded row away.
+    @State private var isShowingResults = false
+    /// Which result Return would take. Held here rather than in the panel
+    /// because the keys that move it are pressed in the *field*: the panel
+    /// never takes focus, so it has no key events of its own.
+    @State private var highlighted: TaskItem.ID?
+    /// Where the field ended up in the bar, so the panel can hang under it.
+    /// Measured rather than reasoned about: the field is at the trailing end of
+    /// the bar at full width and fills a row of its own when the bar has folded.
+    @State private var fieldFrame: CGRect = .zero
 
     var metrics: Metrics = .desk
     /// Room for the window controls when the sidebar is not there to hold it.
@@ -194,6 +215,18 @@ struct BoardToolbar: View {
             }
         }
         .hairline(.bottom, color: palette.ink(0.07))
+        .coordinateSpace(.named(Self.barSpace))
+        // Over the board rather than in it, and drawn by the bar because the
+        // bar owns the field: the panel is laid out against `fieldFrame`, which
+        // only this view has.
+        //
+        // **The z-order is the caller's**, and has to be: the board and the
+        // detail panel are the bar's *siblings*, one stack up, and a `zIndex`
+        // written here orders this view against its own contents rather than
+        // against them. Measured — with it here, the panel drew underneath the
+        // inspector and was invisible from the moment a card was selected. Both
+        // roots put `.zIndex(1)` on the bar.
+        .overlay(alignment: .topLeading) { resultsPanel }
         .motionAnimation(.easeOut(duration: 0.16), value: showsSearchRow)
         // Edit ▸ Find, and the iPad's ⌘F from a hardware keyboard. The menu bar
         // is outside this view's tree and cannot reach a `FocusState`, so the
@@ -257,9 +290,8 @@ struct BoardToolbar: View {
     ///
     /// The flag *or* a live query. The second half is what a window narrowed
     /// around a search does: the field folds, and if the query folded away with
-    /// it the board would sit there filtered with nothing on screen saying so
-    /// and nothing to clear — the cards would simply be missing. So a query
-    /// keeps its field.
+    /// it the reader would be left with a search still running and nowhere to
+    /// edit or clear it. So a query keeps its field.
     private var showsSearchRow: Bool {
         foldsSearch && (isSearchOpen || !store.query.isEmpty)
     }
@@ -268,12 +300,79 @@ struct BoardToolbar: View {
         if showsSearchRow { closeSearchRow() } else { isSearchOpen = true }
     }
 
+    // MARK: The results
+
+    /// Every task in the app, best match first — see ``SearchResultsPanel``.
+    /// Read once per render and handed to the panel and to the keys alike, so
+    /// what Return takes is what the reader is looking at.
+    private var results: [TaskItem] { store.searchResults }
+
+    @ViewBuilder
+    private var resultsPanel: some View {
+        if isShowingResults, fieldFrame != .zero {
+            let width = SearchResultsPanel.width(
+                under: fieldFrame.width, in: barWidth, metrics: metrics.results
+            )
+            SearchResultsPanel(
+                results: results, highlighted: $highlighted, metrics: metrics.results
+            ) { choose($0) }
+            .frame(width: width)
+            // **The overlay proposes the bar's own height**, which is 50pt, and
+            // a scroll view offered 50pt takes it: the panel drew one row and
+            // scrolled the rest, with its ground and its shadow drawn around
+            // that one row. `fixedSize` is what makes it ask for the height it
+            // wants instead; the cap inside it is `Metrics.maxHeight`.
+            .fixedSize(horizontal: false, vertical: true)
+            .offset(
+                x: SearchResultsPanel.offset(under: fieldFrame, width: width, in: barWidth),
+                y: fieldFrame.maxY + 6
+            )
+            .transition(.opacity)
+        }
+    }
+
+    /// A result the user picked: go to the card, and the search is over.
+    /// ``BoardStore/reveal(_:)`` is the whole errand — the card's board, the
+    /// card selected, its detail open — and is the same call a
+    /// `simplekanban://` link makes.
+    private func choose(_ id: TaskItem.ID) {
+        // The field first, and then the card. `reveal` clears the query, which
+        // is a change this view watches — and a watcher that saw the field
+        // still focused would take the clear for a keystroke and re-open the
+        // panel over the card it had just gone to.
+        isSearchFocused = false
+        closeResults()
+        if foldsSearch { isSearchOpen = false }
+        store.reveal(id)
+    }
+
+    private func closeResults() {
+        isShowingResults = false
+        highlighted = nil
+    }
+
+    /// ↑/↓ in the field, which is where they are pressed. A list with no
+    /// highlight starts at the top on the way down and at the bottom on the way
+    /// up, so one press of either key always lands somewhere.
+    private func moveHighlight(by delta: Int) {
+        let ids = results.map(\.id)
+        guard !ids.isEmpty else { return highlighted = nil }
+        guard let current = highlighted, let index = ids.firstIndex(of: current) else {
+            highlighted = delta > 0 ? ids.first : ids.last
+            return
+        }
+        let next = index + delta
+        guard ids.indices.contains(next) else { return }
+        highlighted = ids[next]
+    }
+
     /// Putting the row away is a cancel, query and all — the other half of the
-    /// bargain ``showsSearchRow`` strikes. Leaving the query behind would hide
-    /// the filter and its only undo in one press.
+    /// bargain ``showsSearchRow`` strikes. Leaving the query behind would take
+    /// away the field it is typed in and the panel it answers into at once.
     private func closeSearchRow() {
         isSearchOpen = false
         isSearchFocused = false
+        closeResults()
         store.clearQuery()
     }
 
@@ -480,18 +579,60 @@ struct BoardToolbar: View {
                 // a resize that raises a keyboard is a resize typing into a text
                 // field.
                 .focusWhenReady($isSearchFocused, when: fills && isSearchOpen)
-                // Escape puts the row away, the way it cancels the title field
-                // two controls to the left. Ignored in the bar, where there is
-                // no row to put away and the key belongs to whatever is behind.
+                // The panel opens with the field, so a search that has been
+                // asked for is a list of somewhere to go rather than a caret in
+                // an empty box. It lists everything until there is a query to
+                // narrow it — see `BoardStore.searchResults`.
+                .onChange(of: isSearchFocused) { _, focused in
+                    if focused { isShowingResults = true }
+                }
+                // Typing opens it; *clearing* must not. `reveal` drops the
+                // query on its way out, so without the second test choosing a
+                // result closed the panel and this re-opened it a frame later,
+                // showing every task in the app over the card just gone to.
+                // Measured on the desk, with the × as well as with a result.
+                .onChange(of: store.query) { _, query in
+                    if isSearchFocused, !query.isEmpty { isShowingResults = true }
+                    // The rows underneath it have changed, so the row Return
+                    // would take is no longer the row that was under the
+                    // highlight.
+                    highlighted = nil
+                }
+                // ↑/↓ walk the panel. They are pressed here because the panel
+                // never holds focus — see `SearchResultsPanel`.
+                .onKeyPress(.downArrow) {
+                    guard isShowingResults else { return .ignored }
+                    moveHighlight(by: 1)
+                    return .handled
+                }
+                .onKeyPress(.upArrow) {
+                    guard isShowingResults else { return .ignored }
+                    moveHighlight(by: -1)
+                    return .handled
+                }
+                // Escape is "never mind", and a search is one thing to mind:
+                // the panel goes and the query goes with it, which is what a
+                // search field does everywhere else on the desk. The field
+                // keeps the keyboard, so the next thing typed starts a fresh
+                // search rather than landing nowhere. A second press has no
+                // panel to take and belongs to whatever is behind — except on a
+                // folded bar, where it puts the row away.
                 .onKeyPress(.escape) {
+                    if isShowingResults {
+                        closeResults()
+                        store.clearQuery()
+                        return .handled
+                    }
                     guard fills else { return .ignored }
                     closeSearchRow()
                     return .handled
                 }
-                // Return drops the keyboard and leaves the query standing: the
-                // board behind the row is already showing what it matched, and
-                // that is what the reader looked up in order to see.
-                .onSubmit { isSearchFocused = false }
+                // Return takes the highlighted result. With nothing highlighted
+                // it drops the keyboard and leaves the query standing, which is
+                // what it has always done.
+                .onSubmit {
+                    if let highlighted { choose(highlighted) } else { isSearchFocused = false }
+                }
             // Selecting the field's text to delete it is a keyboard errand for
             // a state the user can see from across the room.
             if !store.query.isEmpty {
@@ -516,15 +657,24 @@ struct BoardToolbar: View {
                alignment: .leading)
         .frame(minHeight: chrome(metrics.control))
         .background(palette.ink(0.05), in: .rect(cornerRadius: metrics.controlRadius))
+        // Where the panel hangs from. In the bar's own space rather than the
+        // window's, because that is the space the overlay is laid out in.
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(Self.barSpace)) } action: {
+            fieldFrame = $0
+        }
     }
+
+    /// The bar's own coordinate space, so the field's frame and the panel's
+    /// offset are the same numbers.
+    private static let barSpace = "SimpleKanban.toolbar"
 
     /// The field, folded.
     ///
     /// A button rather than a narrower field: 44pt of field holds about three
     /// characters, and the row underneath gets the whole width instead. It is
     /// marked while it is standing in for something — selected while the row is
-    /// out, and outlined in the accent while a query is narrowing the board, so
-    /// a filter is never running behind a bar that looks idle.
+    /// out, and outlined in the accent while there is a query, so a search is
+    /// never running behind a bar that looks idle.
     private var searchToggle: some View {
         Button { toggleSearchRow() } label: {
             Image(systemName: "magnifyingglass")

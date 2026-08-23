@@ -76,7 +76,7 @@ struct InboxPanel: View {
     private var isDropTarget: Bool { store.isInboxDropTarget && store.draggingID != nil }
 
     var body: some View {
-        let tasks = store.visibleInboxTasks
+        let tasks = store.inboxTasks
 
         VStack(spacing: 0) {
             header(count: tasks.count)
@@ -195,16 +195,9 @@ struct InboxPanel: View {
         .hairline(.bottom, color: palette.ink(0.07))
     }
 
-    @ViewBuilder
     private var emptyState: some View {
-        if store.isFiltering {
-            EmptyStateView.noResults(query: store.query, metrics: metrics.emptyState) {
-                store.clearQuery()
-            }
-        } else {
-            EmptyStateView.inbox(metrics: metrics.emptyState) {
-                store.beginAdding(in: .inbox)
-            }
+        EmptyStateView.inbox(metrics: metrics.emptyState) {
+            store.beginAdding(in: .inbox)
         }
     }
 }

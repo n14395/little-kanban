@@ -281,16 +281,24 @@ import Testing
         #expect(store.dropCaret == nil)
     }
 
-    /// Dragging is off while a query narrows the board — the cards on screen are
-    /// not in board order, so a drop has nothing it could mean — and the caret
-    /// goes with it rather than drawing a promise the drop will refuse.
-    @Test func aFilteredBoardDrawsNoCaret() {
+    /// Dragging is off wherever the cards on screen are not in board order — a
+    /// drop has nothing it could mean there — and the caret goes with it rather
+    /// than drawing a promise the drop will refuse.
+    ///
+    /// A saved view, then, and no longer a query: the search draws a panel over
+    /// the board instead of narrowing it, so the rows underneath are still the
+    /// board's own order. `SearchScopingTests` has the rule itself.
+    @Test func aSurfaceThatRefusesADragDrawsNoCaret() {
         let store = TestBoard.store()
         store.draggingID = TestBoard.dragDrop
         store.dropTargetCaret = .above(TestBoard.cafe)
         #expect(store.dropCaret != nil)
 
         store.query = "café"
+        #expect(store.allowsCardDrag, "a query stopped a drag it no longer hides anything from")
+        #expect(store.dropCaret != nil)
+
+        store.activeView = .upcoming
         #expect(store.allowsCardDrag == false)
         #expect(store.dropCaret == nil)
     }

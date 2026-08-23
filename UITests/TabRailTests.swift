@@ -60,7 +60,7 @@ final class TabRailTests: XCTestCase {
         let app = XCUIApplication()
         // On the board, and said rather than left to the launch: a cold launch
         // lands on Today — see `BoardStore.landingSurface` — and the shape this
-        // suite is about is the one the board is drawn in, two columns wide
+        // suite is about is the one the board is drawn in, three columns wide
         // under a header that has given up its chips. `ColumnStripTests` names
         // the tab for the same reason.
         app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES", "-SimpleKanbanTab", "board"]
@@ -145,3 +145,4 @@ final class TabRailTests: XCTestCase {
         add(shot)
     }
 }
+

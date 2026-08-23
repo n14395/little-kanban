@@ -262,8 +262,7 @@ struct BoardTaskCard: View {
         .motionAnimation(.easeOut(duration: 0.12), value: isHovering)
         .onHover { isHovering = $0 }
         .modifier(DraggableWhenOrdered(
-            isEnabled: store.allowsCardDrag, isFiltering: store.isFiltering,
-            transfer: TaskTransfer(task)
+            isEnabled: store.allowsCardDrag, transfer: TaskTransfer(task)
         ))
         .modifier(CardDragSession(id: task.id))
         .overlay { dropZones }
@@ -683,15 +682,18 @@ private struct MoveActions: ViewModifier {
 }
 
 /// Dragging is off wherever the cards on screen are not in the board's own
-/// order — see `BoardStore.allowsCardDrag`. The card dims and says which of the
-/// two reasons it is rather than failing silently; a saved view gets its own
-/// sentence because "clear the search" would be advice about a search the user
-/// has not typed.
+/// order — see `BoardStore.allowsCardDrag`. The card dims and says why rather
+/// than failing silently.
+///
+/// **There is one reason left.** There were two: a saved view, and a live
+/// search that had hidden the cards in between. The search does not touch the
+/// board any more — it opens ``SearchResultsPanel`` over it — so a card stays
+/// draggable with a query running, and "clear the search to drag" is advice
+/// about a state the app no longer has.
 private struct DraggableWhenOrdered: ViewModifier {
     @Environment(BoardStore.self) private var store
 
     let isEnabled: Bool
-    let isFiltering: Bool
     let transfer: TaskTransfer
 
     @ViewBuilder
@@ -715,9 +717,7 @@ private struct DraggableWhenOrdered: ViewModifier {
         } else {
             content
                 .opacity(0.88)
-                .help(isFiltering
-                      ? "Clear the search to drag cards between columns"
-                      : "Go back to the board to drag cards between columns")
+                .help("Go back to the board to drag cards between columns")
         }
     }
 

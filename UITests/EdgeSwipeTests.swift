@@ -108,7 +108,7 @@ final class EdgeSwipeTests: XCTestCase {
     /// held the board's swipe would have traded one gesture for another. It
     /// reads the dots, which carry `.isSelected` on the column the board is on.
     func testASwipeFromTheMiddleOfTheBoardStillPagesIt() throws {
-        // The dots this reads are portrait's — in landscape two columns share
+        // The dots this reads are portrait's — in landscape three columns share
         // the screen under their own headings and the strip is not drawn.
         XCUIDevice.shared.orientation = .portrait
         let app = try launched(on: .phone)

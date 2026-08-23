@@ -78,6 +78,10 @@ struct MacRootView: View {
                             leadingInset: window.isSidebarVisible || store.isInboxShowing ? 0 : 68
                         )
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
+                        // The search results hang out of the bar and over the
+                        // board and the inspector, which are the next two
+                        // siblings down — see `BoardToolbar.resultsPanel`.
+                        .zIndex(1)
 
                         HStack(spacing: 0) {
                             surface
@@ -299,18 +303,12 @@ struct MacSavedViewList: View {
         .hairline(.bottom, color: palette.ink(0.07))
     }
 
-    /// Two different emptinesses, and the difference is the whole point: a view
-    /// nobody has filed anything into yet says what would land in it, and a view
-    /// the query has emptied offers to drop the query.
-    @ViewBuilder
+    /// One emptiness now: a view nobody has filed anything into yet, saying
+    /// what would land in it. The query no longer narrows a view on this
+    /// platform — it opens ``SearchResultsPanel`` over whatever is on screen —
+    /// so "the query emptied it" is not one of the states this can be in.
     private var emptyState: some View {
-        if store.isFiltering {
-            EmptyStateView.noResults(query: store.query, metrics: .desk) {
-                store.clearQuery()
-            }
-        } else {
-            EmptyStateView.savedView(view, metrics: .desk)
-        }
+        EmptyStateView.savedView(view, metrics: .desk)
     }
 }
 

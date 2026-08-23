@@ -31,6 +31,12 @@ final class ColumnDropTests: XCTestCase {
             "-SimpleKanbanSkipFirstRun", "YES",
             // The inspector holds the room the fourth column needs.
             "-SimpleKanbanHideInspector", "YES",
+            // The board, said out loud. A phone lands on **Today** on a cold
+            // launch — `BoardStore.landingSurface` — and Today is a flat list
+            // with no columns in it, so a suite about dropping a card on a
+            // column has to name the surface the columns are on. Only visible
+            // on a fresh install, which is exactly how this suite should be run.
+            "-SimpleKanbanTab", "board",
         ]
         app.launch()
         return app
@@ -125,7 +131,7 @@ final class ColumnDropTests: XCTestCase {
     /// *nothing but* that space could not be dragged to at all. Both are one
     /// container change; see ``PhoneColumnPage``.
     ///
-    /// **On its side**, because that is the one shape where two columns share a
+    /// **On its side**, because that is the one shape where columns share a
     /// phone screen. A drop on the ground of the column a card is already in is
     /// a no-op by design, so in portrait — one column per screen — there is no
     /// cross-column drop for a single drag to make.
@@ -135,6 +141,11 @@ final class ColumnDropTests: XCTestCase {
     /// target the case that used to be unreachable by any gesture, and it leaves
     /// a whole page of ground to aim at rather than the sliver a landscape phone
     /// has left under two cards.
+    ///
+    /// **The neighbour it is dropped from is the column to its right**, which is
+    /// Done: every card in Done is done, so "Mark as not done" picks a card out
+    /// of it without naming one, and which card that is depends on what the last
+    /// run left behind.
     func testACardDropsOnAnEmptyPhoneColumn() throws {
         try XCTSkipUnless(
             UIDevice.current.userInterfaceIdiom == .phone,
@@ -150,11 +161,37 @@ final class ColumnDropTests: XCTestCase {
         let empty = app.descendants(matching: .any)
             .matching(NSPredicate(format: "label CONTAINS %@", "Nothing in In Progress"))
             .firstMatch
-        // The pager opens on In Progress, so it and Done are the two columns
-        // sharing the screen. Every card in Done is done, and its tick reads
-        // "Mark as not done" — so the ticks matched here are In Progress's, and
-        // the loop runs out exactly when that column does.
+        // **In Progress's own gutter**, which is the strip between its heading
+        // and its cards. Three columns share the screen turned this way and two
+        // of them are ahead of this one, so "the first tick on screen" is Up
+        // Next's — and the loop would empty a column this test is not about,
+        // then run out.
         //
+        // The heading is the anchor because it is the one part of a page that is
+        // always on screen: a page is a third of the width now, its cards wrap
+        // to two and three lines each, and the dashed row that would otherwise
+        // name the column is below the fold.
+        let heading = try XCTUnwrap(
+            app.descendants(matching: .any)
+                .matching(NSPredicate(format: "label BEGINSWITH %@", "In Progress,"))
+                .allElementsBoundByIndex
+                .first { app.frame.contains($0.frame) },
+            "In Progress is not one of the columns on screen"
+        ).frame
+        // Its first card's leading edge — the far side of that gutter. Measured
+        // once, while the column still has cards in it: the pages do not move,
+        // and every tick this loop should press is between these two numbers
+        // while the ones either side are 250pt away.
+        let cardEdge = try XCTUnwrap(
+            app.buttons.allElementsBoundByIndex
+                .filter {
+                    $0.frame.width > 100 && app.frame.contains($0.frame)
+                        && $0.frame.minX > heading.minX
+                }
+                .map { $0.frame.minX }.min(),
+            "In Progress has no cards on screen to empty"
+        )
+
         // Picked by frame rather than by `isHittable`: the pager builds the
         // pages either side as well, and asking a tick two columns away whether
         // it is hittable *throws* — "activation point invalid" — rather than
@@ -163,7 +200,10 @@ final class ColumnDropTests: XCTestCase {
             if empty.exists { break }
             let ticks = app.buttons.matching(identifier: "Mark as done")
                 .allElementsBoundByIndex
-            let onScreen = ticks.first { $0.frame.width > 0 && app.frame.contains($0.frame) }
+            let onScreen = ticks.first {
+                $0.frame.width > 0 && app.frame.contains($0.frame)
+                    && $0.frame.midX > heading.minX && $0.frame.midX < cardEdge
+            }
             guard let tick = onScreen else { break }
             tick.tap()
         }

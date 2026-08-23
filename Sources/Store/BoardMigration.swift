@@ -535,8 +535,32 @@ extension BoardSnapshot {
     /// nothing, and write it back with the trash silently dropped — the user's
     /// deleted work thrown away for good by a downgrade. With the bump that
     /// build refuses the file and says why.
+    /// Stamps **7** rather than `currentVersion`, for `migrate(v5:)`'s reason:
+    /// a step that jumps to whatever the present happens to be is a step that
+    /// silently absorbs the next one. `migrate(v7:)` carries it the rest of the
+    /// way.
     static func migrate(v6: BoardSnapshot) -> BoardSnapshot {
         var snapshot = v6
+        snapshot.version = 7
+        return snapshot
+    }
+
+    /// Version 7 → 8.
+    ///
+    /// v8 adds a fourth priority above High — `Priority.max`, spelled `max` on
+    /// disk — and changes what a card minted without one starts on, from
+    /// `medium` to `low`. Neither touches the shape: a v7 file has no `max` in
+    /// it and every card in it already carries a priority of its own, so the
+    /// current decoder reads one whole and this step is another bare stamp.
+    ///
+    /// The bump is for the other direction, and it is the sharper version of
+    /// the argument `migrate(v5:)` makes. `Priority.init(from:)` throws on a
+    /// token it does not know, and a `Codable` throw is not local: a v7 build
+    /// handed a board with a single Max card on it fails to decode the *whole
+    /// file* and quarantines the user's board as corrupt. With the bump it
+    /// refuses the file up front and says why.
+    static func migrate(v7: BoardSnapshot) -> BoardSnapshot {
+        var snapshot = v7
         snapshot.version = BoardSnapshot.currentVersion
         return snapshot
     }

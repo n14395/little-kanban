@@ -110,6 +110,13 @@ enum TestBoard {
             id: widget, code: "NW-120", columnID: BoardColumn.inbox.id,
             title: "Widget on the home screen",
             note: "Captured from the menu bar.",
+            // **Said rather than defaulted**, here and on NW-123 and NW-125.
+            // These tasks are the expected side of the migration suites, and
+            // the fixtures they are compared against are frozen bytes that
+            // carry `Medium` — which is what a card minted before v8 started
+            // on. Leaving it to `Priority.default` made the expectation move
+            // with today's default and the fixtures stay where they were.
+            priority: .medium,
             activity: [ActivityEntry(id: entryID(1), .captured, when: at(600))],
             createdAt: at(600), updatedAt: at(600)
         ),
@@ -137,7 +144,7 @@ enum TestBoard {
             id: offline, code: "NW-123", columnID: BoardColumn.upNext.id,
             title: "Offline queue for edits",
             note: "Buffer mutations locally and replay on reconnect.",
-            labelKeys: ["api"], due: laterDay,
+            labelKeys: ["api"], due: laterDay, priority: .medium,
             subtasks: [SubTask(id: mutationLog, text: "Mutation log", done: false)],
             activity: [ActivityEntry(id: entryID(4), .created, when: at(12_000))],
             createdAt: at(12_000), updatedAt: at(12_000)
@@ -155,7 +162,7 @@ enum TestBoard {
         TaskItem(
             id: palette, code: "NW-125", columnID: BoardColumn.done.id,
             title: "Warm neutral palette",
-            labelKeys: ["design"],
+            labelKeys: ["design"], priority: .medium,
             subtasks: [SubTask(id: subtaskID(5), text: "Palette", done: true)],
             activity: [
                 ActivityEntry(id: entryID(7), .moved(columnID: BoardColumn.done.id.uuidString, columnName: "Done"), when: at(40_000)),

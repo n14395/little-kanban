@@ -339,16 +339,22 @@ import Testing
     // MARK: When a drag is not allowed at all
 
     /// A drop resolves against the board's own array, so both closures refuse
-    /// to run at all when what is on screen is not that order. All three of the
-    /// conditions are asked, because each one alone leaves the other two able
-    /// to put a card somewhere nobody can see.
+    /// to run at all when what is on screen is not that order. Both of the
+    /// conditions are asked, because each one alone leaves the other able to
+    /// put a card somewhere nobody can see.
+    ///
+    /// **A query is no longer one of them.** It was, and had to be while the
+    /// board was drawn from the search's answer: typing hid the cards in
+    /// between, so a drop landed at an index nobody could see. The search opens
+    /// a panel over the board now and the board under it is unchanged, so a card
+    /// stays draggable with a query running.
     @Test func dragIsRefusedWheneverTheRowsOnScreenAreNotTheBoardsOrder() {
         let store = store()
         #expect(store.allowsCardDrag)
 
         store.query = "Card"
         #expect(store.isFiltering)
-        #expect(store.allowsCardDrag == false, "a filtered board still allows a drag")
+        #expect(store.allowsCardDrag, "a query stopped a drag it no longer hides anything from")
         store.query = ""
 
         store.sortOrder = .dueDate

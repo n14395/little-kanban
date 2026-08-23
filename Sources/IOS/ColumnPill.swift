@@ -6,9 +6,9 @@ import SwiftUI
 ///
 /// **One shape, drawn by both orientations.** Portrait's header draws a strip of
 /// these as the column switcher — tap one to page to that column. Landscape has
-/// no switcher, because two pages are side by side and there is nothing to
-/// switch *to* that is not already on screen; what it has instead is a caption
-/// over each page saying which column it is. Those were two different drawings
+/// no switcher, because three pages are side by side and most of a board is
+/// already there; what it has instead is a caption over each page saying which
+/// column it is. Those were two different drawings
 /// of the same fact — a capsule with a count in one orientation, a coloured dot
 /// and a caption in the other — and turning the phone changed what a column
 /// looked like for no reason the user could name.

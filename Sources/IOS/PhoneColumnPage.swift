@@ -20,7 +20,7 @@ struct PhoneColumnPage<Trailing: View>: View {
 
     let column: BoardColumn
     let tasks: [TaskItem]
-    /// Landscape puts two pages on screen at once, and a heading is then the
+    /// Landscape puts three pages on screen at once, and a heading is then the
     /// only thing that says which is which. In portrait the header's chips have
     /// just said it, and a second caption under them is the count pill 4.4
     /// removed.

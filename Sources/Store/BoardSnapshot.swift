@@ -37,7 +37,7 @@ struct BoardSnapshot: Codable, Sendable {
     /// precisely the things that are *not* on the board any more.
     var trash: [TrashedItem] = []
 
-    static let currentVersion = 7
+    static let currentVersion = 8
 
     enum CodingKeys: String, CodingKey {
         case version, tasks, boards, labels, nextSerial, accentTheme, activeBoardID, trash
@@ -255,10 +255,10 @@ struct BoardFile: Sendable {
     /// wrote — and a property default does not save you. Routing on the version
     /// first is what keeps a v1 file out of the current decoder.
     ///
-    /// The two versions that *do* come through the current decoder — v5 and v6,
-    /// which share this shape — get there because `init(from:)` above is written
-    /// rather than synthesised, and reads `trash` leniently. That is the only
-    /// leniency there is; every other absent key is still a refusal.
+    /// The three versions that *do* come through the current decoder — v5, v6
+    /// and v7, which share this shape — get there because `init(from:)` above is
+    /// written rather than synthesised, and reads `trash` leniently. That is the
+    /// only leniency there is; every other absent key is still a refusal.
     ///
     /// Each older version is decoded by the shape that wrote it and then walked
     /// forward one step at a time, so a v1 file passes through exactly the same
@@ -269,13 +269,23 @@ struct BoardFile: Sendable {
         switch try version(of: data) {
         case BoardSnapshot.currentVersion:
             return (try decoder.decode(BoardSnapshot.self, from: data), nil)
+        case 7:
+            // v7 and v8 are the same shape as well: v8 adds a priority above
+            // High and moves what a new card starts on, neither of which is a
+            // field. The bump is for what a *v7* build does with a v8 file —
+            // see `migrate(v7:)`, which is the one step here whose absence
+            // would cost somebody their board rather than a field of it.
+            return (BoardSnapshot.migrate(v7: try decoder.decode(BoardSnapshot.self, from: data)), 7)
         case 6:
             // v6 and v7 are the same shape: v7 only *adds* the trash, and the
             // field is defaulted, so the current decoder reads a v6 file whole
             // and gets an empty trash — which is the truth about it. The bump
             // still has to happen; see `migrate(v6:)` for what a v6 build would
             // otherwise do to a v7 file.
-            return (BoardSnapshot.migrate(v6: try decoder.decode(BoardSnapshot.self, from: data)), 6)
+            return (
+                BoardSnapshot.migrate(v7: BoardSnapshot.migrate(v6: try decoder.decode(BoardSnapshot.self, from: data))),
+                6
+            )
         case 5:
             // v5 and v6 are the same shape too. What changed is how `Priority`
             // spells itself on disk, which `Priority.init(stored:)` absorbs, so
@@ -283,17 +293,26 @@ struct BoardFile: Sendable {
             // happen, because the reverse is not true and a v5 build must
             // refuse this file rather than lose every priority in it.
             return (
-                BoardSnapshot.migrate(v6: BoardSnapshot.migrate(v5: try decoder.decode(BoardSnapshot.self, from: data))),
+                BoardSnapshot.migrate(
+                    v7: BoardSnapshot.migrate(v6: BoardSnapshot.migrate(v5: try decoder.decode(BoardSnapshot.self, from: data)))
+                ),
                 5
             )
         case 4:
             let v4 = try decoder.decode(BoardSnapshotV4.self, from: data)
-            return (BoardSnapshot.migrate(v6: BoardSnapshot.migrate(v5: BoardSnapshot.migrate(v4: v4))), 4)
+            return (
+                BoardSnapshot.migrate(
+                    v7: BoardSnapshot.migrate(v6: BoardSnapshot.migrate(v5: BoardSnapshot.migrate(v4: v4)))
+                ),
+                4
+            )
         case 3:
             let v3 = try decoder.decode(BoardSnapshotV3.self, from: data)
             return (
                 BoardSnapshot.migrate(
-                    v6: BoardSnapshot.migrate(v5: BoardSnapshot.migrate(v4: BoardSnapshot.migrate(v3: v3)))
+                    v7: BoardSnapshot.migrate(
+                        v6: BoardSnapshot.migrate(v5: BoardSnapshot.migrate(v4: BoardSnapshot.migrate(v3: v3)))
+                    )
                 ),
                 3
             )
@@ -301,8 +320,10 @@ struct BoardFile: Sendable {
             let v2 = try decoder.decode(BoardSnapshotV2.self, from: data)
             return (
                 BoardSnapshot.migrate(
-                    v6: BoardSnapshot.migrate(
-                        v5: BoardSnapshot.migrate(v4: BoardSnapshot.migrate(v3: BoardSnapshot.migrate(v2: v2)))
+                    v7: BoardSnapshot.migrate(
+                        v6: BoardSnapshot.migrate(
+                            v5: BoardSnapshot.migrate(v4: BoardSnapshot.migrate(v3: BoardSnapshot.migrate(v2: v2)))
+                        )
                     )
                 ),
                 2
@@ -311,9 +332,11 @@ struct BoardFile: Sendable {
             let v1 = try decoder.decode(BoardSnapshotV1.self, from: data)
             return (
                 BoardSnapshot.migrate(
-                    v6: BoardSnapshot.migrate(
-                        v5: BoardSnapshot.migrate(
-                            v4: BoardSnapshot.migrate(v3: BoardSnapshot.migrate(v2: BoardSnapshot.migrate(v1: v1)))
+                    v7: BoardSnapshot.migrate(
+                        v6: BoardSnapshot.migrate(
+                            v5: BoardSnapshot.migrate(
+                                v4: BoardSnapshot.migrate(v3: BoardSnapshot.migrate(v2: BoardSnapshot.migrate(v1: v1)))
+                            )
                         )
                     )
                 ),

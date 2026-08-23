@@ -22,18 +22,21 @@ struct DueDateField: View {
         var rowVerticalPadding: CGFloat
         var rowRadius: CGFloat
         var panelPadding: CGFloat
+        /// The calendar inside the panel — see ``MonthGrid``, which is drawn to
+        /// whatever width it is given rather than to a size of its own.
+        var grid: MonthGrid.Metrics
 
         static let desk = Metrics(
             chipFont: 12.5, chipHorizontalPadding: 7, chipRadius: 6, chipHit: 0, rowHit: 0,
             addHorizontalPadding: 8, addVerticalPadding: 3, addBorderWidth: 1,
             pickerWidth: 268, rowFont: 12, rowVerticalPadding: 6,
-            rowRadius: 8, panelPadding: 10
+            rowRadius: 8, panelPadding: 10, grid: .desk
         )
         static let sheet = Metrics(
             chipFont: 14, chipHorizontalPadding: 9, chipRadius: 7, chipHit: 44, rowHit: 44,
             addHorizontalPadding: 11, addVerticalPadding: 5, addBorderWidth: 1.5,
-            pickerWidth: 320, rowFont: 14, rowVerticalPadding: 9,
-            rowRadius: 10, panelPadding: 12
+            pickerWidth: 344, rowFont: 14, rowVerticalPadding: 9,
+            rowRadius: 10, panelPadding: 12, grid: .sheet
         )
     }
 
@@ -46,6 +49,11 @@ struct DueDateField: View {
     var metrics: Metrics = .desk
 
     @State private var isPickerOpen = false
+    /// Which month the grid is showing. The panel's, not the task's: paging
+    /// forward to look at next month must not move the due date, and the two
+    /// part company the moment an arrow is pressed. Set when the panel opens —
+    /// see ``setPickerOpen(_:)`` — so it opens on the date the card has.
+    @State private var visibleMonth = CalendarDay(year: 2000, month: 1, day: 1)
     /// Which task the open session belongs to. A detail surface can be pointed
     /// at another card while the calendar is open, and a session ended against
     /// the wrong task would leave the first one's open — which silences every
@@ -124,14 +132,20 @@ struct DueDateField: View {
                 }
             }
 
-            DatePicker(
-                "Due date",
-                selection: calendarBinding,
-                displayedComponents: .date
+            MonthGrid(
+                month: visibleMonth,
+                selected: task.due,
+                today: today,
+                metrics: metrics.grid,
+                step: { delta in visibleMonth = Self.month(visibleMonth, by: delta) },
+                select: { day in
+                    store.setDue(day, on: task.id, scope: scope)
+                    // A day picked out of the greyed-out edge of the grid is a
+                    // day in another month, and the grid follows it there rather
+                    // than leaving the selection off the bottom of what is drawn.
+                    visibleMonth = day
+                }
             )
-            .datePickerStyle(.graphical)
-            .labelsHidden()
-            .tint(palette.accent)
 
             if task.due != nil {
                 Divider().overlay(palette.ink(0.08))
@@ -182,14 +196,14 @@ struct DueDateField: View {
         .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
     }
 
-    /// The calendar edits the task directly; with no due date set it opens on
-    /// today rather than on a date the task does not have. `DatePicker` deals
-    /// in instants, so the day is resolved to midday and back.
-    private var calendarBinding: Binding<Date> {
-        Binding(
-            get: { (task.due ?? today).date() },
-            set: { store.setDue(CalendarDay($0), on: task.id, scope: scope) }
-        )
+    /// The month `delta` months from this one, on its first.
+    ///
+    /// The day of the month is dropped on purpose: the 31st is not a day of
+    /// every month, and a step that resolved it forward would land on the 1st of
+    /// the month after and skip one every time it was pressed from a long month.
+    static func month(_ day: CalendarDay, by delta: Int) -> CalendarDay {
+        let months = (day.year * 12 + day.month - 1) + delta
+        return CalendarDay(year: months / 12, month: months % 12 + 1, day: 1)
     }
 
     private var pickerBinding: Binding<Bool> {
@@ -204,6 +218,8 @@ struct DueDateField: View {
         guard open != isPickerOpen else { return }
         isPickerOpen = open
         if open {
+            // On the card's own month, or on this one when it has no date yet.
+            visibleMonth = task.due ?? today
             editingID = task.id
             store.beginEditing(.due, on: task.id, scope: scope)
         } else if let editingID {

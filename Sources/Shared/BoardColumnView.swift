@@ -141,8 +141,8 @@ struct BoardColumnView: View {
         // the air — see ``columnDropZone``.
         .overlay { columnDropZone }
         // Only this app's cards are a payload — a URL dragged out of Safari
-        // used to light the column up as a drop target. Dropping is off while a
-        // query filters the board, for the reason `BoardTaskCard` explains.
+        // used to light the column up as a drop target. Dropping is off in a
+        // saved view, for the reason `BoardTaskCard` explains.
         .dropDestination(for: TaskTransfer.self) { items, _ in
             guard store.allowsCardDrag, let dropped = items.first, store[dropped.id] != nil
             else { return false }
@@ -401,18 +401,13 @@ struct BoardColumnView: View {
     /// The composer's row, which has no task to be identified by.
     private static let composerID = "composer"
 
-    /// "Nothing matched" and "nothing here yet" are different problems with
-    /// different ways out, and a column that renders as bare space says neither.
-    @ViewBuilder
+    /// A column that renders as bare space says nothing about why. There is
+    /// only one emptiness left to describe: the search does not empty a column
+    /// any more — it opens a panel over the board instead, see
+    /// ``SearchResultsPanel`` — so "nothing matched" cannot happen here.
     private var emptyState: some View {
-        if store.isFiltering {
-            EmptyStateView.noResults(query: store.query, metrics: metrics.emptyState) {
-                store.clearQuery()
-            }
-        } else {
-            EmptyStateView.column(column, metrics: metrics.emptyState) {
-                store.beginAdding(in: column.id)
-            }
+        EmptyStateView.column(column, metrics: metrics.emptyState) {
+            store.beginAdding(in: column.id)
         }
     }
 }

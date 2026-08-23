@@ -20,8 +20,14 @@ import XCTest
 /// what the layout was drawn for and the case that must not start closing
 /// anything.
 ///
+/// **Run it on the 11".** A 13" in portrait cleared the first version of this
+/// arithmetic by 12pt and passed while the shipped behaviour was broken — 834pt
+/// is where an inspector's width in the wrong sum leaves the panel declining
+/// after the source list has already closed for it, and this fails there with
+/// *the Inbox button did nothing*.
+///
 ///     xcodebuild test -scheme SimpleKanbanUITests \
-///       -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)' \
+///       -destination 'platform=iOS Simulator,name=iPad Pro 11-inch (M5)' \
 ///       -only-testing:SimpleKanbanUITests/PadSidebarsTests
 final class PadSidebarsTests: XCTestCase {
     /// A row only the source list draws.

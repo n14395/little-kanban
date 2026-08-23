@@ -52,6 +52,11 @@ import Testing
             ("LabelPickerList.sheet.rowHit", LabelPickerList.Metrics.sheet.rowHit),
             ("DueDateField.sheet.chipHit", DueDateField.Metrics.sheet.chipHit),
             ("DueDateField.sheet.rowHit", DueDateField.Metrics.sheet.rowHit),
+            // A day in the calendar is a control like any other. Only its
+            // height is a number here — the width is a seventh of whatever the
+            // panel is, which `MonthGridTests` is where to check.
+            ("MonthGrid.sheet.cellHeight", MonthGrid.Metrics.sheet.cellHeight),
+            ("MonthGrid.sheet.arrow", MonthGrid.Metrics.sheet.arrow),
             ("PriorityPicker.sheet.hit", PriorityPicker.Metrics.sheet.hit),
             ("MoveToPicker.sheet.itemHit", MoveToPicker.Metrics.sheet.itemHit),
             ("LabelManagerView.sheet.fieldHit", LabelManagerView.Metrics.sheet.fieldHit),
@@ -108,6 +113,11 @@ import Testing
         #expect(LabelManagerView.Metrics.desk.fieldHit == 0)
         #expect(DueDateField.Metrics.desk.chipHit == 0)
         #expect(DueDateField.Metrics.desk.rowHit == 0)
+        // The calendar's desk cell is the one pointer metric here that is not
+        // zero: it draws a row rather than padding one, and 28pt is what that
+        // row is. What matters is that it stays well under the touch floor.
+        #expect(MonthGrid.Metrics.desk.cellHeight < 44)
+        #expect(MonthGrid.Metrics.desk.arrow < 44)
         #expect(LabelEditor.Metrics.desk.addHit == 0)
         #expect(LabelPickerList.Metrics.desk.rowHit == 0)
         #expect(PriorityPicker.Metrics.desk.hit == 0)

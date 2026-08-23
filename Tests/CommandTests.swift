@@ -75,12 +75,16 @@ import Testing
         #expect(store.selection == [TestBoard.widget, TestBoard.dragDrop, TestBoard.cafe,
                                     TestBoard.offline, TestBoard.sync, TestBoard.palette])
 
-        // And the query narrows it: a card the search has hidden is not one ⌘A
-        // can have meant.
+        // And a query does not narrow it. It used to — the board was drawn
+        // from the search's answer, so ⌘A took what was left of it — but the
+        // search is a panel over the board now and the board underneath is
+        // still every card. "What the surface is showing" is unchanged by
+        // typing.
         store.toggleInbox()
         store.query = "café"
         store.selectAllVisible(today: TestBoard.dueDay)
-        #expect(store.selection == [TestBoard.cafe])
+        #expect(store.selection == [TestBoard.dragDrop, TestBoard.cafe,
+                                    TestBoard.offline, TestBoard.sync, TestBoard.palette])
     }
 
     @Test func aCommandAimedAtACardOutsideTheSelectionActsOnThatCardAlone() {

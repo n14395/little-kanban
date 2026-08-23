@@ -10,6 +10,25 @@ struct PhoneNavDrawer: View {
     /// know how far it has to come before it is all the way in.
     static let widthFraction: CGFloat = 0.84
 
+    /// How wide the panel is drawn: 84% of the screen's **short edge**, not of
+    /// whatever is beside it.
+    ///
+    /// It used to be 84% of the container, which is the same number in portrait
+    /// and a different surface entirely on its side: an iPhone in landscape is
+    /// 956pt across, and 84% of that is 803pt of board list over 150pt of board.
+    /// The short edge does not change when the phone is turned, so neither does
+    /// the drawer — it is 370pt on a Pro Max and 315 on an SE, held either way
+    /// up. Nothing here is a fixed maximum, because the number that must not be
+    /// exceeded is that phone's own portrait width and no other.
+    ///
+    /// The container is still in the sum, and last rather than first: a screen
+    /// that has not been measured yet leaves it as the only answer available,
+    /// which is what this was before there was a screen to ask.
+    static func width(in container: CGFloat, screen: CGSize) -> CGFloat {
+        let edges = [container, screen.width, screen.height].filter { $0 > 0 }
+        return (edges.min() ?? container) * widthFraction
+    }
+
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
     @Environment(\.dayClock) private var dayClock
@@ -33,6 +52,13 @@ struct PhoneNavDrawer: View {
     /// See `PhoneRootView.drawerPan`.
     var progress: CGFloat = 1
 
+    /// The window, both dimensions of it, so ``width(in:screen:)`` can take the
+    /// short one. Measured by `PhoneRootView` rather than here: it is on screen
+    /// long before the drawer is, so the panel never draws a frame at a width it
+    /// is about to correct, and the pan that drags the drawer in has to arrive
+    /// at the same number anyway.
+    var screen: CGSize = .zero
+
     var body: some View {
         ZStack(alignment: .leading) {
             // The scrim darkens as the panel comes in, so a drag half-way in is
@@ -48,7 +74,9 @@ struct PhoneNavDrawer: View {
                 .accessibilityHidden(true)
 
             panel
-                .containerRelativeFrame(.horizontal) { width, _ in width * Self.widthFraction }
+                .containerRelativeFrame(.horizontal) { width, _ in
+                    Self.width(in: width, screen: screen)
+                }
                 // `visualEffect` rather than `.offset`, for the width: the panel
                 // is the only thing that knows how wide 84% turned out to be,
                 // and this is where it can be asked without a `GeometryReader`

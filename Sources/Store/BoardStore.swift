@@ -1522,7 +1522,7 @@ final class BoardStore {
         if !boards.contains(where: { $0.id == activeBoardID }) { activeBoardID = boards.first?.id }
         // The search memo is keyed on a per-task counter that a wholesale
         // replacement does not bump, so it is dropped rather than trusted.
-        haystacks.removeAll()
+        searchTexts.removeAll()
         let ids = Set(tasks.map(\.id))
         editSessions = editSessions.filter { ids.contains($0.key.task) }
         selection = selection.intersection(ids)
@@ -1764,7 +1764,7 @@ final class BoardStore {
         switch surface {
         case .board:
             let onTheBoard = columns.flatMap { visibleTasks(in: $0.id).map(\.id) }
-            return isInboxOpen ? visibleInboxTasks.map(\.id) + onTheBoard : onTheBoard
+            return isInboxOpen ? inboxTasks.map(\.id) + onTheBoard : onTheBoard
         case .view(let view):
             return tasks(in: view, today: today).map(\.id)
         }
@@ -1940,48 +1940,69 @@ final class BoardStore {
         task.labelKeys.compactMap { label(forKey: $0) }
     }
 
-    // MARK: - Filtering
+    // MARK: - Searching
 
-    /// Tasks matching the current search query. An empty query matches
-    /// everything; otherwise every whitespace-separated token must appear
-    /// somewhere in the task, so "drag columns" finds a title that has the two
-    /// words apart.
+    /// Everything the query answers to, best first, from every board and the
+    /// Inbox — the one list all three platforms search. See ``TaskSearch``,
+    /// which is where "best" is decided.
     ///
-    /// An archived task is in none of them. It has left the board, so it is not
-    /// something the board's search failed to find — it is somewhere else, and
-    /// the Archive view is where it is looked for.
-    var visibleTasks: [TaskItem] {
+    /// **It is a search, not a filter.** This used to be `visibleTasks`, and
+    /// the board was drawn from it: typing narrowed the columns in place, so
+    /// the query's answer was "the board, with most of it missing" and finding
+    /// a card on *another* board meant knowing which board to open first. The
+    /// board is drawn from `visibleTasks(in:)` now, which no query touches, and
+    /// this list is what the results panel and the phone's Search tab show.
+    ///
+    /// An empty query is every task rather than none: the panel opens on the
+    /// whole of what there is and narrows as the user types, which is also why
+    /// this is in board order until there is something to rank it by.
+    ///
+    /// An archived task is in none of it. It has left the board, so it is not
+    /// something the search failed to find — it is somewhere else, and the
+    /// Archive view is where it is looked for.
+    var searchResults: [TaskItem] {
         let tokens = searchTokens
         guard !tokens.isEmpty else { return tasks.filter { !$0.isArchived } }
+        let hits = tasks.compactMap { task -> (task: TaskItem, score: Int)? in
+            guard !task.isArchived,
+                  let score = TaskSearch.score(searchText(for: task), matching: tokens)
+            else { return nil }
+            return (task, score)
+        }
+        // Score first, then the card touched most recently — two cards that
+        // answer equally well are ordered by which one the user was last
+        // working on, which is the only tiebreak they can predict. Decorated
+        // with the board index so the sort is stable under the third tie.
+        return hits.enumerated()
+            .sorted { lhs, rhs in
+                if lhs.element.score != rhs.element.score { return lhs.element.score > rhs.element.score }
+                if lhs.element.task.updatedAt != rhs.element.task.updatedAt {
+                    return lhs.element.task.updatedAt > rhs.element.task.updatedAt
+                }
+                return lhs.offset < rhs.offset
+            }
+            .map(\.element.task)
+    }
+
+    /// Narrows a list the caller has already built — the phone's saved views,
+    /// which are the one surface left that a query acts on in place.
+    ///
+    /// The rule is `mobileAppliesQuery`'s and the reason is the phone's: its
+    /// field is on the Search tab, a saved view opened while a query is live
+    /// says so through `showsMobileFilterNotice`, and both of those predate the
+    /// results panel. Nothing on the desk or the iPad calls this.
+    func narrowed(_ tasks: [TaskItem]) -> [TaskItem] {
+        let tokens = searchTokens
+        guard !tokens.isEmpty else { return tasks }
         return tasks.filter { task in
-            guard !task.isArchived else { return false }
-            let haystack = haystack(for: task)
-            return tokens.allSatisfy { haystack.contains($0) }
+            TaskSearch.score(searchText(for: task), matching: tokens) != nil
         }
     }
 
-    /// A column's cards ignoring the query, for a surface with no search field
-    /// on it — the phone's Board and Inbox tabs. See `mobileTasks(today:)`.
-    ///
-    /// With no query running this *is* `visibleTasks(in:)`, cache and all; the
-    /// filtered pass is only paid on the tabs that are deliberately ignoring a
-    /// query someone typed on another one.
-    func boardTasks(in columnID: BoardColumn.ID) -> [TaskItem] {
-        guard isFiltering else { return visibleTasks(in: columnID) }
-        return sorted(tasks.filter { !$0.isArchived && $0.columnID == columnID })
-    }
-
-    /// The global Inbox: everything on no board, in board order. Ignores the
-    /// query, for `boardTasks(in:)`'s reason — the phone's Inbox tab has no
-    /// search field on it.
+    /// The global Inbox: everything on no board, in board order.
     var inboxTasks: [TaskItem] {
-        guard isFiltering else { return visibleInboxTasks }
-        return sorted(tasks.filter { !$0.isArchived && $0.isUnfiled })
+        sorted(tasks.filter { !$0.isArchived && $0.isUnfiled })
     }
-
-    /// The Inbox narrowed by the query, for the surfaces that show the field —
-    /// the macOS Inbox destination, where the toolbar's search is right there.
-    var visibleInboxTasks: [TaskItem] { sorted(visibleTasks.filter(\.isUnfiled)) }
 
     /// Drops the search query. Session state, so it registers no undo step and
     /// needs no save — both clear buttons and the filtered indicator call it.
@@ -2002,7 +2023,9 @@ final class BoardStore {
         searchFocusToken &+= 1
     }
 
-    /// Whether a query is narrowing the board.
+    /// Whether there is a query to answer. The results panel opens on the
+    /// whole board without one, so this is not "something is hidden" any more —
+    /// it is "the user has typed".
     var isFiltering: Bool {
         !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -2010,40 +2033,49 @@ final class BoardStore {
     /// Whether a card may be dragged, which is the question of whether the
     /// order on screen is the board's own order.
     ///
-    /// A drop resolves against the unfiltered `tasks` array — "put this card
-    /// before that one" is an index in it — so it only means what it looks like
-    /// where the cards on screen are that array. A query breaks it by hiding
-    /// the cards in between. A saved view breaks it harder: it draws no columns
-    /// at all, and Recently updated and the Archive impose an ordering of their
-    /// own, so a drop there would move a card to a column the user cannot see,
-    /// at a position bearing no relation to the row it was aimed at.
-    var allowsCardDrag: Bool { activeView == nil && !isFiltering && sortOrder == .manual }
-
-    /// `visibleTasks` grouped by column.
+    /// A drop resolves against the `tasks` array — "put this card before that
+    /// one" is an index in it — so it only means what it looks like where the
+    /// cards on screen are that array. A saved view breaks that: it draws no
+    /// columns at all, and Recently updated and the Archive impose an ordering
+    /// of their own, so a drop there would move a card to a column the user
+    /// cannot see, at a position bearing no relation to the row it was aimed at.
     ///
-    /// Every column asks for its own slice, so without this the board filtered
-    /// itself once per column. The cache is keyed on the board's revision and
-    /// the query; `tasks` is read on the cached path too, because a view that
-    /// only ever hit the cache would otherwise never register a dependency on
-    /// the board and would stop re-rendering.
+    /// **A live query no longer breaks it.** It used to, and had to: the board
+    /// was drawn from the query's answer, so typing hid the cards in between and
+    /// a drop landed at an index nobody could see. The board is not drawn from
+    /// the query any more — see ``searchResults`` — so a card stays draggable
+    /// while the results panel is open above it.
+    var allowsCardDrag: Bool { activeView == nil && sortOrder == .manual }
+
+    /// The board's own cards, grouped by column.
+    ///
+    /// Every column asks for its own slice, so without this the board grouped
+    /// itself once per column. The cache is keyed on the board's revision;
+    /// `tasks` is read on the cached path too, because a view that only ever hit
+    /// the cache would otherwise never register a dependency on the board and
+    /// would stop re-rendering.
     var visibleTasksByColumn: [BoardColumn.ID: [TaskItem]] {
-        let key = GroupingKey(query: query, count: tasks.count, revision: boardRevision, order: sortOrder)
+        let key = GroupingKey(count: tasks.count, revision: boardRevision, order: sortOrder)
         if let cached = groupedCache, cached.key == key { return cached.groups }
-        // Unfiled cards are in no column, and the Inbox draws from
-        // `visibleInboxTasks` rather than from a `nil` key here: a column id is
-        // what this is keyed on, and the Inbox does not have one.
-        let filed = visibleTasks.compactMap { task in task.columnID.map { (column: $0, task: task) } }
+        // Unfiled cards are in no column, and the Inbox draws from `inboxTasks`
+        // rather than from a `nil` key here: a column id is what this is keyed
+        // on, and the Inbox does not have one.
+        let filed = tasks.compactMap { task in
+            task.isArchived ? nil : task.columnID.map { (column: $0, task: task) }
+        }
         let groups = Dictionary(grouping: filed, by: \.column).mapValues { sorted($0.map(\.task)) }
         groupedCache = (key, groups)
         return groups
     }
 
+    /// A column's cards, which no query touches — see ``searchResults`` for why
+    /// that is now the only sentence there is to write about the board and the
+    /// search field together.
     func visibleTasks(in columnID: BoardColumn.ID) -> [TaskItem] {
         visibleTasksByColumn[columnID] ?? []
     }
 
     private struct GroupingKey: Hashable {
-        var query: String
         var count: Int
         var revision: Int
         var order: BoardSortOrder
@@ -2089,28 +2121,24 @@ final class BoardStore {
     @ObservationIgnored private var groupedCache: (key: GroupingKey, groups: [BoardColumn.ID: [TaskItem]])?
 
     /// The query, folded the same way the haystacks are and split into tokens.
-    private var searchTokens: [String] {
-        query
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-            .split(whereSeparator: \.isWhitespace)
-            .map(String.init)
-    }
+    private var searchTokens: [String] { TaskSearch.tokens(in: query) }
 
     /// Folding a task's text is the expensive part of a search, and a keystroke
-    /// re-filters the whole board, so the folded text is kept per task.
+    /// re-runs the whole of it, so the folded text is kept per task.
     ///
     /// The stamp is `markChanged`'s counter rather than `updatedAt`: `Date.now`
     /// is coarser than the gap between two consecutive mutations, so two edits
     /// can land on the same instant and a memo keyed on it would go on serving
     /// the first one's text. `updatedAt` stays what it is for — the field the
-    /// detail surfaces show and saved views sort on.
-    @ObservationIgnored private var haystacks: [TaskItem.ID: (stamp: Int, haystack: String)] = [:]
+    /// detail surfaces show, saved views sort on, and the results panel breaks
+    /// ties with.
+    @ObservationIgnored private var searchTexts: [TaskItem.ID: (stamp: Int, text: TaskSearchText)] = [:]
 
-    private func haystack(for task: TaskItem) -> String {
+    private func searchText(for task: TaskItem) -> TaskSearchText {
         let stamp = taskRevisions[task.id] ?? 0
-        if let cached = haystacks[task.id], cached.stamp == stamp { return cached.haystack }
-        let folded = task.searchHaystack
-        haystacks[task.id] = (stamp, folded)
+        if let cached = searchTexts[task.id], cached.stamp == stamp { return cached.text }
+        let folded = TaskSearchText(task: task)
+        searchTexts[task.id] = (stamp, folded)
         return folded
     }
 
@@ -2310,17 +2338,52 @@ final class BoardStore {
         #endif
     }
 
-    /// A saved view's tasks: its predicate, its ordering and its cap, and then
-    /// the search query on top of all three. Searching narrows a view rather
-    /// than replacing it.
-    func tasks(in view: SavedView, today: CalendarDay) -> [TaskItem] {
-        let members = members(of: view, today: today)
-        let tokens = searchTokens
-        guard !tokens.isEmpty else { return members }
-        return members.filter { task in
-            let haystack = haystack(for: task)
-            return tokens.allSatisfy { haystack.contains($0) }
+    /// Puts a task in front of the user on whichever surface is showing, and
+    /// opens it: the card's board (or the Inbox panel), the card selected, and a
+    /// detail surface up.
+    ///
+    /// **``showPlace(of:)`` plus the two things an arrival needs.** That one is
+    /// navigation alone, for callers that already have the card's detail open
+    /// and only want the board behind it put right. This is the whole errand,
+    /// and it has three callers that mean exactly the same thing by it: a
+    /// `simplekanban://` link, a Spotlight or notification tap, and a result
+    /// chosen from the search panel.
+    ///
+    /// The query goes first. A result the user has chosen has ended the search
+    /// that found it — and on the phone, where a query still narrows a saved
+    /// view, landing on a board filtered to something the card does not match
+    /// would open onto an empty column and read as the link having failed.
+    ///
+    /// An archived card has no board to be taken to, so it is shown where it
+    /// does live: the Archive view.
+    func reveal(_ id: TaskItem.ID) {
+        guard let task = self[id] else { return }
+        clearQuery()
+        if task.isArchived {
+            activeView = .archive
+        } else {
+            showPlace(of: task.id)
         }
+        select(task.id)
+        // The desk and the iPad: the panel beside the board.
+        isInspectorOpen = true
+        #if os(iOS)
+        isNavDrawerOpen = false
+        sheetID = task.id
+        #endif
+    }
+
+    /// A saved view's tasks: its predicate, its ordering and its cap.
+    ///
+    /// **The query is not one of them.** It used to be applied here, on every
+    /// platform — and on the desk that meant a view quietly losing rows to a
+    /// field the user had typed into to *search*, which is the same defect the
+    /// board had. The phone still narrows a view it has opened, because its
+    /// field is a tab rather than a panel; it does that at its own call site,
+    /// through ``narrowed(_:)``, where `showsMobileFilterNotice` is already
+    /// there to say so.
+    func tasks(in view: SavedView, today: CalendarDay) -> [TaskItem] {
+        members(of: view, today: today)
     }
 
     /// What the row's `CountPill` shows: how many tasks are *in* the view,
@@ -3451,7 +3514,7 @@ final class BoardStore {
             code: BoardSnapshot.code(prefix: codePrefix(for: placement), forSerial: nextSerial),
             title: title,
             due: startsDue,
-            priority: .medium,
+            priority: .default,
             activity: [ActivityEntry(kind)]
         )
         task.placement = placement
@@ -3695,7 +3758,7 @@ final class BoardStore {
         case .title: return .text(task?.title ?? "")
         case .note: return .text(task?.note ?? "")
         case .due: return .day(task?.due)
-        case .priority: return .priority(task?.priority ?? .medium)
+        case .priority: return .priority(task?.priority ?? .default)
         case .subtask: return .text(task?.subtasks.first { $0.id == subtask }?.text ?? "")
         }
     }
@@ -4172,9 +4235,20 @@ final class BoardStore {
     /// Adds a board and moves to it. Returns its id, or `nil` for a name with
     /// nothing in it — an unnamed board is unreachable in the sidebar.
     ///
-    /// It starts with the seed workflow under ids of its own, so it is a board
-    /// somebody can put a card on straight away, and so that deleting a column
-    /// here cannot move another board's cards.
+    /// **It starts with no columns.** It used to arrive holding a copy of the
+    /// seed workflow — Backlog, Up Next, In Progress, Done — so that a card
+    /// could be put on it straight away, and the first thing anyone making a
+    /// board of their own did was delete four columns they had not asked for.
+    /// A new board is a blank one; every surface that draws a board with no
+    /// columns offers the column composer instead of the card one, which is the
+    /// first thing a blank board needs.
+    ///
+    /// The invariant this does *not* touch is deletion's: `deleteColumn` still
+    /// refuses to take a board's last Done column or its last working one. A
+    /// board is allowed to have never had a column and is not allowed to be
+    /// emptied down to none — those read as the same rule from the outside
+    /// ("this board has no columns; add one") and are different rules
+    /// underneath, because the second one has cards in it to lose.
     @discardableResult
     func createBoard(named name: String, dot: SwatchColor = .accent, codePrefix: String = "") -> Board.ID? {
         let trimmed = Board.name(name)
@@ -4182,7 +4256,7 @@ final class BoardStore {
         let board = Board(
             name: trimmed,
             dot: dot,
-            columns: Board.startingColumns(),
+            columns: [],
             codePrefix: Board.codePrefix(codePrefix, fallingBackTo: trimmed)
         )
         undoable(String(localized: "New Board", comment: "Undo action name for adding a board")) {
@@ -4274,7 +4348,7 @@ final class BoardStore {
         subtaskDrafts = subtaskDrafts.filter { $0.key.task != id }
         labelDrafts = labelDrafts.filter { $0.key.task != id }
         editSessions = editSessions.filter { $0.key.task != id }
-        haystacks[id] = nil
+        searchTexts[id] = nil
         taskRevisions[id] = nil
     }
 
@@ -4288,10 +4362,12 @@ final class BoardStore {
         columns.firstIndex { $0.id == mobileColumnID } ?? 0
     }
 
-    /// Falls back to the Inbox's own name and dot only where there is no column
-    /// to be on: a store with no boards, which is what deleting the last one
-    /// leaves and what `restored` reads back. `deleteColumn` refuses to empty a
-    /// board's columns, so a board on the list always has one.
+    /// Falls back to the Inbox's own name and dot where there is no column to
+    /// be on: a store with no boards, which is what deleting the last one
+    /// leaves and what `restored` reads back — and a board that has not been
+    /// given a column yet, which is how every board now starts. No phone
+    /// surface draws this in the second case; the board tab shows the
+    /// no-columns state instead of a pager. See `createBoard`.
     var mobileColumn: BoardColumn {
         columns.indices.contains(mobileColumnIndex) ? columns[mobileColumnIndex] : Self.inboxColumn
     }
@@ -4309,8 +4385,21 @@ final class BoardStore {
     /// without having to ask.
     var mobileColumnName: String { mobileColumn.name }
 
-    /// Where a phone-side add lands: the column the pager is on.
-    var mobileAddPlacement: TaskPlacement { placement(forColumn: mobileColumnID) }
+    /// Where a phone-side add lands: the column the pager is on, and the Inbox
+    /// where that column is not on the board in front of the user.
+    ///
+    /// **The guard is about a board with no columns**, which is what a new one
+    /// is. `mobileColumnID` is session state that outlives a board switch —
+    /// `detachSurfacesFromMissingColumns` moves it to the new board's first
+    /// column, and a board with no first column leaves it naming the *previous*
+    /// board's. `placement(forColumn:)` resolves an id against every board, and
+    /// `isPlaceable` agrees with it, so without this a card added on a blank
+    /// board would land on the board before it — filed somewhere the user
+    /// cannot see, with nothing on screen to say so.
+    var mobileAddPlacement: TaskPlacement {
+        guard columns.contains(where: { $0.id == mobileColumnID }) else { return .inbox }
+        return placement(forColumn: mobileColumnID)
+    }
 
     /// Wraps around at both ends, matching the spec's modulo step.
     func stepMobileColumn(by delta: Int) {
@@ -4323,18 +4412,20 @@ final class BoardStore {
     /// What the phone list shows: a saved view if one is open, otherwise the
     /// current tab's slice of the board.
     ///
-    /// **The Board tab ignores the query outright.** One `query` is
-    /// bound by both platforms and by every tab, but `PhoneHeader` only puts the
-    /// field on screen for Search — so filtering the Board through it left a
-    /// board that had silently lost most of its cards with nothing on screen to
-    /// explain why or to undo it. The query now applies where it can be seen and
-    /// where the user asked for it: the Search tab, and a saved view (which says
-    /// so through `showsMobileFilterNotice`).
+    /// **The Board tab ignores the query outright**, which is the rule the desk
+    /// and the iPad have now taken for the whole board. One `query` is bound by
+    /// every surface in the app, but `PhoneHeader` only puts the field on screen
+    /// for Search — so filtering the Board through it left a board that had
+    /// silently lost most of its cards with nothing on screen to explain why or
+    /// to undo it. The query applies where it can be seen and where the user
+    /// asked for it: the Search tab, which *is* the results list, and a saved
+    /// view the phone has opened (which says so through
+    /// `showsMobileFilterNotice`).
     func mobileTasks(today: CalendarDay) -> [TaskItem] {
-        if let activeView { return tasks(in: activeView, today: today) }
+        if let activeView { return narrowed(tasks(in: activeView, today: today)) }
         switch tab {
-        case .board: return boardTasks(in: mobileColumnID)
-        case .search: return visibleTasks
+        case .board: return visibleTasks(in: mobileColumnID)
+        case .search: return searchResults
         }
     }
 

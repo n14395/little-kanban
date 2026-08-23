@@ -3,11 +3,27 @@ import XCTest
 /// The Inbox on the phone, now that it is a real `.sheet` held at a detent
 /// rather than an overlay of the app's own.
 ///
+/// **How thick it is on its side is in here too.** A detent is a request UIKit
+/// grants only where the height is regular: in a compact one it ignores the
+/// detent and lays the sheet out at the whole screen, which drew the Inbox
+/// turned sideways as a full-screen page with cards stretched 874pt across. The
+/// panel sizes itself there — see `PhoneInboxSheet.panel` — and the last case
+/// here is what says so, because a width after a rotation is exactly the kind of
+/// claim nothing else in the repo can hold.
+///
+/// **The pull is back in here, for the one shape that owns it.** On its side
+/// the Inbox is not a sheet at all — a sheet in a compact height covers the
+/// screen and takes the board out of the hierarchy under it, so there was
+/// nothing behind the panel for a scrim to be a scrim over. It is an overlay of
+/// `PhoneRootView`'s there, which means the pull that puts it away is ours
+/// again, and unlike a system sheet's pan a `DragGesture` of our own is
+/// something a synthetic drag can actually drive.
+///
 /// **What is not in here, and why.** The panel used to carry a hand-rolled drag:
 /// an offset, a spring back, a rule for how far is far enough, and a
 /// `scrollDisabled` deciding whether a pan belonged to the list or to the panel.
 /// All four had tests, and all four are gone with the code — UIKit owns that
-/// behaviour now. It cannot be tested from here either: a synthetic
+/// behaviour upright. It cannot be tested from here either: a synthetic
 /// `press(forDuration:thenDragTo:)` does not drive a system sheet's pan, which
 /// was measured rather than assumed — a recording of the simulator shows the
 /// sheet perfectly still through a 500pt drag that dismisses it under a real
@@ -42,6 +58,24 @@ final class InboxPanelTests: XCTestCase {
     /// card in here has been tapped.
     private func inboxClose(in app: XCUIApplication) -> XCUIElement {
         app.buttons["InboxClose"]
+    }
+
+    /// Turns the device and waits for the *shape* to have changed rather than
+    /// for an element to appear: the panel is up in both, so there is nothing
+    /// whose arrival would mean the rotation had landed.
+    private func turn(_ app: XCUIApplication, to orientation: UIDeviceOrientation) {
+        XCUIDevice.shared.orientation = orientation
+        let wants = orientation == .portrait
+        let turned = expectation(description: "the screen turned")
+        let poll = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { timer in
+            let isPortrait = app.frame.height > app.frame.width
+            if isPortrait == wants {
+                timer.invalidate()
+                turned.fulfill()
+            }
+        }
+        wait(for: [turned], timeout: 10)
+        poll.invalidate()
     }
 
     /// Most of the screen, and not the whole of it — the same claim
@@ -135,5 +169,118 @@ final class InboxPanelTests: XCTestCase {
         close.tap()
         XCTAssertTrue(inboxClose(in: app).waitForNonExistence(timeout: 5),
                       "the × did not close the Inbox")
+    }
+
+    /// **No thicker turned than it is upright.** The panel is capped at the
+    /// screen's short edge, which is that phone's own portrait width held
+    /// either way up — `PhoneNavDrawer.width(in:screen:)` reaches the same
+    /// number the same way and for the same reason.
+    func testThePanelIsNoThickerTurnedThanItIsUpright() throws {
+        try XCTSkipUnless(
+            UIDevice.current.userInterfaceIdiom == .phone,
+            "the iPad's Inbox is a panel beside the board, which no rotation resizes"
+        )
+        XCUIDevice.shared.orientation = .portrait
+
+        let app = opened()
+        let close = inboxClose(in: app)
+        XCTAssertTrue(close.waitForExistence(timeout: 20), "no Inbox sheet on screen")
+
+        // The phone's own portrait width, taken from the phone rather than
+        // written down: this suite runs on whatever simulator it is pointed at,
+        // and the number that must not be exceeded is that device's and no
+        // other's.
+        let upright = app.frame.width
+
+        // A card is the panel's width less its padding, and is the thing that
+        // *looked* wrong: a task card 642pt across is a card in name only. By
+        // the words on it, the way every other Inbox suite finds one.
+        let card = app.buttons
+            .matching(NSPredicate(format: "label CONTAINS %@", "Widget on the iOS home screen"))
+            .firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 5), "no cards in the Inbox to measure")
+        let uprightCard = card.frame.width
+
+        turn(app, to: .landscapeLeft)
+        let turned = app.frame
+        XCTAssertTrue(close.waitForExistence(timeout: 10), "the panel did not survive the rotation")
+
+        // **The claim.** Not quite the same number as upright — a sheet at a
+        // detent is inset 8pt each side and scaled by `(W - 16) / W`, and one
+        // laid out at the whole screen is not, so the same layout width comes
+        // out a percent or two wider turned. What is being ruled out is the
+        // screen, and no reading of 2% gets near 874.
+        XCTAssertLessThan(
+            card.frame.width, upright,
+            "the Inbox panel is wider on its side than the phone is upright"
+        )
+        XCTAssertEqual(
+            card.frame.width, uprightCard, accuracy: uprightCard * 0.08,
+            "the Inbox panel is not the width it is upright"
+        )
+
+        // **Inset from both edges**, which is the other half of "it is a panel":
+        // a page clipped to 402pt at one edge would pass the measurement above
+        // and still be a page. By the two ends of the header rather than by a
+        // midpoint, because a card's button is the summary *beside* the tick
+        // rather than the card — its frame sits off centre by the width of the
+        // gutter, and a test reading it as the middle would be measuring the
+        // tick.
+        XCTAssertLessThan(
+            close.frame.maxX, turned.width - 200,
+            "the Inbox panel still reaches the trailing edge of the screen"
+        )
+        XCTAssertGreaterThan(
+            card.frame.minX, turned.width * 0.2,
+            "the Inbox panel still reaches the leading edge of the screen"
+        )
+
+        // And it still stops short of the top, which is the portrait case above
+        // made again in the shape that lost it: laid out at the whole screen the
+        // header sat at y = 0.
+        XCTAssertGreaterThan(
+            close.frame.minY, 20,
+            "the Inbox panel reaches the top of the screen on its side"
+        )
+
+        // Kept whatever the result, because the point of it is to be looked at
+        // — the default lifetime throws it away on a pass, which is exactly the
+        // run whose layout somebody wants to see.
+        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        shot.name = "inbox-landscape"
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
+
+    /// **On its side the pull is ours, and it works.** The panel is an overlay
+    /// there and has no system dismissal of its own: what puts it away is a
+    /// drag on the strip at its top, ``PhoneInboxSheet/pull``. A capsule drawn
+    /// at the head of a panel that came up from the bottom is a promise, and one
+    /// that a hand-rolled panel spent a while not keeping — see the note above
+    /// about the build where only the header worked.
+    ///
+    /// The strip is found by measuring rather than by name: it is hidden from a
+    /// reader, having nothing to say to one, so there is no identifier to ask
+    /// for. It sits directly above the header, which the × is in.
+    func testThePullOnItsSidePutsThePanelAway() throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "iPhone only")
+        XCUIDevice.shared.orientation = .portrait
+
+        let app = opened()
+        let close = inboxClose(in: app)
+        XCTAssertTrue(close.waitForExistence(timeout: 20), "no Inbox sheet on screen")
+
+        turn(app, to: .landscapeLeft)
+        XCTAssertTrue(close.waitForExistence(timeout: 10), "the panel did not survive the rotation")
+
+        let header = close.frame
+        let origin = app.coordinate(withNormalizedOffset: .zero)
+        let start = origin.withOffset(CGVector(dx: header.midX, dy: header.minY - 12))
+        let end = origin.withOffset(CGVector(dx: header.midX, dy: header.minY + 220))
+        start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .default,
+                    thenHoldForDuration: 0.1)
+
+        XCTAssertTrue(inboxClose(in: app).waitForNonExistence(timeout: 5),
+                      "a pull down on the panel's own handle did not put it away")
     }
 }

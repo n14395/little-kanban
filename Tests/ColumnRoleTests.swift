@@ -163,21 +163,28 @@ import Testing
     // MARK: A Done column the user made
 
     /// The whole point of the role, taken end to end through the public API: a
-    /// board created in the app, a column added to it with `.done`, the seeded
-    /// Done deleted, and every Done behaviour following the new one.
+    /// board created in the app, columns added to it by hand, and every Done
+    /// behaviour following the one given `.done`.
+    ///
+    /// **Built rather than inherited.** A new board arrives blank — see
+    /// `BoardStore.createBoard` — so this is the order a user goes through as
+    /// well: a column work starts in, then somewhere for it to land.
     @Test func aColumnTheUserAddsWithTheDoneRoleCarriesEveryDoneBehaviour() throws {
         let store = Self.store()
         let boardID = try #require(store.createBoard(named: "Gamma", codePrefix: "GA"))
-        let seeded = try #require(store.columns.first { $0.role == .done })
+        #expect(store.columns.isEmpty)
 
-        // The seeded Done cannot go while it is the only one — that refusal is
-        // what makes the order here the only order.
-        #expect(store.deleteColumn(seeded.id) == .lastDoneColumn)
+        let queueID = try #require(store.addColumn(named: "Queue", short: "Queue", role: .backlog))
         let landedID = try #require(
             store.addColumn(named: "Landed", short: "Land", dot: .hex(0x1F6F63), role: .done)
         )
-        #expect(store.deleteColumn(seeded.id) == nil)
         #expect(store.columns.count(where: { $0.role == .done }) == 1)
+
+        // Neither can go while it is the only one of its kind. Starting with no
+        // columns is not a weakening of *that* rule: it is about a board being
+        // emptied out from under its cards, not about how one begins.
+        #expect(store.deleteColumn(landedID) == .lastDoneColumn)
+        #expect(store.deleteColumn(queueID) == .lastWorkingColumn)
 
         let first = try #require(store.columns.first)
         let task = store.addTask(to: first.id, title: "Ship the thing")
@@ -192,8 +199,11 @@ import Testing
         let store = Self.store()
         let other = try #require(store.createBoard(named: "Gamma"))
         #expect(store.activeBoardID == other)
-        // Gamma has a Done of its own, so the refusal on Gamma's cannot be
-        // explained by "some board somewhere still has one".
+        // Gamma is furnished by hand — a new board is blank — and given a Done
+        // of its own, so the refusal on Gamma's cannot be explained by "some
+        // board somewhere still has one".
+        store.addColumn(named: "Queue", role: .backlog)
+        store.addColumn(named: "Shipped", role: .done)
         let gammaDone = try #require(store.columns.first { $0.role == .done })
         #expect(store.deleteColumn(gammaDone.id) == .lastDoneColumn)
         // And the first board's Done is refused just the same, from over here.
@@ -213,6 +223,10 @@ import Testing
 
         let gamma = try #require(store.createBoard(named: "Gamma"))
         #expect(store.activeBoardID == gamma)
+        // Blank on arrival, so it is given somewhere to work and somewhere to
+        // land before a card can be finished on it.
+        store.addColumn(named: "Queue", role: .backlog)
+        store.addColumn(named: "Shipped", role: .done)
         let column = try #require(store.columns.first?.id)
         let onGamma = store.addTask(to: column, title: "Ship this too")
         store.complete(onGamma)

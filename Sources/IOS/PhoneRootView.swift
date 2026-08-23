@@ -9,7 +9,7 @@ struct PhoneRootView: View {
     @Environment(BoardStore.self) private var store
     @Environment(\.dayClock) private var dayClock
     /// Compact height is the phone on its side, which is the one shape with
-    /// room for two columns at once (5.5). A size class rather than an
+    /// room for more than one column at once (5.5). A size class rather than an
     /// orientation: Slide Over and Split View arrive at the same shape without
     /// the device having turned.
     @Environment(\.verticalSizeClass) private var verticalSizeClass
@@ -30,6 +30,30 @@ struct PhoneRootView: View {
     /// because the two are not the same thing to draw: a drawer nobody is
     /// touching is the transition's to move, and one under a finger is not.
     @State private var drawerPull: CGFloat?
+    /// The window, both dimensions of it. `PhoneNavDrawer` is 84% of its *short*
+    /// edge — see `PhoneNavDrawer.width(in:screen:)` — and neither the panel nor
+    /// the pan that drags it in can work that out from the width it is handed,
+    /// which on its side is the long one.
+    ///
+    /// Measured here rather than in the drawer because this view is on screen
+    /// from launch: by the time there is a drawer to draw, the number is already
+    /// known, and the panel never renders a frame at a width it is about to
+    /// correct.
+    @State private var screen: CGSize = .zero
+    /// Whether the Inbox is up **as a sheet**, which is not the same question as
+    /// whether the Inbox is open: on its side it is open as an overlay and there
+    /// is no sheet at all.
+    ///
+    /// View state rather than a binding computed off the store, and that is the
+    /// whole point of it: a computed binding cannot tell apart the two ways it
+    /// goes false. Turning the phone takes the sheet down, and SwiftUI reports
+    /// that back as a dismissal — through whichever binding it happens to be
+    /// holding, which may be one made before the phone turned, so a guard inside
+    /// the setter reads the old shape and takes the dismissal at its word.
+    /// Measured: rotating with the panel up closed the Inbox instead of handing
+    /// it to the overlay. `onChange` runs against the values the body has *now*,
+    /// which is why this is three of those rather than one closure.
+    @State private var showsInboxSheet = false
 
     var body: some View {
         // Resolved once and handed to both: the saved-view bar's count pill and
@@ -102,7 +126,18 @@ struct PhoneRootView: View {
         // there to clear, and the card sits where every other touch surface
         // puts it.
         .trashToast(metrics: isShort ? .sheet : .phone)
-        .background(palette.appBackground.ignoresSafeArea())
+        .background {
+            palette.appBackground
+                .ignoresSafeArea()
+                // The window, and this is the one thing in the view that is
+                // measured outside the safe area on purpose: the drawer's width
+                // is the screen's short edge, and on its side the short edge is
+                // the *height* — which inside the safe area is short by the home
+                // indicator's 21pt, so the drawer would come out 18pt narrower
+                // turned than it is upright. Same edge, same number, either way
+                // up.
+                .onGeometryChange(for: CGSize.self) { $0.size } action: { screen = $0 }
+        }
         // The drawer is a scrim over the board, so to a sighted user the board
         // is gone. This takes the header and the tab bar out of the tree with
         // it — but *not* the list: its rows are hosted in collection view
@@ -122,9 +157,21 @@ struct PhoneRootView: View {
         // which is also where the three guards live that keep it from opening a
         // drawer behind something already over the board.
         .leadingEdgePan(drawerPan)
+        // The Inbox, on its side only. A sheet in a compact height is laid out
+        // at the whole screen, which takes this view out of the hierarchy
+        // underneath it — so the panel had no board behind it and no scrim it
+        // could honestly draw. `PhoneInboxSheet` has the measurements; what
+        // matters here is that turned sideways the Inbox is one of this view's
+        // overlays and upright it is a real sheet, and the flag is the same one.
+        .overlay {
+            if store.isInboxOpen, isShort {
+                inbox
+            }
+        }
+        .motionAnimation(.timingCurve(0.32, 0.72, 0, 1, duration: 0.28), value: store.isInboxOpen)
         .overlay {
             if store.isNavDrawerOpen {
-                PhoneNavDrawer(progress: drawerPull ?? 1)
+                PhoneNavDrawer(progress: drawerPull ?? 1, screen: screen)
             }
         }
         // Under the drawer rather than over it: the drawer is the way to a
@@ -150,12 +197,24 @@ struct PhoneRootView: View {
         // The Inbox, which used to be an overlay of this view's own with a
         // scrim, a transition and a drag gesture hand-rolled to match what a
         // sheet does. It is a sheet now — see ``PhoneInboxSheet``.
-        .sheet(isPresented: inboxPresentation) {
-            PhoneInboxSheet()
-                .environment(store)
-                .environment(\.palette, palette)
-                .environment(\.dayClock, dayClock)
+        .sheet(isPresented: $showsInboxSheet) { inbox }
+        // Opened or closed from anywhere — the tab bar's slot, the drawer's row,
+        // a card filed to the Inbox from the editor — and a sheet only while the
+        // phone is upright.
+        .onChange(of: store.isInboxOpen) { _, open in showsInboxSheet = open && !isShort }
+        // Turned with the panel up: the sheet goes and the overlay takes it, and
+        // the flag the two of them share is not touched.
+        .onChange(of: isShort) { _, short in showsInboxSheet = store.isInboxOpen && !short }
+        // The one direction the store cannot see for itself: the sheet swiped
+        // away, or dismissed by a tap outside it. Ignored while the phone is on
+        // its side, where a sheet going down is the handover above rather than
+        // anybody asking for it.
+        .onChange(of: showsInboxSheet) { _, shows in
+            if !shows, !isShort { store.isInboxOpen = false }
         }
+        // A launch straight into the Inbox — `-SimpleKanbanShowInbox`, and a
+        // deep link — arrives before any of those can fire.
+        .onAppear { showsInboxSheet = store.isInboxOpen && !isShort }
         // Raised from the header's board menu, which is this surface's drawer
         // for everything with no other home. Presented here rather than there
         // because the menu is inside the header and a sheet wants the root —
@@ -171,8 +230,14 @@ struct PhoneRootView: View {
         }
     }
 
-    private var inboxPresentation: Binding<Bool> {
-        Binding(get: { store.isInboxOpen }, set: { store.isInboxOpen = $0 })
+    /// The panel itself, built the same way for both shapes — the environment
+    /// is passed by hand because a sheet is its own hierarchy and does not
+    /// inherit it, and the overlay is handed it for nothing.
+    private var inbox: some View {
+        PhoneInboxSheet(screen: screen)
+            .environment(store)
+            .environment(\.palette, palette)
+            .environment(\.dayClock, dayClock)
     }
 
     private var trashPresentation: Binding<Bool> {
@@ -187,9 +252,10 @@ struct PhoneRootView: View {
     /// the whole of what says where you are.
     ///
     /// `.viewAligned` rather than `.paging` because a page here is a *column*,
-    /// not a screenful: in landscape two of them share the width and the swipe
-    /// still advances by one, which `.paging` — which steps by the viewport —
-    /// cannot express. The bounce at either end is the scroll view's own.
+    /// not a screenful: in landscape three of them share the width and the
+    /// swipe still advances by one, which `.paging` — which steps by the
+    /// viewport — cannot express. The bounce at either end is the scroll view's
+    /// own.
     private var columnPages: some View {
         ScrollView(.horizontal) {
             LazyHStack(spacing: 0) {
@@ -223,10 +289,23 @@ struct PhoneRootView: View {
     /// and Split View arrive at that shape without the device having turned.
     private var isShort: Bool { verticalSizeClass == .compact }
 
-    /// How many columns share the screen. Two only where there is width for
-    /// them, which on a phone is landscape — the shape 5.5 unlocks.
+    /// How many columns share the screen. More than one only where there is
+    /// width for them, which on a phone is landscape — the shape 5.5 unlocks.
+    ///
+    /// **Three, not two.** The pager divides the width *inside* the safe area,
+    /// so the count is exact rather than approximate: measured on a 17 Pro on
+    /// its side, 874pt less 62 either side of the sensor housing is 750, which
+    /// is three pages of 250 as cleanly as it was two of 375. What a page loses
+    /// is the card inside it — 210pt of row, 142 of it title, against 335 and
+    /// 267 — and what the board gains is the third of four seed columns, which
+    /// is the difference between seeing where a card is going and having to
+    /// swipe to find out.
+    ///
+    /// Capped at the board's own column count, which two never had to be: a
+    /// board with two columns divided into three leaves a third of the screen
+    /// showing nothing, and a board is allowed to have two.
     private var columnsPerScreen: Int {
-        isShort && store.pagerColumns.count > 1 ? 2 : 1
+        isShort ? min(3, max(store.pagerColumns.count, 1)) : 1
     }
 
     /// A page is a column, and is drawn by ``PhoneColumnPage`` rather than by
@@ -235,7 +314,7 @@ struct PhoneRootView: View {
     /// finger say so. The two rows under the cards are still built here,
     /// because the flat list needs the same two.
     @ViewBuilder private func page(_ column: BoardColumn) -> some View {
-        let tasks = store.boardTasks(in: column.id)
+        let tasks = store.visibleTasks(in: column.id)
 
         PhoneColumnPage(
             column: column,
@@ -330,7 +409,26 @@ struct PhoneRootView: View {
             // Deleting the last board is allowed, so the Board tab has to have
             // something to say when there is no board to draw — and has to
             // offer the way back, which is the only one there is.
-            return store.activeBoard == nil ? noBoard : emptyColumn(column)
+            guard let board = store.activeBoard else { return noBoard }
+            // A board and no columns is a *new* board — they start blank now.
+            // Not the same empty as a column with nothing in it, and not the
+            // same way out either.
+            guard !store.columns.isEmpty else { return blankBoard(board) }
+            return emptyColumn(column)
+        }
+    }
+
+    /// A board that has not been given a column yet.
+    ///
+    /// **The way out is the board's settings**, which is where a column is made
+    /// on this platform: the desk composes one in the strip beside the last
+    /// column, and a phone has no strip to compose in — its columns are a row
+    /// of chips over a pager, and there is nothing to page. The same sheet the
+    /// ⋯ menu's **Board Settings…** opens, arriving on the board rather than on
+    /// a column.
+    private func blankBoard(_ board: Board) -> EmptyStateView {
+        .noColumns(metrics: .sheet) {
+            store.boardSettings = BoardSettingsRequest(board: board.id)
         }
     }
 
@@ -408,7 +506,10 @@ struct PhoneRootView: View {
     /// panel is wherever the finger is, and the animation is only what happens
     /// after it lifts.
     private func drawerPan(_ pan: EdgePan) {
-        let reach = pan.width * PhoneNavDrawer.widthFraction
+        // The panel's own width, asked the same way the panel asks: a finger
+        // that has to cross 803pt to open a 370pt drawer leaves the drawer
+        // trailing a third of the way behind it.
+        let reach = PhoneNavDrawer.width(in: pan.width, screen: screen)
         switch pan.phase {
         case .began:
             // The same three guards the tap-to-open path had: this recognizer

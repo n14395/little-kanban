@@ -176,7 +176,7 @@ import Testing
 
     // MARK: The version after this one
 
-    @Test func aVersionEightFileIsRefusedAndPutSomewhereSafe() throws {
+    @Test func aFileFromTheVersionAfterThisOneIsRefusedAndPutSomewhereSafe() throws {
         // 99 is already covered; the version one past the current one is what
         // matters, because it is what an off-by-one in the "newer than me"
         // guard would wave through and then mis-decode. The file has to
@@ -210,15 +210,19 @@ import Testing
     }
 
     @MainActor
-    @Test func aStoreOverAVersionEightFileSaysSoAndDoesNotWriteOverIt() throws {
+    @Test func aStoreOverAFileFromTheVersionAfterThisOneSaysSoAndDoesNotWriteOverIt() throws {
+        // Built from `currentVersion` rather than written out, so the bump that
+        // ships the next format does not leave this suite asserting that the
+        // present is the future.
+        let ahead = BoardSnapshot.currentVersion + 1
         let temp = TempBoard()
-        try temp.put(#"{ "version": 8, "tasks": [], "labels": [], "nextSerial": 100, "accentTheme": "ember" }"#)
+        try temp.put(#"{ "version": \#(ahead), "tasks": [], "labels": [], "nextSerial": 100, "accentTheme": "ember" }"#)
         let store = BoardStore.restored(file: temp.file)
         guard case .newerVersion(let version, _) = store.loadFailure else {
             Issue.record("expected .newerVersion, got \(String(describing: store.loadFailure))")
             return
         }
-        #expect(version == 8)
+        #expect(version == ahead)
         #expect(store.lastError != nil)
         #expect(store.quarantinedBoardURL != nil)
         #expect(store.isSaveBlocked == false)      // the original is out of the way

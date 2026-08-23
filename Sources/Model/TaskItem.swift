@@ -158,7 +158,7 @@ struct TaskItem: Identifiable, Hashable, Codable, Sendable {
     /// The day it is due, or `nil` for no due date. The chip's text and colour
     /// are both derived from how far away it is — see `DueDate`.
     var due: CalendarDay?
-    var priority: Priority = .medium
+    var priority: Priority = Priority.default
     var subtasks: [SubTask] = []
     var activity: [ActivityEntry] = []
     var createdAt: Date = .now
@@ -254,10 +254,4 @@ struct TaskItem: Identifiable, Hashable, Codable, Sendable {
         return DueDate.urgency(due, from: today) == .today
     }
 
-    /// Case- and diacritic-folded text the board search matches against, so
-    /// "cafe" finds "Café".
-    var searchHaystack: String {
-        "\(title) \(note) \(code) \(labelKeys.joined(separator: " "))"
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-    }
 }

@@ -247,7 +247,7 @@ enum Bench {
         let cost = Bench.ratio({
             for id in columnIDs { scaleSink &+= store.visibleTasks(in: id).count }
         }, over: {
-            scaleSink &+= store.visibleTasks.count
+            scaleSink &+= store.searchResults.count
         })
 
         #expect(cost < 6, "thirty columns cost \(cost)x a single pass — the grouping memo is gone")
@@ -288,15 +288,15 @@ enum Bench {
             return store
         }
         let coldCost = cold.map { store in
-            Bench.best(rounds: 1) { scaleSink &+= store.visibleTasks.count }
+            Bench.best(rounds: 1) { scaleSink &+= store.searchResults.count }
         }.min() ?? 0
 
         let warm = ScaleBoard.store()
         warm.query = "scroller"
-        _ = warm.visibleTasks
+        _ = warm.searchResults
         let warmCost = Bench.best(rounds: 9) {
             warm.query = "scroller"
-            scaleSink &+= warm.visibleTasks.count
+            scaleSink &+= warm.searchResults.count
         }
 
         #expect(warmCost < coldCost * 2 / 3,
@@ -311,13 +311,13 @@ enum Bench {
         let store = ScaleBoard.store()
         let id = ScaleBoard.taskID(0)
         store.query = "zzzunlikely"
-        #expect(store.visibleTasks.isEmpty)
+        #expect(store.searchResults.isEmpty)
 
         store.beginEditing(.title, on: id, scope: .desk)
         store.setText("zzzunlikely marker", field: .title, on: id)
         store.endEditing(.title, on: id, scope: .desk)
 
-        #expect(store.visibleTasks.map(\.id) == [id], "the haystack memo is stale")
+        #expect(store.searchResults.map(\.id) == [id], "the haystack memo is stale")
     }
 
     // MARK: The save path

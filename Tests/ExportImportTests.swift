@@ -404,7 +404,7 @@ import UniformTypeIdentifiers
         // The card followed its column onto the right board.
         #expect(store[ForeignBoard.taskID(9)]?.placement == .column(board: clashing.id, column: column.id))
         // …and the importing board's own backlog still holds exactly its own cards.
-        #expect(store.boardTasks(in: BoardColumn.backlog.id).map(\.id) == [TestBoard.dragDrop, TestBoard.cafe])
+        #expect(store.visibleTasks(in: BoardColumn.backlog.id).map(\.id) == [TestBoard.dragDrop, TestBoard.cafe])
     }
 
     /// A column added to a board that is already here is folded in rather than

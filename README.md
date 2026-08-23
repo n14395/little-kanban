@@ -186,7 +186,7 @@ Deliberate departures from a literal transcription:
   into a string the card layout has no room to draw. Return commits instead, and
   anything pasted in has its whitespace folded flat before it reaches the card.
 - **Cards only drag where the rows on screen are the board's own order.** A drop
-  resolves against the unfiltered array, so under a search a card lands where
+  resolves against the whole array, so under a stale slice a card lands where
   nobody can see it, and in a saved view — which draws no columns and may impose
   an ordering of its own — it lands in a column the user is not even looking at;
   see **Drag and drop**.
@@ -262,8 +262,9 @@ Deliberate departures from a literal transcription:
   first non-drag way this board has had of moving a card. See **Selection,
   commands and shortcuts**.
 - **The phone turns.** The spec draws one portrait screen and the plist locked
-  the phone to it. Landscape shows two columns at once, which is a Kanban board
-  doing the thing a Kanban board is for; see **Gestures and haptics on iOS**.
+  the phone to it. Landscape shows three columns at once, which is a Kanban
+  board doing the thing a Kanban board is for; see **Gestures and haptics on
+  iOS**.
 - **The iPad gets the desk, not the phone.** The spec draws two devices and the
   root picked between them with `#if os(macOS)`, which made every iPad a very
   large phone. The layout is chosen by the idiom *and* the window's width now —
@@ -428,11 +429,14 @@ says it with, and what happens to the layout when the reader turns the type up.
 Four rules, each of which came out of a finding the Accessibility Inspector's
 audit made against a running build.
 
-**Nothing is said in colour alone.** Priority used to be a coloured dot: three
+**Nothing is said in colour alone.** Priority used to be a coloured dot: four
 tints, one shape, and in greyscale a card said nothing about how urgent it was.
-`PriorityDot` now draws a different *shape* per priority — a filled disc, a
-filled square, a ring — which nobody has to turn a setting on to get, and
-`PriorityDot.mark(for:)` names the three so the suite can hold them apart. With
+`PriorityDot` now draws a different *shape* per priority — a filled triangle, a
+filled disc, a filled square, a ring — which nobody has to turn a setting on to
+get, and `PriorityDot.mark(for:)` names the four so the suite can hold them
+apart. The suite counts them off `Priority.allCases` rather than off four, so a
+priority added without a mark of its own fails there rather than drawing as one
+of the others. With
 `differentiateWithoutColor` on, the mark on a card adds the word as well; the
 picker leaves it off, because there the word is already the row beside it. The
 due chip's meaning was entirely in its tint, so under the same setting it takes a
@@ -570,9 +574,11 @@ whole point of the copy:
 | Surface | Headline | Offers |
 | --- | --- | --- |
 | An empty column | "Nothing in Backlog" | Add a task |
-| An empty board | "This board is empty" | Add a task |
+| An empty board | "This board is empty" | Add a task, or a column |
+| A board with no columns | "No columns yet" | Add a column |
 | No boards at all | "No boards" | New board |
 | A search that matched nothing | "No matches" | Clear search |
+| The results panel with no matches | "No tasks match “…”" | nothing — the field is right above it |
 | An empty saved view | "Nothing due today", one per view | nothing |
 | The empty iOS Inbox | "Inbox is clear" | Add a task |
 | The macOS inspector with nothing selected | "No task selected" | nothing |
@@ -580,12 +586,22 @@ whole point of the copy:
 A place with nothing in it offers to fill it; a filter that matched nothing
 offers to drop the filter; a saved view offers neither, because there is nowhere
 in it to put a card — it is a filter over the board, and a task added to it might
-not match it. The no-results body names the query back — *Nothing here matches
+not match it. **A board with no columns is the one place whose offer is not a
+card**: there is nowhere to put one, so an "add a task" there would be either
+dead or a card filed somewhere the reader is not looking. It offers the first
+column instead — composed in the strip on the desk and the iPad, and on the phone
+the board's own settings, which is where a phone makes a column. The no-results body names the query back — *Nothing here matches
 “drag”* — so the reader sees what was actually searched for rather than what they
 meant to type.
 
+**The full-page no-results state is the phone's alone now.** On the desk and the
+iPad a query empties nothing, so there is no board left standing empty for it to
+explain; what a search that matched nothing looks like there is one line inside
+`SearchResultsPanel`, under the field that was typed into — with no Clear button,
+because the × is 6pt above it.
+
 The strings live on the factories
-(`EmptyStateView.column/.board/.noBoards/.noResults/.savedView/.inbox/.noSelection`)
+(`EmptyStateView.column/.board/.noColumns/.noBoards/.noResults/.savedView/.inbox/.noSelection`)
 rather than at the call sites, so the surfaces that show the same emptiness cannot
 drift into as many wordings of it — which is not hypothetical: the two "no boards"
 states were written independently on the two platforms and had already reached two
@@ -819,6 +835,14 @@ the room for a panel off a width the panel is subtracted from is a feedback loop
 it fits, so it appears, so the row shrinks, so it no longer fits. That loop is
 what shipped in the first draft, and the panel simply never appeared.
 
+**And it counts the board, not the inspector.** The inspector's width was in that
+sum too, and it made the panel decline on an 11" in portrait — 834 less 348 less
+320 is 166 — *after* the source list had already closed to make room for it, so
+the Inbox button put the list away and did nothing else. Nothing needs reserving
+for the inspector here, precisely because the inspector has the answer this panel
+has not: it draws over the board. `holdsTheInbox(detail:panel:floor:)` counts what
+cannot move.
+
 #### The two panels on the left take turns
 
 Waiting is the right answer to *no room* and the wrong answer to *no room yet*.
@@ -844,15 +868,23 @@ Three things about how it is wired:
 - **The list's width is measured while it is out and estimated while it is not**
   — the column's own ideal, because there is nothing to measure then. Same trade
   as the toolbar's fold, for the same reason.
-- **The inspector counts**, because it is a column of the same window. That is
-  what makes an 11" in *landscape* take turns with the inspector out and not
-  with it away, and a 13" in portrait the same. It also keeps this rule and
-  `hasRoomForTheInbox` in agreement, which they have to be: if this said "room
-  for both" where that said "no room for the panel", the Inbox button would go
-  back to doing nothing.
+- **The inspector counts here and nowhere else.** It is a column of the same
+  window, and counting it is what makes an 11" in *landscape* take turns with
+  the inspector out and not with it away, and a 13" in portrait the same — the
+  list gets out of the way and the three remaining columns fit properly rather
+  than the inspector ending up on top of a sliver of board. What it must *not*
+  do is count twice: `hasRoomForTheInbox` leaves it out, because by then the
+  question is only whether the panel and a board fit in what is left.
+
+The two rules have an invariant between them, and breaking it is what a dead
+Inbox button is made of: **every window `holdsBothSidebars` turns down is a
+window `holdsTheInbox` has to accept**, since the first one turning it down is
+what closes the source list. `SidebarRoomTests` walks the iPad widths and asserts
+exactly that.
 
 `Tests/PadSurfaceTests` holds the arithmetic and `UITests/PadSidebarsTests`
-presses the buttons.
+presses the buttons — **on an 11"**: a 13" in portrait cleared the broken sum by
+12pt and passed while the shipped behaviour was broken.
 
 #### Dragging between the panel and the board
 
@@ -976,10 +1008,26 @@ from its initials, upper-cased and capped at four characters, and falls back to
 Columns are a **board's** data, not a fixed set and not the store's: they live on
 `Board.columns`, they are written with the board, and they can be added, renamed,
 recoloured, reordered and deleted. `BoardStore.columns` is the active board's,
-which is what the macOS strip and the iOS pager draw. A new board starts from the
-seed workflow with **fresh ids** (`Board.startingColumns()`) rather than the seed's
-own: a column id is what places a card, so two boards sharing one would draw each
-other's cards and deleting the column on either would move both boards' cards.
+which is what the macOS strip and the iOS pager draw.
+
+**A new board starts with none.** It used to arrive holding a copy of the seed
+workflow under fresh ids, so that a card could go on it straight away, and the
+first thing anyone making a board of their own did was delete four columns they
+had not asked for. A board is now blank until its owner says what its columns
+are, and every surface that draws one offers the column composer where it would
+otherwise offer a card — see **Empty states**.
+
+Two things had to hold for that to be safe. The first is that **deletion's
+invariant is untouched**: `deleteColumn` still refuses to take a board's last
+Done column or its last working one. A board is allowed never to have had a
+column and is not allowed to be emptied down to none; from the outside those read
+as one rule, and underneath they are not, because the second has cards in it to
+lose. The second is `mobileAddPlacement`. `mobileColumnID` is session state that
+outlives a board switch, and a board with no first column leaves it naming the
+*previous* board's — which `placement(forColumn:)` resolves happily, since it
+looks an id up across every board, and `isPlaceable` then agrees. A card added on
+a blank board would have landed on the board before it, invisibly. It goes to the
+Inbox instead.
 
 The **Inbox is not one of them** — it is global; see above.
 
@@ -1099,14 +1147,69 @@ through to `BoardStore`, so an edit lands on the board card as it is typed.
   unreachable card; a task that has genuinely never been named renders as
   "Untitled".
 - **Priority** is a menu whose label is the design's existing dot-plus-name.
+  Four of them — Max, High, Medium and Low — listed **least urgent first**, so
+  the menu reads Low, Medium, High, Max upwards. That is `Priority.leastFirst`
+  rather than `allCases`, and it is the one surface that runs against the
+  board's own order: a picker on a card is a scale being read off, and a scale
+  reads upwards, where the Set Priority submenu is a command aimed at a
+  selection and wants the loudest thing at the top. Named on the type rather
+  than reversed in a view body, so which order a surface draws is something a
+  test can hold — and it means the menu opens on the case a card starts at. **Max is the only
+  one that does not take the accent** — it is the red the overdue chip already
+  uses, this app's one alarm colour, because High *is* the accent and a fifth
+  tone of it would not read as louder. A card starts at **Low**
+  (`Priority.default`), which is also the one priority the Markdown export leaves
+  unsaid: everything arrives at the floor, so a mark on a card means somebody
+  decided something rather than that a card exists.
 - **Due date** is the design's chip, made tappable: Today / Tomorrow / Next week
-  shortcuts, a calendar, and Clear.
+  shortcuts, a calendar, and Clear. The calendar is ``MonthGrid``, drawn here
+  rather than taken from the system — see **The calendar is hand-drawn**.
 - **Sub-tasks and labels** are edited in place; see below.
 - **Escape** clears a draft in all three of the fields the design defines it
   for — the column composer, the sub-task draft and the label picker — and
   cancels a rename in the label manager. Where there is nothing to clear it is
   passed on rather than swallowed, so it still closes whatever is presenting the
   field.
+
+### The calendar is hand-drawn
+
+`DatePicker(.graphical)` on macOS is a **fixed size**, and the popover it sits in
+is not. Measured through the accessibility tree: 138×148pt inside a 248pt column,
+whatever it is proposed. `.frame(maxWidth: .infinity)` only centres it — the
+calendar moved from x=1328 to x=1383 and stayed 138 wide — and neither
+`.controlSize(.large)` nor a larger `.font` moves it a point. Both were tried and
+measured before the grid was written; a stranded calendar with 19pt cells and
+half the panel empty beside it is what that control gives you.
+
+So the month is drawn here. `MonthGrid` lays out to whatever width it is given —
+seven columns of `maxWidth: .infinity` — which makes a day cell **35pt on the
+desk and 45 under a finger**, against the system's 19. Three things come with
+that beyond the size: it reads in this app's type and palette rather than the
+system's; the same calendar is now drawn on both platforms, where before macOS
+and iOS each got whatever their own graphical picker happened to be; and the
+arithmetic is testable, which a system control's never was.
+
+**Six weeks, always.** A month that needs five rows still draws six, so the panel
+does not change height as the arrows are pressed and a row does not move out from
+under a pointer already on its way to it. The neighbouring months fill the edges,
+greyed, and they are live: a date at the start of next month is one press away in
+the row it actually falls in, and picking one takes the grid with it.
+
+The month on screen belongs to the **panel**, not the task — paging forward to
+look at next month must not move the due date, and the two part company the
+moment an arrow is pressed. It is set when the panel opens, to the card's own
+month or to this one when the card has no date yet. `DueDateField.month(_:by:)`
+does the stepping in whole months from the *first*, because the 31st is not a day
+of every month and a step that resolved it forward would land on the 1st of the
+month after and skip one every time it was pressed from a long month.
+
+`MonthGridTests` is the arithmetic: six whole weeks for every month of a year and
+for both kinds of February, every row starting on the calendar's own first
+weekday, the month itself present once and in order, the edges consecutive with
+it, a month that starts on the first column having no spill above it, the year
+rolling at both ends, and the stepping — including twelve steps being a year, out
+and back. It runs against a fixed Gregorian calendar and `en_GB`, so a suite run
+in another region does not report a different month.
 
 **A field that opens has to open with the keyboard in it.** Every inline field
 in this app is opened *by* something — the column's "+", the sidebar's New board,
@@ -1581,7 +1684,7 @@ Search is multi-token AND rather than a phrase match, so "drag columns" finds a
 title with the two words apart. Each token is matched against a task's title,
 description, code and label keys, and both sides are folded case- and
 diacritic-insensitively — "cafe" finds "Café". The folded text is memoised per
-task so a keystroke re-filters the board without re-folding it. The memo is
+task so a keystroke re-runs the search without re-folding it. The memo is
 stamped with a monotonic per-task counter rather than `updatedAt`: `Date.now` is
 coarser than the gap between two consecutive mutations, so two edits can land on
 the same instant and a memo keyed on it would go on serving the first one's text.
@@ -1589,36 +1692,129 @@ the same instant and a memo keyed on it would go on serving the first one's text
 An archived task is in no search. It has left the board, so it is not something
 the search failed to find — the Archive view is where it is looked for.
 
-### Where the query applies
+### It is a search, not a filter
 
-There is one `query`, bound by the macOS toolbar and the iOS search field both,
-and the rule is that **it never narrows a surface that is not showing a way to
-clear it.**
+**Typing does not touch the board.** It used to, on the desk and the iPad: the
+columns were drawn from the query's answer, so a keystroke took cards off the
+board and the reader was left with a board that had silently lost most of itself.
+Worse, it could not answer the question people actually type into a search field
+— *where is that card* — because the card is usually on **another board**, and a
+filter over the board you are already looking at is the one shape of answer that
+can never say so.
 
-- **macOS** — the field is always in the toolbar, so the board honours the query.
-  There is deliberately no "Filtered" indicator here: the indicator exists for a
-  query whose field is off screen, which on macOS never happens. Both fields do
-  carry an `xmark.circle.fill` clear button while non-empty.
-- **iPad** — the same toolbar, and the same rule, through the one case where the
-  field is not in it: a narrow column folds the field into a button, and a *live
-  query* is enough on its own to keep the row under it open. So the query is never
-  narrowing this board without its own field and clear button on screen, and
-  closing that row clears the query rather than outliving it. See **The header
-  folds when its column runs out of width**.
-- **iOS Search tab** — the field is on screen; the flat list honours it.
-- **iOS Board tab** — the query is ignored outright
-  (`BoardStore.boardTasks(in:)`). `PhoneHeader` only shows the field on Search,
-  so filtering it left a board that had silently lost most of its cards with
-  nothing on screen to explain why. The Inbox's slide-over reads `inboxTasks`
+So the field opens ``SearchResultsPanel``: a list of every task in the app, from
+every board and the Inbox, best match first. A row is three lines — the **title**,
+the **first line of the description**, and then **board, column, priority**, with
+the due chip beside the title. The description is what tells two cards with
+similar titles apart, and the first line is where people put the sentence that
+does it; the last line is a funnel, which board, then which column of it, and only
+then what the card is like. **No labels**: they were on that line for one build
+and came straight out — a card carries any number of them, they are the widest
+thing the line can be asked to hold, and none of them tells one result from
+another. Choosing one goes there — `BoardStore.reveal(_:)`, which is the same
+call a `simplekanban://` link makes: the card's board (or the Inbox panel), the
+card selected, its detail open, and the query cleared behind it.
+
+`BoardStore.searchResults` is the list, and it is the *only* thing the query
+feeds. Nothing else narrows: `visibleTasks(in:)`, `inboxTasks` and
+`tasks(in:today:)` all ignore it. `SearchScopingTests.nothingOnTheBoardIsNarrowedByAQuery`
+is that rule as one assertion.
+
+Two things follow that are worth naming because they used to be the other way
+round. **A card stays draggable while a query is running** — `allowsCardDrag` no
+longer asks about the query, because the rows on screen are still the board's own
+order. And **⌘A still takes the whole board**, for the same reason.
+
+`UITests/SearchResultsTests` is the half only a running app can answer, and it is
+the *pair* that matters: a query typed, a panel of matches over the board, and
+the board still holding the cards that did not match — plus choosing a result and
+landing on the card with the field empty behind it. It runs on the iPad because
+that is the platform a UI test can drive; the desk's half was measured through
+the accessibility API while this was written, which is the only way to drive that
+one — the accessibility tree pressed the rows and read the geometry back, the
+same technique the board's reveal was measured with.
+
+### Best match first
+
+An empty query is every task, in board order: the panel opens on the whole of
+what there is and narrows as the reader types. Once there is a query, every token
+still has to match — that is unchanged — and what is new is that a hit is
+*scored* by where it landed. ``TaskSearch`` is the whole of it, and the ladder is
+short on purpose: each step is a distinction a reader would make out loud, and a
+finer grading is a number nobody can predict from the screen.
+
+| the token is | worth | example |
+| --- | --- | --- |
+| the whole title | 10 | "Sync" for `Sync` |
+| the start of the title | 7 | "sync" for `Sync engine v2` |
+| the start of a word in the title | 5 | "columns" for `Drag-and-drop between columns` |
+| anywhere else in the title | 3 | "co" inside `macOS` |
+| in the note, code or a label | 1 | "reconnect" in a description |
+| nowhere | — | the task is not a result at all |
+
+A hyphen starts a word, so "drop" is a word of `Drag-and-drop` rather than
+something buried in it. The score is the sum over tokens, so two words of a title
+beat one word of a title and one word of a note. Ties break on `updatedAt` — of
+two cards that answer equally well, the one the reader was last working on is the
+one they meant — and then on board order, so the sort is stable.
+
+### Where the query still applies
+
+There is one `query`, bound by the macOS toolbar, the iPad toolbar and the iOS
+search field alike. The panel is the answer on the two pointer platforms. The
+phone is the one surface where a query still narrows something in place, and the
+rule there is unchanged: **it never narrows a surface that is not showing a way
+to clear it.**
+
+- **macOS and iPad** — the field opens the results panel and nothing on screen
+  is narrowed, so there is nothing to announce and no "Filtered" indicator to
+  show. Both fields carry an `xmark.circle.fill` clear button while non-empty;
+  Escape closes the panel and clears the query, which is what a search field does
+  everywhere else on the desk.
+- **iOS Search tab** — the field is on screen and the flat list *is* the results
+  list, drawn full-screen instead of in a panel. Same `searchResults`, same
+  ranking, no second implementation.
+- **iOS Board tab** — the query is ignored outright, which is now what the desk
+  and the iPad do with the whole board. The Inbox's slide-over reads `inboxTasks`
   and so is out of the query's reach whatever tab is under it.
-- **A saved view** — honours the query wherever it is shown, because searching
-  should narrow a view rather than replace it. On iOS a view can be open with
-  the tab bar on Board and no field in sight, so `showsMobileFilterNotice` is
-  true there and the surface shows a "Filtered" indicator that clears it.
+- **A saved view on the phone** — narrowed, because searching there should narrow
+  a view rather than replace it, and the phone's field is a tab you go to rather
+  than a panel over what you were looking at. A view can be open with the tab bar
+  on Board and no field in sight, so `showsMobileFilterNotice` is true there and
+  the surface shows a "Filtered" indicator that clears it. The narrowing happens
+  at `mobileTasks`, through `BoardStore.narrowed(_:)`, rather than inside
+  `tasks(in:today:)` — which is what keeps it off the desk's copy of the same
+  view.
 
 `mobileAppliesQuery` answers the question for the current phone surface;
-`clearQuery()` is what both clear buttons and the indicator call. The query is
-session state, so clearing it registers no undo step and needs no save.
+`clearQuery()` is what both clear buttons, the indicator and `reveal` call. The
+query is session state, so clearing it registers no undo step and needs no save.
+
+### The panel is an overlay, not a `.popover`
+
+A real popover is its own window on macOS and its own presentation on iPadOS, and
+both take first responder as they open — which drops the keyboard out of the
+field the reader is still typing into, one character in. Measured on both. What
+is drawn instead is a panel with a popover's radius, border and shadow, laid out
+by `BoardToolbar` against the field's own measured frame (`fieldFrame`, in the
+bar's coordinate space) so it hangs under the field wherever the fold has put it.
+
+Two pieces of that are worth writing down because both were wrong first:
+
+- **The z-order belongs to the call site.** The board and the inspector are the
+  bar's *siblings*, one stack up, so a `.zIndex(1)` written inside `BoardToolbar`
+  orders the bar against its own contents and not against them. With it there the
+  panel drew underneath the inspector and was invisible from the moment a card
+  was selected. `MacRootView` and `PadRootView` put the `.zIndex(1)` on the bar.
+- **The overlay proposes the bar's own height**, which is 50pt, and a scroll view
+  offered 50pt takes it: the panel drew one row and scrolled the rest, with its
+  ground and shadow drawn around that one row. `.fixedSize(horizontal: false,
+  vertical: true)` is what makes it ask for the height it wants; `Metrics.maxHeight`
+  is the cap.
+
+↑/↓ walk the list and Return takes the highlighted row. They are pressed in the
+*field* — the panel never holds focus, which is the point — so `BoardToolbar`
+owns the highlight and `SearchResultsPanel` scrolls to whatever it names.
 
 ## Saved views and the archive
 
@@ -1632,7 +1828,7 @@ out of `BoardSnapshot` and out of `BoardMutation`.
 | Inbox | `isUnfiled` — on no board at all |
 | Today | due, and `.today` **or** `.overdue` |
 | Upcoming | due, and more than a day away |
-| High priority | `priority == .high` |
+| High priority | `priority >= .high` — the floor, so Max is in it by arriving |
 | Due this week | due within the next seven days, today included |
 | Recently updated | newest `updatedAt` first, capped at 20 |
 | Archive | `archivedAt != nil`, newest filing first |
@@ -1662,10 +1858,11 @@ There is one spelling of that count, `count(of: .today, today:)`, and nothing
 else — a second name for one number is how the badge and the list drifted apart
 in the first place.
 
-`tasks(in:today:)` applies the predicate, the ordering and the cap, and then the
-query on top; `count(of:today:)` is the view's **membership** and is deliberately
-*not* narrowed by the query, which would make it report the search rather than
-the view. The ordering is a stable sort: "Archive completed" files a column's
+`tasks(in:today:)` applies the predicate, the ordering and the cap — and no
+longer the query, which the phone puts on top at its own call site (**Where the
+query still applies**); `count(of:today:)` is the view's **membership** and has
+never been narrowed by the query, which would make it report the search rather
+than the view. The ordering is a stable sort: "Archive completed" files a column's
 worth of cards on one instant, and `sorted(by:)` would order those ties
 arbitrarily and differently on each render.
 
@@ -1674,8 +1871,8 @@ on purpose:
 
 | pill | source | why |
 | --- | --- | --- |
-| macOS sidebar row, iOS drawer row | `count(of:today:)`, unnarrowed | a badge on a destination: how much is *in* the view |
-| the flat list's own header | `tasks(in:today:).count`, narrowed | it sits on top of the list, so it is read as that list's length |
+| macOS sidebar row, iOS drawer row | `count(of:today:)`, membership | a badge on a destination: how much is *in* the view |
+| the flat list's own header | the list it heads, resolved once | it sits on top of the list, so it is read as that list's length |
 
 A header pill fed by membership reports "1" directly above "Nothing here matches",
 which makes the search look broken rather than the view look full. Both headers
@@ -1837,6 +2034,42 @@ These rules are the iPhone's alone:
   being asked, and a grabber drawn by `presentationDragIndicator` rather than by
   a `Capsule` of ours.
 
+  **On its side it is not a sheet at all, and that is the second half of the
+  story.** A sheet in a compact height ignores its detent and is laid out at the
+  whole screen, so a phone turned sideways drew the Inbox as a full-screen page
+  with cards stretched 874pt across. Capping the panel at the screen's short edge
+  — that phone's own portrait width, `PhoneNavDrawer.width(in:screen:)`'s rule
+  and for its reason — fixed the panel and not what it stood on. A sheet that
+  covers the screen has the view that presented it **taken out of the hierarchy
+  underneath**, so the board is not behind the panel and cannot be put there:
+  measured three ways — a clear presentation background, the app's own ground
+  painted behind the panel, and `presentationBackgroundInteraction(.enabled)`,
+  which sounds like it should keep the presenter alive and does not — what is
+  behind a compact-height sheet is the bare window, white in light and black in
+  dark. A scrim over that is not a wash but a slab, and the panel was standing in
+  a hole rather than over anything.
+
+  So on its side the Inbox is an **overlay of `PhoneRootView`'s**, which is the
+  shape `PhoneNavDrawer` already has: `palette.scrim()` with the live board under
+  it, and the panel over that. What it costs is the two things the sheet was
+  doing for nothing, and both are hand-rolled back: a `Capsule` at the head of
+  the panel carrying a `DragGesture` — on the handle rather than the whole panel,
+  because a drag over the cards belongs to the list and a sheet arbitrates that
+  for itself where an overlay has to be told — and `.isModal`, plus an
+  `accessibilityHidden` while the editor is up, because an overlay is a *sibling*
+  of the window's content rather than something underneath a presentation and
+  both the panel's × and the editor's are labelled Close.
+
+  **Which shape it is in is one flag answering two questions**, and the handover
+  is the subtle part. The sheet is driven by view state (`showsInboxSheet`)
+  rather than by a binding computed off `store.isInboxOpen`, because a computed
+  binding cannot tell apart the two ways it goes false: turning the phone takes
+  the sheet down, SwiftUI reports that back as a dismissal, and a guard inside
+  the setter reads whichever `self` the binding it is holding captured — which
+  may be the one from before the phone turned. Measured, rotating with the panel
+  up closed the Inbox instead of handing it over. Three `onChange`s do it
+  instead, and they run against the values the body has now.
+
   **A card tapped in the Inbox opens the editor over it**, and that is the one
   thing the swap put at risk: a sheet is presented *by* whatever is on screen,
   and the root cannot put a second one up while this one is over it — the tap
@@ -1845,14 +2078,20 @@ These rules are the iPhone's alone:
   it while it is open, and exactly one is live. `PhoneNavDrawer` hosts its own
   sheets for the same reason and says so in the same words.
 
-  **The drag cannot be tested from here**, which is why the four tests that
-  covered the hand-rolled version went with it. A synthetic
+  **The drag cannot be tested from here while it is the system's**, which is why
+  the four tests that covered the hand-rolled version went with it. A synthetic
   `press(forDuration:thenDragTo:)` does not drive a system sheet's pan — a
   recording of the simulator shows the sheet perfectly still through a 500pt drag
   that dismisses it under a real finger. `UITests/InboxPanelTests` pins what is
-  left and reachable: the height, the × , and the editor coming up over the
-  Inbox and the Inbox still being there afterwards. `DetailSheetHeightTests`
-  reaches the same wall for the editor and answers it the same way.
+  left and reachable: the height, the × , the editor coming up over the Inbox and
+  the Inbox still being there afterwards, and the width after a rotation.
+  `DetailSheetHeightTests` reaches the same wall for the editor and answers it
+  the same way.
+
+  On its side the wall is not there, because the gesture is ours again: the same
+  suite turns the phone, pulls the handle down 220pt and asserts the panel is
+  gone. A `DragGesture` of our own is something a synthetic drag *can* drive,
+  which is the one advantage of having to write it.
 
   It sits **under** the drawer in the overlay order,
   because the drawer is the way to a *board* and a board list half-covered by the
@@ -1940,6 +2179,19 @@ These rules are the iPhone's alone:
   bar to clear is the *smallest* supported iPhone, not the largest: on a 375x667
   device one swipe now reaches "Manage labels" and the accent swatches, and that
   is the end of the scroll.
+- **84% of the screen's short edge, not of the screen's width.** The design's
+  fraction was read against the container, which is the same number in portrait
+  and a different surface on its side: an iPhone in landscape is 874pt across,
+  so the board list came out at 734pt over a sliver of board. It is the short
+  edge that a drawer is a fraction of, and the short edge does not change when
+  the phone is turned — 338pt on a 17 Pro, 315 on an SE, held either way up.
+  Not a fixed maximum, because the number a drawer may not exceed is *that
+  phone's* own portrait width and no other. `PhoneNavDrawer.width(in:screen:)`
+  is the sum and `DrawerWidthTests` holds it; the screen is measured once by
+  `PhoneRootView`, outside the safe area on purpose — inside it, landscape's
+  short edge is missing the home indicator's 21pt and the drawer would come out
+  narrower turned than upright. The pan that drags the drawer in asks the same
+  function, or the panel trails a third of the way behind the finger.
 - **The drawer is modal to VoiceOver as well as to the eye.**
   `.accessibilityHidden(store.isNavDrawerOpen)` on `PhoneRootView`, applied
   *before* the `.overlay` so it takes the board and leaves the drawer;
@@ -2526,8 +2778,8 @@ The size class alone is not the iPad, and shipping it as if it were handed the
 desk's three panes to a phone. A Max- or Plus-class iPhone reports a *regular*
 horizontal size class in landscape, so an iPhone 17 Pro Max at 956×440 drew
 `PadRootView` — the split view's sidebar toggle, the inspector, the board's
-column controls — and never drew the two-up landscape board `PhoneRootView` lays
-out for exactly the devices that have room for it (**Landscape**, below). The
+column controls — and never drew the three-up landscape board `PhoneRootView`
+lays out for exactly the devices that have room for it (**Landscape**, below). The
 idiom alone is not the window either: an iPad in Slide Over or a narrow split has
 a phone's width and nowhere to put a sidebar, which is why the size class keeps
 its half of the say. `RootSurfaceTests` walks the four combinations.
@@ -2757,23 +3009,22 @@ lift: nothing a store can be asked tells a stolen gesture apart from a refused
 drop.
 
 Dragging is off wherever the cards on screen are not in the board's own order —
-`BoardStore.allowsCardDrag`, which is `activeView == nil && !isFiltering`. A drop
-resolves against the unfiltered `tasks` array, because "put this card before that
+`BoardStore.allowsCardDrag`, which is `activeView == nil && sortOrder == .manual`.
+A drop resolves against the `tasks` array, because "put this card before that
 one" is an index in it, so it only means what it looks like where the cards on
-screen *are* that array:
+screen *are* that array. **In a saved view** they are not: the list draws no
+columns at all, and Recently updated and the Archive sort by their own
+timestamps, so a drop would move the card into a column that is nowhere on
+screen, at a position bearing no relation to the row it was aimed at — silently,
+and to an archived card as readily as a live one.
 
-- **Under a query** the cards in between are hidden, so a card dropped between
-  two of the few visible ones lands somewhere the user can neither see nor
-  predict, and moves again once the query is cleared.
-- **In a saved view** it is worse. The list draws no columns at all, and Recently
-  updated and the Archive sort by their own timestamps, so a drop would move the
-  card into a column that is nowhere on screen, at a position bearing no relation
-  to the row it was aimed at — silently, and to an archived card as readily as a
-  live one.
-
-The card dims and its tooltip says which of the two it is rather than failing
-silently; a saved view gets its own sentence, because telling someone to clear a
-search they have not typed is not help. `SearchScopingTests` pins the rule.
+**A query used to be the other reason, and is not any more.** While the board was
+drawn from the search's answer it had to be: the cards in between were hidden, so
+a card dropped between two of the few left lands somewhere nobody can see and
+moves again when the query clears. The search is a panel over the board now — see
+**Search** — the rows underneath are untouched, and a card the reader can see is
+a card they can move. The tooltip lost its second sentence with it; there is one
+reason left to name. `SearchScopingTests` pins the rule.
 
 **Every drag has a way to say the same thing without one.** A long-press lift is
 unreachable to VoiceOver and to Switch Control, so a capability that exists only
@@ -2905,7 +3156,7 @@ it. The card's two half-row zones work on that surface for the first time, and
 the ground under the last card and the whole of an empty column take a drop and
 land it in that column. `UITests/CardDropTargetTests` runs on both idioms rather
 than skipping the phone, and `UITests/ColumnDropTests` has a phone half of its
-own — turned on its side, which is the one shape where two columns share a phone
+own — turned on its side, which is the one shape where columns share a phone
 screen and a drop can therefore cross one.
 
 **The phone's Inbox is the same story and the same fix.** `PhoneInboxSheet` drew
@@ -2986,8 +3237,8 @@ since the first commit and which the dots at the top of the phone answered to in
 no way at all. It is a horizontal `ScrollView` with a page per column, held by
 `.scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))` and bound to
 `store.mobileColumnID` through `.scrollPosition`. `.viewAligned` rather than
-`.paging` because a page is not always the viewport: in landscape two columns
-share the screen, and `.paging` would step past one of them.
+`.paging` because a page is not always the viewport: in landscape three columns
+share the screen, and `.paging` would step past two of them.
 
 **The chips are the whole of the non-gesture route.** There was a second row
 under them — a chevron either side of a strip of dots, each dot a button for its
@@ -3000,8 +3251,8 @@ current one into view, and the swipe is unchanged.
 **A launch lands on a column the board has.** `mobileColumnID` is session state —
 where the user is looking rather than anything about the board — so it is out of
 `BoardSnapshot` and every run starts at the property's default, which is a *seed*
-column's id. A board made in the app carries ids of its own
-(`Board.startingColumns()`), so opening straight onto one left the phone naming a
+column's id. A board made in the app carries ids of its own — and now starts
+with no columns at all — so opening straight onto one left the phone naming a
 column that is on no board: every chip in the strip unlit, while the list, the
 heading and the add row all showed the first column through `mobileColumnIndex`'s
 `?? 0` — the surface disagreeing with itself about where it was. `init` now ends
@@ -3010,7 +3261,7 @@ column delete and an undo already run, so a launch is no longer the one way onto
 a board that skipped it. A board that *has* the default keeps it, which is why
 the seed board still opens on In Progress.
 
-**The strip is portrait's.** Turned on its side the phone draws two columns at
+**The strip is portrait's.** Turned on its side the phone draws three columns at
 once, each under a heading that gives its dot, its name and its count, so the
 chips would be a second answer to a question already answered — in the dimension
 a phone in landscape has least of. `columnChips` is behind `!isShort` in
@@ -3197,7 +3448,10 @@ were the same act, and neither had anything to do with where the drawer was
 drawn. `EdgePan` reports every phase now — `distance` and `velocity` flipped back
 to *inwards* on the way out, so no call site has to know which way the layout
 runs — and `PhoneRootView.drawerPan` turns the distance into a fraction of the
-panel's 84% and hands it to `PhoneNavDrawer.progress`. The panel is offset by
+panel's own width — asked of `PhoneNavDrawer.width(in:screen:)`, the same
+function the panel asks, or a finger crossing 734pt to open a 338pt drawer
+leaves the drawer trailing behind it — and hands it to
+`PhoneNavDrawer.progress`. The panel is offset by
 what is left of that fraction and the scrim darkens with it, so a drag half-way
 in is half-way to hiding the board.
 
@@ -3239,11 +3493,27 @@ two values in this app that do not mirror themselves.
 
 The phone is no longer locked to portrait. `project.yml` grants it portrait and
 both landscapes — no upside-down, matching Apple's own phone apps — and the board
-lays out `verticalSizeClass == .compact ? 2 : 1` columns per screen through
-`containerRelativeFrame(.horizontal, count:span:spacing:)`.
+lays out `verticalSizeClass == .compact ? min(3, columns) : 1` columns per
+screen through `containerRelativeFrame(.horizontal, count:span:spacing:)`.
 
-**And a Max-class phone actually reaches it.** The two-up board is for the
-devices with the width to hold two columns, which are precisely the ones that
+**Three, and it divides exactly.** It was two, and the arithmetic is the reason
+it did not have to stay two: the pager divides the width *inside* the safe area,
+so the count is a division rather than an estimate. Measured on a 17 Pro on its
+side — 874pt of window, 62 either side of the sensor housing, 750 left — the
+pages came out 375 and 375 at two, and 250, 250 and 250 at three, in both cases
+filling the screen edge to edge with no half column showing. What a page pays is
+the card inside it: a row falls 335 → 210pt and the title in it 267 → 142, which
+is two or three lines of a card title where it was one or two. What the board
+buys is the third column of four, which on the seed board is the difference
+between watching a card leave Up Next and arrive in Done and having to swipe to
+find out where it went.
+
+The count is capped at the board's own column count, which two never needed: a
+two-column board divided into three leaves a third of the screen showing
+nothing, and a board is allowed to have two columns.
+
+**And a Max-class phone actually reaches it.** The multi-column board is for the
+devices with the width to hold more than one, which are precisely the ones that
 report a *regular* horizontal size class in landscape — so while the root asked
 the size class alone, an iPhone 17 Pro Max at 956×440 was handed `PadRootView`
 and this layout never ran on the hardware it was written for. See **The iPad**
@@ -3262,8 +3532,9 @@ names the column instead is the page's own dot-name-count heading, drawn wheneve
 more than one page shares the screen — which is exactly the case where the chips
 are gone.
 
-Two things follow from two columns being visible at once. `mobileColumnID` is the
-**leading** one, because `.scrollPosition(anchor: .center)` lands between pages —
+Two things follow from more than one column being visible at once.
+`mobileColumnID` is the **leading** one, because `.scrollPosition(anchor:
+.center)` lands between pages —
 so with the board scrolled to the end the last column is on screen without its
 chip lit. And the add row, the empty state and the add action all take the
 *page's* column rather than the current one, since the page a finger is over is
@@ -3320,6 +3591,42 @@ button and before the ⋯ — and that the slot is a 44pt square rather than the
 also checks the drawer button starts within a tenth of the width, which is the
 board having the leading edge back. The suite keeps the older name; the claim it
 makes has not changed, only where the frames have to land.
+
+**The Inbox panel is no thicker turned than it is upright.** A detent is a
+request UIKit grants only where the height is regular; in a compact one it
+ignores the detent and lays the sheet out at the whole screen, so the Inbox on
+its side was a full-screen page with its cards stretched 874pt across — thicker
+turned than upright, which is the wrong way round for a panel meant to be *over*
+something. `PhoneInboxSheet` sizes itself now: the panel is capped at the
+screen's **short edge**, which is that phone's own portrait width held either
+way up, and stands on the bottom edge as a card with all four corners rounded,
+nine tenths of the height with the board's strip above it. That is the drawer's
+rule reached the drawer's way — see `PhoneNavDrawer.width(in:screen:)` — and
+upright the short edge *is* the width, so it is one line that reads the same in
+both shapes rather than a branch. The edge is put back together from
+`GeometryReader`'s `safeAreaInsets`, because inside a sheet the height arrives
+short by the home indicator's 21pt and 381 is not a phone's portrait width.
+
+**What that shape cannot have is the board behind it.** A sheet that covers the
+screen has the view which presented it taken out of the hierarchy underneath, so
+clearing the sheet's own ground uncovers the *window* and nothing else — measured,
+the panel came out standing on plain white. Upright the system dims the board and
+leaves it showing through the top tenth; on its side the panel draws the drawer's
+own `palette.scrim()` in that place at the same weight, and takes the tap on it
+that puts the panel away, because dismissing by tapping outside is the system's
+job at a detent and this is the one shape where *outside the panel* is still
+inside the sheet. Putting the real board back there means the Inbox ceasing to be
+a sheet in landscape and going back to a hand-rolled overlay — the scrim, the
+transitions, the drag and the `.isModal` it deliberately gave up. The system's
+grabber moves with the *sheet* rather than with the panel, so it would float over
+the board most of a screen above what it belongs to: it is hidden there and the
+panel draws its own.
+
+`UITests/InboxPanelTests` gained the case. It turns the phone and reads a card's
+width against the phone's own upright width, both ends of the header against the
+screen's, and the header's distance from the top — the portrait claim above made
+again in the shape that lost it. With the cap taken out the card measures 642pt
+against a 402pt phone, which is what the suite is for.
 
 The add-column composer is the one place landscape is worse: 402pt minus a
 software keyboard leaves 238pt for a composer around 200pt tall, so its last row
@@ -3414,16 +3721,38 @@ is untouched by it. If sync ever matters, this is the layer to replace.
     `decodeIfPresent` and every other key stays strict — a board file with no
     `tasks` key is not an empty board, it is not a board file.
 
+  - **v7 → v8** — `Priority` gains `max`, a fourth case above High, and what a
+    card is minted with moves from `medium` to `low`. Neither touches the shape,
+    so this is the third bare stamp — a v7 file has no `max` in it and every card
+    in it already carries a priority of its own, which is why the default moving
+    rewrites nothing that already exists.
+
+    The bump is the sharper version of the v5 → v6 argument. `Priority.init(from:)`
+    *throws* on a token it does not know, and a `Codable` throw is not local: a v7
+    build handed a board with a single Max card on it fails to decode the whole
+    file and quarantines the user's board as corrupt. With the bump it refuses the
+    file up front and says why. The migrations do not read `Priority.default` —
+    a file that predates the field means what the default was when it was written,
+    which is `medium`, and re-reading old boards through today's default would
+    silently re-rank them.
+
+    **Sync has no such stamp.** A CloudKit record carries the priority as a bare
+    string and `BoardSyncStore` falls back to `medium` for a token it does not
+    know, so a device on an older build shows a Max card as Medium — and writes
+    Medium back if it edits that card. There is no version to refuse on, which is
+    what **What CloudKit will not do for you** is about; the board *file* is where
+    the guarantee lives.
+
   Those last two were planned as **one** step to v4 — "boards and columns" was a
   single item — and shipped as two because each half is separately verifiable and
   a half-migrated file is not: v3 → v4 turns the compiled-in columns into data
   without moving them, and v4 → v5 hands them to a board and takes the Inbox out
   of the column list. So the version reached 5 rather than the 4 the plan named,
-  7.2's separation of stored values from display strings took it to 6, and the
-  trash took it to 7.
+  7.2's separation of stored values from display strings took it to 6, the
+  trash took it to 7, and the fourth priority took it to 8.
 
   A v1 file therefore walks through exactly the same v4 → v5 code a v4 file does,
-  and adding v8 costs one shape and one function rather than an edit to every
+  and adding v9 costs one shape and one function rather than an edit to every
   decoder — widening an old decoder to reach the current shape instead would make
   every future field silently rewrite the past. The pre-migration bytes are copied
   to `board.v<n>-<stamp>.json` first: a migration is the one moment the old shape
@@ -4285,6 +4614,7 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | suite | covers |
 | --- | --- |
 | `CalendarDayTests` | day arithmetic, month/leap/DST boundaries, `Codable` round-trip, stability across time zones |
+| `PriorityTests` | the enum three other things lean on: `allCases` running most urgent first, which *is* the priority sort and the order the Set Priority submenu draws, with `leastFirst` its exact reverse for the editor's picker; `Comparable` the right way round, which is what lets a filter say `>= .high`; the default being the floor and the same constant the mint uses; every spelling a shipped board file carries — the v6 tokens and the pre-v6 display strings, with `Max` deliberately not among the latter — and an unknown token *throwing* rather than falling back, which is the whole reason the fourth priority cost a format version |
 | `DueDateTests` | every label and urgency boundary, against an injected `today` |
 | `BoardStoreMutationTests` | move and its Done tick, add, delete and where the selection falls, complete/reopen, the tick itself — `toggleCompletion` going both ways, a completed card still tickable though `canComplete` says no, a board with no Done column to reach drawing a dead one, and an archived card offering none — discarding a capture nothing was filled into — emptied again, pickers that came home, whitespace, a default due date, and the seven fills that keep it, including the board menu's — the sub-task reorder offset, the column a launch opens on and the phone's column step and its wrap, label toggle, priority, due, `updatedAt` and the header counts |
 | `EditingSessionTests` | one entry per session; none when nothing changed; a blank title or sub-task restored; first naming is not a rename; independence per surface, per task and per sub-task row — driven through the selection and sheet changes that end a session, which is where the scoping actually lives |
@@ -4292,8 +4622,9 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `UndoTests` | every mutation undoes and redoes; a deleted task returns to its own index; a text session is one step while each picker change inside one is its own; keystrokes typed before an interleaved step are still reachable, and a ⌘Z aimed at an older step keeps what is still being typed; the Done tick's sub-task flags come back exactly; a blank title restored before the step opens on the bulk delete as well as the singular one, which is the only place that ordering can go wrong |
 | `UndoHandoverTests` | macOS only — a real `RootView` in a real `NSWindow` hands that window's `UndoManager` to the store. Break the handover and every other undo test still passes while ⌘Z in the shipping app does nothing |
 | `PersistenceTests` | v5 round-trip of every field, `archivedAt` included; the v1 fixtures migrating, including a file with no `version` key at all; corrupt, truncated, wrong-shape and future-version files falling back *and* being quarantined; `nextSerial` continuity; rolling backups; an overtaken write dropped rather than undoing a newer one; the debounce coalescing a burst, and `saveNow()` bypassing it |
-| `SearchTests` | multi-token AND, diacritic folding, the column grouping following the filter, an archived task falling out of every result, and memo invalidation — across two edits in one instant, a delete, and an undo and its redo |
-| `SearchScopingTests` | which surfaces the one query is allowed to act on — the whole truth table of tab × saved view for `mobileAppliesQuery`, the "Filtered" notice, the add row and the column chips; a query typed on Search leaving the Board alone, and the Inbox's slide-over out of its reach whatever tab is under it; whitespace not counting as a filter; clearing costing no undo step and no write; picking a tab or capturing a card leaving the saved view; and `allowsCardDrag` off in every saved view as well as under a query |
+| `SearchTests` | multi-token AND, diacritic folding, the column grouping *ignoring* the query, an archived task falling out of every result, and memo invalidation — across two edits in one instant, a delete, and an undo and its redo |
+| `TaskSearchTests` | the ranking, one rung at a time: a title that *is* the query above one that starts with it, a word of the title above a letter run inside a word, a hyphen starting a word, the title above the note, the sum over tokens, folding on both sides, and a missing token being a miss however well the rest scored. Then what the store does with it — a title hit ahead of a note hit whatever order the board holds them in, `updatedAt` breaking a tie, an empty query being every task rather than none, and the results spanning the Inbox as well as every board |
+| `SearchScopingTests` | which surfaces the one query is allowed to act on — the whole truth table of tab × saved view for `mobileAppliesQuery`, the "Filtered" notice, the add row and the column chips; a query typed on Search leaving the Board alone, and the Inbox's slide-over out of its reach whatever tab is under it; whitespace not counting as a filter; clearing costing no undo step and no write; picking a tab or capturing a card leaving the saved view; `allowsCardDrag` off in every saved view and *on* under a query; and the rule the results panel is for — no column slice, Inbox or saved view narrowed by a query, while the search itself still answers from every board at once |
 | `LabelTests` | slug trimming, empty-slug fallback, the 40-character cap, rename keeping the key, delete stripping it from every task |
 | `TransferTests` | the drag payloads — the plain-text and `Codable` forms of a card, a checklist row and a column, that a column's carries the board it is on, and that all three exported type identifiers match the ones `project.yml` declares |
 | `SavedViewTests` | every view's badge equalling its list's length whenever nothing is typed, and a query being the only thing that may part them; every predicate at the day either side of every bound it draws — Today carrying overdue, Upcoming strictly ahead, `0...6` for the week — the cap at twenty, the two views that override the board's order and the four that do not, Done left out of four of six, archived tasks in one of six, and a query narrowing a view *after* its cap rather than before |
@@ -4301,7 +4632,7 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `ColumnRoleTests` | the role rather than the *word* carrying every Done behaviour — against a board that also holds a `.backlog` column called "Done" — after the real one has been renamed, recoloured, moved and relaunched, and on a Done column the user made through `addColumn` after deleting the seeded one; plus each board's Done being its own while another board has one |
 | `BoardTests` | boards created, renamed, recoloured, reordered and deleted; switching boards changing the columns, the title and every count; the Inbox being the same list whichever board is active and a quick capture never picking one; codes minted from the destination and never changing; a board deleted sending its cards to the Inbox, its neighbour taking over, and the last one going without taking the Inbox with it — after which the empty board list is what a relaunch reads back, and a fresh board can still be made from it; the active board surviving a relaunch while the surface does not; and a v4 file splitting between the default board and the Inbox |
 | `PlacementInvariantTests` | the one rule the model exists to keep — a task is unfiled or on a board in one of its columns, never half of either — checked after every store method that can touch a placement, four ways over: alone, in one long sequence, undone one at a time, and undone in a full drain. Plus the illegal pairs refused rather than stored at all three doors that take a placement from outside — `file` leaving the card where it was, `move` the same, `addTask` landing it in the Inbox and minting an `IN-` code for it; a card whose board and column disagree placed by its column; a file carrying two cards under one id loading with the second dropped; `reopen` reading a card's history against its *own* board, so an id it recognises from elsewhere cannot carry the card to a board nobody was looking at; the bulk move refusing the same pair, which is the fourth door and the only one that does not go through the singular `move`; and a code surviving every journey a card can take |
-| `ArchiveTests` | a filed task leaving `visibleTasks`, every column slice, every board count and every view but the Archive while staying in the file; the surfaces moving off it; `archiveCompleted` as one ⌘Z on one instant, skipping what is already filed; restore putting it back in its own column; filing moving no `updatedAt` while still invalidating the grouping and the search; `complete` and `reopen` refusing an archived task outright, at no undo cost; the rolling seven-day meter, at both ends of its window, against a stamp in the future, and reading `updatedAt` rather than `createdAt`. Plus what the Task menu may do to a selection of filed cards, which the Archive surface's own ⌘A makes one keystroke away: every item on it disabled, nothing for any of them to act on, no step filed and no stamp moved — and the four commands that *do* still apply to a filed card, because reading one, copying its code or throwing it away are things a person does in an archive |
+| `ArchiveTests` | a filed task leaving `searchResults`, every column slice, every board count and every view but the Archive while staying in the file; the surfaces moving off it; `archiveCompleted` as one ⌘Z on one instant, skipping what is already filed; restore putting it back in its own column; filing moving no `updatedAt` while still invalidating the grouping and the search; `complete` and `reopen` refusing an archived task outright, at no undo cost; the rolling seven-day meter, at both ends of its window, against a stamp in the future, and reading `updatedAt` rather than `createdAt`. Plus what the Task menu may do to a selection of filed cards, which the Archive surface's own ⌘A makes one keystroke away: every item on it disabled, nothing for any of them to act on, no step filed and no stamp moved — and the four commands that *do* still apply to a filed card, because reading one, copying its code or throwing it away are things a person does in an archive |
 | `MigrationTests` | the chain — `board-v2.json` arriving as v5 field for field with nothing archived, both v1 fixtures walking the whole way, a v1 board and a v2 board taking the same last step, a v5 file read back without being migrated again, an unarchived board writing no `archivedAt` key at all, and a version-6 file refused and quarantined intact |
 | `MigrationChainTests` | the same chain asked of **every** fixture in the bundle at once, enumerated off disk rather than listed: each reaching the current version, each splitting its cards between the default board and the Inbox, the v3 and v4 fixtures splitting their six cards identically, each link leaving its own mark on a v1 board, the same bytes reaching the same board twice over, no fixture needing repair on the way into the store, the active board written into the file itself, and a file one version newer than *this build* refused and put somewhere safe |
 | `DayRolloverTests` | the day clock built from an instant either side of midnight, and the Today count and each saved view's membership before and after — including the three views that must *not* move, a year end, and the weekly meter's window rolling with it; plus the wake itself — a second either side of the boundary, and the DST days where the next midnight is 23 or 25 hours off rather than 24 |
@@ -4319,7 +4650,8 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `MenuKeyOwnershipByPlatformTests` | the other half of `KeyOwnershipTests`, and in a file that is not `#if os(macOS)` so it can say it: the menu bar takes keys off a card only on the platform that has one. On macOS ⌘⌫ and ⌘⏎ reach no card; on iOS `menuOwnedShortcuts` is empty and both reach the card, because `BoardCommands` is built into the macOS scene alone and nothing on iPad was taking them first. Space, a bare ⏎ and ⌥← are unchanged on both |
 | `RootSurfaceTests` | iOS only — which of the two layouts a window gets. An iPad at regular width takes the desk's; a phone takes the phone's at *every* width it can reach, which is the blocker: a Max-class iPhone in landscape is a regular horizontal size class and drew the iPad's split view; an iPad in Slide Over takes the phone's; and an unresolved size class is not a licence to draw three panes |
 | `PadListMetricTests` | `TaskListMetrics.pad` exists and is named beside its siblings — room under the last card but not the phone's tab-bar's worth, and a row capped and centred rather than stretched across 13 inches |
-| `TouchTargetTests` | every touch `Metrics` preset claims 44pt — the iPad's `.pad` board presets included, since the iPad draws the desk's board at touch sizes — and no pointer preset inflates the desk; the detail panel's three header controls — the tick, the trash, the ✕ — claiming one square on both idioms, which is the only place that agreement can be stated because the tick brings its own button, plus the drawn box fitting inside it and the desk's square holding the size it was raised to; the checklist box's overhang; the chip name's ceiling; the swatch rows fitting a 375pt phone, `Board.dotPalette` staying the size and shape that row is drawn against, and every swatch on offer — board dot and label tone alike — carrying a name rather than a position. See **Touch targets** for what this suite can and cannot see |
+| `MonthGridTests` | the hand-drawn calendar's arithmetic: six whole weeks for every month of a year and for both kinds of February, every row starting on the calendar's own first weekday, the month present once and in order, the edges consecutive with it and drawn from the neighbouring months, a month starting on the first column having no spill above it, the year rolling at both ends, the column headings rotated to the locale's first weekday, and the month stepping — from the 31st, across both year boundaries, and twelve steps out and back. Against a fixed Gregorian calendar and `en_GB`, so the suite does not report a different month in another region |
+| `TouchTargetTests` | every touch `Metrics` preset claims 44pt — the iPad's `.pad` board presets included, since the iPad draws the desk's board at touch sizes — and no pointer preset inflates the desk; the detail panel's three header controls — the tick, the trash, the ✕ — claiming one square on both idioms, which is the only place that agreement can be stated because the tick brings its own button, plus the drawn box fitting inside it and the desk's square holding the size it was raised to; the calendar's day cell and month arrows under a finger, and its desk pair staying well under the floor; the checklist box's overhang; the chip name's ceiling; the swatch rows fitting a 375pt phone, `Board.dotPalette` staying the size and shape that row is drawn against, and every swatch on offer — board dot and label tone alike — carrying a name rather than a position. See **Touch targets** for what this suite can and cannot see |
 | `ExportImportTests` | the export document — every field through an encode and a decode, the bytes matching what `BoardFile` writes so an export and a `board.json` are one format, and the exporter being handed the whole board rather than the visible one. Then the **merge**, which is where an import destroys work: both sets of tasks kept, an id collision keeping *both* cards under two ids, a code collision re-minted on the arriving card, the serial climbing above both files so the next code is free, the label vocabulary growing without being rewritten, the arriving board landing beside the one already here, a column id already in use re-minted, a board already here keeping its name and gaining only the columns it is missing, the placement invariant holding after a stranger's file is folded in, the same file twice costing nothing and no ⌘Z — collision included — and neither the accent nor the active board being the file's to change. Plus a corrupt, newer or older file each answered properly, the Markdown export's shape, and the board type matching what `project.yml` declares |
 | `BackupRestoreTests` | `BoardFile.restore(from:)` and the caller it waited for — an older backup migrated on the way in, a damaged or newer one failing loudly rather than restoring an empty board, a restore replacing the live board as one ⌘Z that comes off cleanly, the board as it stood copied aside before it goes, a restore that could not read its backup costing nothing at all, and the race Phase A's per-URL write ordering exists for: a debounced write armed *before* a restore — from this store, and from a second store over the same path, where nothing can reach in and cancel it — dropped rather than landing on top of the restored board |
 | `NotificationTests` | due-date reminders against a fake `TaskNotificationCenter` and a throwaway defaults suite, never the machine's own — one request per due date and no more, a change rescheduling under the same identifier rather than adding a second, completing, reopening, archiving, deleting and undoing a delete each cancelling or restoring, no due date scheduling nothing however much the card is edited, a day already gone scheduling nothing, and the 64 nearest kept when the board wants more than the system will hold. Then the identifier: the task's id through every rename, move, archive and delete, and never anything that changes. Then permission: asked on the first due date *set* rather than at launch, never twice, never after a refusal, nothing published while it is refused or the switch is off, and everything the board wanted published the moment it arrives |
@@ -4336,6 +4668,7 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `SettingsTabTests` | the list Settings divides into, on whichever platform the suite is run: **at most four subjects**, because a pane holding one switch is a row that has been given a tab of its own and everybody pays for it on the way past; the Trash not among them, since it is the user's own work rather than a preference; no two subjects drawn under one name; each glyph resolving as a symbol the system actually has — an unresolved `systemImage` draws nothing and reports nothing, which is a toolbar item that is a word with a hole above it; General first, because both surfaces open on whatever is first and that is a decision rather than an accident of typing order; and the same four on both platforms, the desk's two extra switches being rows inside General rather than a case compiled out on iOS, so `allCases` is the whole truth about what gets drawn and nothing has to remember to filter it |
 | `BoardSettingsTests` | what the board settings sheet promises before it changes a board: the refuge a trashed column's cards move to being the one `deleteColumn` actually moves them to and the column itself landing in the Trash; the count including archived cards, because the move does; an empty column's warning saying only the part that is still true; and the reorder question — every move on a one-Done board leaving completed work exactly where it lands, a second Done column crossing the first changing it, `doneColumnID(afterMoving:toOffset:)` naming the right column before the move, and confirming performing the move that was described rather than one worked out again |
 | `SidebarRoomTests` | iOS only — whether an iPad window holds both of the panels that open on its left and still leaves a board: a 13" in portrait holding both only with the inspector away, an 11" in portrait holding neither combination, a 13" in landscape holding all four columns at once and an 11" in landscape not — which is the shape worth being surprised by, since 1194 less three columns is not a board; an unmeasured window reading as *room for both*, because the other way round shuts a panel on the way in; and the line being exactly the board's own floor rather than a number of its own. `UITests/PadSidebarsTests` presses the buttons |
+| `DrawerWidthTests` | iOS only — how wide the phone's drawer is drawn, which is 84% of the screen's **short** edge rather than of the container it is handed: the same width on every phone held either way up; the landscape number not being 84% of the landscape width, which is 734pt of board list over a sliver of board; the ceiling being that device's own portrait width rather than a constant, since a maximum picked once widens the smaller phone on its side; an unmeasured screen falling back to the container, so zero cannot win the `min` and collapse the panel; and a container narrower than the screen still holding the panel |
 | `ToolbarFoldTests` | at what width the board header folds its search field into a button, which is arithmetic because the bar's width is whatever the split view left the detail column: the fold happening *before* the row runs out of room rather than after, and leaving the board's name something worth reading; the decision being monotonic in width, so no drag across the line can make it flicker; where the line falls on the shapes real iPads have — a 13" in portrait keeping its field with the board to itself *and* with either column beside it, losing it only when both are out, and an 11" in portrait losing it to the source list alone; each control in the row and the traffic lights' 68pt band moving the line, the capture button included, which is also where the iPad having one and the desk not is pinned; larger type folding sooner and stopping at the chrome caps; and the desk not folding at all, with its own window floor checked to still hold the bar that decision leans on. `UITests/ToolbarFoldTests` presses the button |
 | `TrashSurfaceTests` | where the Trash is now that it is not a settings tab: the flag being session state that starts shut and changes nothing about the board, `SettingsView` building no `TrashView` and holding no trash pane, each of the two door-bearing surfaces — the source list on macOS and iPad, the board menu on the phone — raising `isShowingTrash`, and the phone's sheet being presented by the root rather than by the header that opens it, which is a thing a menu cannot do |
 | `ScaleTests` | 7.4 — five hundred cards on six boards, thirty columns, twenty-four labels and eleven thousand activity entries, and what each hot path costs on it. Nothing asserts a wall-clock time: every bound is a *ratio* between two timings taken in the same process on the same data, which cancels the machine out and leaves the shape of the algorithm. See **Scale** |
@@ -4343,7 +4676,7 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `PackagingTests` | 7.6 — what the *built* bundle carries, read off `Bundle.main`, which under `xcodebuild test` is the app: a marketing version and a numeric build; the version the About panel shows being the one in the plist rather than a second copy of it; `PrivacyInfo.xcprivacy` present, declaring no tracking and no collection, and naming a reason for each required-reason API it touches; the copyright line the macOS About panel reads; `UILaunchScreen` naming a colour rather than being the empty dict that flashes white; every UTI, document type, URL scheme and activity type the code assumes; and the update check's repository, releases page and version comparison |
 | `LocalizationTests` | 7.2 — mostly the one property with nothing to observe at runtime, so it reads the source (`SourceTree.swift`, anchored on `#filePath`). Three narrow rules rather than one broad one: every `String(localized:)` carries a translator comment, `Text(verbatim:)` never carries typed words, and the model and store layers — which have no `LocalizedStringKey` position to sit in — hold no prose that is not going into the catalogue. `Text("Delete Task")` is not a violation and is not flagged; a check that flagged two hundred correct call sites would be switched off within the week. Then two that read the *build* instead: the catalogue is compiled into the app at all, and the words that reach `Text` through a view helper are in it — which is the one thing no source scan can see, and is exactly how seven helpers came to take their title as `String` and put five English words on every screen in every language |
 | `StarterTemplateTests` | 7.5 from the template's side — five starters offered with the sample among them rather than first; each with a column work can start in and one it finishes in; no two sharing a column id; every card on its own board under a unique code with that board's prefix; every label a card wears shipped by the template that wears it; choosing one filling an empty board with exactly it; and the picker never standing in front of a test host. `UpdateVersionTests` sits beside it: 1.10 newer than 1.9, a `v` prefix that is part of the tag and not of the version, a pre-release suffix ignored, an unparseable tag never newer, and the releases page declared in the bundle |
-| `AccessibilityContrastTests` / `AccessibilityAdaptationTests` | 7.1 as arithmetic — every secondary tone's contrast on every surface it is drawn on, the due chip at each urgency in both schemes, the three priority marks being three *shapes*, one glyph per tint the chip distinguishes and none for the neutral one, Reduce Motion taking the animation and not the change, and the chrome scale never shrinking anything. Plus the one rule about how the code reads the setting: Differentiate Without Colour is never read negated, because which way round that flag is tested lives in a view body where no value test can reach it. See **Accessibility** |
+| `AccessibilityContrastTests` / `AccessibilityAdaptationTests` | 7.1 as arithmetic — every secondary tone's contrast on every surface it is drawn on, the due chip at each urgency in both schemes, each priority's mark being a *shape* of its own, counted off `allCases`, one glyph per tint the chip distinguishes and none for the neutral one, Reduce Motion taking the animation and not the change, and the chrome scale never shrinking anything. Plus the one rule about how the code reads the setting: Differentiate Without Colour is never read negated, because which way round that flag is tested lives in a view body where no value test can reach it. See **Accessibility** |
 
 `SaveContractTests` and `UndoHarnessTests` are hand-written registries, not
 reflection: each names every public mutation and asks the same two questions of
@@ -4507,7 +4840,7 @@ suite holds that at zero.
 **Stored values are not display strings.** The rule the file format has to keep is
 that nothing on disk is a word the interface draws, because a board written in one
 language has to read in another. `ActivityEntry` stores a `Kind` and renders the
-sentence at display time; `Priority` stores `high`/`medium`/`low` and answers
+sentence at display time; `Priority` stores `max`/`high`/`medium`/`low` and answers
 `displayName` separately (v5 → v6, above); `PhoneTab`, `SavedView`, `BoardSortOrder`
 and `ColumnRole` all key on a slug and name themselves in a `switch`. `LabelDef.key`
 is the same rule for user content: the key is the stable slug tasks store, the

@@ -16,7 +16,7 @@ import XCTest
 /// people actually make untested. (The row passes the drop through: a button
 /// takes clicks, and a drop is not one. Measured, both ways round.)
 ///
-/// **iPhone, on its side**, which is the one shape where two columns share the
+/// **iPhone, on its side**, which is the one shape where columns share the
 /// screen and a whole cross-column drag can be made without turning a page.
 /// Nothing here needs a re-seeded board: which card is where is read off the
 /// screen, so the suites that rearrange one can run before it.
@@ -40,13 +40,19 @@ final class GroundDropFootTests: XCTestCase {
     /// is about a *position*, not about any particular card. A card is a button
     /// wide enough to be one: the ticks in their gutters and the dashed row under
     /// them are buttons too, and are told apart by the labels they carry.
+    ///
+    /// **100, not 150.** Three columns share a landscape screen, and a card in
+    /// one is 142pt wide on a 17 Pro and narrower on anything smaller — under
+    /// the number this filter used while two columns shared it. Everything else
+    /// on screen here is a 44pt square of chrome, so the gap the threshold has
+    /// to fall in is a wide one.
     private func cards(
         in app: XCUIApplication, trailingOf divide: CGFloat? = nil, leadingOf: CGFloat? = nil
     ) -> [XCUIElement] {
         app.buttons.allElementsBoundByIndex
             .filter { element in
                 let frame = element.frame
-                guard frame.width > 150, app.frame.contains(frame) else { return false }
+                guard frame.width > 100, app.frame.contains(frame) else { return false }
                 let label = element.label
                 guard !label.hasPrefix("Mark as"), !label.contains("Add task to") else { return false }
                 if let divide, frame.midX < divide { return false }
@@ -63,20 +69,41 @@ final class GroundDropFootTests: XCTestCase {
         )
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = XCUIApplication()
-        app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES"]
+        // The board, said out loud: a phone lands on **Today** on a cold launch
+        // — `BoardStore.landingSurface` — and Today is a flat list with no
+        // column ground under it. `ColumnStripTests` names the tab for the same
+        // reason.
+        app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES", "-SimpleKanbanTab", "board"]
         app.launch()
         XCTAssertTrue(app.buttons["Board"].waitForExistence(timeout: 20), "the app never came up")
 
         // The dashed row under the leading column's cards: the target, and the
-        // line that divides the two columns on screen. On screen and this
+        // line that divides it from the columns beside it. On screen and this
         // column's — the pager builds the pages either side as well, and their
         // dashed rows are off in negative space.
-        let dashed = try XCTUnwrap(
+        //
+        // **Scrolled to rather than assumed.** Three columns share the screen
+        // turned this way, so a page is a third of the width and its cards wrap
+        // to two and three lines each; a column with three of them is then
+        // taller than a 402pt screen, and the row under them is below the fold
+        // at launch. The swipe is in the leading column — the one being dropped
+        // on — and is a swipe rather than a press-and-drag so the card under the
+        // finger scrolls instead of lifting.
+        func dashedRow() -> XCUIElement? {
             app.buttons
                 .matching(NSPredicate(format: "label CONTAINS %@", "Add task to"))
                 .allElementsBoundByIndex
-                .first { app.frame.contains($0.frame) },
-            "no dashed add row on screen — the leading column has no cards under it"
+                .first { app.frame.contains($0.frame) }
+        }
+        var found = dashedRow()
+        for _ in 0..<4 where found == nil {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.8))
+                .press(forDuration: 0.05,
+                       thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.4)))
+            found = dashedRow()
+        }
+        let dashed = try XCTUnwrap(
+            found, "no dashed add row on screen — the leading column has no cards under it"
         )
         let row = dashed.frame
 
@@ -87,7 +114,18 @@ final class GroundDropFootTests: XCTestCase {
         // The card carried is the one at the **top** of the column beside it,
         // which is the whole of the reported bug: it used to arrive at the top of
         // the column it was dropped on rather than at the bottom.
-        let moving = try XCTUnwrap(beside.first, "no card in the column beside it")
+        //
+        // Leftmost first and topmost second, because `beside` is now two columns
+        // rather than one: three share the screen, and the tops of all of them
+        // are level. Nearest is the shortest drag, and — the reason it is chosen
+        // rather than left to whichever the sort happened to put first — the same
+        // card every run.
+        let moving = try XCTUnwrap(
+            beside.min {
+                ($0.frame.minX, $0.frame.minY) < ($1.frame.minX, $1.frame.minY)
+            },
+            "no card in the column beside it"
+        )
         let carried = moving.label
 
         let target = app.coordinate(withNormalizedOffset: .zero)

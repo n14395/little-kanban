@@ -156,20 +156,6 @@ extension Board {
 
     static var dotPalette: [SwatchColor] { dots.map(\.swatch) }
 
-    /// The columns a new board starts with: the seed workflow, with ids of its
-    /// own.
-    ///
-    /// Fresh ids rather than the seed's, because a column id is what places a
-    /// card — two boards sharing one would draw each other's cards, and
-    /// deleting the column on either would move both boards' cards.
-    static func startingColumns() -> [BoardColumn] {
-        BoardColumn.workflow.map { column in
-            var column = column
-            column.id = UUID()
-            return column
-        }
-    }
-
     static let nameLimit = 60
     static let codePrefixLimit = 4
 }

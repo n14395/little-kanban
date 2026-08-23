@@ -116,7 +116,11 @@ enum SavedView: String, CaseIterable, Identifiable, Codable, Sendable {
             guard let due = task.due else { return false }
             return DueDate.daysAway(due, from: today) > 0
         case .highPriority:
-            return task.priority == .high
+            // **At least** High, not exactly High. The view is named for its
+            // floor rather than for one case, so a priority added above it
+            // belongs here by arriving rather than by an edit — which is the
+            // whole reason `Priority` is `Comparable`.
+            return task.priority >= .high
         case .dueThisWeek:
             guard let due = task.due else { return false }
             return week.containsAhead(due, from: today)

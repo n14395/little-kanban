@@ -18,6 +18,17 @@ import Testing
         store.tasks(in: view, today: day ?? today).map(\.code)
     }
 
+    /// The same view as the *phone* draws it: the members, and then the query
+    /// on top of them.
+    ///
+    /// The query is not part of a view any more — the desk and the iPad open a
+    /// results panel instead of narrowing what is on screen, see
+    /// `SearchResultsPanel` — so the composition below is asked through the one
+    /// surface that still applies it, which is where `mobileTasks` puts it.
+    private func narrowed(_ view: SavedView, _ store: BoardStore, on day: CalendarDay? = nil) -> [String] {
+        store.narrowed(store.tasks(in: view, today: day ?? today)).map(\.code)
+    }
+
     /// The predicate on its own, away from the store's ordering and cap.
     private func matches(_ view: SavedView, _ id: TaskItem.ID, on day: CalendarDay? = nil) -> Bool {
         let task = ViewBoard.tasks.first { $0.id == id }!
@@ -86,6 +97,23 @@ import Testing
         // …and it says the same thing on any day, which is the point of it.
         #expect(codes(.highPriority, store, on: today.adding(days: 400)) == ["NW-206", "NW-207"])
         #expect(codes(.highPriority, store, on: today.adding(days: -400)) == ["NW-206", "NW-207"])
+    }
+
+    /// **The floor, not the case.** The predicate read `== .high`, which meant
+    /// a priority added *above* High would have been left out of the one list
+    /// that is for urgent work — silently, and on the day it was added.
+    @Test func highPriorityTakesEverythingAtLeastThatUrgent() {
+        let store = ViewBoard.store()
+        #expect(Set(codes(.highPriority, store)) == ["NW-206", "NW-207"])
+
+        // A low card raised past the floor arrives.
+        store.setPriority(.max, on: ViewBoard.noDueLow)
+        #expect(Set(codes(.highPriority, store)) == ["NW-206", "NW-207", "NW-208"])
+
+        // …and one dropped below it leaves, which is the same predicate read
+        // the other way.
+        store.setPriority(.medium, on: ViewBoard.noDueHigh)
+        #expect(Set(codes(.highPriority, store)) == ["NW-206", "NW-208"])
     }
 
     // MARK: Recently updated — ordering, cap, and Done left in
@@ -209,16 +237,23 @@ import Testing
 
     // MARK: Search composes with a view
 
+    /// **The view itself is never narrowed.** A query is a search now, not a
+    /// filter: it opens a panel of results over whatever is on screen and
+    /// leaves the surface underneath alone. The composition below is the
+    /// phone's, where the field is a tab and a view opened while a query is
+    /// live still narrows — with `showsMobileFilterNotice` on screen to say so.
     @Test func aQueryNarrowsTheViewRatherThanReplacingIt() {
         let store = ViewBoard.store()
         store.query = "NW-206"
-        #expect(codes(.today, store) == ["NW-206"])
-        #expect(codes(.highPriority, store) == ["NW-206"])
+        #expect(codes(.today, store) == ["NW-201", "NW-202", "NW-206"],
+                "the view itself was narrowed by a search")
+        #expect(narrowed(.today, store) == ["NW-206"])
+        #expect(narrowed(.highPriority, store) == ["NW-206"])
         // A task the query finds but the view does not contain stays out.
-        #expect(codes(.upcoming, store) == [])
+        #expect(narrowed(.upcoming, store) == [])
         store.query = "NW-203"
-        #expect(codes(.upcoming, store) == ["NW-203"])
-        #expect(codes(.today, store) == [])
+        #expect(narrowed(.upcoming, store) == ["NW-203"])
+        #expect(narrowed(.today, store) == [])
 
         // The row's pill counts the view, not the search: a badge that shrank
         // as the user typed on another surface would be reporting the query.
@@ -234,10 +269,10 @@ import Testing
         // back rows the view does not contain.
         let store = ViewBoard.store(tasks: ViewBoard.deepTasks)
         store.query = "NW-325"
-        #expect(codes(.recentlyUpdated, store) == [])
+        #expect(narrowed(.recentlyUpdated, store) == [])
         store.query = "NW-32"
         // NW-320 through NW-325 all match; only NW-320 is inside the cap.
-        #expect(codes(.recentlyUpdated, store) == ["NW-320"])
+        #expect(narrowed(.recentlyUpdated, store) == ["NW-320"])
         #expect(store.count(of: .recentlyUpdated, today: today) == 20)
     }
 
@@ -330,7 +365,7 @@ import Testing
         #expect(codes(.recentlyUpdated, store).count == 20)
 
         store.query = "NW-325"
-        #expect(codes(.recentlyUpdated, store).isEmpty)   // outside the cap
+        #expect(narrowed(.recentlyUpdated, store).isEmpty)   // outside the cap
         #expect(store.count(of: .recentlyUpdated, today: today) == 20)
 
         store.clearQuery()
@@ -348,7 +383,7 @@ import Testing
         let inView = store.tasks(in: .inbox, today: TestBoard.dueDay).map(\.id)
 
         #expect(!inView.isEmpty, "the fixture has no unfiled cards to test with")
-        #expect(inView == store.visibleInboxTasks.map(\.id),
+        #expect(inView == store.inboxTasks.map(\.id),
                 "the view and the panel disagree about the Inbox")
         #expect(store.count(of: .inbox, today: TestBoard.dueDay) == store.inboxCount)
         #expect(inView.allSatisfy { store[$0]?.isUnfiled == true })
@@ -359,7 +394,7 @@ import Testing
     /// `isArchived == (self == .archive)` guard exists for.
     @Test func anArchivedCardLeavesTheInboxView() throws {
         let store = TestBoard.store()
-        let card = try #require(store.visibleInboxTasks.first)
+        let card = try #require(store.inboxTasks.first)
 
         store.archive(card.id)
 

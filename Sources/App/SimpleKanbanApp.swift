@@ -221,10 +221,10 @@ struct RootView: View {
 /// The size class alone is not the iPad. A regular horizontal size class is
 /// also what a Max- or Plus-class iPhone reports in landscape, so asking it on
 /// its own handed a phone at 956×440 the split view, the sidebar toggle, the
-/// inspector and the column controls — and took away the two-up landscape board
-/// `PhoneRootView` lays out for exactly those devices (5.5). The idiom alone is
-/// not the window: an iPad in Slide Over or in a narrow split has a phone's
-/// worth of width, and the split view has nowhere to put a sidebar.
+/// inspector and the column controls — and took away the three-up landscape
+/// board `PhoneRootView` lays out for exactly those devices (5.5). The idiom
+/// alone is not the window: an iPad in Slide Over or in a narrow split has a
+/// phone's worth of width, and the split view has nowhere to put a sidebar.
 ///
 /// A value rather than a branch in the body so the rule can be held up to a
 /// test — `RootSurfaceTests` walks the four combinations that reach it.

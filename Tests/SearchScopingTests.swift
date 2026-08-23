@@ -229,27 +229,29 @@ import Testing
         store.query = "drag"
         // `boardTasks` is the path the tabs with no field on them read, so it
         // ignores the query — but an archived card is gone from it either way.
-        #expect(store.boardTasks(in: backlog).map(\.code) == ["NW-121", "NW-122"])
+        #expect(store.visibleTasks(in: backlog).map(\.code) == ["NW-121", "NW-122"])
         store.archive(TestBoard.dragDrop)
-        #expect(store.boardTasks(in: backlog).map(\.code) == ["NW-122"])
+        #expect(store.visibleTasks(in: backlog).map(\.code) == ["NW-122"])
         store.clearQuery()
-        #expect(store.boardTasks(in: backlog).map(\.code) == ["NW-122"])
+        #expect(store.visibleTasks(in: backlog).map(\.code) == ["NW-122"])
     }
 
     /// The drop that `allowsCardDrag` exists for. A saved view draws no columns
     /// and two of them impose an ordering of their own, so "put this card before
     /// that one" resolves against a board array the rows on screen bear no
     /// relation to — a silent cross-column move aimed at a position nobody can
-    /// see. The query half of the rule was already there; the view half was the
-    /// hole a flat list opened in it.
+    /// see.
+    ///
+    /// **A query is not one of the reasons any more.** It was, while the board
+    /// was drawn from the search's answer. The search opens a panel over the
+    /// board now, the rows underneath are untouched, and a card the user can
+    /// see is a card they can move.
     @Test func aCardOnlyDragsWhereTheRowsAreTheBoardsOwnOrder() {
         let store = TestBoard.store()
         #expect(store.allowsCardDrag)
 
         store.query = "cafe"
-        #expect(store.allowsCardDrag == false)
-        store.query = "   "
-        #expect(store.allowsCardDrag)           // whitespace is not a filter here either
+        #expect(store.allowsCardDrag)
 
         store.clearQuery()
         for view in SavedView.allCases {
@@ -261,12 +263,24 @@ import Testing
         #expect(store.allowsCardDrag)
     }
 
-    @Test func theDesktopBoardKeepsFilteringBecauseItsFieldIsAlwaysOnScreen() {
-        // The rule is about a field that is not visible, not about search being
-        // untrustworthy: macOS shows its field beside the board at all times.
+    /// The defect this whole change is for, at the store: **no board narrows
+    /// itself for a query, on any platform**.
+    ///
+    /// The desk used to, on the grounds that its field is always on screen — so
+    /// the reader could at least see what had done it. That is an argument about
+    /// the *explanation*, not about the answer: what people type into a search
+    /// field is "where is that card", and the card is usually on another board,
+    /// which a filter over the board you are already looking at can never say.
+    /// The answer is `searchResults`, drawn in a panel over the top.
+    @Test func nothingOnTheBoardIsNarrowedByAQuery() {
         let store = TestBoard.store()
         store.query = "cafe"
-        #expect(store.visibleTasks(in: backlog).map(\.code) == ["NW-122"])
         #expect(store.isFiltering)
+        #expect(store.visibleTasks(in: backlog).map(\.code) == ["NW-121", "NW-122"])
+        #expect(store.inboxTasks.map(\.code) == ["NW-120"])
+        #expect(store.tasks(in: .highPriority, today: today).map(\.code) == ["NW-121", "NW-124"])
+
+        // …and the search still answers, from every board and the Inbox at once.
+        #expect(store.searchResults.map(\.code) == ["NW-122"])
     }
 }

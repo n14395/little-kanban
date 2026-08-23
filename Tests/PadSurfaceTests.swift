@@ -12,7 +12,7 @@ import UIKit
 /// not "this is an iPad": a Max- or Plus-class iPhone reports a regular
 /// horizontal size class in landscape, and one did — driven at 956×440, an
 /// iPhone drew `PadRootView` with the split view's sidebar toggle, the
-/// inspector and the board's column controls, and never drew the two-up
+/// inspector and the board's column controls, and never drew the three-up
 /// landscape board `PhoneRootView` lays out for exactly those devices (5.5).
 ///
 /// Both halves are asked here because either one alone is wrong in a way the
@@ -90,6 +90,35 @@ import UIKit
         let exact = list + inspector + panel + floor
         #expect(holds(exact, inspector: inspector))
         #expect(!holds(exact - 1, inspector: inspector))
+    }
+
+    /// The panel's own line counts the board and *not* the inspector.
+    ///
+    /// The inspector has an answer to being squeezed that the panel has not: it
+    /// draws over the board. So an 11" in portrait — 834pt, less the panel's
+    /// column — holds the Inbox with a task selected, even though 834 less the
+    /// inspector as well would not.
+    @Test func thePanelCountsTheBoardAndNotTheInspector() {
+        #expect(PadRootView.holdsTheInbox(detail: 834, panel: panel, floor: floor))
+        #expect(PadRootView.holdsTheInbox(detail: panel + floor, panel: panel, floor: floor))
+        #expect(!PadRootView.holdsTheInbox(detail: panel + floor - 1, panel: panel, floor: floor))
+        #expect(PadRootView.holdsTheInbox(detail: 0, panel: panel, floor: floor))
+    }
+
+    /// The invariant between the two rules, and the way they broke it.
+    ///
+    /// Every window that cannot hold both panels is a window where the source
+    /// list closes to make room — so it has to be a window the panel then fits
+    /// in. It was not: an 11" in portrait with a task selected declined the
+    /// panel at 834 − 348 − 320, so the Inbox button put the source list away
+    /// and did nothing else, which is the same dead button the turn-taking was
+    /// written to remove.
+    @Test(arguments: [834.0, 1024, 1032, 1180, 1194, 1366, 1376] as [CGFloat])
+    func closingTheListAlwaysLeavesRoomForThePanel(window: CGFloat) {
+        for beside in [0, inspector] where !holds(window, inspector: beside) {
+            #expect(PadRootView.holdsTheInbox(detail: window, panel: panel, floor: floor),
+                    "the list closes at this width and the panel still will not draw")
+        }
     }
 }
 

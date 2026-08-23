@@ -45,7 +45,7 @@ import Testing
     }
 
     private func backlog(_ store: BoardStore) -> [TaskItem.ID] {
-        store.boardTasks(in: BoardColumn.backlog.id).map(\.id)
+        store.visibleTasks(in: BoardColumn.backlog.id).map(\.id)
     }
 
     private func kinds(_ store: BoardStore, _ id: TaskItem.ID) -> [ActivityEntry.Kind] {
@@ -124,7 +124,7 @@ import Testing
     /// spellings still land where they claim.
     @Test func aCardWalksUpAndDownItsColumnOneGapAtATime() throws {
         let store = store()
-        let siblings = store.boardTasks(in: BoardColumn.backlog.id)
+        let siblings = store.visibleTasks(in: BoardColumn.backlog.id)
         let index = try #require(siblings.firstIndex { $0.id == Self.fourth })
 
         // Up: before the card above it.

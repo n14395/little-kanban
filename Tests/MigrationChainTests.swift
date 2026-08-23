@@ -260,9 +260,20 @@ import Testing
     /// pass if the field never reached the file and the fallback happened to
     /// pick the same board.
     @Test func theActiveBoardIsWrittenIntoTheFileItself() throws {
+        // Columns of its own, spelled here rather than taken from a helper: a
+        // board made in the app has none to start with — see
+        // `BoardStore.createBoard` — and this test wants a second board that is
+        // *furnished*, so that a file which dropped a board's columns would be
+        // caught by the round trip below.
         let second = Board(
             id: UUID(uuid: (0xB0, 0xA4, 0, 0, 0, 0, 0x40, 0, 0x80, 0, 0, 0, 0, 0, 0, 9)),
-            name: "Second", dot: .accent, columns: Board.startingColumns(), codePrefix: "SE"
+            name: "Second", dot: .accent,
+            columns: BoardColumn.workflow.map { column in
+                var column = column
+                column.id = UUID()
+                return column
+            },
+            codePrefix: "SE"
         )
         let temp = TempBoard()
         let written = BoardSnapshot(

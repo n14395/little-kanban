@@ -31,9 +31,9 @@ import Testing
 
         #expect(store.totalCount == 5)
         #expect(store.count(of: .today, today: today) == 0)
-        #expect(store.visibleTasks.contains { $0.id == TestBoard.dragDrop } == false)
+        #expect(store.searchResults.contains { $0.id == TestBoard.dragDrop } == false)
         #expect(store.visibleTasks(in: BoardColumn.backlog.id).map(\.code) == ["NW-122"])
-        #expect(store.boardTasks(in: BoardColumn.backlog.id).map(\.code) == ["NW-122"])
+        #expect(store.visibleTasks(in: BoardColumn.backlog.id).map(\.code) == ["NW-122"])
         // Every saved view but the Archive, including the ones it would have
         // been in: NW-121 is due today and high priority.
         for view in SavedView.filters {
@@ -187,7 +187,7 @@ import Testing
         #expect(task.archivedAt == filedAt)
         #expect(task.columnID == BoardColumn.backlog.id)
         #expect(relaunched.totalCount == 5)
-        #expect(relaunched.visibleTasks.contains { $0.id == TestBoard.dragDrop } == false)
+        #expect(relaunched.searchResults.contains { $0.id == TestBoard.dragDrop } == false)
         #expect(relaunched.tasks(in: .archive, today: today).map(\.code) == ["NW-121"])
         // The rest of the board came back unarchived, rather than everything
         // being read as filed or nothing being read at all.
@@ -287,7 +287,7 @@ import Testing
         #expect(store.weeklyProgressFraction(today: day) == 2.0 / 3.0)
         // …and it is genuinely archived, not merely still on the board.
         #expect(store.count(of: .archive, today: day) == 1)
-        #expect(store.visibleTasks.contains { $0.code == "NW-401" } == false)
+        #expect(store.searchResults.contains { $0.code == "NW-401" } == false)
     }
 
     // MARK: Filing is not touching
@@ -367,14 +367,14 @@ import Testing
         // Prime both memos while everything is still on the board.
         #expect(store.visibleTasks(in: BoardColumn.backlog.id).map(\.code) == ["NW-121", "NW-122"])
         store.query = "cafe"
-        #expect(store.visibleTasks.map(\.code) == ["NW-122"])
+        #expect(store.searchResults.map(\.code) == ["NW-122"])
         store.clearQuery()
 
         store.archive(TestBoard.cafe)
 
         #expect(store.visibleTasks(in: BoardColumn.backlog.id).map(\.code) == ["NW-121"])
         store.query = "cafe"
-        #expect(store.visibleTasks.isEmpty)
+        #expect(store.searchResults.isEmpty)
         #expect(store.tasks(in: .archive, today: today).map(\.code) == ["NW-122"])
         store.clearQuery()
 
@@ -385,9 +385,9 @@ import Testing
         // is the per-task stamp rather than the board-wide one.
         store.setText("Bistro menu polish", field: .title, on: TestBoard.cafe)
         store.query = "bistro"
-        #expect(store.visibleTasks.map(\.code) == ["NW-122"])
+        #expect(store.searchResults.map(\.code) == ["NW-122"])
         store.query = "cafe"
-        #expect(store.visibleTasks.isEmpty)
+        #expect(store.searchResults.isEmpty)
     }
 
     // MARK: The Archive's verb is Restore, and it is the only one

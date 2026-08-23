@@ -103,11 +103,16 @@ import Testing
 /// What a reader gets when the hue is not available to them, and what they get
 /// when they have asked for less movement.
 @MainActor @Suite struct AccessibilityAdaptationTests {
-    /// Priority was a coloured dot and nothing else. Three tints, one shape:
-    /// in greyscale a card said nothing about how urgent it was.
-    @Test func thePriorityMarksAreThreeDifferentShapes() {
+    /// Priority was a coloured dot and nothing else. Four tints, one shape: in
+    /// greyscale a card said nothing about how urgent it was.
+    ///
+    /// The count is taken from `allCases` rather than written down, so a
+    /// priority added without a mark of its own fails here rather than drawing
+    /// as one of the others.
+    @Test func thePriorityMarksAreADifferentShapeEach() {
         let marks = Priority.allCases.map { PriorityDot.mark(for: $0) }
         #expect(Set(marks).count == Priority.allCases.count)
+        #expect(PriorityDot.mark(for: .max) == .triangle)
         #expect(PriorityDot.mark(for: .high) == .disc)
         #expect(PriorityDot.mark(for: .medium) == .square)
         #expect(PriorityDot.mark(for: .low) == .ring)

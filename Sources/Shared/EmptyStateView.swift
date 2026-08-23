@@ -121,10 +121,12 @@ struct EmptyStateView: View {
 
 /// The cases both platforms need, so the wording of each is written once.
 ///
-/// Only two of them offer a button, and they offer opposite things: an empty
-/// place offers to fill it, an empty *result* offers to stop filtering. A saved
-/// view gets neither — it is a filter over the board rather than somewhere a
-/// card can be put, so "add a task" there would add it somewhere else.
+/// Most of them offer no button, and the ones that do are not offering the same
+/// kind of thing: an empty place offers to fill it, an empty *result* offers to
+/// stop filtering, and a board with no columns offers a column, because a card
+/// has nowhere to go until there is one. A saved view gets nothing — it is a
+/// filter over the board rather than somewhere a card can be put, so "add a
+/// task" there would add it somewhere else.
 extension EmptyStateView {
     /// A board column with no cards in it.
     static func column(
@@ -137,6 +139,30 @@ extension EmptyStateView {
             message: String(localized: "Drag a card here, or start one.",
                             comment: "Empty state body copy for a board column with no cards"),
             actionTitle: add == nil ? nil : Self.addTitle,
+            action: add,
+            metrics: metrics
+        )
+    }
+
+    /// A board with no columns at all — which is what every board made from now
+    /// on starts as, and what the seed board would be if its columns were
+    /// deleted (they cannot be; see `BoardStore.deleteColumn`).
+    ///
+    /// The one empty state whose offer is not a card. A board with no columns
+    /// has nowhere to put one, so "add a task" would either be dead or file the
+    /// card somewhere the reader is not looking; the way out of a blank board is
+    /// a column.
+    static func noColumns(metrics: Metrics = .desk, add: (() -> Void)? = nil) -> EmptyStateView {
+        EmptyStateView(
+            symbol: "rectangle.split.3x1",
+            headline: String(localized: "No columns yet",
+                             comment: "Empty state headline for a board that has no columns"),
+            message: String(localized: "A board is its columns — Backlog, Doing, Done, or whatever this one needs. Add the first and cards can go in it.",
+                            comment: "Empty state body copy for a board that has no columns"),
+            actionTitle: add == nil
+                ? nil
+                : String(localized: "Add a column",
+                         comment: "Empty state button that starts the first column on a board"),
             action: add,
             metrics: metrics
         )

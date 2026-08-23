@@ -74,6 +74,11 @@ final class StoredTask {
     /// CloudKit has natively, for that reason — and it keeps the record legible
     /// in the CloudKit dashboard, which `Data` would not.
     var dueDay: String?
+    /// `medium` rather than `Priority.default`, and deliberately: a SwiftData
+    /// column default is what a record that arrived *without* the field means,
+    /// which is a record written before this field existed — and back then a
+    /// card with no priority was a medium one. Every write sets it explicitly.
+    /// `BoardMigration` keeps the same distinction for the same reason.
     var priorityKey: String = Priority.medium.rawValue
     var createdAt: Date = Date.distantPast
     /// The field last-writer-wins is decided on. Every mutation advances it.

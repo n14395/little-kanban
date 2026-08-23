@@ -6,7 +6,7 @@ import Testing
 @Suite struct SearchTests {
     private func matches(_ store: BoardStore, _ query: String) -> [String] {
         store.query = query
-        return store.visibleTasks.map(\.code)
+        return store.searchResults.map(\.code)
     }
 
     // MARK: Tokens
@@ -113,12 +113,16 @@ import Testing
 
     // MARK: Grouping by column
 
-    @Test func theColumnGroupingFollowsTheFilter() {
+    /// The board's own slice, which the query does not reach — see
+    /// `SearchScopingTests`, where that rule lives. Asserted here as well
+    /// because this is the suite about the query, and "it does nothing to the
+    /// board" is half of what the query now is.
+    @Test func theColumnGroupingIgnoresTheQuery() {
         let store = TestBoard.store()
         #expect(store.visibleTasks(in: BoardColumn.backlog.id).map(\.code) == ["NW-121", "NW-122"])
         store.query = "cafe"
-        #expect(store.visibleTasks(in: BoardColumn.backlog.id).map(\.code) == ["NW-122"])
-        #expect(store.visibleTasks(in: BoardColumn.inProgress.id).isEmpty)
+        #expect(store.visibleTasks(in: BoardColumn.backlog.id).map(\.code) == ["NW-121", "NW-122"])
+        #expect(store.visibleTasks(in: BoardColumn.inProgress.id).map(\.code) == ["NW-124"])
         store.query = ""
         #expect(store.visibleTasks(in: BoardColumn.backlog.id).map(\.code) == ["NW-121", "NW-122"])
     }

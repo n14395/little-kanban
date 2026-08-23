@@ -398,7 +398,7 @@ struct PhoneHeader: View {
                         // ideas of what a column looks like.
                         ColumnPill(
                             name: column.name,
-                            count: store.boardTasks(in: column.id).count,
+                            count: store.visibleTasks(in: column.id).count,
                             isCurrent: isCurrent
                         )
                         // The capsule stays as drawn; the row around it is the

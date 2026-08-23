@@ -59,16 +59,20 @@ import Testing
         #expect(map.column(TestBoard.palette, by: 1) == nil)
     }
 
-    @Test func theMapIsWhatIsVisibleNotWhatIsOnTheBoard() {
+    /// **A query does not shrink it.** It used to: the board was drawn from the
+    /// search's answer, so typing took cards off it and an arrow key could not
+    /// land on them. The search opens a panel over the board now — see
+    /// `SearchResultsPanel` — and the board underneath is the whole board, so
+    /// every card on it stays one keystroke away.
+    @Test func theMapIsTheWholeBoardWhateverIsInTheSearchField() {
         let store = TestBoard.store()
         store.query = "sync"
         let map = BoardFocusMap(store)
 
-        #expect(map.cards[backlog] == [])
+        #expect(map.cards[backlog] == [TestBoard.dragDrop, TestBoard.cafe])
         #expect(map.cards[doing] == [TestBoard.sync])
-        // A card the search has hidden is not one an arrow key can land on.
-        #expect(map.location(of: TestBoard.dragDrop) == nil)
-        #expect(map.card(TestBoard.sync, inColumnBy: -1) == nil)
+        #expect(map.location(of: TestBoard.dragDrop) != nil)
+        #expect(map.card(TestBoard.sync, inColumnBy: -1) == TestBoard.offline)
     }
 
     @Test func deletingFallsToTheCardBelowAndThenToTheOneAbove() {

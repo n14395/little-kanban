@@ -208,14 +208,17 @@ struct BoardScrollView: View {
     /// task" one, because the tile that usually offers it lives in the strip
     /// this state replaces — and a board with no columns at all, which a
     /// hand-edited file can still be, would otherwise have no way forward.
-    @ViewBuilder
+    /// **Two of them, and which one is on screen is a different question from
+    /// which one has cards.** A board with columns and nothing in them is empty
+    /// and says so; a board with no columns is *blank*, which is what a new one
+    /// is, and the card the first one offers to add would have nowhere to go.
+    /// The button under both is the same one, because the answer to a blank
+    /// board and the answer to an empty one are both a column.
     private var emptyState: some View {
-        if store.isFiltering {
-            EmptyStateView.noResults(query: store.query, metrics: metrics.emptyState) {
-                store.clearQuery()
-            }
-        } else {
-            VStack(spacing: 4) {
+        VStack(spacing: 4) {
+            if store.columns.isEmpty {
+                EmptyStateView.noColumns(metrics: metrics.emptyState) { isAddingColumn = true }
+            } else {
                 EmptyStateView.board(metrics: metrics.emptyState, add: addTask)
                 addColumnButton
             }
