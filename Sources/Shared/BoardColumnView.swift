@@ -101,6 +101,11 @@ struct BoardColumnView: View {
     @FocusState.Binding var focus: TaskItem.ID?
 
     @State private var isEditing = false
+    /// Lit while a dragged column is over this one. Local rather than in the
+    /// store, unlike `dropTargetColumnID`: a card's caret has to be drawn
+    /// against a card the pointer never touched, and this is only ever drawn by
+    /// the column under it.
+    @State private var isColumnDropTarget = false
     /// Why the last delete did not happen. A refusal has an explanation to
     /// show — from the outside, a menu item that does nothing is a bug.
     @State private var refusal: ColumnRefusal?
@@ -118,16 +123,23 @@ struct BoardColumnView: View {
         .padding(.top, metrics.topPadding)
         .padding(.bottom, metrics.bottomPadding)
         .frame(width: chrome(metrics.width))
+        // The same tint a card in flight draws, and deliberately: it says "let
+        // go here" either way, and only one kind of thing can be in the air at a
+        // time, so there is nothing for a second colour to tell apart.
         .background(
-            isDropTarget ? palette.accent.opacity(0.07) : palette.ink(0.035),
+            isDropTarget || isColumnDropTarget
+                ? palette.accent.opacity(0.07) : palette.ink(0.035),
             in: .rect(cornerRadius: metrics.cornerRadius)
         )
         .overlay {
-            if isDropTarget {
+            if isDropTarget || isColumnDropTarget {
                 RoundedRectangle(cornerRadius: metrics.cornerRadius)
                     .strokeBorder(palette.accent, lineWidth: 2)
             }
         }
+        // Above the card destination below, and drawn only while a column is in
+        // the air — see ``columnDropZone``.
+        .overlay { columnDropZone }
         // Only this app's cards are a payload — a URL dragged out of Safari
         // used to light the column up as a drop target. Dropping is off while a
         // query filters the board, for the reason `BoardTaskCard` explains.
@@ -196,6 +208,67 @@ struct BoardColumnView: View {
         .padding(.horizontal, 8)
         .padding(.top, 2)
         .padding(.bottom, 10)
+        // **The grip a column is re-ordered by.** See ``lifted()``.
+        .contentShape(.rect)
+        .draggable(lifted())
+        .help("Drag to re-order the columns")
+    }
+
+    /// The payload, and the session with it — `ReorderableCard`'s trick, for its
+    /// reason: `.draggable` takes this as an autoclosure and calls it when a
+    /// session begins rather than when the header is drawn, which makes it the
+    /// one moment both platforms agree a column has been picked up.
+    ///
+    /// **The whole header row is the grip, and it had to be.** The name alone
+    /// was the obvious answer and it does not work: the board is a horizontal
+    /// `ScrollView`, and a lift that starts on a run of text 57pt wide loses the
+    /// touch to the scroller's pan every single time — measured on an iPad Air,
+    /// where the board slid sideways and the column stayed exactly where it was.
+    /// Padding the text was not enough; giving it the width the header had left
+    /// was not enough either. What wins is the header itself, at the full width
+    /// of the column. It is also the honest shape to aim at: the dot, the name
+    /// and the count are one label, and the only two things in that row with
+    /// business of their own are the `…` and `+` buttons, which take their own
+    /// taps before this ever sees them.
+    private func lifted() -> ColumnTransfer {
+        store.beginColumnDrag(column.id)
+        // The board this column is actually on, looked up rather than assumed
+        // to be the active one — that is the fact `dropColumn` refuses across,
+        // and a payload that simply repeated `activeBoardID` would make the
+        // refusal tautological. A column no board owns cannot be drawn here at
+        // all, and the fresh id it would carry is refused on arrival, which is
+        // the right answer to a drag of nothing.
+        return ColumnTransfer(column, on: store.board(ofColumn: column.id)?.id ?? Board.ID())
+    }
+
+    /// Where a dragged column can land: this whole column, but **only while one
+    /// is in the air**.
+    ///
+    /// An overlay rather than a second `dropDestination` on the body, which
+    /// already carries one for cards — ``ReorderableCard`` draws its gaps the
+    /// same way and for the same reason. Nothing can be dragging a card and a
+    /// column at once, so covering the card destination while a column is in
+    /// flight costs nothing, and the rest of the time this is not in the tree at
+    /// all.
+    ///
+    /// The whole column rather than its header: the header is where the grip is,
+    /// but a 30pt band is not where a pointer carrying a column expects to have
+    /// to let go.
+    @ViewBuilder private var columnDropZone: some View {
+        if store.draggingColumnID != nil {
+            Color.clear
+                .contentShape(.rect)
+                .dropDestination(for: ColumnTransfer.self) { items, _ in
+                    defer { store.endColumnDrag() }
+                    guard let dropped = items.first else { return false }
+                    isColumnDropTarget = false
+                    return store.dropColumn(dropped, onto: column.id)
+                } isTargeted: { targeted in
+                    // Not the column being dragged: a line against the column
+                    // that is leaving says nothing about where it lands.
+                    isColumnDropTarget = targeted && store.draggingColumnID != column.id
+                }
+        }
     }
 
     /// Everything that can be done to the column itself, plus — on a Done
@@ -225,6 +298,18 @@ struct BoardColumnView: View {
             Button { isEditing = true } label: {
                 Label("Edit Column…", systemImage: "pencil")
             }
+            // The whole board, with this column already unfolded in it — where
+            // the order of the columns is a list you can see rather than the two
+            // items below, which move one column one place with nothing on
+            // screen to say what the order was.
+            Button {
+                store.boardSettings = BoardSettingsRequest(
+                    board: store.activeBoardID ?? column.id, column: column.id
+                )
+            } label: {
+                Label("Board Settings…", systemImage: "slider.horizontal.3")
+            }
+            .disabled(store.activeBoardID == nil)
             Divider()
             Button {
                 store.moveColumn(fromOffsets: IndexSet(integer: index), toOffset: index - 1)

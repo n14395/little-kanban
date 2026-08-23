@@ -498,14 +498,14 @@ import Testing
         // all — replacing it with a bare `to` leaves the reorder test above
         // green — so the arithmetic is asserted, and then asserted again through
         // the store so the order it produces is a real one.
-        #expect(ChecklistView.dropOffset(from: 0, to: 1) == 2)
-        #expect(ChecklistView.dropOffset(from: 0, to: 2) == 3)
-        #expect(ChecklistView.dropOffset(from: 1, to: 2) == 3)
+        #expect(BoardStore.dropOffset(from: 0, to: 1) == 2)
+        #expect(BoardStore.dropOffset(from: 0, to: 2) == 3)
+        #expect(BoardStore.dropOffset(from: 1, to: 2) == 3)
 
         let store = TestBoard.store()
         store.moveSubtask(
             fromOffsets: IndexSet(integer: 0),
-            toOffset: ChecklistView.dropOffset(from: 0, to: 2),
+            toOffset: BoardStore.dropOffset(from: 0, to: 2),
             on: TestBoard.dragDrop
         )
         #expect(store[TestBoard.dragDrop]?.subtasks.map(\.id)
@@ -515,16 +515,16 @@ import Testing
     @Test func aRowDraggedUpLandsOnTheRowItWasDroppedOn() throws {
         // Upwards there is nothing to step over: the target's own index is where
         // the row goes, and adding one there would overshoot by a row.
-        #expect(ChecklistView.dropOffset(from: 1, to: 0) == 0)
-        #expect(ChecklistView.dropOffset(from: 2, to: 0) == 0)
-        #expect(ChecklistView.dropOffset(from: 2, to: 1) == 1)
+        #expect(BoardStore.dropOffset(from: 1, to: 0) == 0)
+        #expect(BoardStore.dropOffset(from: 2, to: 0) == 0)
+        #expect(BoardStore.dropOffset(from: 2, to: 1) == 1)
 
         let store = TestBoard.store()
         let ids = try #require(store[TestBoard.dragDrop]?.subtasks.map(\.id))
         #expect(ids == [TestBoard.lift, TestBoard.dropTargets, TestBoard.keyboard])
         store.moveSubtask(
             fromOffsets: IndexSet(integer: 2),
-            toOffset: ChecklistView.dropOffset(from: 2, to: 0),
+            toOffset: BoardStore.dropOffset(from: 2, to: 0),
             on: TestBoard.dragDrop
         )
         #expect(store[TestBoard.dragDrop]?.subtasks.map(\.id)

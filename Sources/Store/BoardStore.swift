@@ -446,6 +446,15 @@ final class BoardStore {
     // MARK: Board interaction
 
     var draggingID: TaskItem.ID?
+    /// The column being dragged by its name, or `nil` when none is.
+    ///
+    /// A separate flag from `draggingID` rather than a shared "something is in
+    /// the air", because the two say different things to the same view: a card
+    /// in flight makes a column a place to *put* it, and a column in flight
+    /// makes it a place to put a *column*. Nothing can raise both — a pointer
+    /// carries one payload — and `BoardColumnView` reads this to decide which
+    /// of its two drop destinations is the live one.
+    var draggingColumnID: BoardColumn.ID?
     var dropTargetColumnID: BoardColumn.ID?
     /// Which insertion point the pointer is over, set by the half of the card
     /// it is in — `nil` when it is over a list's own ground rather than over a
@@ -502,7 +511,12 @@ final class BoardStore {
     /// inspector, and closed to begin with unless the setting says otherwise:
     /// the sidebar row says how many cards are in there, which is enough until
     /// somebody wants them. See ``Preferences/opensInboxAtLaunch``.
-    var isInboxOpen: Bool = BoardStore.inboxOpensAtLaunch || Preferences.opensInboxAtLaunch
+    ///
+    /// Decided by `applyStoredPreferences` on the restore path, which is the
+    /// only one a person ever launches through — it has to run *after* the
+    /// landing surface is known. A store built any other way (a test, a preview)
+    /// starts with it shut.
+    var isInboxOpen: Bool = false
 
     /// The panel starts shut, and a harness cannot click it open: a simulator
     /// takes no synthetic taps from outside, and driving the host Mac's pointer
@@ -520,6 +534,16 @@ final class BoardStore {
     /// the store rather than in a view because the menu bar opens it and a
     /// surface presents it.
     var isShowingShortcuts: Bool = false
+    /// Which board's settings are open, and how the sheet should arrive — see
+    /// ``BoardSettingsRequest``. `nil` while it is shut.
+    ///
+    /// Session state, on the store for `isShowingSettings`' reason and one more:
+    /// four controls on three surfaces raise this sheet — a sidebar row's menu,
+    /// the phone's board menu, the drawer's board row, a column chip — and a
+    /// menu can set a flag but cannot present anything. The root presents it,
+    /// once, for all of them.
+    var boardSettings: BoardSettingsRequest?
+
     /// Whether the settings surface is up. Here for the same reason the
     /// shortcuts sheet is: on macOS the `Settings` scene opens it, on iOS a
     /// drawer row does, and neither can reach the other's view tree.
@@ -784,13 +808,32 @@ final class BoardStore {
             sortOrder = order
         }
         // Which board was on screen is already board data — `activeBoardID` is
-        // in the snapshot — so what this restores is the *view* standing in
+        // in the snapshot — so what this restores is the *place* standing in
         // front of it, which is session state and was lost at every quit.
+        surface = Self.landingSurface
         if Preferences.resumesLastPlace,
-           let raw = Preferences.defaults.string(forKey: Preferences.lastSurfaceKey),
-           let view = SavedView(rawValue: raw) {
-            surface = .view(view)
+           let raw = Preferences.defaults.string(forKey: Preferences.lastSurfaceKey) {
+            // An unrecognised name is the board: it is what a downgrade leaves
+            // behind, and the board is the answer that is always true.
+            surface = SavedView(rawValue: raw).map(BoardSurface.view) ?? .board
         }
+        // **After the surface, not before it.** "Open the Inbox with the board"
+        // is a promise about the board, and a launch that lands on Today has not
+        // made it — on the phone the Inbox is a sheet drawn over whatever is
+        // there, so an unconditional raise would put the panel over Today and
+        // hide the very thing the launch went to. The `#if DEBUG` flag is not
+        // conditional: it is how a UI test asks for the panel outright.
+        isInboxOpen = Self.inboxOpensAtLaunch
+            || (Preferences.opensInboxAtLaunch && surface == .board)
+        #if DEBUG
+        // **Last, so it is the last word.** These ran at the end of `init`,
+        // which was before any of the above — fine while nothing here touched
+        // the surface, and wrong the moment a launch landed somewhere by
+        // default: `-SimpleKanbanTab board` set the board and this method put
+        // Today back over it. A launch argument is a person at a terminal saying
+        // where to open, and it beats what was stored.
+        applyLaunchOverrides()
+        #endif
     }
 
     /// Archives what has sat in Done longer than the setting allows.
@@ -851,9 +894,6 @@ final class BoardStore {
         // move the phone off a column that is not there; a launch is the third
         // way onto a board and had nowhere to do it.
         detachSurfacesFromMissingColumns()
-        #if DEBUG
-        applyLaunchOverrides()
-        #endif
     }
 
     /// A store with one board carrying `columns` — what a test or a preview
@@ -1536,6 +1576,7 @@ final class BoardStore {
     ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenDrawer YES
     ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenSettings YES
     ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenTrash YES
+    ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenBoardSettings YES
     ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanTab search
     private func applyLaunchOverrides() {
         let defaults = UserDefaults.standard
@@ -1552,8 +1593,19 @@ final class BoardStore {
         if defaults.bool(forKey: "SimpleKanbanOpenTrash") {
             isShowingTrash = true
         }
+        // The board's own settings, on whichever board the launch settles on.
+        // The one surface here that is a *sheet on macOS too*, and so the one a
+        // desk screenshot needs a way in to that is not a right-click.
+        if defaults.bool(forKey: "SimpleKanbanOpenBoardSettings"), let board = activeBoardID {
+            boardSettings = BoardSettingsRequest(board: board)
+        }
         if let raw = defaults.string(forKey: "SimpleKanbanTab"), let parsed = PhoneTab(rawValue: raw) {
-            tab = parsed
+            // `selectTab` rather than the field, because a tab names a *surface*
+            // as well: asking for the Board tab and arriving on Today — which is
+            // where a launch lands now — is not what the argument says. It is
+            // also how the bar itself sets the tab, so the harness and the thumb
+            // take the same route.
+            selectTab(parsed)
         }
     }
 
@@ -1844,6 +1896,38 @@ final class BoardStore {
         (board(id: id) ?? activeBoard)?.columns.first { $0.role == .done }?.id
     }
 
+    /// Which column completed cards would land in **after** a reorder, worked
+    /// out without performing one.
+    ///
+    /// What makes a column the one completed work lands in is its *role*, not
+    /// its position — see `doneColumnID` — so most reorders change nothing about
+    /// it. The exception is a board with more than one Done column, where the
+    /// first of them is the answer and moving them past each other changes it.
+    /// That is the case the settings sheet asks about before it moves anything:
+    /// it is invisible on the board, it changes where every future tick sends a
+    /// card, and no undo step announces itself.
+    func doneColumnID(afterMoving fromOffsets: IndexSet, toOffset: Int) -> BoardColumn.ID? {
+        guard let board = activeBoard else { return nil }
+        var reordered = board.columns
+        reordered.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        return reordered.first { $0.role == .done }?.id
+    }
+
+    /// Where a column's cards would go if it were trashed: **the first column
+    /// left standing**. `deleteColumn` moves them there, and the warning in
+    /// front of it names the same place by asking the same question.
+    func refuge(ifTrashing id: BoardColumn.ID) -> BoardColumn? {
+        guard let board = board(ofColumn: id) else { return nil }
+        return board.columns.first { $0.id != id }
+    }
+
+    /// How many cards a column holds, **archived ones included**: a delete moves
+    /// those too, and a warning that counted only what the board draws would
+    /// promise to move four cards and move nine.
+    func cardCount(inColumn id: BoardColumn.ID) -> Int {
+        tasks.count { $0.columnID == id }
+    }
+
     /// Tasks in the active board's Done column, unfiltered — what the archive
     /// affordances count and act on. Scoped to the board on screen: "archive
     /// completed" tidies the board the user is looking at, not every board.
@@ -2095,16 +2179,56 @@ final class BoardStore {
     var surface: BoardSurface = .board {
         didSet {
             guard surface != oldValue else { return }
-            lastSurfaceName = activeView?.rawValue
+            lastSurfaceName = activeView?.rawValue ?? Self.boardSurfaceName
             Preferences.remember(surface: lastSurfaceName)
         }
     }
 
     /// What was written down for the next launch — the saved view standing in
-    /// front of the board, or `nil` for the board itself. Published so a test
-    /// can read the decision without reading `UserDefaults`, which every other
-    /// suite is reading at the same time.
+    /// front of the board, or ``boardSurfaceName`` for the board itself.
+    /// Published so a test can read the decision without reading `UserDefaults`,
+    /// which every other suite is reading at the same time.
+    ///
+    /// **The board is written down too**, where it used to clear the key. That
+    /// was sound while a launch always landed on the board: nothing stored and
+    /// the board were the same answer. iOS lands on **Today** now, so they are
+    /// two different answers — "resume, and I was on the board" has to be
+    /// distinguishable from "nothing to resume", or somebody who asked to be put
+    /// back where they were is put on Today instead.
     private(set) var lastSurfaceName: String?
+
+    /// What the board itself is called in `lastSurfaceKey`. Not a `SavedView`
+    /// raw value — those are `inbox`, `today`, `upcoming`, `highPriority`,
+    /// `dueThisWeek`, `recentlyUpdated` and `archive` — so it cannot be read
+    /// back as one.
+    static let boardSurfaceName = "board"
+
+    /// Where a launch lands when nothing else has anything to say.
+    ///
+    /// **The desk opens on the board** and always has: it draws the source list,
+    /// the board and the inspector at once, so the board is not a *destination*
+    /// there, it is the window.
+    ///
+    /// **The phone opens on Today.** It shows one place at a time, and the app is
+    /// opened to answer one question — what is there to do now — which is the
+    /// question Today is. Landing on a board instead answers "which column am I
+    /// scrolled to", which is a question about the app rather than about the
+    /// work; the board is one tap away on the bar underneath.
+    ///
+    /// **The iPad is not the phone here**, which is why this asks the idiom
+    /// rather than `#if os(iOS)`. Its Inbox is a panel that stands *beside* the
+    /// board and its sidebar, board and inspector are all on screen at once —
+    /// the same window the desk has — so a saved view standing in front of the
+    /// board would be hiding something rather than answering with it.
+    /// `RootSurface` needs the size class as well to pick a *layout*; this is
+    /// only choosing where to land, and an iPad in Slide Over is still an iPad.
+    static var landingSurface: BoardSurface {
+        #if os(iOS)
+        UIDevice.current.userInterfaceIdiom == .phone ? .view(.today) : .board
+        #else
+        .board
+        #endif
+    }
 
     /// Which saved view has replaced the board, or `nil` for the board itself.
     ///
@@ -2248,6 +2372,21 @@ final class BoardStore {
         dropTargetCaret = nil
         isInboxDropTarget = false
     }
+
+    /// Says a column has been picked up, from `beginDrag`'s signal and with its
+    /// expiry: `.draggable` asking for its payload is the one moment both
+    /// platforms agree on, and a session the OS eats would otherwise leave the
+    /// board thinking a column is still in the air forever.
+    func beginColumnDrag(_ id: BoardColumn.ID) {
+        Task { @MainActor [weak self] in
+            guard let self, draggingColumnID != id else { return }
+            draggingColumnID = id
+            try? await Task.sleep(for: .seconds(Self.liftExpiry))
+            if draggingColumnID == id { endColumnDrag() }
+        }
+    }
+
+    func endColumnDrag() { draggingColumnID = nil }
 
     /// Says a card has been picked up, from the one signal a build without
     /// `onDragSessionUpdated` has: the moment `.draggable` is asked for its
@@ -3926,6 +4065,36 @@ final class BoardStore {
         }
     }
 
+    /// Where a drop that landed *on* something goes in the list it is joining.
+    ///
+    /// `move(fromOffsets:toOffset:)` counts the offset in the **pre-move**
+    /// array, so landing after the target is one past it and landing before it
+    /// is exactly it. Every reorder in this app is that one expression — the
+    /// checklist's rows, the board's columns — and it is here rather than in
+    /// either of them because a drag is not reachable from a test and this is
+    /// the half that can be.
+    static func dropOffset(from: Int, to: Int) -> Int {
+        to > from ? to + 1 : to
+    }
+
+    /// Puts the dragged column where `target` sits, which is what dropping one
+    /// column on another means.
+    ///
+    /// Refused across boards — `moveColumn` is defined over the active board, so
+    /// an index from another one names a place in a list this column is not in —
+    /// and refused onto itself, where there is nothing to do. `false` says the
+    /// drop was not taken, which is what a drop handler owes its caller.
+    @discardableResult
+    func dropColumn(_ payload: ColumnTransfer, onto target: BoardColumn.ID) -> Bool {
+        guard payload.boardID == activeBoardID,
+              let from = columns.firstIndex(where: { $0.id == payload.columnID }),
+              let to = columns.firstIndex(where: { $0.id == target }),
+              from != to
+        else { return false }
+        moveColumn(fromOffsets: IndexSet(integer: from), toOffset: Self.dropOffset(from: from, to: to))
+        return true
+    }
+
     /// Deletes a column, moving its cards — archived ones included — to the
     /// first column left. Nothing is thrown away silently, and each card that
     /// moved says so in its own history.
@@ -3942,7 +4111,9 @@ final class BoardStore {
         let removed = remaining.remove(at: index)
         guard remaining.contains(where: { $0.role == .done }) else { return .lastDoneColumn }
         guard remaining.contains(where: { $0.role != .done }) else { return .lastWorkingColumn }
-        let destination = remaining[0]
+        // The same first-column-left the warning in front of this promised —
+        // one rule, asked twice.
+        guard let destination = refuge(ifTrashing: id) else { return .unknownColumn }
 
         undoable(String(localized: "Delete Column", comment: "Undo action name for deleting a board column")) {
             boards[board].columns = remaining

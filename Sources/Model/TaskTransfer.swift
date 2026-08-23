@@ -51,6 +51,29 @@ extension SubtaskTransfer {
     }
 }
 
+/// A board column in flight, dragged by its name to be re-ordered.
+///
+/// Carries its board for `SubtaskTransfer`'s reason: `moveColumn` is defined
+/// over the *active* board, and on macOS a second window can be showing another
+/// one. A column dropped across that gap would name an index in a list it is
+/// not in.
+struct ColumnTransfer: Codable, Transferable, Sendable {
+    var boardID: Board.ID
+    var columnID: BoardColumn.ID
+    var name: String
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .simpleKanbanColumn)
+        ProxyRepresentation(exporting: \.name)
+    }
+}
+
+extension ColumnTransfer {
+    init(_ column: BoardColumn, on boardID: Board.ID) {
+        self.init(boardID: boardID, columnID: column.id, name: column.name)
+    }
+}
+
 extension UTType {
     /// Both state their conformance twice: here, and in the app's Info.plist
     /// (`project.yml` → `UTExportedTypeDeclarations`).
@@ -71,5 +94,8 @@ extension UTType {
     )
     static let simpleKanbanSubtask = UTType(
         exportedAs: "com.n14395.SimpleKanban.subtask", conformingTo: .data
+    )
+    static let simpleKanbanColumn = UTType(
+        exportedAs: "com.n14395.SimpleKanban.column", conformingTo: .data
     )
 }

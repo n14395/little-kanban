@@ -27,19 +27,21 @@ struct PhoneHeader: View {
 
     @FocusState private var isSearchFocused: Bool
     @State private var isManagingLabels = false
-    @State private var isRenamingBoard = false
-    /// Which column's editor the chips' **Edit Column…** has asked for. The
-    /// column rather than a flag, because the sheet has to be told which one.
-    @State private var editingColumn: ColumnEdit?
     /// Why the last Trash Column did not happen. A refusal has an explanation
     /// to show — from the outside, a menu item that does nothing is a bug, which
-    /// is why `BoardColumnView` and `PhoneBoardEditor` both keep one too.
+    /// is why `BoardColumnView` and ``BoardSettingsView`` both keep one too.
     @State private var refusal: ColumnRefusal?
 
-    /// `sheet(item:)` wants something `Identifiable`, and a bare `UUID` is not.
-    private struct ColumnEdit: Identifiable { let id: BoardColumn.ID }
-
     private var isShort: Bool { verticalSizeClass == .compact }
+
+    /// Raises ``BoardSettingsView`` on the board that is on screen, optionally
+    /// with one column already unfolded. The request goes on the store because
+    /// the root presents the sheet — a menu can set a flag and cannot present
+    /// anything, the same split the Trash makes.
+    private func openBoardSettings(expanding column: BoardColumn.ID? = nil) {
+        guard let id = store.activeBoardID else { return }
+        store.boardSettings = BoardSettingsRequest(board: id, column: column)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: isShort ? 9 : 16) {
@@ -83,14 +85,6 @@ struct PhoneHeader: View {
         }
         .padding(.horizontal, 20)
         .labelManagerSheet(isPresented: $isManagingLabels, metrics: .sheet)
-        .sheet(isPresented: $isRenamingBoard) {
-            if let id = store.activeBoardID {
-                PhoneBoardEditor(boardID: id, focusesName: true)
-                    .environment(store)
-                    .environment(\.palette, palette)
-                    .tint(palette.accent)
-            }
-        }
     }
 
     /// What is on screen, named. The board's own name — this was the product
@@ -121,13 +115,15 @@ struct PhoneHeader: View {
     /// nowhere else.
     private var boardMenu: some View {
         Menu {
-            // Everything that acts on the board that is on screen. Renaming is
-            // here rather than on the title itself (4.7): a serif line that
-            // turns into a field on a tap is a control nothing on screen says is
-            // one.
+            // Everything that acts on the board that is on screen. The name is
+            // changed in the settings sheet rather than on the title itself
+            // (4.7): a serif line that turns into a field on a tap is a control
+            // nothing on screen says is one — and the sheet holds the rest of
+            // what a board is, its colour and its columns, which the phone
+            // could otherwise reach only through the drawer.
             Section {
-                Button { isRenamingBoard = true } label: {
-                    Label("Rename Board…", systemImage: "pencil")
+                Button { openBoardSettings() } label: {
+                    Label("Board Settings…", systemImage: "slider.horizontal.3")
                 }
                 .disabled(store.activeBoard == nil)
 
@@ -405,14 +401,6 @@ struct PhoneHeader: View {
             .padding(.bottom, 4)
         }
         .scrollIndicators(.hidden)
-        .sheet(item: $editingColumn) { edit in
-            if let boardID = store.activeBoardID {
-                PhoneBoardEditor(boardID: boardID, expandsColumn: edit.id)
-                    .environment(store)
-                    .environment(\.palette, palette)
-                    .tint(palette.accent)
-            }
-        }
         .alert(
             refusal?.errorDescription ?? "",
             isPresented: Binding(get: { refusal != nil }, set: { if !$0 { refusal = nil } }),
@@ -436,7 +424,7 @@ struct PhoneHeader: View {
     /// thrown away by opening the drawer, long-pressing the board, and finding
     /// the row in the sheet that came up.
     ///
-    /// `PhoneBoardEditor` is what **Edit Column…** opens, arriving with this
+    /// ``BoardSettingsView`` is what **Edit Column…** opens, arriving with this
     /// column already unfolded — see its `expandsColumn`. Not a sheet of its
     /// own: everything a column can be changed to is already in that row.
     @ViewBuilder private func columnMenu(_ column: BoardColumn, index: Int) -> some View {
@@ -459,7 +447,7 @@ struct PhoneHeader: View {
         }
 
         Button {
-            editingColumn = ColumnEdit(id: column.id)
+            openBoardSettings(expanding: column.id)
         } label: {
             Label("Edit Column…", systemImage: "pencil")
         }

@@ -171,6 +171,7 @@ struct RootView: View {
             .preferredColorScheme(appearance.colorScheme)
             .modifier(SaveFailureBanner())
             .modifier(SettingsSheet())
+            .modifier(BoardSettingsSheet())
             // Last of the presentations, so it covers the lot: nothing else has
             // anything to say until there is a board to say it about.
             .modifier(FirstRunChoice())
@@ -336,6 +337,66 @@ private struct SettingsSheet: ViewModifier {
         }
         #else
         content
+        #endif
+    }
+}
+
+/// A board's own settings, on every platform — see ``BoardSettingsView``.
+///
+/// Presented here rather than by whatever raised it, because what raises it is
+/// usually a menu: a sidebar row's context menu on the desk and the iPad, the
+/// phone's board menu, the drawer's board row, a column chip. A menu can set a
+/// flag and cannot present a sheet, which is the same split the Trash makes.
+///
+/// The chrome is the platform's. iOS holds it at `.large` for
+/// `PhoneDetailSheet`'s reason — a sheet at a smaller detent is scaled to fit
+/// its inset, and every 44pt control in there would render under the touch
+/// minimum. The desk gets a fixed frame instead, sized to the widest thing in
+/// it: a column row with its role, its marker and its chevron.
+private struct BoardSettingsSheet: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(BoardStore.self) private var store
+    @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
+
+    /// Resolved here for `SettingsSheet`'s reason: a modifier sits above the
+    /// root's own `.environment(\.palette,)` and would otherwise read the
+    /// default light palette.
+    private var palette: Palette {
+        Palette(colorScheme: appearance.colorScheme ?? colorScheme, accentTheme: store.accentTheme)
+    }
+
+    func body(content: Content) -> some View {
+        @Bindable var store = store
+
+        return content.sheet(item: $store.boardSettings) { request in
+            settings(request)
+                .environment(store)
+                .environment(\.palette, palette)
+                .tint(palette.accent)
+                .foregroundStyle(palette.ink)
+        }
+    }
+
+    @ViewBuilder private func settings(_ request: BoardSettingsRequest) -> some View {
+        #if os(iOS)
+        BoardSettingsView(
+            boardID: request.board,
+            metrics: .sheet,
+            focusesName: request.focusesName,
+            expandsColumn: request.column
+        )
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(28)
+        .presentationBackground(palette.sheet)
+        #else
+        BoardSettingsView(
+            boardID: request.board,
+            metrics: .desk,
+            focusesName: request.focusesName,
+            expandsColumn: request.column
+        )
+        .frame(width: 420, height: 560)
         #endif
     }
 }

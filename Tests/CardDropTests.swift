@@ -147,18 +147,18 @@ import Testing
         let ids = try #require(store[TestBoard.dragDrop]?.subtasks.map(\.id))
 
         // Move Down on the first row: to = 1, which is one past it.
-        #expect(ChecklistView.dropOffset(from: 0, to: 1) == 2)
+        #expect(BoardStore.dropOffset(from: 0, to: 1) == 2)
         store.moveSubtask(
             fromOffsets: IndexSet(integer: 0),
-            toOffset: ChecklistView.dropOffset(from: 0, to: 1), on: TestBoard.dragDrop
+            toOffset: BoardStore.dropOffset(from: 0, to: 1), on: TestBoard.dragDrop
         )
         #expect(store[TestBoard.dragDrop]?.subtasks.map(\.id) == [ids[1], ids[0], ids[2]])
 
         // Move Up on the row it became: to = 0, which is exactly where it goes.
-        #expect(ChecklistView.dropOffset(from: 1, to: 0) == 0)
+        #expect(BoardStore.dropOffset(from: 1, to: 0) == 0)
         store.moveSubtask(
             fromOffsets: IndexSet(integer: 1),
-            toOffset: ChecklistView.dropOffset(from: 1, to: 0), on: TestBoard.dragDrop
+            toOffset: BoardStore.dropOffset(from: 1, to: 0), on: TestBoard.dragDrop
         )
         #expect(store[TestBoard.dragDrop]?.subtasks.map(\.id) == ids)
     }

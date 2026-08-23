@@ -64,6 +64,10 @@ targets:
             UTTypeDescription: Simple Kanban Sub-task
             UTTypeConformsTo:
               - public.data
+          - UTTypeIdentifier: com.n14395.SimpleKanban.column
+            UTTypeDescription: Simple Kanban Column
+            UTTypeConformsTo:
+              - public.data
           # The export/import document (6.2). JSON rather than opaque data, so
           # a .simplekanban file opens in a text editor without an argument.
           - UTTypeIdentifier: com.n14395.SimpleKanban.board

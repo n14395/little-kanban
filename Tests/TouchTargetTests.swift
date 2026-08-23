@@ -34,6 +34,12 @@ import Testing
             ("ChecklistView.sheet.box.hitSize", ChecklistView.Metrics.sheet.box.hitSize),
             ("EmptyStateView.sheet.actionHit", EmptyStateView.Metrics.sheet.actionHit),
             ("SettingsView.sheet.rowHit", SettingsView.Metrics.sheet.rowHit),
+            // The board's own settings, which both touch idioms draw at
+            // `.sheet`: the iPad gets this sheet rather than the desk's, because
+            // every control in it — a colour swatch, a step arrow, a field —
+            // is one a finger has to land on.
+            ("BoardSettingsView.sheet.hit", BoardSettingsView.Metrics.sheet.hit),
+            ("BoardSettingsView.sheet.dots.hitSize", BoardSettingsView.Metrics.sheet.dots.hitSize),
             // The iPad draws the desk's board at touch sizes, so `.pad` is a
             // touch preset and belongs here beside `.sheet`. Measured on a
             // booted iPad too — see the iPad section of the README — but a

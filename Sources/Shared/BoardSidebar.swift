@@ -232,6 +232,20 @@ struct BoardSidebar: View {
     /// destination for cards, and the two gestures would fight.
     @ViewBuilder
     private func boardMenu(_ board: Board, index: Int) -> some View {
+        // **Everything a board is**, which is more than this menu can hold: its
+        // columns' names, abbreviations, colours and order used to be reachable
+        // only one column at a time, through a popover hanging off a column
+        // header that is not on screen while another board is. See
+        // ``BoardSettingsView``.
+        Button { store.boardSettings = BoardSettingsRequest(board: board.id) } label: {
+            Label("Board Settings…", systemImage: "slider.horizontal.3")
+        }
+        Divider()
+        // The two the sheet also holds, kept as the fast paths they are: a
+        // rename in the row itself is one click and one field, and the swatches
+        // are one click and one colour. Neither is a *destination* the sheet
+        // draws better — which is the test the phone's board menu applies to its
+        // own items.
         Button { beginEditing(.rename(board.id), text: board.name) } label: {
             Label("Rename Board", systemImage: "pencil")
         }

@@ -26,6 +26,10 @@ import UniformTypeIdentifiers
         #expect(SubtaskTransfer(row, on: TestBoard.dragDrop).text == "Lift and shadow states")
     }
 
+    @Test func aDraggedColumnReadsAsItsName() {
+        #expect(ColumnTransfer(BoardColumn.inProgress, on: TestBoard.boards[0].id).name == "In Progress")
+    }
+
     // MARK: The codable representation
 
     @Test func aCardPayloadSurvivesAJSONRoundTrip() throws {
@@ -44,6 +48,18 @@ import UniformTypeIdentifiers
         #expect(decoded.taskID == TestBoard.dragDrop)
         #expect(decoded.subtaskID == TestBoard.lift)
         #expect(decoded.text == original.text)
+    }
+
+    @Test func aColumnPayloadKeepsItsBoard() throws {
+        // Both, because `moveColumn` is defined over the active board: a column
+        // dropped from a second macOS window showing another one would name an
+        // index in a list it is not in.
+        let board = TestBoard.support
+        let original = ColumnTransfer(TestBoard.queue, on: board.id)
+        let decoded = try JSONDecoder().decode(ColumnTransfer.self, from: JSONEncoder().encode(original))
+        #expect(decoded.boardID == board.id)
+        #expect(decoded.columnID == TestBoard.queue.id)
+        #expect(decoded.name == "Queue")
     }
 
     // MARK: The exported types
@@ -67,7 +83,7 @@ import UniformTypeIdentifiers
             }
         )
 
-        for type in [UTType.simpleKanbanTask, .simpleKanbanSubtask] {
+        for type in [UTType.simpleKanbanTask, .simpleKanbanSubtask, .simpleKanbanColumn] {
             let plist = try #require(
                 conformances[type.identifier],
                 "\(type.identifier) is used in code but not declared in project.yml"

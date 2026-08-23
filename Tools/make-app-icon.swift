@@ -6,10 +6,12 @@
 //     swift Tools/make-app-icon.swift            # writes into Resources/…/AppIcon.appiconset
 //     swift Tools/make-app-icon.swift --out DIR  # somewhere else, e.g. to eyeball a change
 //
-// There is no design tool in this repository, so the icon is a program: the
-// mark below is the board's own column-dot motif — a header dot over a stack of
-// cards, three columns, the stacks shortening left to right the way work does —
-// drawn in the palette from `Sources/Theme/Palette.swift` on the ember accent.
+// The mark is a **transcription of the design**, not an invention of this file:
+// `simple-kanban-icon-4f.svg` — three columns of cards under their header rules,
+// in white on a peach-to-violet diagonal. It is a program rather than a
+// rasteriser because a rasteriser is a dependency and the drawing is nine
+// rounded rectangles and a gradient; every number below is the SVG's own, in the
+// SVG's own 100-unit box, so the two can be read side by side.
 //
 // The two platforms want different artwork from the same drawing. macOS icons
 // sit in a squircle inset from the canvas and cast their own shadow, because
@@ -23,26 +25,36 @@ import UniformTypeIdentifiers
 
 // MARK: - Palette
 
-/// `Palette.accent` for `.ember`, and the two shades either side of it that
-/// give the ground its light. `LabelDef.seed` uses the same darker ember.
-let emberLight = 0xD2653C
-let emberDeep = 0x9E3E1F
-/// `Palette.sheet`, light — the warm cream every card in the app is drawn on.
-let cardCream = 0xFBF9F5
-/// The board's column dots, in board order: Backlog, Up Next, Done.
-/// `BoardColumn.backlog/.upNext/.done`. In Progress is ember and would vanish
-/// into the ground, so the three that read are the three that are used.
-let dotStone = 0xA8A29A
-let dotAmber = 0xC98A16
-let dotPine = 0x1F6F63
+/// The ground's three stops, top-left to bottom-right — the SVG's `ground`
+/// gradient, offsets 0, 0.5 and 1.
+let groundPeach = 0xFFB48A
+let groundRose = 0xE0559B
+let groundViolet = 0x7B2CD9
+/// The cards and their header rules. White, and only white: the design gets its
+/// depth from the ground, so a second tone in the mark would be a third idea on
+/// an icon that has two.
+let markWhite = 0xFFFFFF
+
+/// **sRGB, named, everywhere** — the colours, the bitmap and the gradient alike.
+///
+/// `CGColor(red:green:blue:alpha:)` makes a colour in the *generic* RGB space,
+/// and drawing one into a `DeviceRGB` bitmap converts it. Measured against the
+/// first render of this drawing, every stop came out visibly lighter than the
+/// design: #FFB48A arrived as #FEC09B, #E0559B as #E970AC, and #7B2CD9 —
+/// the one that carries the icon — as #904BE0, a full step off. A hex in the
+/// design has to be the hex in the file, so nothing here is left to convert.
+let sRGB = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
 
 func rgb(_ hex: Int, _ alpha: CGFloat = 1) -> CGColor {
     CGColor(
-        red: CGFloat((hex >> 16) & 0xFF) / 255,
-        green: CGFloat((hex >> 8) & 0xFF) / 255,
-        blue: CGFloat(hex & 0xFF) / 255,
-        alpha: alpha
-    )
+        colorSpace: sRGB,
+        components: [
+            CGFloat((hex >> 16) & 0xFF) / 255,
+            CGFloat((hex >> 8) & 0xFF) / 255,
+            CGFloat(hex & 0xFF) / 255,
+            alpha,
+        ]
+    ) ?? CGColor(gray: 0, alpha: alpha)
 }
 
 // MARK: - Geometry
@@ -74,80 +86,73 @@ func capsulePath(_ rect: CGRect, radius: CGFloat) -> CGPath {
 
 // MARK: - The mark
 
-/// One column of the mark: a header dot with a stack of cards under it.
-struct Column {
-    var dot: Int
-    var cards: Int
+/// One white rectangle of the design, in the SVG's 100-unit box.
+struct Bar {
+    var x: CGFloat
+    var y: CGFloat
+    var width: CGFloat
+    var height: CGFloat
+    var radius: CGFloat
 }
 
-/// Laid out in a 1000×1000 box and scaled to whatever the slot needs, so every
-/// size is the same drawing rather than a set of hand-tuned ones.
-let columns = [Column(dot: dotStone, cards: 3), Column(dot: dotAmber, cards: 2), Column(dot: dotPine, cards: 1)]
+/// The nine rectangles, straight off `simple-kanban-icon-4f.svg`: three columns
+/// at x = 20, 41 and 62, each 18 wide, each led by a 5-tall header rule at
+/// y = 24, with 13-tall cards under it at y = 35, 51 and 67.
+///
+/// The stacks are **2, 3, 1** rather than a tidy descent, which is the whole
+/// point of the drawing: a board is not a staircase, it is work piled unevenly
+/// across the middle of it.
+let bars: [Bar] = [
+    Bar(x: 20, y: 24, width: 18, height: 5, radius: 2.5),
+    Bar(x: 20, y: 35, width: 18, height: 13, radius: 3.6),
+    Bar(x: 20, y: 51, width: 18, height: 13, radius: 3.6),
+
+    Bar(x: 41, y: 24, width: 18, height: 5, radius: 2.5),
+    Bar(x: 41, y: 35, width: 18, height: 13, radius: 3.6),
+    Bar(x: 41, y: 51, width: 18, height: 13, radius: 3.6),
+    Bar(x: 41, y: 67, width: 18, height: 13, radius: 3.6),
+
+    Bar(x: 62, y: 24, width: 18, height: 5, radius: 2.5),
+    Bar(x: 62, y: 35, width: 18, height: 13, radius: 3.6),
+]
+
+/// The three stacks as single capsules, for the sizes the cards cannot survive.
+///
+/// A 16pt icon is about nine points of artwork: a 13-unit card is a pixel and a
+/// bit, the 3-unit gaps between cards close up entirely, and the 5-unit header
+/// rule lands under half a pixel. What is left of the full drawing at that size
+/// is a smudge in three vertical bands — so the small sizes are drawn *as* three
+/// vertical bands, which is the same silhouette with the detail taken out and is
+/// what Apple's own icons do with hand-drawn small artwork. The header rules go
+/// with the gaps: at that size they are a grey haze over the top of the mark.
+let stacks: [Bar] = [
+    Bar(x: 20, y: 35, width: 18, height: 29, radius: 9),
+    Bar(x: 41, y: 35, width: 18, height: 45, radius: 9),
+    Bar(x: 62, y: 35, width: 18, height: 13, radius: 9),
+]
 
 /// How much of the mark survives at this size.
-///
-/// A 16pt icon is about nine points of artwork: the header dots land under a
-/// pixel each and the gaps between cards close up, so the full drawing turns
-/// into a smudge. The small sizes get the same silhouette with the detail taken
-/// out — three descending bars, no dots — which is what Apple's own icons do
-/// with hand-drawn small artwork.
 enum Detail { case full, simplified }
-let markUnit: CGFloat = 1000
-let columnWidth: CGFloat = 150
-let columnGap: CGFloat = 95
-let cardHeight: CGFloat = 140
-let cardGap: CGFloat = 42
-let dotRadius: CGFloat = 44
-/// Between the dot's baseline and the first card. The dot is a column *header*,
-/// so it has to read as a separate thing from the stack.
-let dotToCards: CGFloat = 66
 
-/// Draws the mark centred in `box`, in a coordinate space where y grows down.
-func drawMark(in context: CGContext, box: CGRect, detail: Detail) {
-    let scale = box.width / markUnit
-    let width = CGFloat(columns.count) * columnWidth + CGFloat(columns.count - 1) * columnGap
-    let tallest = columns.map(\.cards).max() ?? 1
-    let stackHeight = CGFloat(tallest) * cardHeight + CGFloat(tallest - 1) * cardGap
-    let header = detail == .full ? dotRadius * 2 + dotToCards : 0
-    let height = header + stackHeight
+/// The SVG's box, which every number in `bars` is measured in.
+let markUnit: CGFloat = 100
 
-    let originX = (markUnit - width) / 2
-    let originY = (markUnit - height) / 2
-
+/// Draws the mark over `tile`, in a coordinate space where y grows down.
+///
+/// `tile` is the ground itself rather than an inset box: the design carries its
+/// own margins — the columns run from 20 to 80 of the 100 — so insetting again
+/// here would shrink the mark inside a border the drawing already has.
+func drawMark(in context: CGContext, tile: CGRect, detail: Detail) {
+    let scale = tile.width / markUnit
     context.saveGState()
-    context.translateBy(x: box.minX, y: box.minY)
+    context.translateBy(x: tile.minX, y: tile.minY)
     context.scaleBy(x: scale, y: scale)
-
-    for (index, column) in columns.enumerated() {
-        let x = originX + CGFloat(index) * (columnWidth + columnGap)
-        // The stack recedes: the card at the top of a column is the one being
-        // looked at, and the ones under it are further away.
-        let opacity: CGFloat = [1.0, 0.88, 0.76][min(index, 2)]
-        context.setFillColor(rgb(cardCream, opacity))
-
-        if detail == .simplified {
-            let bar = CGFloat(column.cards) * cardHeight + CGFloat(column.cards - 1) * cardGap
-            context.addPath(capsulePath(
-                CGRect(x: x, y: originY, width: columnWidth, height: bar), radius: columnWidth / 2
-            ))
-            context.fillPath()
-            continue
-        }
-
-        context.setFillColor(rgb(column.dot))
-        context.fillEllipse(in: CGRect(
-            x: x + columnWidth / 2 - dotRadius, y: originY, width: dotRadius * 2, height: dotRadius * 2
+    context.setFillColor(rgb(markWhite))
+    for bar in (detail == .full ? bars : stacks) {
+        context.addPath(capsulePath(
+            CGRect(x: bar.x, y: bar.y, width: bar.width, height: bar.height), radius: bar.radius
         ))
-
-        context.setFillColor(rgb(cardCream, opacity))
-        var y = originY + header
-        for _ in 0..<column.cards {
-            context.addPath(capsulePath(
-                CGRect(x: x, y: y, width: columnWidth, height: cardHeight), radius: 46
-            ))
-            context.fillPath()
-            y += cardHeight + cardGap
-        }
+        context.fillPath()
     }
     context.restoreGState()
 }
@@ -158,7 +163,7 @@ enum Platform { case mac, ios }
 
 func render(pixels: Int, platform: Platform) -> CGImage {
     let size = CGFloat(pixels)
-    let space = CGColorSpaceCreateDeviceRGB()
+    let space = sRGB
     // The iOS marketing icon must have no alpha channel at all — Xcode rejects
     // one that does — so its bitmap is RGBX and ImageIO writes three channels.
     let info: CGImageAlphaInfo = platform == .ios ? .noneSkipLast : .premultipliedLast
@@ -187,7 +192,10 @@ func render(pixels: Int, platform: Platform) -> CGImage {
             blur: size * 0.035, color: rgb(0x000000, 0.30)
         )
         context.addPath(shape)
-        context.setFillColor(rgb(emberDeep))
+        // Only ever seen as the shadow's caster and as the pixel under the
+        // gradient's own antialiased edge, so it is the middle stop rather than
+        // either end: whichever corner the edge is on, it is the nearer tone.
+        context.setFillColor(rgb(groundRose))
         context.fillPath()
         context.restoreGState()
     }
@@ -195,23 +203,20 @@ func render(pixels: Int, platform: Platform) -> CGImage {
     context.saveGState()
     context.addPath(shape)
     context.clip()
-    // The ground is the ember accent lit from the top-left, which is where the
-    // system's own icons take their light from.
+    // The ground, corner to corner: peach at the top left through rose at the
+    // middle to violet at the bottom right, which is the SVG's `ground` and is
+    // also where the system's own icons take their light from.
     if let gradient = CGGradient(
-        colorsSpace: space, colors: [rgb(emberLight), rgb(emberDeep)] as CFArray, locations: [0, 1]
+        colorsSpace: space,
+        colors: [rgb(groundPeach), rgb(groundRose), rgb(groundViolet)] as CFArray,
+        locations: [0, 0.5, 1]
     ) {
         context.drawLinearGradient(
             gradient, start: CGPoint(x: plate.minX, y: plate.minY),
             end: CGPoint(x: plate.maxX, y: plate.maxY), options: []
         )
     }
-    // The mark is smaller inside the plate than the plate is inside the canvas:
-    // an icon whose artwork runs to its own edge reads as a photograph.
-    let detail: Detail = pixels <= 32 ? .simplified : .full
-    // The simplified mark is allowed to run wider, because the pixel it gains
-    // is the difference between three bars and a smudge.
-    let margin: CGFloat = detail == .full ? 0.15 : 0.12
-    drawMark(in: context, box: plate.insetBy(dx: plate.width * margin, dy: plate.height * margin), detail: detail)
+    drawMark(in: context, tile: plate, detail: pixels <= 32 ? .simplified : .full)
     context.restoreGState()
 
     guard let image = context.makeImage() else { fatalError("could not make a \(pixels)pt image") }

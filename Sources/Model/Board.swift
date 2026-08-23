@@ -177,3 +177,25 @@ extension Board {
 private extension Character {
     var isLetterOrDigit: Bool { isLetter || isNumber }
 }
+
+/// What the board settings sheet was asked for: which board, and what it should
+/// be showing when it arrives.
+///
+/// A value rather than three flags on the store, because the three are only ever
+/// set together and only ever mean one thing between them. `Identifiable` on the
+/// board's own id, which is what `.sheet(item:)` wants — asking for a second
+/// board's settings while one is open replaces the sheet rather than stacking.
+struct BoardSettingsRequest: Identifiable, Hashable, Sendable {
+    /// The board being edited. Held as an id rather than a `Board`: a rename
+    /// lands in the store, and a snapshot taken when the sheet opened would go
+    /// on showing the old name under the field that had just changed it.
+    var board: Board.ID
+    /// A column to arrive with already unfolded — set by the routes that name
+    /// one, a column chip's **Edit Column…** and the desk's column menu.
+    var column: BoardColumn.ID?
+    /// Whether to land the caret in the board's name field, set by the routes
+    /// that say *rename* rather than *settings*.
+    var focusesName: Bool = false
+
+    var id: Board.ID { board }
+}

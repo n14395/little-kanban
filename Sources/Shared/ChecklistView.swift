@@ -209,7 +209,7 @@ struct ChecklistView: View {
     private func move(from: Int, to: Int) {
         store.moveSubtask(
             fromOffsets: IndexSet(integer: from),
-            toOffset: Self.dropOffset(from: from, to: to),
+            toOffset: BoardStore.dropOffset(from: from, to: to),
             on: task.id
         )
     }
@@ -244,14 +244,6 @@ struct ChecklistView: View {
         else { return false }
         move(from: from, to: to)
         return true
-    }
-
-    /// `move(fromOffsets:toOffset:)` counts the offset in the pre-move array, so
-    /// landing *after* the target means one past it. It sits out here rather
-    /// than inside `drop` because a drag is not reachable from a test, and this
-    /// one expression is the off-by-one.
-    static func dropOffset(from: Int, to: Int) -> Int {
-        to > from ? to + 1 : to
     }
 
     private var addRow: some View {

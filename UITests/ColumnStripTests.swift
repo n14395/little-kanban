@@ -34,7 +34,14 @@ final class ColumnStripTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
 
         let app = XCUIApplication()
-        app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES"]
+        app.launchArguments = [
+            "-SimpleKanbanSkipFirstRun", "YES",
+            // The board, said out loud. A launch lands on **Today** now — see
+            // `BoardStore.landingSurface` — and Today has no columns, so a suite
+            // about the column strip has to name the surface the strip is on
+            // rather than take it for granted.
+            "-SimpleKanbanTab", "board",
+        ]
         app.launch()
 
         // A chip, by the label its row combines — the name and its count. The

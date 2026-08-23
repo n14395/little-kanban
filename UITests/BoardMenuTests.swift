@@ -9,7 +9,10 @@ import XCTest
 /// Archive under them. It also carried **Clear Search**, which two controls on
 /// the screen itself already do — the field's × and the filtered indicator under
 /// the header. What it did *not* carry was Settings, which was reachable only by
-/// opening the drawer and scrolling to the foot of it.
+/// opening the drawer and scrolling to the foot of it. **Rename Board…** became
+/// **Board Settings…** in the same spirit: renaming is one field of a sheet that
+/// also holds the board's colour and every one of its columns, and two items for
+/// one destination is the duplication this menu was cleared of.
 ///
 /// **A UI test because a menu is only what it renders.** Nothing a store can be
 /// asked knows which items a `Menu` built, and an item deleted from one section
@@ -45,13 +48,13 @@ final class BoardMenuTests: XCTestCase {
         // it is what says the menu is open *and* that its items are readable,
         // without which every absence below would pass for the wrong reason.
         XCTAssertTrue(
-            app.buttons["Rename Board…"].waitForExistence(timeout: 5),
+            app.buttons["Board Settings…"].waitForExistence(timeout: 5),
             "the menu did not open, or its items are not enumerable"
         )
         return app
     }
 
-    /// The one that was added. It opens the same sheet the drawer's row does —
+    /// The app's own settings. It opens the same sheet the drawer's row does —
     /// `SettingsTabsTests` is what that sheet *is*; this is only the door.
     func testTheBoardMenuOpensSettings() throws {
         let app = try openMenu()
@@ -85,7 +88,7 @@ final class BoardMenuTests: XCTestCase {
     func testTheBoardMenuKeepsWhatIsReachableNowhereElse() throws {
         let app = try openMenu()
 
-        for kept in ["Rename Board…", "Archive Completed", "Manage Labels"] {
+        for kept in ["Board Settings…", "Archive Completed", "Manage Labels"] {
             XCTAssertTrue(app.buttons[kept].exists, "\(kept) has gone from the board menu")
         }
         // "Trash", or "Trash (4)" once something is in it — `TrashSurfaceTests`
