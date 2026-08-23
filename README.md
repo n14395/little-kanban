@@ -118,8 +118,8 @@ UITests/               XCUITest, iOS simulator only, on a scheme of its own — 
                        phone's board menu holds and no longer holds, the task code
                        no longer at the head of the editor, the leading-edge
                        swipe that opens the drawer and the source list, the
-                       column strip's portrait-only rule, the tab bar standing up
-                       on its side, cards that no longer swipe open, the detail
+                       column strip's portrait-only rule, the tab bar riding in
+                       the header on its side, cards that no longer swipe open, the detail
                        sheet stopping short of the top, the "+" raising no panel
                        behind it, and Settings showing one subject at a time:
                        which recognizer wins a pan, what a size class draws, where
@@ -812,12 +812,47 @@ reads as broken.
 **The iPad waits rather than overlapping.** The inspector, when there is no room,
 draws on top of the board; the panel cannot borrow that trick, because it sits
 above the toolbar and an overlay there is the defect `PadRootView` already
-documents — the New task button drawn over and unhittable. So `hasRoomForTheInbox`
+documents — the button drawn over and unhittable. So `hasRoomForTheInbox`
 hides it until there is room for it *and* a column. That check reads `detailWidth`,
 the whole detail column, and not `rowWidth`, which excludes the panel: measuring
 the room for a panel off a width the panel is subtracted from is a feedback loop —
 it fits, so it appears, so the row shrinks, so it no longer fits. That loop is
 what shipped in the first draft, and the panel simply never appeared.
+
+#### The two panels on the left take turns
+
+Waiting is the right answer to *no room* and the wrong answer to *no room yet*.
+**Two** panels open on the left of an iPad window — the source list and this one
+— each a column wide, and on an 11" in portrait the second one was simply
+declined: the Inbox button did nothing, which is indistinguishable from a bug.
+
+So where the window cannot hold both, **whichever is opened closes the other**.
+`PadRootView.holdsBothSidebars(window:sidebar:inspector:panel:floor:)` is the
+question — the window less both columns and the inspector, against the board's
+own floor — and two `onChange` handlers are the answer, one per direction.
+
+Three things about how it is wired:
+
+- **It watches the list *taking width*, not `columnVisibility`.** That binding is
+  a request rather than an outcome: the split view answers `.automatic` itself
+  and writes its answer back, so a fixed number of presses on the toggle is not
+  a fixed result — measured, two presses on a 13" in portrait left the list
+  hidden. And the system may draw the list *over* the board rather than beside
+  it, in which case it costs the board nothing and there is nothing to make room
+  for. `sidebarCost` is `windowWidth - detailWidth`, which is zero in both of
+  those cases and right in both.
+- **The list's width is measured while it is out and estimated while it is not**
+  — the column's own ideal, because there is nothing to measure then. Same trade
+  as the toolbar's fold, for the same reason.
+- **The inspector counts**, because it is a column of the same window. That is
+  what makes an 11" in *landscape* take turns with the inspector out and not
+  with it away, and a 13" in portrait the same. It also keeps this rule and
+  `hasRoomForTheInbox` in agreement, which they have to be: if this said "room
+  for both" where that said "no room for the panel", the Inbox button would go
+  back to doing nothing.
+
+`Tests/PadSurfaceTests` holds the arithmetic and `UITests/PadSidebarsTests`
+presses the buttons.
 
 #### Dragging between the panel and the board
 
@@ -2559,8 +2594,13 @@ holding its 348pt column with nothing selected exactly as `MacEmptyInspector`
 does. A sibling cannot cover the toolbar. Re-measured after the change, New task
 is `hittable=true` with the list out and with it hidden, and the reorder lands.
 
-Where there is not room for both, the panel goes **over the board** — never over
-the toolbar, which is the whole point. `PadRootView` measures the row with
+The source list and the Inbox panel are a different pair, and they **take turns**
+rather than overlapping: both open on the left, both are a column wide, and a
+window that cannot hold both closes whichever was not just asked for. See **The
+two panels on the left take turns**.
+
+Where there is not room for both the board and the *inspector*, the inspector goes
+**over the board** — never over the toolbar, which is the whole point. `PadRootView` measures the row with
 `onGeometryChange` and insets the panel only while a `.pad` column and its
 margins would still fit beside it; below that it is a trailing overlay. An iPad
 mini in portrait with the source list out leaves 166pt of detail beside a 348pt
@@ -3229,50 +3269,57 @@ chip lit. And the add row, the empty state and the add action all take the
 *page's* column rather than the current one, since the page a finger is over is
 not always the one the pager is on.
 
-**The tab bar stands up, and the words come off it.** Board, Inbox, Search and
-the quick-capture **+** ran along the foot, where between them they cost 130pt of
-a 402pt screen: the pill, the button, and the room under the last card to scroll
-clear of both. That is a third of the axis this shape has least of, and about a
-tenth of the axis it has to spare — so `PhoneTabBar` takes an `axis`, and
-landscape stands it on the leading edge. Same three slots in the same order, top
-to bottom where they were leading to trailing, same button under them. The rail
-is around 76pt wide, and the **+** is what makes it that: three 44pt glyph
-squares are narrower than the button under them.
+**The tab bar moves into the header, and the words come off it.** Board, Inbox,
+Search and the quick-capture **+** ran along the foot, where between them they
+cost 130pt of a 402pt screen: the pill, the button, and the room under the last
+card to scroll clear of both. That is a third of the axis this shape has least
+of — so `PhoneTabBar` takes a `Placement`, and landscape draws it in the title
+row, between the board's name and the ⋯. Same three slots in the same order,
+same button after them, and **nothing pays for it**: that row is already drawn,
+already 44pt tall, and the middle of it was a serif name with the whole width of
+the screen after it.
 
-Each slot is a glyph and a word along the foot and **the glyph alone up the
-rail**. The glyphs are the app's own vocabulary rather than a new set — the
+**It stood on end up the leading edge first**, and that is worth writing down
+because the rail was not wrong — it bought the 130pt of height back, and charged
+the board 76pt of width for it through a `safeAreaInset(edge: .leading)`. The
+header row is the third answer and the only free one. What the rail leaves
+behind is the reason the pager is now **`.clipped()`**: a `ScrollView` reaches
+past the safe area by design and insets only its content, so the next column
+along is drawn in the strip beside the sensor housing. The rail used to stand in
+that strip with an opaque ground and hide it; with nothing there any more, the
+pager is held to the frame it was given. A no-op in portrait, where the
+horizontal insets are zero.
+
+Each slot is a glyph and a word along the foot and **the glyph alone in the
+header**. The glyphs are the app's own vocabulary rather than a new set — the
 board's `square.grid.2x2`, the tray `SavedView.inbox` is drawn with everywhere
 else, and the header's magnifier — so the same place has the same mark wherever
-it is named. Dropping the words on the rail is not only tidiness: three of them
-standing on end cost 260pt of a 390pt run, which left the **+** hanging off the
-end at an accessibility size, and a word read bottom-to-top is slower to take in
-than the icon it was sitting next to. Each button says its own name through
-`accessibilityLabel`, so VoiceOver meets the same three names in both shapes and
-never sees the difference. The one place the glyph gives way is the *portrait*
-bar at an accessibility size: a 12pt label there is already scaling to its floor
-to fit a third of a phone's width, and a glyph beside it takes the last of that
-room and truncates the word — so above `dynamicTypeSize.isAccessibilitySize` the
-word takes the slot back.
+it is named. Each button says its own name through `accessibilityLabel`, so
+VoiceOver meets the same three names in both shapes and never sees the
+difference. The one place the glyph gives way is the *portrait* bar at an
+accessibility size: a 12pt label there is already scaling to its floor to fit a
+third of a phone's width, and a glyph beside it takes the last of that room and
+truncates the word — so above `dynamicTypeSize.isAccessibilitySize` the word
+takes the slot back.
 
-The rail goes on through **`.safeAreaInset(edge: .leading)`** rather than as an
-overlay with a padding to match, and that is the whole difference between a rail
-and a bar. A card under a floating pill can be scrolled clear of it; a card under
-a rail cannot, so the board has to be *given* what is left rather than laid
-underneath. The inset also measures the rail rather than being told its width,
-which matters because the width is not a constant — the glyphs grow with the
-reader's type. `AnyLayout` switches the two stacks instead of an `if`, so turning
-the phone does not hand the same three buttons a new identity and a fresh glass
-material. The leading-edge swipe still opens the drawer over the top of it: that
-recognizer lives on the hosting view controller's view and never saw this tree to
-begin with.
+**The header's slot draws smaller than it claims**, which is the trade the
+hamburger and the ⋯ beside it already make. The chip is 34pt — their size, so
+the row reads as one row rather than as a bar dropped into a title — and 5pt of
+padding round it carries the target out to the 44 a finger needs. Padding rather
+than a `frame`, because the glass pill wraps whatever the slot returns: a 44pt
+frame would put the material 5pt out from the chip on every side, which is a
+pill drawn round its own gaps. The bar's own `padding(.bottom, 3)` puts its foot
+level with theirs, so joining the row costs it no height at all.
 
 `UITests/TabRailTests` is the only thing that can check it, for
 `ColumnStripTests`'s reason and one more: it is a size class, and it is a
-*frame*. It turns the phone and reads where the **+** and the Board slot landed,
-that the slot on the rail is a 44pt square rather than the ~100pt run a word
-would need — which is what pins "only the glyphs remain" — and that the header's
-hamburger starts after the rail ends, which is the board being beside it rather
-than under it.
+*frame*. It turns the phone and reads where the **+** and the Board slot landed
+— in the top fifth of the screen rather than over the foot, after the drawer
+button and before the ⋯ — and that the slot is a 44pt square rather than the
+~100pt run a word would need, which is what pins "only the glyphs remain". It
+also checks the drawer button starts within a tenth of the width, which is the
+board having the leading edge back. The suite keeps the older name; the claim it
+makes has not changed, only where the frames have to land.
 
 The add-column composer is the one place landscape is worse: 402pt minus a
 software keyboard leaves 238pt for a composer around 200pt tall, so its last row
@@ -4288,6 +4335,7 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `PreferenceBehaviourTests` | the twelve settings added at once, and chiefly that **the default of each leaves the app exactly as it was** — the cheapest way to ship a bug is to move a default while adding the switch that names it, so every default is written out here and cannot change without this test being edited. Then a stored value this build has no case for falling back rather than reading as nothing (what a downgrade leaves), a switch turned *off* being told from one never touched, the rolling and calendar weeks disagreeing where they should, the auto-archive sweep waiting for a card to settle and naming no undo step, and the view being written down whichever way the resume switch is set |
 | `SettingsTabTests` | the list Settings divides into, on whichever platform the suite is run: **at most four subjects**, because a pane holding one switch is a row that has been given a tab of its own and everybody pays for it on the way past; the Trash not among them, since it is the user's own work rather than a preference; no two subjects drawn under one name; each glyph resolving as a symbol the system actually has — an unresolved `systemImage` draws nothing and reports nothing, which is a toolbar item that is a word with a hole above it; General first, because both surfaces open on whatever is first and that is a decision rather than an accident of typing order; and the same four on both platforms, the desk's two extra switches being rows inside General rather than a case compiled out on iOS, so `allCases` is the whole truth about what gets drawn and nothing has to remember to filter it |
 | `BoardSettingsTests` | what the board settings sheet promises before it changes a board: the refuge a trashed column's cards move to being the one `deleteColumn` actually moves them to and the column itself landing in the Trash; the count including archived cards, because the move does; an empty column's warning saying only the part that is still true; and the reorder question — every move on a one-Done board leaving completed work exactly where it lands, a second Done column crossing the first changing it, `doneColumnID(afterMoving:toOffset:)` naming the right column before the move, and confirming performing the move that was described rather than one worked out again |
+| `SidebarRoomTests` | iOS only — whether an iPad window holds both of the panels that open on its left and still leaves a board: a 13" in portrait holding both only with the inspector away, an 11" in portrait holding neither combination, a 13" in landscape holding all four columns at once and an 11" in landscape not — which is the shape worth being surprised by, since 1194 less three columns is not a board; an unmeasured window reading as *room for both*, because the other way round shuts a panel on the way in; and the line being exactly the board's own floor rather than a number of its own. `UITests/PadSidebarsTests` presses the buttons |
 | `ToolbarFoldTests` | at what width the board header folds its search field into a button, which is arithmetic because the bar's width is whatever the split view left the detail column: the fold happening *before* the row runs out of room rather than after, and leaving the board's name something worth reading; the decision being monotonic in width, so no drag across the line can make it flicker; where the line falls on the shapes real iPads have — a 13" in portrait keeping its field with the board to itself *and* with either column beside it, losing it only when both are out, and an 11" in portrait losing it to the source list alone; each control in the row and the traffic lights' 68pt band moving the line, the capture button included, which is also where the iPad having one and the desk not is pinned; larger type folding sooner and stopping at the chrome caps; and the desk not folding at all, with its own window floor checked to still hold the bar that decision leans on. `UITests/ToolbarFoldTests` presses the button |
 | `TrashSurfaceTests` | where the Trash is now that it is not a settings tab: the flag being session state that starts shut and changes nothing about the board, `SettingsView` building no `TrashView` and holding no trash pane, each of the two door-bearing surfaces — the source list on macOS and iPad, the board menu on the phone — raising `isShowingTrash`, and the phone's sheet being presented by the root rather than by the header that opens it, which is a thing a menu cannot do |
 | `ScaleTests` | 7.4 — five hundred cards on six boards, thirty columns, twenty-four labels and eleven thousand activity entries, and what each hot path costs on it. Nothing asserts a wall-clock time: every bound is a *ratio* between two timings taken in the same process on the same data, which cancels the machine out and leaves the shape of the algorithm. See **Scale** |

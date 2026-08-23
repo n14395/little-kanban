@@ -42,6 +42,11 @@ struct PadRootView: View {
     /// width the panel is subtracted from is a feedback loop: it fits, so it
     /// appears, so the row shrinks, so it no longer fits. Measured once, here.
     @State private var detailWidth: CGFloat = 0
+    /// The whole split view, source list included — which `detailWidth` is not.
+    /// The difference between the two is what the list is costing the board, and
+    /// that difference is the only thing that knows whether this window can hold
+    /// both of the panels that open on its left. See ``hasRoomForBothSidebars``.
+    @State private var windowWidth: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var chrome = ChromeScale()
 
@@ -56,6 +61,30 @@ struct PadRootView: View {
             detail
         }
         .navigationSplitViewStyle(.balanced)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { windowWidth = $0 }
+        // Two panels open on the left of this window — the source list and the
+        // Inbox — and where it cannot hold both, the one being opened takes the
+        // room from the other. See ``hasRoomForBothSidebars``.
+        //
+        // `isInboxShowing` rather than `isInboxOpen`: the panel stands beside the
+        // board and a saved view has taken the board's place, so on Today the
+        // flag is set and there is nothing on screen to make room for.
+        .onChange(of: store.isInboxShowing) { _, showing in
+            guard showing, !hasRoomForBothSidebars else { return }
+            Motion.run(.easeOut(duration: 0.2), reduceMotion: reduceMotion) {
+                columnVisibility = .detailOnly
+            }
+        }
+        // And the other way. Keyed on the list *taking width* rather than on
+        // `columnVisibility`, which is a request rather than an outcome: the
+        // split view answers `.automatic` itself and writes its answer back into
+        // the binding, and it can draw the list over the board instead of beside
+        // it — in which case the list costs the board nothing and there is
+        // nothing to make room for. What is watched here is the fact.
+        .onChange(of: sidebarIsBesideTheBoard) { _, beside in
+            guard beside, !hasRoomForBothSidebars else { return }
+            store.isInboxOpen = false
+        }
         // The source list's other way in, and the same gesture the phone's
         // drawer answers. A split view looks like it should bring this with it
         // — `UISplitViewController` has `presentsWithGesture` — and measured on
@@ -84,7 +113,8 @@ struct PadRootView: View {
         .scrollBounceBehavior(.basedOnSize)
         .background(palette.sidebar)
         .navigationSplitViewColumnWidth(
-            min: chrome(260, cap: 1.4), ideal: chrome(300, cap: 1.4), max: chrome(360, cap: 1.4)
+            min: chrome(260, cap: 1.4), ideal: chrome(Self.sidebarIdeal, cap: 1.4),
+            max: chrome(360, cap: 1.4)
         )
         // The bar would draw a second, empty header above our own.
         .toolbar(.hidden, for: .navigationBar)
@@ -163,6 +193,12 @@ struct PadRootView: View {
     /// is no longer wide enough to draw.
     private var inspectorWidth: CGFloat { chrome(Self.baseInspectorWidth, cap: TaskInspector.widthCap) }
     private static let baseInspectorWidth: CGFloat = 348
+    /// What the split view lays the source list out at, named once because two
+    /// things read it: the column-width modifier that asks for it, and
+    /// ``sidebarWidth``, which has to know what the list would take while the
+    /// list is not there to be measured.
+    static let sidebarIdeal: CGFloat = 300
+
     /// The board's own floor: one `.pad` column and the strip's margins. Below
     /// it the panel stops being a column and becomes an overlay.
     private var boardFloor: CGFloat { chrome(BoardColumnView.Metrics.pad.width) + 32 }
@@ -173,15 +209,58 @@ struct PadRootView: View {
         rowWidth <= 0 || rowWidth - inspectorWidth >= boardFloor
     }
 
+    /// What the source list is taking from the board right now: the difference
+    /// between the window and the detail column. Zero when it is not out — and
+    /// zero as well when the system has drawn it *over* the board rather than
+    /// beside it, which is the right answer both times, because this is what the
+    /// list costs the board rather than whether it is on screen.
+    private var sidebarCost: CGFloat { max(0, windowWidth - detailWidth) }
+    private var sidebarIsBesideTheBoard: Bool { sidebarCost > 1 }
+
+    /// The width the list takes when it is out, whether or not it is out now:
+    /// measured while it is, and the column's own ideal while it is not. There
+    /// is nothing to measure then, and the ideal is what the split view lays it
+    /// out at — the same estimate-rather-than-oscillate trade `BoardToolbar`
+    /// makes about its own row.
+    private var sidebarWidth: CGFloat {
+        sidebarIsBesideTheBoard ? sidebarCost : chrome(Self.sidebarIdeal, cap: 1.4)
+    }
+
+    /// Whether this window can hold the source list, the Inbox panel and a board
+    /// worth looking at, all at once.
+    ///
+    /// Where it cannot, the two panels take turns: opening either closes the
+    /// other. That is the alternative to what this shape used to do, which was
+    /// nothing at all — `hasRoomForTheInbox` simply declined to draw the panel,
+    /// so on an 11" in portrait with the list out the Inbox button was a control
+    /// that did not appear to work. Both of these open on the left of the same
+    /// window and both are a column wide; asking the user to close one before
+    /// the other will open is asking them to work out an arithmetic they cannot
+    /// see.
+    private var hasRoomForBothSidebars: Bool {
+        Self.holdsBothSidebars(
+            window: windowWidth,
+            sidebar: sidebarWidth,
+            inspector: store.isInspectorOpen ? inspectorWidth : 0,
+            panel: chrome(InboxPanel.Metrics.pad.width),
+            floor: boardFloor
+        )
+    }
+
     /// Whether the Inbox panel fits without taking the board's last column.
     ///
     /// The inspector answers this by moving on top of the board when it will
     /// not fit; the Inbox cannot borrow that trick, because it sits *above* the
     /// toolbar and an overlay there is exactly the defect the panel's own
-    /// comment describes — the New task button drawn over and unhittable. So it
-    /// waits instead: an iPad in portrait with the source list and the
-    /// inspector out has no room for a third column, and the row in the source
-    /// list is still how you reach the Inbox.
+    /// comment describes — the button drawn over and unhittable. So it waits
+    /// instead.
+    ///
+    /// **What it used to wait for was the user to work it out.** An 11" in
+    /// portrait with the source list out has no room for a third column, and the
+    /// Inbox button simply did nothing there. The list gets out of the way now —
+    /// see ``hasRoomForBothSidebars`` — so what is left for this to decline is a
+    /// window with no room for the panel even with the list gone, which is a
+    /// genuinely tiny one.
     private var hasRoomForTheInbox: Bool {
         guard detailWidth > 0 else { return true }
         let beside = store.isInspectorOpen ? inspectorWidth : 0
@@ -216,6 +295,25 @@ struct PadRootView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    /// Whether a window this wide holds both of the panels that open on its left
+    /// and still leaves a board worth looking at.
+    ///
+    /// Static and arithmetic so that `PadSurfaceTests` can ask it: what it
+    /// decides is which of two panels closes, and a rule that only a booted iPad
+    /// can be asked is one that gets re-derived by hand every time somebody
+    /// changes a column's width.
+    ///
+    /// Zero before the first layout pass reads as *room for both*, which is the
+    /// safe way round: the alternative is a window that shuts one of its panels
+    /// on the way in.
+    static func holdsBothSidebars(
+        window: CGFloat, sidebar: CGFloat, inspector: CGFloat,
+        panel: CGFloat, floor: CGFloat
+    ) -> Bool {
+        guard window > 0 else { return true }
+        return window - sidebar - inspector - panel >= floor
     }
 
     /// `.automatic` is whatever the system chose, and the first press has to

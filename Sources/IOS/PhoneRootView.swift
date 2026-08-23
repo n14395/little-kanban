@@ -66,6 +66,18 @@ struct PhoneRootView: View {
                         // heading crowding the title is most obvious — hence the
                         // larger of the two numbers, not the smaller.
                         .padding(.top, isShort ? 14 : 10)
+                        // **Kept out of the sensor housing.** A `ScrollView`
+                        // reaches past the safe area by design and insets only
+                        // its content, so the *next* column along is drawn in
+                        // the strip beside the housing — which on a phone held
+                        // sideways is 60-odd points of half-covered card at the
+                        // leading edge. The rail used to hide that strip by
+                        // standing in it with an opaque ground; with the bar in
+                        // the header there is nothing there any more, so the
+                        // pager is clipped to the frame it was given instead.
+                        //
+                        // A no-op in portrait, where the horizontal insets are
+                        // zero and the clip is the scroll view's own bounds.
                         .clipped()
                 } else {
                     taskList(tasks)

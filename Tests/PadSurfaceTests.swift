@@ -18,6 +18,81 @@ import UIKit
 /// Both halves are asked here because either one alone is wrong in a way the
 /// other is not: the idiom alone hands the desk's three panes to an iPad in
 /// Slide Over, which has a phone's width and nowhere to put a sidebar.
+/// Which of the two panels that open on the left of an iPad window has to give
+/// way, and when.
+///
+/// Both the source list and the Inbox panel are a column wide and both open on
+/// the same side, so a window that is not wide enough for two columns and a
+/// board cannot show both. What it used to do there was nothing: the panel's own
+/// `hasRoomForTheInbox` declined to draw it, so on an 11" in portrait with the
+/// list out the Inbox button was a control that did not appear to work. They
+/// take turns now — whichever is opened closes the other — and this is the
+/// arithmetic that decides whether the window is one of those.
+///
+/// **A value test because the decision is a number**, taken from widths the view
+/// measures. `UITests/PadSidebarsTests` presses the buttons.
+@MainActor
+@Suite struct SidebarRoomTests {
+    private let panel = InboxPanel.Metrics.pad.width
+    private let inspector: CGFloat = 348
+    private let list = PadRootView.sidebarIdeal
+    /// One `.pad` column and the strip's margins, which is `PadRootView`'s own
+    /// floor spelled out — a board narrower than this is not a board.
+    private let floor = BoardColumnView.Metrics.pad.width + 32
+
+    private func holds(_ window: CGFloat, inspector: CGFloat) -> Bool {
+        PadRootView.holdsBothSidebars(
+            window: window, sidebar: list, inspector: inspector, panel: panel, floor: floor
+        )
+    }
+
+    /// A 13" in portrait holds both with the inspector away — 1032 less the
+    /// list's 300 and the panel's column still leaves a board — and does not
+    /// hold them with the inspector out, which takes more than the board has
+    /// left.
+    @Test func theBigIPadInPortraitHoldsBothOnlyWithoutTheInspector() {
+        #expect(holds(1032, inspector: 0))
+        #expect(!holds(1032, inspector: inspector))
+    }
+
+    /// An 11" in portrait holds neither combination: 834 less two columns is
+    /// half a board. This is the shape the rule was written for.
+    @Test func theSmallerIPadInPortraitHoldsOnlyOne() {
+        #expect(!holds(834, inspector: 0))
+        #expect(!holds(834, inspector: inspector))
+    }
+
+    /// A 13" in landscape holds all four at once — the desk's three panes plus
+    /// the Inbox, which is the shape this layout was drawn for, and the case
+    /// that must *not* start closing panels.
+    ///
+    /// An 11" in landscape does not, and that is worth being surprised by: 1194
+    /// less three columns is 226, which is not a board. It holds both of the
+    /// left-hand panels perfectly well with the inspector away, so on that iPad
+    /// whether the two take turns depends on the inspector — which is the honest
+    /// answer, because the inspector is a column of the same window.
+    @Test func landscapeHoldsEverythingOnTheBigIPadAndNotOnTheSmall() {
+        #expect(holds(1376, inspector: inspector))
+        #expect(!holds(1194, inspector: inspector))
+        #expect(holds(1194, inspector: 0))
+    }
+
+    /// Before the first layout pass there is no width, and no width has to read
+    /// as *room for both* — the other way round is a window that shuts one of
+    /// its panels on the way in.
+    @Test func anUnmeasuredWindowHoldsBoth() {
+        #expect(holds(0, inspector: inspector))
+    }
+
+    /// And the rule is the board's floor rather than a number of its own: a
+    /// window one point above it holds both, one point below does not.
+    @Test func theLineIsExactlyTheBoardsFloor() {
+        let exact = list + inspector + panel + floor
+        #expect(holds(exact, inspector: inspector))
+        #expect(!holds(exact - 1, inspector: inspector))
+    }
+}
+
 @Suite struct RootSurfaceTests {
     @Test func aRegularWidthIPadTakesTheDesksLayout() {
         #expect(RootSurface.resolve(idiom: .pad, horizontalSizeClass: .regular) == .pad)
