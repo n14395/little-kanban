@@ -259,7 +259,7 @@ struct BoardTaskCard: View {
             content
         }
         .buttonStyle(.bare)
-        .overlay(alignment: .topLeading) { completionToggle }
+        .overlay(alignment: .topTrailing) { completionToggle }
         .overlay(alignment: .bottomTrailing) { restoreButton }
         .overlay(alignment: dropCaretEdge ?? .top) { dropCaret }
         .opacity(isDragging ? 0.4 : 1)
@@ -271,7 +271,13 @@ struct BoardTaskCard: View {
         ))
         .modifier(CardDragSession(id: task.id))
         .overlay { dropZones }
-        .contextMenu {
+        // For a pointer, and only a pointer: a right-click menu on the desk,
+        // and the same on an iPad with a trackpad — a finger holding this card
+        // is picking it up, and gets the drag with no popup in front of it.
+        // See ``pointerContextMenu(items:)`` for the split, and the
+        // accessibility actions below for the same verbs by rotor, which the
+        // menu no longer carries for a reader driving by touch.
+        .pointerContextMenu {
             // In the Archive the verb is Restore, and only Restore. Ticking a
             // filed card used to move it to Done — silently choosing where it
             // would reappear, and taking its outstanding sub-tasks with it —
@@ -349,6 +355,11 @@ struct BoardTaskCard: View {
             if !task.isUnfiled, !task.isArchived {
                 Button("Move to Inbox") { store.move(targets, to: .inbox) }
             }
+            // The one menu verb the rotor did not already carry. It leant on
+            // the context menu, and on a touch screen that menu now answers
+            // only a pointer — see `pointerContextMenu` above — which to a
+            // reader driving by touch is a menu that is not there.
+            Button("Copy Link") { TaskLink.copyToPasteboard(task.id) }
         }
         .accessibilityAction(named: task.isArchived ? Text("Restore task") : Text("Archive task")) {
             if task.isArchived {
@@ -420,13 +431,31 @@ struct BoardTaskCard: View {
     /// Whether the card draws a tick, which is also whether `content` leaves it
     /// a gutter. Asked in one place so the overlay and the space it is drawn
     /// over cannot disagree — the failure that would leave is an empty column
-    /// of nothing down the leading edge of every card.
+    /// of nothing down the edge of every card.
+    ///
+    /// **The tick is in the trailing corner.** It was in the leading one, where
+    /// it stood in front of everything the card has to say — the label chips and
+    /// the title both start there, and the gutter pushed them in by a tick's
+    /// width on every card whether or not that card was anywhere near being
+    /// finished. The trailing corner is where the rest of the card's furniture
+    /// already is: the sub-task count sits under it and the Archive's Restore
+    /// button below that.
     ///
     /// Two ways to answer no. An archived card has never had one: in the
     /// Archive the verb is Restore and only Restore, see the context menu. The
     /// switch is the new one, and it is a preference — see
     /// ``Preferences/cardTickKey`` for why.
-    private var drawsToggle: Bool { !task.isArchived && showsCardTick }
+    private var drawsToggle: Bool {
+        Self.drawsToggle(isArchived: task.isArchived, showsCardTick: showsCardTick)
+    }
+
+    /// Static so `CardCornerTests` can ask it, and so the phone's card can ask
+    /// the *same* rule rather than spelling it again — both cards draw this
+    /// tick, and there is no reading of this app where one of them should show
+    /// it and the other should not.
+    static func drawsToggle(isArchived: Bool, showsCardTick: Bool) -> Bool {
+        !isArchived && showsCardTick
+    }
 
     /// Sits over the card rather than inside its label: a button nested in
     /// another button's label never sees the click, and completing a task must
@@ -437,7 +466,7 @@ struct BoardTaskCard: View {
             CompletionToggle(isDone: isDone, metrics: metrics.toggle) {
                 store.toggleCompletion(task.id)
             }
-            .padding(.leading, metrics.horizontalPadding - metrics.toggleInset)
+            .padding(.trailing, metrics.horizontalPadding - metrics.toggleInset)
             .padding(.top, metrics.topPadding - metrics.toggleInset)
             .help(isDone ? "Reopen task" : "Complete task")
             // The card combines its children, so the button's own label would
@@ -507,15 +536,6 @@ struct BoardTaskCard: View {
 
     private var content: some View {
         HStack(alignment: .top, spacing: metrics.toggleSpacing) {
-            // Holds the gutter the completion toggle is drawn over, and only
-            // when there is a toggle to draw: the space is reserved by this
-            // spacer alone, so a card with no tick starts its text at the
-            // card's own margin rather than leaving a hole where one was.
-            if drawsToggle {
-                Color.clear
-                    .frame(width: metrics.toggle.size, height: metrics.toggle.size)
-            }
-
             VStack(alignment: .leading, spacing: 8) {
                 if showsColumn || !task.labelKeys.isEmpty {
                     FlowLayout(spacing: 5) {
@@ -567,6 +587,15 @@ struct BoardTaskCard: View {
                     }
                 }
                 .padding(.top, 1)
+            }
+
+            // Holds the gutter the completion toggle is drawn over, and only
+            // when there is a toggle to draw: the space is reserved by this
+            // spacer alone, so a card with no tick runs its text to the card's
+            // own margin rather than leaving a hole where one was.
+            if drawsToggle {
+                Color.clear
+                    .frame(width: metrics.toggle.size, height: metrics.toggle.size)
             }
         }
         .padding(.horizontal, metrics.horizontalPadding)
@@ -702,7 +731,11 @@ private struct CardDragSession: ViewModifier {
 /// The card's own board, not the board on screen — `moveDestinations(for:)` has
 /// the rule, and the **Move Column** submenu on this card's context menu is the
 /// same list drawn for a pointer.
-private struct MoveActions: ViewModifier {
+///
+/// Internal rather than private because the phone's card carries the same
+/// actions for the same reason: its row menu answers only a pointer now, and a
+/// reader by touch still has to be able to move a card somewhere.
+struct MoveActions: ViewModifier {
     @Environment(BoardStore.self) private var store
 
     let task: TaskItem

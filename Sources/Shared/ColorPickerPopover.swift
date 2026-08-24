@@ -69,6 +69,14 @@ struct ColorPickerPopover: View {
         // into: this is a control hanging off a button, and a sheet that covers
         // the surface the colour is being chosen *for* hides the thing being
         // decided about.
+        //
+        // **Known open problem.** Opened from the add-column composer inside
+        // Board Settings with the keyboard up, XCUITest reports this popover's
+        // swatches at x≈744, y≈−124 on a 402pt screen — outside the window.
+        // Adapting to a sheet at compact width was tried and changed nothing,
+        // so the cause is not the adaptation and has not been found. See
+        // `BoardSettingsSheetTests`, which stops short of pressing through the
+        // picker for this reason.
         .presentationCompactAdaptation(.popover)
         #endif
         .onAppear {

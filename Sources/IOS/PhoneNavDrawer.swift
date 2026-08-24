@@ -162,9 +162,6 @@ struct PhoneNavDrawer: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     lists
-                    settingsRow
-                        .padding(.horizontal, 12)
-                        .padding(.top, 14)
                 }
             }
             .scrollBounceBehavior(.basedOnSize)
@@ -212,9 +209,19 @@ struct PhoneNavDrawer: View {
             }
             .padding(.horizontal, 12)
 
-            sectionHeader("Labels", topPadding: 24)
-            manageLabelsRow
-                .padding(.horizontal, 12)
+            // **Manage**, and the same three rows in the same order as the
+            // sidebar's: the phone's drawer and the desk's source list are the
+            // same list of places, and a heading that said *Labels* over one row
+            // while the other platforms said *Manage* over three was the drift
+            // this section exists to end. What it holds is the app's own
+            // furniture rather than anywhere a card is filed.
+            sectionHeader("Manage", topPadding: 24)
+            VStack(spacing: 0) {
+                labelsRow
+                trashRow
+                settingsRow
+            }
+            .padding(.horizontal, 12)
 
             // **Reminders used to be a section of its own down here**, opening
             // a sheet with the switch and the time of day on it. It was a
@@ -222,7 +229,7 @@ struct PhoneNavDrawer: View {
             // goes somewhere the user's work is — and it was the second copy of
             // a pane Settings already had, with two of Settings' four switches
             // missing from it. Settings ▸ Notifications is the whole of it now,
-            // and `settingsRow` below is the way there.
+            // and the Settings row under **Manage** is the way there.
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -230,13 +237,18 @@ struct PhoneNavDrawer: View {
     /// Renaming, recolouring and deleting a label are board-wide edits, so they
     /// hang off the board's own list rather than off any one task's chips —
     /// the same reasoning, and the same view, as the macOS sidebar's row.
-    private var manageLabelsRow: some View {
+    ///
+    /// **Named for what it is rather than for what pressing it does**, like
+    /// every other row in this drawer: the boards are not "Open board". It said
+    /// *Manage labels* under a heading that said *Labels*, which spent the word
+    /// twice; the heading spends it on the section now.
+    private var labelsRow: some View {
         Button { isManagingLabels = true } label: {
             HStack(spacing: 10) {
                 Image(systemName: "tag")
                     .imageScale(.medium)
                     .foregroundStyle(palette.inkText(0.5))
-                Text("Manage labels")
+                Text("Labels")
                     .font(palette.ui(15, .semibold, relativeTo: .body))
                     .foregroundStyle(palette.ink(0.66))
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -248,11 +260,55 @@ struct PhoneNavDrawer: View {
         }
         .buttonStyle(.bare)
         .accessibilityRepresentation {
-            Button(String(localized: "Manage labels",
+            Button(String(localized: "Labels",
                           comment: "Accessibility name of the drawer row that opens the label manager")) {
                 isManagingLabels = true
             }
                 .accessibilityValue(Text(verbatim: "\(store.labels.count)"))
+        }
+    }
+
+    /// The Trash, which the header's ⋯ menu also carries. Two doors rather than
+    /// one because they answer different questions — the menu is *what can I do
+    /// here*, this list is *where can I go* — and because the drawer is the one
+    /// place all three platforms put the same three rows.
+    ///
+    /// The drawer closes before the flag is set, for ``settingsRow``'s reason:
+    /// the sheet is presented from the root, and one raised under an open
+    /// overlay is a sheet nobody can touch.
+    private var trashRow: some View {
+        let count = store.trashCount
+
+        return Button {
+            store.isNavDrawerOpen = false
+            store.isShowingTrash = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: count > 0 ? "trash.fill" : "trash")
+                    .imageScale(.medium)
+                    .foregroundStyle(palette.inkText(0.5))
+                Text("Trash")
+                    .font(palette.ui(15, .semibold, relativeTo: .body))
+                    .foregroundStyle(palette.ink(0.66))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                CountPill(count: count, font: 12.5, horizontalPadding: 8)
+            }
+            .padding(12)
+            .frame(minHeight: 44)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.bare)
+        // Substituted for the reason every row with a symbol in it is: an
+        // `Image` among siblings inside a button's label is published as an
+        // element of its own whatever else is asked of it, so the row would
+        // read "Trash" and then "trash.fill" from Apple's catalogue.
+        .accessibilityRepresentation {
+            Button(String(localized: "Trash",
+                          comment: "Accessibility name of the drawer row that opens the Trash")) {
+                store.isNavDrawerOpen = false
+                store.isShowingTrash = true
+            }
+                .accessibilityValue(Text(verbatim: "\(count)"))
         }
     }
 
@@ -402,8 +458,8 @@ struct PhoneNavDrawer: View {
 
     /// A real control with a live count, which is the whole of 4.1 on this
     /// surface: these rows were layout with a handler-less count on "Today",
-    /// which is worse than showing nothing. Selecting the open view again is a
-    /// second way back to the board, next to the board row's own.
+    /// which is worse than showing nothing. Picking the view you are already on
+    /// closes the drawer and changes nothing — see ``open(_:)``.
     private func viewRow(_ view: SavedView) -> some View {
         let isActive = store.activeView?.id == view.id
         return Button { open(view) } label: {
@@ -503,16 +559,13 @@ struct PhoneNavDrawer: View {
     /// The drawer covers the list it is changing, so a pick has to close it —
     /// otherwise the only feedback is a row highlight behind a scrim.
     ///
-    /// Selecting the open view again puts the tab bar's own place back, rather
-    /// than assuming that place was the board: the Inbox is a destination now,
-    /// and returning from Today to a board the user was not on would be the
-    /// drawer answering a question nobody asked.
+    /// **Picking the view you are already on does nothing but close the drawer.**
+    /// It used to put the tab bar's own place back, which is the sidebar's old
+    /// toggle by another name: a destination row means "go here", and one that
+    /// undoes itself when pressed twice is a control with two meanings and no
+    /// way to tell which you are about to get.
     private func open(_ view: SavedView) {
-        if store.activeView?.id == view.id {
-            store.selectTab(store.tab)
-        } else {
-            store.activeView = view
-        }
+        store.activeView = view
         store.isNavDrawerOpen = false
     }
 

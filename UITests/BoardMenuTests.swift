@@ -83,6 +83,51 @@ final class BoardMenuTests: XCTestCase {
         }
     }
 
+    /// **The first item names the surface that is on screen.** On a saved view
+    /// the menu offered *Board Settings…* — the settings of the board standing
+    /// behind the view, which is not what the reader is looking at and not what
+    /// they would expect the row to change. A view has settings of its own, and
+    /// this menu is the phone's only door to them that is not the drawer.
+    ///
+    /// The editor is raised through `BoardStore.editingViewID` rather than
+    /// presented by the menu, for the drawer's reason: a menu is gone by the
+    /// time the sheet would open. So this presses it and waits for the sheet,
+    /// which is the half a rendered menu cannot show.
+    func testOnASavedViewTheFirstItemEditsTheView() throws {
+        try XCTSkipUnless(
+            UIDevice.current.userInterfaceIdiom == .phone,
+            "the board menu is the phone's"
+        )
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES", "-SimpleKanbanTab", "board"]
+        app.launch()
+
+        // Onto a view, through the drawer — the only way to one on this surface.
+        XCTAssertTrue(app.buttons["Show boards"].waitForExistence(timeout: 20), "no board")
+        app.buttons["Show boards"].firstMatch.tap()
+        let today = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Today")).firstMatch
+        XCTAssertTrue(today.waitForExistence(timeout: 5), "the drawer has no Today row")
+        today.tap()
+
+        let menu = app.buttons["Board actions"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 10), "the header lost its menu on a view")
+        menu.tap()
+
+        let edit = app.buttons["Edit View…"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 5),
+                      "the menu offers no way to edit the view that is on screen")
+        XCTAssertFalse(app.buttons["Board Settings…"].exists,
+                       "the menu still offers the settings of the board behind the view")
+
+        edit.tap()
+        // The editor, by the name in its own header — the menu item carries the
+        // ellipsis and the sheet does not, so this cannot match the row that
+        // opened it.
+        XCTAssertTrue(app.staticTexts["Edit View"].waitForExistence(timeout: 10),
+                      "Edit View… did not raise the editor")
+    }
+
     /// And what stays, because "removed the clutter" is one edit away from
     /// "removed the menu": these four have no other home on this surface.
     func testTheBoardMenuKeepsWhatIsReachableNowhereElse() throws {

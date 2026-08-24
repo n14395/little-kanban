@@ -11,7 +11,7 @@ import Testing
 /// `ColumnFlowLayout.columns(of:into:cardSpacing:)` is split out of the `Layout`
 /// for exactly this: a `Layout`'s `Subviews` cannot be built by a test, so the
 /// decision is a function of `[CGFloat]` and the layout is what measures them.
-/// The same arrangement `SidebarRoomTests` has with `holdsBothSidebars`.
+/// The same arrangement `SidebarRoomTests` has with `yields(to:in:)`.
 ///
 /// The heights here are cards: 110 is a title and a due chip, 60 a bare title,
 /// 240 one with a description and a checklist.

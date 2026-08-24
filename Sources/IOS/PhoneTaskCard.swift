@@ -4,8 +4,10 @@ import SwiftUI
 
 /// A card in the phone list. Tapping it raises the detail sheet; the circle in
 /// its leading gutter completes it. Everything else a card can be told to do is
-/// in ``PhoneTaskRowActions``' long-press menu, which the list applies to the
-/// row itself.
+/// in ``PhoneTaskRowActions``' menu — which the list applies to the row itself,
+/// and which only a pointer's right-click raises: a finger holding a card is
+/// picking it up. The same verbs ride the card as rotor actions, because a
+/// menu a finger cannot raise is a menu VoiceOver cannot raise either.
 struct PhoneTaskCard: View {
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
@@ -25,7 +27,9 @@ struct PhoneTaskCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 4) {
-            if hasLeadingControl { leadingControl }
+            // The Archive's way back keeps the leading gutter: it is not the
+            // tick, and a filed card never had one.
+            if task.isArchived { restoreBox }
             Button {
                 store.sheetID = task.id
             } label: {
@@ -33,18 +37,44 @@ struct PhoneTaskCard: View {
             }
             .buttonStyle(.bare)
             .accessibilityElement(children: .combine)
+            // The menu's verbs, as rotor actions on the element a reader lands
+            // on. ``PhoneTaskRowActions``' menu answers only a pointer now, and
+            // UIKit's habit of reading a context menu out to VoiceOver went
+            // with the long press — a reader drives by touch, and to a finger
+            // that menu is not there. Completion rides along tick or no tick:
+            // the tick is a preference, and a control a preference can remove
+            // must not take the verb with it.
+            .accessibilityActions {
+                if task.isArchived {
+                    Button("Restore") { store.unarchive(task.id) }
+                } else {
+                    Button(isDone ? "Reopen" : "Complete") { store.toggleCompletion(of: task) }
+                    if !task.isUnfiled {
+                        Button("Move to Inbox") { store.unfile(task.id) }
+                    }
+                    Button("Archive") { store.archive(task.id) }
+                }
+                Button("Copy Link") { TaskLink.copyToPasteboard(task.id) }
+                Button("Trash") { store.trashTask(task.id) }
+            }
+            .modifier(MoveActions(task: task))
+            // **The tick, in the trailing corner.** It stood in the leading
+            // gutter, in front of everything the card has to say: the chips and
+            // the title both start there, and a tick's width of margin was
+            // spent on every card whether or not it was near being finished.
+            if drawsToggle { completeBox }
         }
         // The toggle's 44pt target is what sets the top inset here: the card
         // gives it the first pixel and the summary carries the visual padding
         // instead, which keeps the circle level with the first line rather than
         // 11pt below it.
         //
-        // The leading inset is the gutter's, not the card's — 5, because the
-        // 44pt square overhangs the 22pt circle it draws by 11 either side. So
-        // with no gutter the card owes its text the margin the gutter was
-        // standing in for, and pays the 15 its trailing edge already does.
-        .padding(.leading, hasLeadingControl ? 5 : 15)
-        .padding(.trailing, 15)
+        .padding(.leading, leadingInset)
+        // The tick's 44pt square overhangs the 22pt circle it draws by 11
+        // either side, so the edge it is against pays 5 and the card's own 15
+        // is what the gutter was standing in for. Mirrored from the leading
+        // edge, where it used to be.
+        .padding(.trailing, drawsToggle ? 5 : 15)
         .padding(.top, 1)
         .padding(.bottom, 12)
         .background {
@@ -109,21 +139,24 @@ struct PhoneTaskCard: View {
         .padding(.top, 11)
     }
 
-    /// Whether the leading gutter is drawn. The Archive's Restore is not a
-    /// preference — it is a filed card's only way back, and the switch below it
-    /// is about the tick.
-    private var hasLeadingControl: Bool { task.isArchived || showsCardTick }
-
-    /// In the Archive the verb is Restore, not Complete. The tick was still
-    /// live on an archived card, and it did two invisible things: it moved the
-    /// card between columns — quietly deciding where it would reappear — and,
-    /// on the way into Done, ticked off whatever sub-tasks were left. Neither
-    /// showed, because the Archive sorts by `archivedAt` and the row did not
-    /// move. A card that is filed away is not work in progress, so the gutter
-    /// carries the one verb that is.
-    @ViewBuilder private var leadingControl: some View {
-        if task.isArchived { restoreBox } else { completeBox }
+    /// Whether the tick is drawn. The Archive's Restore is not a preference —
+    /// it is a filed card's only way back, and the switch is about the tick.
+    private var drawsToggle: Bool {
+        BoardTaskCard.drawsToggle(isArchived: task.isArchived, showsCardTick: showsCardTick)
     }
+
+    /// What the card owes its leading edge: Restore's 22pt box overhangs by 5
+    /// the way the tick used to, and everything else pays the card's own 15.
+    private var leadingInset: CGFloat { task.isArchived ? 5 : 15 }
+
+    // In the Archive the verb is Restore, not Complete. The tick was still live
+    // on an archived card, and it did two invisible things: it moved the card
+    // between columns — quietly deciding where it would reappear — and, on the
+    // way into Done, ticked off whatever sub-tasks were left. Neither showed,
+    // because the Archive sorts by `archivedAt` and the row did not move. A
+    // card that is filed away is not work in progress, so the card carries the
+    // one verb that is — and it stays on the leading edge, where the tick no
+    // longer is.
 
     private var completeBox: some View {
         CompletionToggle(isDone: isDone, metrics: .sheet) {
@@ -165,13 +198,14 @@ struct PhoneTaskCard: View {
 /// **Applied beside ``PhoneTaskRowActions`` rather than inside the card**, and
 /// that is the whole of what makes a lifted card follow the finger. UIKit shares
 /// one long press between a view's `UIDragInteraction` and its
-/// `UIContextMenuInteraction`: move during the lift and the drag takes it, hold
-/// still and the menu does. It only shares it when both are on the *same* view.
-/// With `.draggable` a body deeper than `.contextMenu` they were on two, the
-/// menu's lift failed the drag's gesture underneath it, and the only way into a
-/// drag left was to haul the presented menu far enough to tear the preview out
-/// of it — which is a long way, by design, and is what this surface used to ask
-/// for. Both are on the row now.
+/// `UIContextMenuInteraction`, and only shares it when both are on the *same*
+/// view. With `.draggable` a body deeper than `.contextMenu` they were on two,
+/// the menu's lift failed the drag's gesture underneath it, and the only way
+/// into a drag left was to haul the presented menu far enough to tear the
+/// preview out of it — which is a long way, by design, and is what this surface
+/// used to ask for. Both are on the row now — and with the menu answering only
+/// a pointer, a finger's hold has nothing to share: the lift is the drag's
+/// alone, and a held-still finger simply holds a lifted card.
 struct ReorderableCard: ViewModifier {
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
@@ -265,7 +299,8 @@ struct ReorderableCard: ViewModifier {
 
 }
 
-/// Everything a card can be told to do, in one long-press menu.
+/// Everything a card can be told to do, in one menu — raised by a pointer's
+/// right-click, and no longer by a finger's long press.
 ///
 /// **The rows do not swipe.** Complete had the leading edge and Trash the
 /// trailing one until 6.4, and both are gone: a card that slides out from under
@@ -275,18 +310,23 @@ struct ReorderableCard: ViewModifier {
 /// surfaces disagreed about what a sideways drag on a card did, which is worse
 /// than either answer — and the pager keeps its swipe.
 ///
-/// **Nothing became unreachable.** The menu was never a duplicate of the swipes:
-/// it carried Move to, Archive, the reorder items and Copy Link, which no edge
-/// ever offered, and it was already the only route for a reader on VoiceOver or
-/// Switch Control, to whom a swipe is invisible. What the two edges held —
-/// Complete and Trash — is still the first and last thing in it.
+/// **And the rows do not pop.** The long press went the way of the swipes and
+/// for their reason: holding a card is how a finger picks it up, and a menu on
+/// the same hold put a popup in front of every lift. `pointerContextMenu` is
+/// the split — the menu is still here, whole, for the input that has always
+/// meant *menu* by it.
+///
+/// **Nothing became unreachable.** A finger still has every verb: the tick
+/// completes, the detail sheet moves, archives, links and trashes, and the
+/// card itself now carries the menu's verbs as rotor actions — which is the
+/// route a reader on VoiceOver or Switch Control keeps, since UIKit only read
+/// this menu out to them for as long as a long press could raise it.
 ///
 /// Applied by the list to the row rather than by the card to itself: list-row
 /// traits are read off the row's own view, and burying them a body deeper is
 /// how they quietly stop arriving. ``ReorderableCard`` is applied on the same
-/// view immediately before this one, and has to be: the lift this menu opens
-/// with is the drag's lift too, and UIKit only shares it between interactions
-/// that sit on one view.
+/// view immediately before this one, and has to be: the drag and the menu only
+/// stay out of each other's way when their interactions sit on one view.
 struct PhoneTaskRowActions: ViewModifier {
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
@@ -297,7 +337,7 @@ struct PhoneTaskRowActions: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .contextMenu {
+            .pointerContextMenu {
                 leadingAction
                 filing
                 copyLink

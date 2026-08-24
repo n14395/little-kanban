@@ -334,7 +334,7 @@ struct ColumnFlowLayout: Layout {
     /// by a test — the arithmetic would otherwise be reachable only by rendering
     /// a window and measuring it, which is how a packing rule goes wrong in one
     /// place and passes everywhere else. `ColumnFlowTests` calls this directly,
-    /// the way `SidebarRoomTests` calls `PadRootView.holdsBothSidebars`.
+    /// the way `SidebarRoomTests` calls `PadRootView.yields(to:in:)`.
     ///
     /// Greedy, and greedy is right here: the cards are in an order the reader
     /// can see — newest filing first in the Archive, due date in Today — so a

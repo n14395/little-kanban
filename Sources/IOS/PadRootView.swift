@@ -45,7 +45,7 @@ struct PadRootView: View {
     /// The whole split view, source list included — which `detailWidth` is not.
     /// The difference between the two is what the list is costing the board, and
     /// that difference is the only thing that knows whether this window can hold
-    /// both of the panels that open on its left. See ``hasRoomForBothSidebars``.
+    /// the panels that are open on both sides of it. See ``panelRoom``.
     @State private var windowWidth: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var chrome = ChromeScale()
@@ -58,28 +58,40 @@ struct PadRootView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { windowWidth = $0 }
-        // Two panels open on the left of this window — the source list and the
-        // Inbox — and where it cannot hold both, the one being opened takes the
-        // room from the other. See ``hasRoomForBothSidebars``.
+        // **Three panels, one window, and whichever was opened wins.**
+        //
+        // The source list and the Inbox open on the left, the inspector on the
+        // right, and each is a column wide. A window that cannot hold what is
+        // open *and* a board worth looking at has to put something away, and
+        // the alternative to choosing is what this used to do on either side:
+        // decline to draw the Inbox — a button that appears not to work — or
+        // draw the inspector on top of the board. Which one gives way is
+        // ``yields(to:in:)``, and it is never more of them than it takes.
+        //
+        // The source list is the one of the three that is not asked for here:
+        // ``toggleSidebar`` and ``revealSidebar`` are, because **the ask is the
+        // trigger and the measurement is not**. Watching the list take width
+        // reads the system's own answer as the reader's: `.automatic` puts the
+        // list out at launch on an 11" in portrait and takes it away again a
+        // moment later, and a rule keyed on that collapsed the editor on the way
+        // in — measured, `beside=true d=516` then `insp=false` then
+        // `beside=false d=834`, which is a window that shut one of its panels
+        // before anybody had touched it.
         //
         // `isInboxShowing` rather than `isInboxOpen`: the panel stands beside the
         // board and a saved view has taken the board's place, so on Today the
         // flag is set and there is nothing on screen to make room for.
         .onChange(of: store.isInboxShowing) { _, showing in
-            guard showing, !hasRoomForBothSidebars else { return }
-            Motion.run(.easeOut(duration: 0.2), reduceMotion: reduceMotion) {
-                columnVisibility = .detailOnly
-            }
+            guard showing else { return }
+            makeRoom(for: .inbox, in: panelRoom)
         }
-        // And the other way. Keyed on the list *taking width* rather than on
-        // `columnVisibility`, which is a request rather than an outcome: the
-        // split view answers `.automatic` itself and writes its answer back into
-        // the binding, and it can draw the list over the board instead of beside
-        // it — in which case the list costs the board nothing and there is
-        // nothing to make room for. What is watched here is the fact.
-        .onChange(of: sidebarIsBesideTheBoard) { _, beside in
-            guard beside, !hasRoomForBothSidebars else { return }
-            store.isInboxOpen = false
+        // And the panel on the other side of the board, whose usual way in is a
+        // tap on a card rather than a button — `BoardTaskCard.click` opens it,
+        // as does `BoardStore.reveal`. Only the transition is watched, so a
+        // second card tapped while it is already out reflows nothing.
+        .onChange(of: store.isInspectorOpen) { _, open in
+            guard open else { return }
+            makeRoom(for: .inspector, in: panelRoom)
         }
         // The source list's other way in, and the same gesture the phone's
         // drawer answers. A split view looks like it should bring this with it
@@ -195,8 +207,8 @@ struct PadRootView: View {
     private static let baseInspectorWidth: CGFloat = 348
     /// What the split view lays the source list out at, named once because two
     /// things read it: the column-width modifier that asks for it, and
-    /// ``sidebarWidth``, which has to know what the list would take while the
-    /// list is not there to be measured.
+    /// ``makeRoomForTheSourceList``, which has to know what the list will take
+    /// while the list is not there to be measured.
     static let sidebarIdeal: CGFloat = 300
 
     /// The board's own floor: one `.pad` column and the strip's margins. Below
@@ -217,34 +229,58 @@ struct PadRootView: View {
     private var sidebarCost: CGFloat { max(0, windowWidth - detailWidth) }
     private var sidebarIsBesideTheBoard: Bool { sidebarCost > 1 }
 
-    /// The width the list takes when it is out, whether or not it is out now:
-    /// measured while it is, and the column's own ideal while it is not. There
-    /// is nothing to measure then, and the ideal is what the split view lays it
-    /// out at — the same estimate-rather-than-oscillate trade `BoardToolbar`
-    /// makes about its own row.
-    private var sidebarWidth: CGFloat {
-        sidebarIsBesideTheBoard ? sidebarCost : chrome(Self.sidebarIdeal, cap: 1.4)
+    /// What the three panels are costing the board right now, and what the
+    /// window has to fit them in.
+    ///
+    /// **What is open, not what could be.** The source list is counted at what
+    /// it is actually taking — nothing at all when the system has drawn it over
+    /// the board rather than beside it, which is the honest answer, since a
+    /// panel that costs the board nothing is not competing for anything.
+    private var panelRoom: PanelRoom {
+        PanelRoom(
+            window: windowWidth,
+            floor: boardFloor,
+            sourceList: sidebarIsBesideTheBoard ? sidebarCost : 0,
+            inbox: store.isInboxShowing ? chrome(InboxPanel.Metrics.pad.width) : 0,
+            inspector: store.isInspectorOpen ? inspectorWidth : 0
+        )
     }
 
-    /// Whether this window can hold the source list, the Inbox panel and a board
-    /// worth looking at, all at once.
-    ///
-    /// Where it cannot, the two panels take turns: opening either closes the
-    /// other. That is the alternative to what this shape used to do, which was
-    /// nothing at all — `hasRoomForTheInbox` simply declined to draw the panel,
-    /// so on an 11" in portrait with the list out the Inbox button was a control
-    /// that did not appear to work. Both of these open on the left of the same
-    /// window and both are a column wide; asking the user to close one before
-    /// the other will open is asking them to work out an arithmetic they cannot
-    /// see.
-    private var hasRoomForBothSidebars: Bool {
-        Self.holdsBothSidebars(
-            window: windowWidth,
-            sidebar: sidebarWidth,
-            inspector: store.isInspectorOpen ? inspectorWidth : 0,
-            panel: chrome(InboxPanel.Metrics.pad.width),
-            floor: boardFloor
+    /// The source list is about to open, which is a press rather than a
+    /// measurement: it is not laid out yet, so what it will take is the
+    /// column's own ideal — the same estimate-rather-than-oscillate trade the
+    /// toolbar's fold makes about its own row. Where the list is already out
+    /// beside the board, the measurement stands.
+    private func makeRoomForTheSourceList() {
+        makeRoom(
+            for: .sourceList,
+            in: panelRoom.opening(.sourceList, at: chrome(Self.sidebarIdeal, cap: 1.4))
         )
+    }
+
+    /// One of the three has just opened: put away whatever it takes for it to
+    /// have its room, and nothing more.
+    ///
+    /// The whole list is worked out from one snapshot before anything is
+    /// closed, so what happens does not depend on the order the closes land in
+    /// or on when the layout catches up with them. Each close is watched by one
+    /// of the handlers above, and each of those only fires on the way *open*,
+    /// which is what keeps this from answering itself.
+    private func makeRoom(for opened: Panel, in room: PanelRoom) {
+        for panel in Self.yields(to: opened, in: room) {
+            switch panel {
+            case .sourceList:
+                // The one panel this view does not own: it is the split view's
+                // column, and `columnVisibility` is how it is asked.
+                Motion.run(.easeOut(duration: 0.2), reduceMotion: reduceMotion) {
+                    columnVisibility = .detailOnly
+                }
+            case .inbox:
+                store.isInboxOpen = false
+            case .inspector:
+                store.isInspectorOpen = false
+            }
+        }
     }
 
     /// Whether the Inbox panel fits without taking the board's last column.
@@ -306,32 +342,129 @@ struct PadRootView: View {
         .toolbar(.hidden, for: .navigationBar)
     }
 
-    /// Whether a window this wide holds both of the panels that open on its left
-    /// and still leaves a board worth looking at.
+    // MARK: Which panel gives way
+
+    /// The three panels that share an iPad window, in the order they stand in
+    /// it: the split view's source list, the Inbox beside the board, and the
+    /// task editor on the far side.
+    ///
+    /// They are one type rather than three flags because they compete for one
+    /// thing — the width the board is left with — and a rule written per pair
+    /// is three rules that have to agree.
+    enum Panel: CaseIterable, Sendable {
+        case sourceList, inbox, inspector
+
+        /// What gives way for this one, and in what order.
+        ///
+        /// **Furthest from what was just asked for goes first.** The reader's
+        /// attention is where they have just clicked, so the panel at the other
+        /// end of the window is the one they are least likely to miss — and it
+        /// is the one whose going leaves the thing they asked for next to what
+        /// they were already looking at rather than pushed across the screen.
+        ///
+        /// It is also why opening either panel on the left collapses the task
+        /// editor before it touches the other one: on an 11" in landscape the
+        /// two left-hand panels fit together perfectly well once the editor is
+        /// away, so making them take turns while a third column sat on the far
+        /// side was answering the wrong question.
+        var yieldOrder: [Panel] {
+            switch self {
+            case .sourceList: [.inspector, .inbox]
+            case .inbox: [.inspector, .sourceList]
+            case .inspector: [.sourceList, .inbox]
+            }
+        }
+    }
+
+    /// What each panel is costing the board, and the window they are costing it
+    /// out of. Zero is a panel that is not open — or one the system has drawn
+    /// *over* the board, which takes nothing from it and is the same answer.
+    struct PanelRoom: Equatable, Sendable {
+        var window: CGFloat
+        /// One `.pad` column and the strip's margins: a board narrower than
+        /// this is not a board.
+        var floor: CGFloat
+        var sourceList: CGFloat = 0
+        var inbox: CGFloat = 0
+        var inspector: CGFloat = 0
+
+        /// Whether what is open leaves a board worth looking at.
+        ///
+        /// Zero before the first layout pass reads as *room*, which is the safe
+        /// way round: the alternative is a window that shuts one of its panels
+        /// on the way in.
+        var holdsWhatIsOpen: Bool {
+            guard window > 0 else { return true }
+            return window - sourceList - inbox - inspector >= floor
+        }
+
+        func cost(of panel: Panel) -> CGFloat {
+            switch panel {
+            case .sourceList: sourceList
+            case .inbox: inbox
+            case .inspector: inspector
+            }
+        }
+
+        /// The same window with a panel that is about to open counted at what
+        /// it will take. A panel already out is left at what it is measured to
+        /// be costing — the estimate is only ever for the one that is not there
+        /// to be measured yet.
+        func opening(_ panel: Panel, at width: CGFloat) -> PanelRoom {
+            guard cost(of: panel) <= 0 else { return self }
+            var room = self
+            switch panel {
+            case .sourceList: room.sourceList = width
+            case .inbox: room.inbox = width
+            case .inspector: room.inspector = width
+            }
+            return room
+        }
+
+        func closing(_ panel: Panel) -> PanelRoom {
+            var room = self
+            switch panel {
+            case .sourceList: room.sourceList = 0
+            case .inbox: room.inbox = 0
+            case .inspector: room.inspector = 0
+            }
+            return room
+        }
+    }
+
+    /// Which panels close when `opened` opens, in the order they close.
     ///
     /// Static and arithmetic so that `PadSurfaceTests` can ask it: what it
-    /// decides is which of two panels closes, and a rule that only a booted iPad
-    /// can be asked is one that gets re-derived by hand every time somebody
-    /// changes a column's width.
+    /// decides is which panel disappears from under the reader, and a rule that
+    /// only a booted iPad can be asked is one that gets re-derived by hand every
+    /// time somebody changes a column's width.
     ///
-    /// Zero before the first layout pass reads as *room for both*, which is the
-    /// safe way round: the alternative is a window that shuts one of its panels
-    /// on the way in.
-    static func holdsBothSidebars(
-        window: CGFloat, sidebar: CGFloat, inspector: CGFloat,
-        panel: CGFloat, floor: CGFloat
-    ) -> Bool {
-        guard window > 0 else { return true }
-        return window - sidebar - inspector - panel >= floor
+    /// **Never more than it takes.** Each candidate is only closed while the
+    /// window still does not hold what is open, so a window that fits three
+    /// panels closes none of them, and one that only had to lose the editor
+    /// keeps both panels on the left.
+    static func yields(to opened: Panel, in room: PanelRoom) -> [Panel] {
+        var room = room
+        var closing: [Panel] = []
+        for panel in opened.yieldOrder where !room.holdsWhatIsOpen {
+            // A panel that is not open takes nothing and gives nothing: skip it
+            // rather than counting it as this window's answer, or the next one
+            // along never gets asked.
+            guard room.cost(of: panel) > 0 else { continue }
+            room = room.closing(panel)
+            closing.append(panel)
+        }
+        return closing
     }
 
     /// Whether a detail column this wide holds the Inbox panel and a board.
     ///
     /// The inspector is deliberately not an argument — ``hasRoomForTheInbox``
-    /// says why — and the pair of rules have an invariant between them that only
-    /// a test can hold: every window ``holdsBothSidebars`` turns down is a window
-    /// this has to accept once the source list has gone. Where it does not, the
-    /// Inbox button closes the source list and nothing else happens.
+    /// says why — and this rule and ``yields(to:in:)`` have an invariant between
+    /// them that only a test can hold: whatever ``yields(to:in:)`` closes for
+    /// the Inbox, the window it leaves has to be one this accepts. Where it does
+    /// not, the Inbox button puts other panels away and nothing else happens,
+    /// which is the dead button the turn-taking was written to remove.
     ///
     /// Zero reads as *room* for the same reason as above: the first layout pass
     /// must not shut a panel on the way in.
@@ -344,8 +477,10 @@ struct PadRootView: View {
     /// mean something either way round: in landscape it hides the list, in
     /// portrait — where the list is already off screen — it brings it out.
     private func toggleSidebar() {
+        let opening = columnVisibility == .detailOnly
+        if opening { makeRoomForTheSourceList() }
         Motion.run(.easeOut(duration: 0.2), reduceMotion: reduceMotion) {
-            columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
+            columnVisibility = opening ? .all : .detailOnly
         }
     }
 
@@ -355,6 +490,7 @@ struct PadRootView: View {
     /// one shape where the edge and the list are the same place.
     private func revealSidebar() {
         guard columnVisibility != .all else { return }
+        makeRoomForTheSourceList()
         Motion.run(.easeOut(duration: 0.2), reduceMotion: reduceMotion) {
             columnVisibility = .all
         }
@@ -362,13 +498,13 @@ struct PadRootView: View {
 
     // MARK: The flat surfaces
 
+    /// **No header over the list.** The view is named in the toolbar's title —
+    /// see ``BoardToolbar`` — and a strip under it saying the same thing was one
+    /// answer given twice, at the cost of 60 points of list.
     private func savedViewList(_ view: SavedView) -> some View {
-        // Resolved once and handed to both, so the count above the list is the
-        // length of the list under it.
         let tasks = store.tasks(in: view, today: dayClock.today)
 
         return VStack(spacing: 0) {
-            header(symbol: view.symbol, title: view.label, count: tasks.count)
             if tasks.isEmpty {
                 savedViewEmptyState(view)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -387,40 +523,6 @@ struct PadRootView: View {
         TaskColumnsView(tasks: tasks, metrics: .pad) { task in
             ListCard(task: task, metrics: .pad, focus: $focus)
         }
-    }
-
-    /// No "back to the board" button: the source list is one tap away and every
-    /// destination in it is a row, which is the whole reason the iPad has a
-    /// split view and the phone has a drawer.
-    private func header(
-        symbol: String, title: String, count: Int, add: (() -> Void)? = nil
-    ) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: symbol)
-                .imageScale(.medium)
-                .foregroundStyle(palette.inkText(0.45))
-                .accessibilityHidden(true)
-            Text(title)
-                .font(palette.ui(17, .extraBold, relativeTo: .headline))
-                .foregroundStyle(palette.ink)
-            CountPill(count: count)
-
-            Spacer(minLength: 0)
-
-            if let add {
-                Button(action: add) {
-                    Image(systemName: "plus")
-                        .font(palette.ui(15, .medium, relativeTo: .body))
-                        .foregroundStyle(palette.inkText(0.45))
-                        .frame(minWidth: 44, minHeight: 44)
-                }
-                .buttonStyle(.bare)
-                .accessibilityLabel("Capture a task")
-            }
-        }
-        .padding(.horizontal, 20)
-        .frame(minHeight: 60)
-        .hairline(.bottom, color: palette.ink(0.07))
     }
 
     /// One emptiness now: a view with nothing in it. The query opens

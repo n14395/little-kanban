@@ -34,7 +34,16 @@ struct SavedViewDraft: Identifiable, Hashable {
 struct SavedViewEditor: View {
     /// Sizes at a pointer and under a finger.
     struct Metrics {
+        /// What the panel is, or `nil` for *whatever it has been given*.
+        ///
+        /// **A window and a sheet want opposite things.** On the desk this is a
+        /// panel of its own and 520×620 is its size; under a finger it is a
+        /// sheet, and a sheet that is not the size of the sheet is a card
+        /// floating in a band of the presentation's own ground at each end —
+        /// which is what the phone drew, 620pt of editor centred in 874pt of
+        /// screen, with the last criterion clipped and nowhere to scroll it.
         var width: CGFloat?
+        var height: CGFloat?
         var fieldHeight: CGFloat
         var rowSpacing: CGFloat
         var sectionSpacing: CGFloat
@@ -44,11 +53,11 @@ struct SavedViewEditor: View {
         var hit: CGFloat
 
         static let desk = Metrics(
-            width: 520, fieldHeight: 26, rowSpacing: 8, sectionSpacing: 18,
+            width: 520, height: 620, fieldHeight: 26, rowSpacing: 8, sectionSpacing: 18,
             padding: 20, radius: 10, hit: 0
         )
         static let sheet = Metrics(
-            width: nil, fieldHeight: 40, rowSpacing: 10, sectionSpacing: 22,
+            width: nil, height: nil, fieldHeight: 40, rowSpacing: 10, sectionSpacing: 22,
             padding: 20, radius: 12, hit: 44
         )
     }
@@ -80,7 +89,15 @@ struct SavedViewEditor: View {
             .scrollBounceBehavior(.basedOnSize)
         }
         .frame(width: chrome.scaling(metrics.width, cap: 1.35))
-        .frame(maxHeight: 620)
+        // Nothing to fill on the desk, where the two numbers above are the
+        // panel; everything to fill in a sheet, where the room is the room the
+        // presentation gave it. `.infinity` in both directions is what makes
+        // the ground below reach the sheet's own edges rather than stopping at
+        // the content and letting the presentation's white through.
+        .frame(
+            maxWidth: metrics.width == nil ? .infinity : nil,
+            maxHeight: chrome.scaling(metrics.height, cap: 1.35) ?? .infinity
+        )
         .background(palette.windowFill)
         .onAppear { draft = store.view(id: viewID) }
         // Every way out is the same way out — Done, Escape, the sheet's own

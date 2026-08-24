@@ -6,6 +6,199 @@ import Testing
 #if os(iOS)
 import UIKit
 
+/// Which of the three panels an iPad window has to put away, and when.
+///
+/// The source list, the Inbox panel and the task editor are each a column wide,
+/// two of them open on the left and one on the right, and a window that has not
+/// got room for what is open and a board is a window where something has to
+/// give way. What it used to do on either side was refuse to choose: the Inbox
+/// panel declined to draw — a button that did not appear to work — and the
+/// editor drew itself on top of the board. They take turns now: whichever was
+/// opened keeps its room, and the panel furthest from it is the first to go.
+///
+/// **A value test because the decision is a number**, taken from widths the view
+/// measures. `UITests/PadSidebarsTests` presses the buttons.
+@MainActor
+@Suite struct SidebarRoomTests {
+    private let panel = InboxPanel.Metrics.pad.width
+    private let editor: CGFloat = 348
+    private let list = PadRootView.sidebarIdeal
+    /// One `.pad` column and the strip's margins, which is `PadRootView`'s own
+    /// floor spelled out — a board narrower than this is not a board.
+    private let floor = BoardColumnView.Metrics.pad.width + 32
+
+    /// A window with all three out unless told otherwise, which is the state
+    /// every one of these questions is asked from.
+    private func room(
+        _ window: CGFloat, list: Bool = true, inbox: Bool = true, editor: Bool = true
+    ) -> PadRootView.PanelRoom {
+        PadRootView.PanelRoom(
+            window: window, floor: floor,
+            sourceList: list ? self.list : 0,
+            inbox: inbox ? panel : 0,
+            inspector: editor ? self.editor : 0
+        )
+    }
+
+    private func yields(
+        to opened: PadRootView.Panel, _ room: PadRootView.PanelRoom
+    ) -> [PadRootView.Panel] {
+        PadRootView.yields(to: opened, in: room)
+    }
+
+    // MARK: The case that must not close anything
+
+    /// A 13" in landscape holds all four columns at once — 1376 less the list,
+    /// the panel and the editor still leaves 408 for a board. It is the shape
+    /// this layout was drawn for, and whichever panel is opened there, nothing
+    /// else may move.
+    @Test(arguments: PadRootView.Panel.allCases)
+    func theBigIPadInLandscapeClosesNothing(opened: PadRootView.Panel) {
+        #expect(yields(to: opened, room(1376)).isEmpty)
+    }
+
+    /// And nothing closes before the first layout pass, when there is no width
+    /// to reason from. The other way round is a window that shuts one of its
+    /// panels on the way in.
+    @Test(arguments: PadRootView.Panel.allCases)
+    func anUnmeasuredWindowClosesNothing(opened: PadRootView.Panel) {
+        #expect(yields(to: opened, room(0)).isEmpty)
+    }
+
+    // MARK: Opening one of the two on the left
+
+    /// **The editor collapses first**, and on an 11" in landscape that is the
+    /// whole of it: 1194 holds any two of the three, so the two panels on the
+    /// left go on sharing the window once the one on the right has gone. Making
+    /// *them* take turns while a third column sat on the far side was answering
+    /// the wrong question.
+    @Test(arguments: [PadRootView.Panel.sourceList, .inbox])
+    func openingAPanelOnTheLeftCollapsesTheEditorFirst(opened: PadRootView.Panel) {
+        #expect(yields(to: opened, room(1194)) == [.inspector])
+    }
+
+    /// An 11" in portrait is the window that has room for one: 834 less the
+    /// editor and either column is not a board, so opening a panel on the left
+    /// takes the room from both of the others — and in that order.
+    @Test func theSmallerIPadInPortraitEmptiesTheRestForIt() {
+        #expect(yields(to: .inbox, room(834)) == [.inspector, .sourceList])
+        #expect(yields(to: .sourceList, room(834)) == [.inspector, .inbox])
+    }
+
+    /// The two on the left still take turns when the editor is already away,
+    /// which is the rule this one grew out of and the one `PadSidebarsTests`
+    /// presses: a panel that is not open costs nothing, so it is skipped rather
+    /// than counted as this window's answer — and the next one along gets asked.
+    @Test func theTwoOnTheLeftStillTakeTurnsWithTheEditorAway() {
+        #expect(yields(to: .inbox, room(834, editor: false)) == [.sourceList])
+        #expect(yields(to: .sourceList, room(834, editor: false)) == [.inbox])
+    }
+
+    /// A source list the system has drawn *over* the board costs the board
+    /// nothing, so it is not competing and it is not closed. The editor goes,
+    /// and that is enough.
+    @Test func aListDrawnOverTheBoardIsNotCompeting() {
+        #expect(yields(to: .inbox, room(834, list: false)) == [.inspector])
+    }
+
+    // MARK: Opening the one on the right
+
+    /// The same rule from the other side, which is the half that was missing:
+    /// a card tapped on an 11" in landscape opens the editor, and the source
+    /// list — the panel at the far end of the window — is what gives way. The
+    /// Inbox stays, because closing it as well would be taking more than the
+    /// editor needs.
+    @Test func openingTheEditorTakesTheRoomFromTheFarSide() {
+        #expect(yields(to: .inspector, room(1194)) == [.sourceList])
+    }
+
+    /// And where one is not enough, both go. An 11" in portrait with both
+    /// panels out has nothing else to give.
+    @Test func openingTheEditorOnANarrowWindowClosesBoth() {
+        #expect(yields(to: .inspector, room(834)) == [.sourceList, .inbox])
+    }
+
+    /// The editor is the one panel that has an answer to being squeezed —
+    /// `hasRoomBesideTheBoard` draws it over the board — but it is the last
+    /// resort rather than the first: with nothing on the left to close, that is
+    /// what is left, and this says the rule does not pretend otherwise.
+    @Test func withNothingOnTheLeftTheEditorHasNothingToTake() {
+        #expect(yields(to: .inspector, room(600, list: false, inbox: false)).isEmpty)
+    }
+
+    // MARK: The line itself
+
+    /// The rule is the board's floor rather than a number of its own: a window
+    /// one point above it holds all three, one point below does not.
+    @Test func theLineIsExactlyTheBoardsFloor() {
+        let exact = list + panel + editor + floor
+        #expect(yields(to: .inbox, room(exact)).isEmpty)
+        #expect(yields(to: .inbox, room(exact - 1)) == [.inspector])
+    }
+
+    /// **Never more than it takes.** Whatever closes, what is left has to be a
+    /// window that holds the rest — and the panel that was opened has to still
+    /// be in it. Asked of every iPad width and every combination of what was
+    /// open, because the failure this guards against is a rule that closes one
+    /// panel too few and leaves the thing the reader asked for squeezed out.
+    @Test(arguments: [834.0, 1024, 1032, 1180, 1194, 1366, 1376] as [CGFloat])
+    func whatIsLeftAlwaysHoldsTheRest(window: CGFloat) {
+        for opened in PadRootView.Panel.allCases {
+            for list in [true, false] {
+                for inbox in [true, false] {
+                    for editor in [true, false] {
+                        var left = room(window, list: list, inbox: inbox, editor: editor)
+                        let closing = yields(to: opened, left)
+                        #expect(closing.contains(opened) == false,
+                                "\(opened) closed the panel that was just opened")
+                        for panel in closing { left = left.closing(panel) }
+                        #expect(left.holdsWhatIsOpen,
+                                "\(window) still has no board after closing \(closing)")
+                    }
+                }
+            }
+        }
+    }
+
+    /// The panel's own line counts the board and *not* the editor.
+    ///
+    /// The editor has an answer to being squeezed that the panel has not: it
+    /// draws over the board. So an 11" in portrait — 834pt, less the panel's
+    /// column — holds the Inbox with a task selected, even though 834 less the
+    /// editor as well would not.
+    @Test func thePanelCountsTheBoardAndNotTheInspector() {
+        #expect(PadRootView.holdsTheInbox(detail: 834, panel: panel, floor: floor))
+        #expect(PadRootView.holdsTheInbox(detail: panel + floor, panel: panel, floor: floor))
+        #expect(!PadRootView.holdsTheInbox(detail: panel + floor - 1, panel: panel, floor: floor))
+        #expect(PadRootView.holdsTheInbox(detail: 0, panel: panel, floor: floor))
+    }
+
+    /// The invariant between the two rules, and the way they broke it.
+    ///
+    /// Whatever closes to make room for the Inbox, the window it leaves has to
+    /// be one the panel will actually draw in. It was not: an 11" in portrait
+    /// with a task selected declined the panel at 834 − 348 − 320, so the Inbox
+    /// button put the source list away and did nothing else, which is the same
+    /// dead button the turn-taking was written to remove.
+    @Test(arguments: [834.0, 1024, 1032, 1180, 1194, 1366, 1376] as [CGFloat])
+    func whateverClosesForTheInboxLeavesRoomToDrawIt(window: CGFloat) {
+        for list in [true, false] {
+            for editor in [true, false] {
+                var left = room(window, list: list, editor: editor)
+                for panel in yields(to: .inbox, left) { left = left.closing(panel) }
+                // What the split view leaves the detail column is the window
+                // less whatever the list is still taking from it.
+                #expect(
+                    PadRootView.holdsTheInbox(
+                        detail: window - left.sourceList, panel: panel, floor: floor
+                    ),
+                    "the panel still will not draw in what this leaves it"
+                )
+            }
+        }
+    }
+}
+
 /// Which of the two iOS layouts a window gets.
 ///
 /// The rule was `horizontalSizeClass == .regular` and nothing else, which is
@@ -18,110 +211,6 @@ import UIKit
 /// Both halves are asked here because either one alone is wrong in a way the
 /// other is not: the idiom alone hands the desk's three panes to an iPad in
 /// Slide Over, which has a phone's width and nowhere to put a sidebar.
-/// Which of the two panels that open on the left of an iPad window has to give
-/// way, and when.
-///
-/// Both the source list and the Inbox panel are a column wide and both open on
-/// the same side, so a window that is not wide enough for two columns and a
-/// board cannot show both. What it used to do there was nothing: the panel's own
-/// `hasRoomForTheInbox` declined to draw it, so on an 11" in portrait with the
-/// list out the Inbox button was a control that did not appear to work. They
-/// take turns now — whichever is opened closes the other — and this is the
-/// arithmetic that decides whether the window is one of those.
-///
-/// **A value test because the decision is a number**, taken from widths the view
-/// measures. `UITests/PadSidebarsTests` presses the buttons.
-@MainActor
-@Suite struct SidebarRoomTests {
-    private let panel = InboxPanel.Metrics.pad.width
-    private let inspector: CGFloat = 348
-    private let list = PadRootView.sidebarIdeal
-    /// One `.pad` column and the strip's margins, which is `PadRootView`'s own
-    /// floor spelled out — a board narrower than this is not a board.
-    private let floor = BoardColumnView.Metrics.pad.width + 32
-
-    private func holds(_ window: CGFloat, inspector: CGFloat) -> Bool {
-        PadRootView.holdsBothSidebars(
-            window: window, sidebar: list, inspector: inspector, panel: panel, floor: floor
-        )
-    }
-
-    /// A 13" in portrait holds both with the inspector away — 1032 less the
-    /// list's 300 and the panel's column still leaves a board — and does not
-    /// hold them with the inspector out, which takes more than the board has
-    /// left.
-    @Test func theBigIPadInPortraitHoldsBothOnlyWithoutTheInspector() {
-        #expect(holds(1032, inspector: 0))
-        #expect(!holds(1032, inspector: inspector))
-    }
-
-    /// An 11" in portrait holds neither combination: 834 less two columns is
-    /// half a board. This is the shape the rule was written for.
-    @Test func theSmallerIPadInPortraitHoldsOnlyOne() {
-        #expect(!holds(834, inspector: 0))
-        #expect(!holds(834, inspector: inspector))
-    }
-
-    /// A 13" in landscape holds all four at once — the desk's three panes plus
-    /// the Inbox, which is the shape this layout was drawn for, and the case
-    /// that must *not* start closing panels.
-    ///
-    /// An 11" in landscape does not, and that is worth being surprised by: 1194
-    /// less three columns is 226, which is not a board. It holds both of the
-    /// left-hand panels perfectly well with the inspector away, so on that iPad
-    /// whether the two take turns depends on the inspector — which is the honest
-    /// answer, because the inspector is a column of the same window.
-    @Test func landscapeHoldsEverythingOnTheBigIPadAndNotOnTheSmall() {
-        #expect(holds(1376, inspector: inspector))
-        #expect(!holds(1194, inspector: inspector))
-        #expect(holds(1194, inspector: 0))
-    }
-
-    /// Before the first layout pass there is no width, and no width has to read
-    /// as *room for both* — the other way round is a window that shuts one of
-    /// its panels on the way in.
-    @Test func anUnmeasuredWindowHoldsBoth() {
-        #expect(holds(0, inspector: inspector))
-    }
-
-    /// And the rule is the board's floor rather than a number of its own: a
-    /// window one point above it holds both, one point below does not.
-    @Test func theLineIsExactlyTheBoardsFloor() {
-        let exact = list + inspector + panel + floor
-        #expect(holds(exact, inspector: inspector))
-        #expect(!holds(exact - 1, inspector: inspector))
-    }
-
-    /// The panel's own line counts the board and *not* the inspector.
-    ///
-    /// The inspector has an answer to being squeezed that the panel has not: it
-    /// draws over the board. So an 11" in portrait — 834pt, less the panel's
-    /// column — holds the Inbox with a task selected, even though 834 less the
-    /// inspector as well would not.
-    @Test func thePanelCountsTheBoardAndNotTheInspector() {
-        #expect(PadRootView.holdsTheInbox(detail: 834, panel: panel, floor: floor))
-        #expect(PadRootView.holdsTheInbox(detail: panel + floor, panel: panel, floor: floor))
-        #expect(!PadRootView.holdsTheInbox(detail: panel + floor - 1, panel: panel, floor: floor))
-        #expect(PadRootView.holdsTheInbox(detail: 0, panel: panel, floor: floor))
-    }
-
-    /// The invariant between the two rules, and the way they broke it.
-    ///
-    /// Every window that cannot hold both panels is a window where the source
-    /// list closes to make room — so it has to be a window the panel then fits
-    /// in. It was not: an 11" in portrait with a task selected declined the
-    /// panel at 834 − 348 − 320, so the Inbox button put the source list away
-    /// and did nothing else, which is the same dead button the turn-taking was
-    /// written to remove.
-    @Test(arguments: [834.0, 1024, 1032, 1180, 1194, 1366, 1376] as [CGFloat])
-    func closingTheListAlwaysLeavesRoomForThePanel(window: CGFloat) {
-        for beside in [0, inspector] where !holds(window, inspector: beside) {
-            #expect(PadRootView.holdsTheInbox(detail: window, panel: panel, floor: floor),
-                    "the list closes at this width and the panel still will not draw")
-        }
-    }
-}
-
 @Suite struct RootSurfaceTests {
     @Test func aRegularWidthIPadTakesTheDesksLayout() {
         #expect(RootSurface.resolve(idiom: .pad, horizontalSizeClass: .regular) == .pad)

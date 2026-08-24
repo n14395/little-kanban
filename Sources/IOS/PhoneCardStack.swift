@@ -18,8 +18,9 @@ import SwiftUI
 /// into a filter.
 ///
 /// What the stack costs is `swipeActions`, and nothing else — no card in this
-/// app has swiped since 6.4, and everything those two edges held is in
-/// ``PhoneTaskRowActions``' menu.
+/// app has swiped since 6.4. Everything those two edges held is on the card
+/// (the tick), in the detail sheet, and in ``PhoneTaskRowActions``' menu for
+/// a pointer.
 struct PhoneCardStack<Trailing: View>: View {
     let tasks: [TaskItem]
     var metrics: TaskListMetrics = .sheet

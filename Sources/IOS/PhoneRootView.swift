@@ -64,7 +64,7 @@ struct PhoneRootView: View {
 
         return ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
-                PhoneHeader(listCount: tasks.count)
+                PhoneHeader()
                     .padding(.top, 4)
 
                 // No columns means no board — the user can delete the last one —
@@ -230,9 +230,10 @@ struct PhoneRootView: View {
                 .environment(\.palette, palette)
                 .environment(\.dayClock, dayClock)
         }
-        // The drawer's rows raise this and close; see
-        // `BoardStore.editingViewID` for why the asking and the presenting are
-        // two different surfaces here and one on the iPad.
+        // The drawer's rows raise this and close, and so does the header's ⋯
+        // menu while a view is the surface — see `BoardStore.editingViewID` for
+        // why the asking and the presenting are two different surfaces here and
+        // one on the iPad. Both askers are gone by the time the sheet opens.
         .sheet(item: viewEditorPresentation) { draft in
             SavedViewEditor(viewID: draft.id, metrics: .sheet)
                 .environment(store)

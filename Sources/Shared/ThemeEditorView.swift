@@ -28,8 +28,8 @@ struct ThemeEditorView: View {
         var showsHeader: Bool
 
         static let desk = Metrics(
-            width: 560, minHeight: 620, padding: 20, sectionSpacing: 20, titleSize: 16,
-            headingSize: 10, previewScale: 1.5, field: .desk, showsHeader: true
+            width: 600, minHeight: 680, padding: 20, sectionSpacing: 20, titleSize: 16,
+            headingSize: 10, previewScale: 1.6, field: .desk, showsHeader: true
         )
         static let sheet = Metrics(
             width: nil, minHeight: nil, padding: 18, sectionSpacing: 24, titleSize: 18,

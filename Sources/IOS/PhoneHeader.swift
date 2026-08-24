@@ -7,14 +7,6 @@ import SwiftUI
 /// replaced the board, the search field, the column chips, and the notice that a
 /// query is narrowing a list whose field is elsewhere.
 struct PhoneHeader: View {
-    /// How many rows the list below is drawing. The saved-view bar's pill sits
-    /// directly on top of that list, so it reports its length rather than the
-    /// view's membership — a pill reading "3" over "Nothing matched" makes the
-    /// search look broken instead of the view look full. The drawer row's pill
-    /// is the unnarrowed `count(of:)`, because that one is a badge on a
-    /// destination rather than a caption on a list.
-    let listCount: Int
-
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
     /// The phone on its side has 402pt of height and the same chrome as 852pt
@@ -52,11 +44,9 @@ struct PhoneHeader: View {
                 .buttonStyle(.bare)
                 .accessibilityLabel("Show boards")
 
-                Text(title)
-                    .font(palette.display(isShort ? 22 : 30))
-                    .lineSpacing(2)
-                    .lineLimit(isShort ? 1 : 2)
+                titleLabel
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier(Self.titleID)
                     .accessibilityAddTraits(.isHeader)
 
                 // The phone on its side puts the tab bar here, between the
@@ -74,10 +64,6 @@ struct PhoneHeader: View {
                 if isShort { PhoneTabBar(placement: .header) }
 
                 boardMenu
-            }
-
-            if let view = store.activeView {
-                savedViewBar(view)
             }
 
             // Search keeps its field wherever it is, including inside a saved
@@ -113,6 +99,50 @@ struct PhoneHeader: View {
         )
     }
 
+    /// **A saved view takes the title**, with its own symbol beside it. It was
+    /// named in a strip under this row instead, which said the same thing twice
+    /// — the title named the board you were *not* looking at, and the strip
+    /// named the view you were — and carried a Back to Board button the drawer
+    /// one thumb away already is. One title that answers "where am I" is the
+    /// whole of what a title is for.
+    ///
+    /// One line for a view rather than the board's two: a view's name is short
+    /// and fixed where a board's is the user's to make as long as they like.
+    /// The one way a UI test can name this title. "Today" is a word the board
+    /// under it also uses — a due chip says it — so a query by label picks
+    /// whichever it reaches first. Shared through the source rather than by both
+    /// ends spelling the same string, as `BoardToolbar.inboxToggleID` is.
+    static let titleID = "PhoneHeaderTitle"
+
+    @ViewBuilder
+    private var titleLabel: some View {
+        let size: CGFloat = isShort ? 22 : 30
+        if let view = store.activeView {
+            HStack(spacing: 8) {
+                Image(systemName: view.symbol)
+                    // Sized off the title rather than pinned to points, so the
+                    // glyph grows with Dynamic Type alongside the words.
+                    .font(palette.ui(size * 0.55, .semibold, relativeTo: .title3))
+                    .foregroundStyle(palette.inkText(0.5))
+                    .accessibilityHidden(true)
+                Text(view.label)
+                    .font(palette.display(size))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            // One element rather than a hidden glyph beside a label: an `Image`
+            // among siblings inside a container is published on its own whatever
+            // `accessibilityHidden` says, which is the same trap the sidebar's
+            // rows document.
+            .accessibilityElement(children: .combine)
+        } else {
+            Text(title)
+                .font(palette.display(size))
+                .lineSpacing(2)
+                .lineLimit(isShort ? 1 : 2)
+        }
+    }
+
     /// The board-level actions with no other home on the phone (4.4). This was a
     /// decorated `Image` — no action, no label, no target — beside a hamburger
     /// that has always been a real button.
@@ -136,10 +166,24 @@ struct PhoneHeader: View {
             // what a board is, its colour and its columns, which the phone
             // could otherwise reach only through the drawer.
             Section {
-                Button { openBoardSettings() } label: {
-                    Label("Board Settings…", systemImage: "slider.horizontal.3")
+                // **The first row names the surface that is on screen.** On a
+                // saved view it used to offer Board Settings — the settings of
+                // the board standing *behind* the view, which is not what the
+                // reader is looking at and not what they would expect the row
+                // to change. A view has its own settings, and this is the
+                // phone's only door to them other than the drawer: the sheet is
+                // raised through ``BoardStore/editingViewID`` because a menu,
+                // like the drawer, is gone by the time the sheet would open.
+                if let view = store.activeView {
+                    Button { store.editingViewID = view.id } label: {
+                        Label("Edit View…", systemImage: "slider.horizontal.3")
+                    }
+                } else {
+                    Button { openBoardSettings() } label: {
+                        Label("Board Settings…", systemImage: "slider.horizontal.3")
+                    }
+                    .disabled(store.activeBoard == nil)
                 }
-                .disabled(store.activeBoard == nil)
 
                 Button { store.archiveCompleted() } label: {
                     Label("Archive Completed", systemImage: "archivebox")
@@ -207,34 +251,6 @@ struct PhoneHeader: View {
                       comment: "Phone board menu item that opens the Trash, with how much is in it")
     }
 
-    /// What is on screen when the columns are not: the view's name, the length
-    /// of the list under it, and the way back. Without this the tab bar still
-    /// reads "Board" while the list underneath is something else entirely.
-    private func savedViewBar(_ view: SavedView) -> some View {
-        HStack(spacing: 9) {
-            Image(systemName: view.symbol)
-                .imageScale(.small)
-            Text(view.label)
-                .font(palette.ui(14.5, .bold, relativeTo: .subheadline))
-            CountPill(count: listCount, font: 11.5)
-            Spacer(minLength: 0)
-            Button { store.selectTab(.board) } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "chevron.left").imageScale(.small)
-                    Text("Board")
-                        .font(palette.ui(13, .bold, relativeTo: .footnote))
-                }
-                .frame(minHeight: 44)
-                .contentShape(.rect)
-            }
-            .buttonStyle(.bare)
-            .accessibilityLabel("Back to board")
-        }
-        .foregroundStyle(palette.accent)
-        .padding(.horizontal, 14)
-        .frame(minHeight: 44)
-        .background(palette.accentSoft, in: .rect(cornerRadius: 14))
-    }
 
     /// A query narrowing a list whose field is on another tab. The rule is that
     /// a filter is never invisible (1.11), so where the field cannot be shown

@@ -3,12 +3,16 @@ import UniformTypeIdentifiers
 
 /// The twenty themes the app ships with, and the ones the user has made.
 ///
-/// **All twenty are always on show, and there is no light/dark mode to switch
-/// between.** A tile goes into the slot its own appearance names — press
-/// Porcelain and the light slot becomes Porcelain, press Ember and the dark slot
-/// becomes Ember — so a person can set both halves of the app from one page and
-/// cannot put a dark theme where a light one belongs. The pair in use is named
-/// at the top, and the tiles wearing them are ringed.
+/// **One control does two jobs at the top.** The pair of buttons names the theme
+/// in each slot *and* chooses which half of the catalogue is below them: press
+/// Dark and the grid is the eleven dark themes, press Light and it is the nine
+/// light ones. Twenty pictures in one scroll is a lot of scrolling to compare
+/// two dark grounds that are nine tiles apart, and the two halves are never
+/// alternatives to each other — a light theme and a dark one are both in use.
+///
+/// A tile still goes into the slot its own appearance names, which under the
+/// filter is simply the slot named on the lit button. It is not possible to put
+/// a dark theme where a light one belongs.
 ///
 /// Each tile is a small picture of the app rather than a row of swatches: a
 /// theme is a ground, two faces, a card and eight colours working together, and
@@ -16,10 +20,20 @@ import UniformTypeIdentifiers
 /// ``ThemePreviewTile``.
 struct ThemeBrowserView: View {
     struct Metrics: Sendable {
+        /// Fixed for a sheet, which is as wide as it is told to be, and `nil` for
+        /// the desk's window, which is the user's to resize — the grid is
+        /// adaptive, so a wider window is more columns rather than wider tiles.
         var width: CGFloat?
+        /// The floor a resizable window may not go below: one tile and its
+        /// padding. Under that the grid has nothing to lay out.
+        var minWidth: CGFloat?
         /// A sheet on macOS is only as tall as it is told to be, and a grid of
-        /// twenty pictures in a 420pt window is a keyhole.
+        /// pictures in a 420pt window is a keyhole.
         var minHeight: CGFloat?
+        /// A sheet needs a way out that is not the Escape key. A window has a
+        /// close button in its own title bar, and a Done button beside that is a
+        /// second door to the same room.
+        var showsDone: Bool
         var padding: CGFloat
         var titleSize: CGFloat
         var nameSize: CGFloat
@@ -29,16 +43,17 @@ struct ThemeBrowserView: View {
         var hit: CGFloat
         var editor: ThemeEditorView.Metrics
 
-        // Two 248pt tiles, their gap, the padding and the scroller — 560 is
-        // ten points short of that once macOS takes its bar, and the grid drops
-        // to a single column. It is presented over the 520pt Settings pane, so
-        // it stays as close to that as two columns allow.
-        static let desk = Metrics(
-            width: 640, minHeight: 560, padding: 20, titleSize: 18, nameSize: 13, noteSize: 11,
+        /// A window of its own on the desk — see the `themes` scene in
+        /// `SimpleKanbanApp`. No fixed width: three columns at the size it opens
+        /// at, more if it is dragged wider, one at the floor.
+        static let window = Metrics(
+            width: nil, minWidth: 336, minHeight: 460, showsDone: false, padding: 24,
+            titleSize: 20, nameSize: 14, noteSize: 11.5,
             tileScale: 1, columnWidth: 248, hit: 28, editor: .desk
         )
         static let sheet = Metrics(
-            width: nil, minHeight: nil, padding: 16, titleSize: 20, nameSize: 15, noteSize: 12.5,
+            width: nil, minWidth: nil, minHeight: nil, showsDone: true, padding: 16,
+            titleSize: 20, nameSize: 15, noteSize: 12.5,
             tileScale: 1, columnWidth: 248, hit: 44, editor: .sheet
         )
     }
@@ -47,7 +62,12 @@ struct ThemeBrowserView: View {
     @Environment(BoardStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
-    var metrics: Metrics = .desk
+    var metrics: Metrics = .sheet
+
+    /// Which half of the catalogue is on show. `nil` until somebody presses one
+    /// of the two, and until then it is *the appearance in force* — you land on
+    /// the themes you can see, which is the half you came here to change.
+    @State private var chosenSlot: ThemeAppearance?
 
     @State private var editing: Theme?
     @State private var exporting: Theme?
@@ -60,14 +80,14 @@ struct ThemeBrowserView: View {
             header.hairline(.bottom, color: palette.ink(0.08))
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    inUse
+                    slotSwitch
                     grid
                 }
                 .padding(metrics.padding)
             }
         }
         .frame(width: metrics.width)
-        .frame(minHeight: metrics.minHeight, maxHeight: .infinity)
+        .frame(minWidth: metrics.minWidth, minHeight: metrics.minHeight, maxHeight: .infinity)
         .background(palette.windowFill)
         .presentationBackground(palette.windowFill)
         .sheet(item: $editing) { theme in
@@ -122,11 +142,12 @@ struct ThemeBrowserView: View {
                 .foregroundStyle(palette.ink)
             Spacer(minLength: 0)
             Menu {
-                Button(String(localized: "New Light Theme", comment: "Menu item: starts a new theme for the light slot")) {
-                    editing = blank(.light)
-                }
-                Button(String(localized: "New Dark Theme", comment: "Menu item: starts a new theme for the dark slot")) {
-                    editing = blank(.dark)
+                // One item rather than a light one and a dark one: the switch
+                // above has already been asked that question, and a menu that
+                // could make a theme the grid would then hide is a menu that
+                // does nothing visible.
+                Button(String(localized: "New Theme", comment: "Menu item: starts a new theme for the slot on show")) {
+                    editing = blank(showing)
                 }
                 Divider()
                 Button(String(localized: "Import…", comment: "Menu item: reads a theme in from a JSON file")) {
@@ -146,60 +167,91 @@ struct ThemeBrowserView: View {
             .modifier(BorderlessMenu())
             .menuIndicator(.hidden)
 
-            Button { dismiss() } label: {
-                Text("Done")
-                    .font(palette.ui(metrics.nameSize, .bold, relativeTo: .subheadline))
-                    .foregroundStyle(palette.onAccent)
-                    .padding(.horizontal, 14)
-                    .frame(height: 30)
-                    .background(palette.accent, in: .rect(cornerRadius: 8))
-                    .contentShape(.rect)
+            if metrics.showsDone {
+                Button { dismiss() } label: {
+                    Text("Done")
+                        .font(palette.ui(metrics.nameSize, .bold, relativeTo: .subheadline))
+                        .foregroundStyle(palette.onAccent)
+                        .padding(.horizontal, 14)
+                        .frame(height: 30)
+                        .background(palette.accent, in: .rect(cornerRadius: 8))
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.bare)
             }
-            .buttonStyle(.bare)
         }
         .padding(.horizontal, metrics.padding)
         .padding(.vertical, 12)
     }
 
-    /// The pair in force, named. Two lines rather than a badge on the tiles
-    /// alone: at any moment one of the two is the one you are *looking* at and
-    /// the other is not, and a person changing the dark theme in daylight has no
-    /// other way to see that anything happened.
-    private var inUse: some View {
+    /// The two slots, as the one control that both names what is in them and
+    /// decides which half of the catalogue is underneath.
+    ///
+    /// **Named, because only one of the two is ever on screen.** Somebody
+    /// setting their dark theme in daylight sees nothing happen to the app; the
+    /// lit button saying "Dark · Rainforest" is the only report they get. And it
+    /// is a *filter* rather than a mode: both slots are in use at once, and
+    /// nothing here is turned off by pressing the other one.
+    private var slotSwitch: some View {
         HStack(spacing: 10) {
             ForEach(ThemeAppearance.allCases) { appearance in
-                let theme = store.theme(for: appearance)
-                HStack(spacing: 8) {
-                    Image(systemName: appearance == .dark ? "moon.fill" : "sun.max.fill")
-                        .font(palette.ui(metrics.noteSize, .bold, relativeTo: .caption))
-                        .foregroundStyle(palette.inkText(0.5))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(appearance.label)
-                            .sectionLabelStyle(size: metrics.noteSize - 1.5)
-                        Text(theme.name)
-                            .font(palette.ui(metrics.nameSize, .bold, relativeTo: .subheadline))
-                            .foregroundStyle(palette.ink)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(palette.card, in: .rect(cornerRadius: 10))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 10).strokeBorder(palette.ink(0.07), lineWidth: 1)
-                }
-                .accessibilityElement(children: .combine)
+                slotButton(appearance)
             }
         }
     }
+
+    private func slotButton(_ appearance: ThemeAppearance) -> some View {
+        let theme = store.theme(for: appearance)
+        let isShowing = showing == appearance
+        return Button { chosenSlot = appearance } label: {
+            HStack(spacing: 8) {
+                Image(systemName: appearance == .dark ? "moon.fill" : "sun.max.fill")
+                    .font(palette.ui(metrics.noteSize, .bold, relativeTo: .caption))
+                    .foregroundStyle(isShowing ? palette.accent : palette.inkText(0.5))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(appearance.label)
+                        .sectionLabelStyle(size: metrics.noteSize - 1.5)
+                    Text(theme.name)
+                        .font(palette.ui(metrics.nameSize, .bold, relativeTo: .subheadline))
+                        .foregroundStyle(palette.ink)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity, minHeight: metrics.hit, alignment: .leading)
+            .background(isShowing ? palette.accentSoft : palette.card, in: .rect(cornerRadius: 10))
+            // Two points of accent rather than one of ink: the difference
+            // between the two states has to survive a theme whose accent is a
+            // pale gold on a pale ground.
+            .overlay {
+                RoundedRectangle(cornerRadius: 10).strokeBorder(
+                    isShowing ? palette.accent : palette.ink(0.07),
+                    lineWidth: isShowing ? 2 : 1
+                )
+            }
+            .contentShape(.rect)
+        }
+        .buttonStyle(.bare)
+        .accessibilityLabel(appearance.label)
+        .accessibilityValue(theme.name)
+        .accessibilityHint(String(
+            localized: "Shows the themes that can fill the \(appearance.label.lowercased()) slot",
+            comment: "Accessibility hint on the light/dark filter buttons"
+        ))
+        .accessibilityAddTraits(isShowing ? [.isSelected] : [])
+    }
+
+    /// The half on show. See ``chosenSlot``.
+    private var showing: ThemeAppearance { chosenSlot ?? palette.theme.appearance }
 
     private var grid: some View {
         LazyVGrid(
             columns: [GridItem(.adaptive(minimum: metrics.columnWidth), spacing: 14, alignment: .top)],
             spacing: 16
         ) {
-            ForEach(store.themes.all) { theme in
+            ForEach(store.themes.all.filter { $0.appearance == showing }) { theme in
                 tile(theme)
             }
         }
@@ -314,7 +366,13 @@ struct ThemeBrowserView: View {
                 // something somebody does in order to *use* a theme, and one
                 // that landed silently in a grid of twenty-odd tiles would look
                 // like nothing had happened.
-                if let first = landed.first { store.selectTheme(first) }
+                if let first = landed.first {
+                    store.selectTheme(first)
+                    // And show the half it belongs to, or an import of a dark
+                    // theme while the light ones are on screen lands somewhere
+                    // nobody can see.
+                    chosenSlot = first.appearance
+                }
             } catch {
                 importFailure = error.localizedDescription
             }

@@ -928,44 +928,65 @@ for the inspector here, precisely because the inspector has the answer this pane
 has not: it draws over the board. `holdsTheInbox(detail:panel:floor:)` counts what
 cannot move.
 
-#### The two panels on the left take turns
+#### The three panels take turns
 
 Waiting is the right answer to *no room* and the wrong answer to *no room yet*.
-**Two** panels open on the left of an iPad window — the source list and this one
-— each a column wide, and on an 11" in portrait the second one was simply
-declined: the Inbox button did nothing, which is indistinguishable from a bug.
+**Three** panels compete for an iPad window — the source list and the Inbox on
+the left, the task editor on the right — and each is a column wide. What the app
+used to do when they would not all fit was refuse to choose: the Inbox was simply
+declined, so its button did nothing, which is indistinguishable from a bug; and
+the editor drew itself *over* the board, which is the last resort rather than an
+answer.
 
-So where the window cannot hold both, **whichever is opened closes the other**.
-`PadRootView.holdsBothSidebars(window:sidebar:inspector:panel:floor:)` is the
-question — the window less both columns and the inspector, against the board's
-own floor — and two `onChange` handlers are the answer, one per direction.
+So **whichever panel is opened keeps its room, and the panel furthest from it is
+the first to give way**. `PadRootView.yields(to:in:)` is the whole rule: a
+`PanelRoom` of what each one is costing the board, walked in the order
 
-Three things about how it is wired:
+| opened | gives way, in order |
+| --- | --- |
+| source list | the editor, then the Inbox |
+| Inbox | the editor, then the source list |
+| task editor | the source list, then the Inbox |
 
-- **It watches the list *taking width*, not `columnVisibility`.** That binding is
-  a request rather than an outcome: the split view answers `.automatic` itself
-  and writes its answer back, so a fixed number of presses on the toggle is not
-  a fixed result — measured, two presses on a 13" in portrait left the list
-  hidden. And the system may draw the list *over* the board rather than beside
-  it, in which case it costs the board nothing and there is nothing to make room
-  for. `sidebarCost` is `windowWidth - detailWidth`, which is zero in both of
-  those cases and right in both.
-- **The list's width is measured while it is out and estimated while it is not**
-  — the column's own ideal, because there is nothing to measure then. Same trade
-  as the toolbar's fold, for the same reason.
-- **The inspector counts here and nowhere else.** It is a column of the same
-  window, and counting it is what makes an 11" in *landscape* take turns with
-  the inspector out and not with it away, and a 13" in portrait the same — the
-  list gets out of the way and the three remaining columns fit properly rather
-  than the inspector ending up on top of a sliver of board. What it must *not*
-  do is count twice: `hasRoomForTheInbox` leaves it out, because by then the
-  question is only whether the panel and a board fit in what is left.
+and stopping the moment the window holds what is left. Furthest-first is the
+reader's own order: attention is where they have just clicked, so the panel at
+the other end of the window is the one they are least likely to miss. It is also
+why opening either panel on the left collapses the editor *before* it touches the
+other one — on an 11" in landscape the two left-hand panels fit together
+perfectly well once the editor is away, so making them take turns while a third
+column sat on the far side was answering the wrong question.
 
-The two rules have an invariant between them, and breaking it is what a dead
-Inbox button is made of: **every window `holdsBothSidebars` turns down is a
-window `holdsTheInbox` has to accept**, since the first one turning it down is
-what closes the source list. `SidebarRoomTests` walks the iPad widths and asserts
-exactly that.
+Four things about how it is wired:
+
+- **Never more than it takes.** Each candidate is only closed while the window
+  still does not hold what is open, so a 13" in landscape — which holds all four
+  columns at once, and is the shape this layout was drawn for — closes nothing at
+  all, and a window that only had to lose the editor keeps both panels on the
+  left.
+- **A panel that costs nothing is not competing.** A source list the system has
+  drawn *over* the board takes nothing from it, so it is not counted and not
+  closed. `sidebarCost` is `windowWidth - detailWidth`, which is zero both when
+  the list is away and when it is an overlay, and right both times.
+- **The ask is the trigger, not the measurement.** The Inbox and the editor are
+  watched through their own flags, but the source list is asked for in
+  `toggleSidebar` and `revealSidebar` rather than watched taking width — because
+  the width it takes is also the *system's* answer. `.automatic` puts the list
+  out at launch on an 11" in portrait and takes it away again a moment later, and
+  a rule keyed on that collapsed the editor on the way in: traced, `beside=true
+  d=516` then `insp=false` then `beside=false d=834`, which is a window that shut
+  one of its panels before anybody had touched it. The list's width is therefore
+  estimated at the column's ideal on the press that opens it — nothing has been
+  laid out yet — and measured whenever it is already out.
+- **Zero reads as room.** Before the first layout pass there is no width to
+  reason from, and the safe way round is to close nothing.
+
+The rule and `holdsTheInbox` have an invariant between them, and breaking it is
+what a dead Inbox button is made of: **whatever closes to make room for the Inbox
+has to leave a window the panel will actually draw in**. It did not — an 11" in
+portrait with a task selected declined the panel at 834 − 348 − 320, so the Inbox
+button put the source list away and did nothing else. `SidebarRoomTests` walks
+the iPad widths and every combination of what was open and asserts exactly that,
+along with the other half: that whatever closes, what is left holds the rest.
 
 `Tests/PadSurfaceTests` holds the arithmetic and `UITests/PadSidebarsTests`
 presses the buttons — **on an 11"**: a 13" in portrait cleared the broken sum by
@@ -1447,18 +1468,39 @@ behind it, so it goes through `shadow(_:)` and stays black in a dark theme — s
 
 ### The browser and the editor
 
-`ThemeBrowserView` shows all twenty plus the user's own as **small pictures of the
-app** rather than rows of swatches: a theme is a ground, two faces, a card and
-eight colours working together, and six circles say almost nothing about how that
-comes out. `ThemePreviewTile` is that picture, and every parameter is somewhere in
-it — the gradient at its real angle, the panel strip over it, the title in the
-display face at its own weight and slant, the card at its own radius inside its
-own border, a label chip through the rule, a due chip, a priority dot, the wash.
+`ThemeBrowserView` shows the themes as **small pictures of the app** rather than
+rows of swatches: a theme is a ground, two faces, a card and eight colours working
+together, and six circles say almost nothing about how that comes out.
+`ThemePreviewTile` is that picture, and every parameter is somewhere in it — the
+gradient at its real angle, the panel strip over it, the title in the display face
+at its own weight and slant, the card at its own radius inside its own border, a
+label chip through the rule, a due chip, a priority dot, the wash.
 
-Pressing a tile puts it in its own slot. Both slots are named at the top of the
-browser, because at any moment one of the two is the one you are looking at and
-the other is not — somebody setting the dark theme in daylight has no other way to
-see that anything happened.
+**The two buttons at the top do two jobs.** Each names the theme in its slot, and
+pressing one filters the grid to the half that can fill it — eleven dark themes or
+nine light ones. Naming matters because only one of the two is ever on screen:
+somebody setting their dark theme in daylight sees nothing happen to the app, and
+the lit button saying *Dark · Rainforest* is the only report they get. Filtering
+matters because twenty pictures in one scroll is a lot of scrolling to compare two
+dark grounds nine tiles apart — and the two halves are never alternatives, since a
+light theme and a dark one are both in use at once. The browser opens on whichever
+half is in force, which is the one you came to change.
+
+Pressing a tile puts it in its slot, which under the filter is simply the slot
+named on the lit button. **New Theme** follows the filter too — one item rather
+than a light one and a dark one, because a menu that could make a theme the grid
+would then hide is a menu that does nothing visible — and an import switches the
+filter to whatever kind arrived.
+
+**On the desk it is a window of its own**, opened from Settings ▸ General ▸
+Themes… and declared as a `Window` scene beside About. A sheet was wrong for it in
+three ways: it is pinned to the width of the pane it hangs off, it cannot be
+resized, and it blocks the window it is attached to — and this is a surface for
+*comparing* pictures while the theme it chooses repaints the board behind it. The
+grid is adaptive rather than fixed, so a wider window is more columns: three at the
+900×720 it opens at, five at 1400, one at the 336pt floor. The phone keeps a
+sheet, having no windows to open, and keeps a Done button for the same reason —
+a window has a close box and a second door to the same room is clutter.
 
 `ThemeEditorView` exposes every parameter as a typed value, not a slider: the
 difference between a theme and a near-miss of one is a number you can read back.
@@ -2156,10 +2198,42 @@ round. **A card stays draggable while a query is running** — `allowsCardDrag` 
 longer asks about the query, because the rows on screen are still the board's own
 order. And **⌘A still takes the whole board**, for the same reason.
 
+### Ways out of a search
+
+The panel is an overlay the header draws rather than a popover, so nothing
+dismisses it on the app's behalf. There are five ways out, and for a while the
+obvious one was missing: **Escape**, **choosing a result**, the **×**, putting
+the **folded row** away — and **clicking anywhere else**, which is what a reader
+who has finished with the list actually does. Without it, somebody who typed,
+read the list and went back to the board was left with the list over the top of
+it.
+
+That last one is a catcher — a clear layer under the panel, starting where the
+header stops, so every control in the bar, and the field itself wherever the fold
+has put it, still takes the click it was given. It is deliberately not "the field
+lost focus": clicking a *result* takes focus out of the field before the row's own
+click lands, so a panel that closed on focus would be a panel whose rows cannot be
+clicked, and on the iPad a tap outside a field takes nothing away from it anyway.
+The click that dismisses is **swallowed**, the way a popover swallows the click
+that closes it — the card under the pointer is one press away rather than selected
+by a press that was meant to put a list down.
+
+The source list is the one place the catcher cannot cover: on the desk it is drawn
+*above* the header, because the Inbox panel has to slide out from behind it, and
+on the iPad it is a column of the split view. What a click there does is change
+the surface, so that is what is watched instead, and the search ends with it.
+
+**The query survives the click.** It ends the reading of the list rather than the
+search: what was typed is still in the field with its × beside it, so the caret
+goes back and the reader carries on. Escape is the explicit cancel and takes the
+query with it. The one thing that does go is a folded row with nothing typed in
+it, which exists in order to be typed in.
+
 `UITests/SearchResultsTests` is the half only a running app can answer, and it is
 the *pair* that matters: a query typed, a panel of matches over the board, and
 the board still holding the cards that did not match — plus choosing a result and
-landing on the card with the field empty behind it. It runs on the iPad because
+landing on the card with the field empty behind it, and a tap on the board putting
+the panel down while leaving the query where it was. It runs on the iPad because
 that is the platform a UI test can drive; the desk's half was measured through
 the accessibility API while this was written, which is the only way to drive that
 one — the accessibility tree pressed the rows and read the geometry back, the
@@ -2284,8 +2358,19 @@ hold groups. That is what lets `due ≤ today AND (High OR BUG)` be written down
 told apart from `(due ≤ today AND High) OR BUG`. A flat list carrying AND on one
 row and OR on the next cannot: it has to pick a precedence, and then the rule
 reads one way and means another. The editor offers one level of nesting — two
-brackets inside a 520pt sheet is a rule nobody can read back — while the model
+brackets inside a 520pt panel is a rule nobody can read back — while the model
 nests to any depth, so a file carrying a deeper tree still evaluates and draws.
+
+**The panel is a size on the desk and a sheet everywhere else.** On macOS the
+editor is 520×620 and that *is* the panel. Under a finger it is a sheet, and a
+sheet has to be the size of the sheet: the 620pt cap was applied on every
+platform, so on a 402×874 phone the editor drew as a squat card centred in the
+presentation with a band of its ground above and below it, the last criterion
+clipped and nothing to scroll it with. `Metrics.width` and `Metrics.height` are
+both optional now, and `nil` means *whatever this has been given* — the frame
+fills in both directions, which is also what makes the editor's own ground reach
+the sheet's edges instead of letting the presentation's white through at each
+end.
 
 **An empty `all` group matches everything**, deliberately. A view with no criteria
 is one being written, and the alternative opens every new view on an empty state
@@ -2488,7 +2573,7 @@ which a surface with no column ground cannot do.
 **Where the wrapping is decided is a pure function**, `ColumnFlowLayout.columns(of:
 into:cardSpacing:)`, split out of the `Layout` because a `Layout`'s `Subviews`
 cannot be built by a test — the same arrangement `SidebarRoomTests` has with
-`holdsBothSidebars`. Every card is measured at the column's width rather than
+`yields(to:in:)`. Every card is measured at the column's width rather than
 assumed to be a standard height: a card's height is its title's line count plus
 whether it carries a description, chips and a checklist bar, so a fixed number of
 cards per column would be right for one board and wrong for the next. The packing
@@ -2565,9 +2650,17 @@ carrying a second copy of them. Three things about it are load-bearing:
   pressing it does — the boards are not "Open board", the Archive is not "Show
   archive" — and it was spending the word *manage* twice while standing under a
   heading that said Labels. The heading spends it once now, on a section that
-  holds the labels, the Trash and, on iPad, Settings. The phone's drawer still
-  says **Labels** over a **Manage labels** row: it has no Trash row to move, so a
-  section called Manage there would hold one thing.
+  holds the labels, the Trash and Settings — **the same three rows in the same
+  order on all three platforms**, which they were not. The desk's settings row
+  was `#if os(iOS)` on the reasoning that ⌘, and the app menu are its door and a
+  second one would be a duplicate; that is true of the *key* and not of the
+  list, and it left the desk two rows where the iPad had three. The phone's
+  drawer headed its own section **Labels**, held one row called *Manage labels*,
+  had no way to the Trash at all, and kept Settings loose under the lists rather
+  than in a section. `ManageSectionTests` reads both files and holds the three
+  surfaces to one answer. The desk's row is a `SettingsLink` rather than a flag,
+  because `isShowingSettings` raises the sheet the phone and the iPad use and
+  does nothing at all on macOS, where Settings is a scene the system opens.
 - **iOS** — the drawer's Views list carries the same rows, and the `…` menu in
   the header carries them again for a user who is not in the drawer. The header
   grows a bar naming the open view with a way back.
@@ -2726,7 +2819,13 @@ These rules are the iPhone's alone:
   is **Board settings**, Archive completed, Manage labels, the Trash and
   **Settings**. Board settings replaced *Rename board* by holding it: renaming is
   one field of a sheet that also carries the board's colour and all of its
-  columns.
+  columns. **The first row names the surface that is on screen**: on a saved view
+  it is **Edit View…** instead, which raises that view's own editor. It offered
+  Board settings there — the settings of the board standing *behind* the view,
+  which is not what the reader is looking at — and this menu is the phone's only
+  door to a view's rule that is not the drawer. The editor is raised through
+  `BoardStore.editingViewID` rather than presented by the menu, for the drawer's
+  reason: a menu is gone by the time the sheet would open.
   What was taken out of it is the hamburger's: **Switch board** stood a thumb's
   width from a drawer that lists every board with its dot and its count, and the
   whole **Views** section stood beside the same drawer's views and the Archive
@@ -2770,6 +2869,38 @@ These rules are the iPhone's alone:
   Without it the board underneath stayed hittable while every drawer row did not,
   so VoiceOver could drive the board it could not see and not the drawer it
   could.
+
+
+### Where you are, said once
+
+**A saved view takes the title.** Open Today and the title bar says *Today* under
+the view's own symbol, on all three shapes — `BoardToolbar.viewTitle` on the desk
+and the iPad, `PhoneHeader.titleLabel` on the phone. It used to go on naming the
+board, with the view named in a strip *underneath* it: two answers to one
+question, and the one in the larger type was the wrong one. The board's name is
+still a text field you rename in place; a view's is not, because a view is renamed
+in its own editor where its rules are, and a title that is a field on one
+destination and a label on the next is a title nobody can trust to be either.
+
+**The strip is gone**, and its Back to Board button with it. That button was a
+second way out of a place the source list, the drawer or the tab bar is already
+one press from — and on the iPad it never existed for exactly that reason. Its
+count pill went too: it counted the rows underneath rather than the view's
+membership, which is a distinction worth drawing when the number is sitting on
+top of a list and not worth a strip of chrome when it is not. The sidebar row's
+badge is still the membership. The board gets back 46 points on the desk, 60 on
+the iPad and a 44pt row on the phone.
+
+**A destination row is not a toggle.** Pressing the row of the view you are
+already on used to send you back to the board — the sidebar's did, and the phone
+drawer's put the tab bar's own place back. One control with two meanings and no
+way to tell which one you are about to get; and since the row is how you *arrive*
+at a view, pressing it twice is something people do by accident constantly. It
+does nothing now, which `BoardStore.surface` was already prepared for: its `didSet`
+refuses an assignment that does not change anything, so arriving where you are
+costs no write and no preference update. `UITests/SavedViewTitleTests` holds all
+three claims, and holds them on the surface they are about — none of them is
+something a store can be asked, since `activeView` reads the same either way.
 
 ## Selection, commands and shortcuts
 
@@ -3418,10 +3549,10 @@ holding its 348pt column with nothing selected exactly as `MacEmptyInspector`
 does. A sibling cannot cover the toolbar. Re-measured after the change, New task
 is `hittable=true` with the list out and with it hidden, and the reorder lands.
 
-The source list and the Inbox panel are a different pair, and they **take turns**
-rather than overlapping: both open on the left, both are a column wide, and a
-window that cannot hold both closes whichever was not just asked for. See **The
-two panels on the left take turns**.
+The panel is in the same competition as the two that open on the left: all three
+are a column wide, and a window that cannot hold what is open closes whichever
+was not just asked for, furthest from it first. See **The three panels take
+turns**.
 
 Where there is not room for both the board and the *inspector*, the inspector goes
 **over the board** — never over the toolbar, which is the whole point. `PadRootView` measures the row with
@@ -4718,7 +4849,7 @@ twice: it is a schema change needing a version bump and a migration (C7), and it
 
   **What a card shows** is two of those rows. *Card detail* drops the
   description and the meta chips; **Tick cards off from the board** takes away
-  the circle in a card's leading gutter — `Preferences.cardTickKey`, read as
+  the circle in a card's trailing gutter — `Preferences.cardTickKey`, read as
   `@AppStorage` by `BoardTaskCard` and `PhoneTaskCard` alike so every card on
   the board closes up the moment it is flipped. It is the only switch here whose
   off state takes a *verb* off a surface, which is exactly why it is a
@@ -4726,6 +4857,17 @@ twice: it is a schema change needing a version bump and a migration (C7), and it
   something and the easiest thing to catch with a thumb on a board being dragged
   around, and which of those matters more is not a question this app can answer
   for somebody.
+
+  **The circle is in the trailing corner**, and it moved there from the leading
+  one, where it stood in front of everything a card has to say: the label chips
+  and the title both start there, and the gutter it needed pushed them in by a
+  tick's width on every card whether or not that card was near being finished.
+  The trailing corner is where the rest of a card's furniture already is — the
+  sub-task count sits under it, and on an archived card the Restore button below
+  that. Both cards ask one rule for whether to draw it at all,
+  `BoardTaskCard.drawsToggle(isArchived:showsCardTick:)`, so the phone and the
+  desk cannot disagree about a card that is filed away; `CardCornerTests` is
+  that rule and the corner it is drawn in.
 
   The gutter is held by a single `Color.clear` spacer in `content`, so switching
   it off shifts the card's text out to the card's own margin rather than leaving
@@ -5340,6 +5482,8 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `CardDropTests` | what a drop is allowed to do, at the seam the two board drop closures call into. A card dropped on a sibling reorders and *nothing else* — same column, same count, same sub-tasks, no move written into its history — because the failure it exists for was a reorder that moved the card to Done, ticked it, moved the week's completed count and closed its outstanding sub-tasks on the way. The contrasting drop, onto a card in Done, still does all of that, so the first cannot pass by the Done behaviour having been deleted. Then a drop on the column a card is already in staying a no-op, and the two spellings of a walk up and down a column — the second said backwards, because `move` refuses a `before: nil` into the place a card already is — plus the checklist's menu going through `dropOffset` |
 | `MenuKeyOwnershipByPlatformTests` | the other half of `KeyOwnershipTests`, and in a file that is not `#if os(macOS)` so it can say it: the menu bar takes keys off a card only on the platform that has one. On macOS ⌘⌫ and ⌘⏎ reach no card; on iOS `menuOwnedShortcuts` is empty and both reach the card, because `BoardCommands` is built into the macOS scene alone and nothing on iPad was taking them first. Space, a bare ⏎ and ⌥← are unchanged on both |
 | `RootSurfaceTests` | iOS only — which of the two layouts a window gets. An iPad at regular width takes the desk's; a phone takes the phone's at *every* width it can reach, which is the blocker: a Max-class iPhone in landscape is a regular horizontal size class and drew the iPad's split view; an iPad in Slide Over takes the phone's; and an unresolved size class is not a licence to draw three panes |
+| `CardCornerTests` | which corner of a card the tick is drawn in, and the one rule both cards ask for whether to draw it at all: an archived card wearing none — ticking a filed card used to move it between columns under a list ordered by `archivedAt`, where nothing moved to say so — and otherwise the preference deciding. Then the corner itself, read out of the source because a corner is not a value any store can be asked, including that it is *not* back in the leading one, in front of the chips and the title it used to push aside |
+| `ManageSectionTests` | that all three platforms draw the same last section: the heading being **Manage** rather than the name of a row inside it, the same three rows — Labels, Trash, Settings — in the same order on the shared sidebar and on the phone's drawer, the desk having a settings row at all (a `SettingsLink`, since ⌘, is a key and not a place), and every row named for what it *is* rather than for the verb. A drift test: the section had gone three different ways at once |
 | `PadListMetricTests` | where the iPad's saved-view sizes come from rather than what they are: `TaskColumnMetrics.pad` and `.desk` taking their column width and card gap from `BoardColumnView.Metrics` and their gutter from `BoardScrollView`, so a preset that copied the numbers could not drift from the board it is meant to match; plus room under the last card, but not the phone's tab-bar's worth |
 | `ColumnFlowTests` | where a column of a saved view stops and the next one starts, at the seam `ColumnFlowLayout` measures into — a pure function of card heights, because a `Layout`'s `Subviews` cannot be built by a test. A column taking exactly what fits and the rest starting the next; the gaps counted being the *n − 1* between the cards rather than one per card, which is the off-by-one that wraps a column early; a card taller than the window drawn rather than dropped, and not stranding the one after it; an unbounded height reading as one column rather than as a column per card; nothing in being no columns rather than one empty one. Then the two properties: over six window heights every card is placed exactly once and in order — a saved view is sorted, so a packing that balanced its columns would be reordering it — and the column count never rises as the window grows |
 | `PhoneColumnMetricTests` | the phone's half, which wraps the other way and so has no packing of its own: that the grid is handed the landscape board's own 250pt page, and what that buys once the sensor housing and the surface's own margins are taken off — two columns on a 17 Pro, three on a Pro Max, one upright |
@@ -5361,7 +5505,7 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `SettingsTabTests` | the list Settings divides into, on whichever platform the suite is run: **at most four subjects**, because a pane holding one switch is a row that has been given a tab of its own and everybody pays for it on the way past; the Trash not among them, since it is the user's own work rather than a preference; no two subjects drawn under one name; each glyph resolving as a symbol the system actually has — an unresolved `systemImage` draws nothing and reports nothing, which is a toolbar item that is a word with a hole above it; General first, because both surfaces open on whatever is first and that is a decision rather than an accident of typing order; and the same four on both platforms, the desk's two extra switches being rows inside General rather than a case compiled out on iOS, so `allCases` is the whole truth about what gets drawn and nothing has to remember to filter it |
 | `CardProgressTests` | the checklist's fraction and the line drawn to it: that the two come from the same pair of numbers so a card cannot show "2/3" over a half-drawn line, that both cards stack the line inside their own rounded rectangle and clip it there rather than laying it over the corners, that the line survives compact where the fraction does not, and that the fraction sits on the trailing side of the meta row's spacer |
 | `BoardSettingsTests` | what the board settings sheet promises before it changes a board: the refuge a trashed column's cards move to being the one `deleteColumn` actually moves them to and the column itself landing in the Trash; the count including archived cards, because the move does; an empty column's warning saying only the part that is still true; that **no** reorder from anywhere to anywhere changes where completed work lands, that adding a column leaves the Done column where it is, and that the Done column refuses every move; plus the shape of the composer — a name and a short, no role, sitting between the working columns and Done — and the board strip no longer ending in a tile |
-| `SidebarRoomTests` | iOS only — whether an iPad window holds both of the panels that open on its left and still leaves a board: a 13" in portrait holding both only with the inspector away, an 11" in portrait holding neither combination, a 13" in landscape holding all four columns at once and an 11" in landscape not — which is the shape worth being surprised by, since 1194 less three columns is not a board; an unmeasured window reading as *room for both*, because the other way round shuts a panel on the way in; and the line being exactly the board's own floor rather than a number of its own. `UITests/PadSidebarsTests` presses the buttons |
+| `SidebarRoomTests` | iOS only — which of an iPad window's three panels gives way, and when. A 13" in landscape closing nothing whichever is opened, since it holds all four columns at once and is the shape the layout was drawn for; an unmeasured window closing nothing either, because the other way round shuts a panel on the way in; opening a panel on the left collapsing the *editor* first, which on an 11" in landscape is the whole of it — the two left-hand panels fit together perfectly well once the far side has gone; an 11" in portrait, which has room for one, emptying the rest for whichever was asked for; the two on the left still taking turns with the editor already away, since a panel that costs nothing is skipped rather than counted as the answer; a source list the system drew *over* the board not competing at all; opening the editor taking the room from the far side first and from both when one is not enough; the line being exactly the board's own floor; and two properties over every iPad width and every combination of what was open — that what is left always holds the rest and never closes the panel just opened, and that whatever closes for the Inbox leaves a window the panel will actually draw in. `UITests/PadSidebarsTests` presses the buttons |
 | `DrawerWidthTests` | iOS only — how wide the phone's drawer is drawn, which is 84% of the screen's **short** edge rather than of the container it is handed: the same width on every phone held either way up; the landscape number not being 84% of the landscape width, which is 734pt of board list over a sliver of board; the ceiling being that device's own portrait width rather than a constant, since a maximum picked once widens the smaller phone on its side; an unmeasured screen falling back to the container, so zero cannot win the `min` and collapse the panel; and a container narrower than the screen still holding the panel |
 | `ToolbarFoldTests` | at what width the board header folds its search field into a button, which is arithmetic because the bar's width is whatever the split view left the detail column: the fold happening *before* the row runs out of room rather than after, and leaving the board's name something worth reading; the decision being monotonic in width, so no drag across the line can make it flicker; where the line falls on the shapes real iPads have — a 13" in portrait keeping its field with the board to itself *and* with either column beside it, losing it only when both are out, and an 11" in portrait losing it to the source list alone; each control in the row and the traffic lights' 68pt band moving the line, the capture button included, which is also where the iPad having one and the desk not is pinned; larger type folding sooner and stopping at the chrome caps; and the desk not folding at all, with its own window floor checked to still hold the bar that decision leans on. `UITests/ToolbarFoldTests` presses the button |
 | `TrashSurfaceTests` | where the Trash is now that it is not a settings tab: the flag being session state that starts shut and changes nothing about the board, `SettingsView` building no `TrashView` and holding no trash pane, each of the two door-bearing surfaces — the source list on macOS and iPad, the board menu on the phone — raising `isShowingTrash`, and the phone's sheet being presented by the root rather than by the header that opens it, which is a thing a menu cannot do |
@@ -5477,7 +5621,7 @@ an empty board over a real one. `SeedData` exposes the seed ids as named statics
 
 Every user-facing sentence goes through `String(localized:comment:)` or
 `Text(_:comment:)` and lands in `Resources/Localizable.xcstrings`, the String
-Catalog `SWIFT_EMIT_LOC_STRINGS` extracts into (784 keys). **The catalogue is
+Catalog `SWIFT_EMIT_LOC_STRINGS` extracts into (786 keys). **The catalogue is
 part of the change**: refreshing it after adding strings means building *both*
 platforms and merging the compiler's output from both, because half the view code
 is behind `#if os(iOS)` and syncing from macOS alone marks every iOS-only string

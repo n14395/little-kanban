@@ -446,3 +446,40 @@ import Testing
         #expect(store[TestBoard.dragDrop]?.priority == .high)
     }
 }
+
+
+/// The editor's own size, and the one distinction it has to keep: on the desk it
+/// is a panel and on a touch screen it is a sheet.
+///
+/// **The failure this pins is what a fixed height does inside a presentation
+/// that has its own.** `620` was applied on every platform, so on a 402×874
+/// phone the editor drew as a squat card centred in the sheet with a band of its
+/// own ground above and below it, the last criterion clipped and no way to
+/// scroll to it. A sheet has to be the size of the sheet, and `nil` is how this
+/// says *whatever I have been given*.
+@MainActor
+@Suite struct SavedViewEditorMetricTests {
+    /// The desk's panel is a panel: both numbers are its own, and they are the
+    /// ones the rule's own nesting limit was chosen against — two brackets
+    /// inside 520pt is a rule nobody can read back.
+    @Test func theDeskPanelCarriesItsOwnSize() {
+        #expect(SavedViewEditor.Metrics.desk.width == 520)
+        #expect(SavedViewEditor.Metrics.desk.height == 620)
+    }
+
+    /// And the touch preset carries neither, which is the whole fix: the frame
+    /// fills in both directions, so the editor reaches the sheet's edges instead
+    /// of leaving the presentation's own ground showing at each end.
+    @Test func theSheetIsTheSizeOfTheSheet() {
+        #expect(SavedViewEditor.Metrics.sheet.width == nil)
+        #expect(SavedViewEditor.Metrics.sheet.height == nil)
+    }
+
+    /// The other half of the same preset, kept here because it is what tells the
+    /// two apart at a glance: a control under a finger claims 44 and one under a
+    /// pointer claims what it draws.
+    @Test func theTouchPresetClaimsATouchTarget() {
+        #expect(SavedViewEditor.Metrics.sheet.hit == 44)
+        #expect(SavedViewEditor.Metrics.desk.hit == 0)
+    }
+}

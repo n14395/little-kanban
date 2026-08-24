@@ -11,6 +11,9 @@ struct SimpleKanbanApp: App {
     /// Named here rather than at both ends: the app menu opens it and the scene
     /// declares it, and a typo in either is a menu item that does nothing.
     static let aboutWindowID = "about"
+    /// The theme browser's window. Same reason as ``aboutWindowID``: Settings
+    /// opens it and the scene declares it.
+    static let themesWindowID = "themes"
 
     @State private var store: BoardStore
     /// Owned here so it lives as long as the app does: everything that renders
@@ -90,6 +93,28 @@ struct SimpleKanbanApp: App {
         .defaultPosition(.center)
         .windowResizability(.contentSize)
         // Nobody wants an About panel greeting them because it happened to be
+        // open when they last quit.
+        .restorationBehavior(.disabled)
+
+        // **A window rather than a sheet over Settings.** The browser is a grid
+        // of pictures of the app, and comparing two of them is what it is for —
+        // which means it wants to be as big as the screen allows and to stay put
+        // while the theme it is choosing repaints the board behind it. A sheet
+        // is neither: it is pinned to the width of the pane it hangs off, it
+        // cannot be resized, and it blocks the window it is attached to. Like
+        // About and Settings, this scene is a root of its own and resolves its
+        // own palette.
+        Window("Themes", id: Self.themesWindowID) {
+            ThemesWindow()
+                .environment(store)
+        }
+        .defaultSize(width: 900, height: 720)
+        .defaultPosition(.center)
+        // `.contentMinSize` rather than `.contentSize`: the grid is adaptive, so
+        // a wider window is more columns, and pinning the maximum would take
+        // that away.
+        .windowResizability(.contentMinSize)
+        // Nobody wants the theme browser greeting them because it happened to be
         // open when they last quit.
         .restorationBehavior(.disabled)
 
@@ -297,6 +322,27 @@ private struct AboutWindow: View {
 
     var body: some View {
         AboutView(metrics: .desk, startsCheck: startsCheck)
+            .environment(\.palette, palette)
+            .tint(palette.accent)
+            .foregroundStyle(palette.ink)
+            .preferredColorScheme(appearance.colorScheme)
+    }
+}
+
+/// The theme browser's own window: the store, and a palette resolved the way
+/// ``AboutWindow`` resolves one, because a `Window` scene inherits nothing from
+/// the board.
+private struct ThemesWindow: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(BoardStore.self) private var store
+    @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
+
+    private var palette: Palette {
+        Palette(theme: store.theme(for: (appearance.colorScheme ?? colorScheme).themeAppearance))
+    }
+
+    var body: some View {
+        ThemeBrowserView(metrics: .window)
             .environment(\.palette, palette)
             .tint(palette.accent)
             .foregroundStyle(palette.ink)

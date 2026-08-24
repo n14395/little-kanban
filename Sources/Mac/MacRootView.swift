@@ -243,13 +243,14 @@ struct MacSavedViewList: View {
         return AnyView(content(view))
     }
 
+    /// **No header over the list.** The view is named in the toolbar's title
+    /// now — see ``BoardToolbar`` — so a strip under it repeating the name, the
+    /// symbol and a Back to Board button was the same answer given twice and a
+    /// second way out of a place the source list is already one click from.
     @ViewBuilder private func content(_ view: SavedView) -> some View {
-        // Resolved once and handed down: the header counts the rows it heads,
-        // so both have to be the same array.
         let tasks = store.tasks(in: view, today: dayClock.today)
 
         VStack(spacing: 0) {
-            header(view, count: tasks.count)
             if tasks.isEmpty {
                 emptyState(view)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -268,53 +269,6 @@ struct MacSavedViewList: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    /// The pill counts what is on screen, not what is in the view. The sidebar
-    /// row's pill is the unnarrowed membership and stays that way — it is a
-    /// badge on a destination — but a count sitting directly on top of a list
-    /// is read as that list's length, and reading "7" above "Nothing matched"
-    /// makes the search look broken rather than the view look full.
-    private func header(_ view: SavedView, count: Int) -> some View {
-        HStack(spacing: 12) {
-            Button { store.selectSurface(.board) } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: "chevron.left")
-                        .imageScale(.small)
-                    Text("Board", comment: "Button that leaves a saved view for the column board")
-                        .font(palette.ui(12.5, .bold, relativeTo: .subheadline))
-                }
-                .foregroundStyle(palette.inkText(0.55))
-                .padding(.horizontal, 9)
-                .frame(minHeight: 28)
-                .hoverBackground(palette.ink(0.06), radius: 9)
-            }
-            .buttonStyle(.bare)
-            // The chevron is a nested element a label alone
-            // does not remove.
-            .accessibilityRepresentation {
-                Button(String(localized: "Back to the board",
-                              comment: "Accessibility name of the button leaving the Inbox or a saved view")) {
-                    store.selectSurface(.board)
-                }
-            }
-
-            HStack(spacing: 8) {
-                Image(systemName: view.symbol)
-                    .imageScale(.small)
-                    .foregroundStyle(palette.inkText(0.45))
-                    .accessibilityHidden(true)
-                Text(view.label)
-                    .font(palette.ui(14, .extraBold, relativeTo: .headline))
-                    .foregroundStyle(palette.ink)
-                CountPill(count: count)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 20)
-        .frame(minHeight: 46)
-        .hairline(.bottom, color: palette.ink(0.07))
     }
 
     /// One emptiness now: a view nobody has filed anything into yet, saying

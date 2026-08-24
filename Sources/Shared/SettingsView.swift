@@ -139,7 +139,6 @@ struct SettingsView: View {
         /// control, which is nowhere near 44pt on its own.
         var rowHit: CGFloat
         var controlRadius: CGFloat
-        var themes: ThemeBrowserView.Metrics
         var labelManager: LabelManagerView.Metrics
         /// Whether the surface draws its own header. The desk's pane sits in a
         /// window that already has a title bar and a close button.
@@ -148,13 +147,13 @@ struct SettingsView: View {
         static let desk = Metrics(
             width: 520, minHeight: 460, padding: 20, sectionSpacing: 22, rowSpacing: 8,
             panelRadius: 12, titleSize: 15, rowFont: 12.5, noteFont: 11.5, rowHit: 0,
-            controlRadius: 8, themes: .desk, labelManager: .desk,
+            controlRadius: 8, labelManager: .desk,
             showsHeader: false
         )
         static let sheet = Metrics(
             width: nil, minHeight: nil, padding: 18, sectionSpacing: 26, rowSpacing: 10,
             panelRadius: 14, titleSize: 17, rowFont: 15, noteFont: 13, rowHit: 44,
-            controlRadius: 10, themes: .sheet, labelManager: .sheet,
+            controlRadius: 10, labelManager: .sheet,
             showsHeader: true
         )
     }
@@ -201,7 +200,11 @@ struct SettingsView: View {
     @State private var isShowingBackups = false
     @State private var pendingRestore: BoardBackup?
     @State private var notice: SettingsNotice?
+    #if os(macOS)
+    @Environment(\.openWindow) private var openWindow
+    #else
     @State private var isBrowsingThemes = false
+    #endif
     #if os(iOS)
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Which subject the strip is showing. iOS only: the desk's `TabView` keeps
@@ -226,11 +229,16 @@ struct SettingsView: View {
         // System Settings since it started.
         .task { await NotificationScheduler.shared.refreshAuthorization() }
         .labelManagerSheet(isPresented: $isManagingLabels, metrics: metrics.labelManager)
+        // iOS only. The desk opens the browser as a window of its own — see the
+        // `themes` scene in `SimpleKanbanApp` for why — and a phone has no such
+        // thing to open.
+        #if os(iOS)
         .sheet(isPresented: $isBrowsingThemes) {
-            ThemeBrowserView(metrics: metrics.themes)
+            ThemeBrowserView(metrics: .sheet)
                 .environment(\.palette, palette)
                 .environment(store)
         }
+        #endif
         .modifier(BoardTransfer(
             isExportingBoard: $isExportingBoard,
             isExportingMarkdown: $isExportingMarkdown,
@@ -459,7 +467,11 @@ struct SettingsView: View {
                     String(localized: "Themes…", comment: "Settings row: opens the theme browser"),
                     note: themeNote
                 ) {
+                    #if os(macOS)
+                    openWindow(id: SimpleKanbanApp.themesWindowID)
+                    #else
                     isBrowsingThemes = true
+                    #endif
                 }
             }
 

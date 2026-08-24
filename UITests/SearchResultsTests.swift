@@ -142,6 +142,57 @@ final class SearchResultsTests: XCTestCase {
         XCTAssertFalse(label.contains("API"), "the row is still carrying labels: \(label)")
     }
 
+    /// **Clicking away puts the panel down.** It is an overlay the bar draws
+    /// rather than a popover, so nothing dismissed it on its own: a reader who
+    /// typed, read the list and then went back to the board was left with the
+    /// list over the top of it, and the only ways out were Escape, a result and
+    /// the ×.
+    ///
+    /// The other half of the claim is what *survives* the click. The tap ends
+    /// the reading of the list rather than the search, so what was typed is
+    /// still in the field with its × beside it — which is what tells this apart
+    /// from Escape, where the query goes too. A tap that quietly threw away what
+    /// had been typed would pass the first assertion here and be the wrong
+    /// behaviour.
+    ///
+    /// The tap is a coordinate rather than an element: the whole point of the
+    /// change is that the surface under the panel stops taking clicks while it
+    /// is up, so nothing down there is hittable to aim at.
+    func testClickingAwayPutsTheResultsDownAndKeepsTheQuery() throws {
+        try XCTSkipUnless(
+            UIDevice.current.userInterfaceIdiom == .pad,
+            "the phone searches in a tab of its own"
+        )
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = launched()
+        XCTAssertTrue(
+            app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Board templates"))
+                .firstMatch.waitForExistence(timeout: 20),
+            "no board on screen"
+        )
+
+        let field = searchField(in: app)
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "no search field in the bar")
+        field.tap()
+        field.typeText("sync")
+
+        let hit = result("Sync engine v2", in: app)
+        XCTAssertTrue(hit.waitForExistence(timeout: 5), "the results panel never opened")
+
+        // A point on the board, and it takes some choosing. Landscape, so that
+        // the window is a known 1376×1032: the panel hangs from the field at
+        // the *trailing* end of the bar and is 440pt wide, and the keyboard is
+        // up — a search has the field — and takes the bottom third. High and to
+        // the left is clear of both, and outside the source list, which is a
+        // column of the split view rather than something the bar can cover.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.35)).tap()
+
+        XCTAssertTrue(hit.waitForNonExistence(timeout: 5),
+                      "the panel outlived a tap that landed somewhere else")
+        XCTAssertTrue(app.buttons["Clear search"].exists,
+                      "the tap took the query with it — that is what Escape is for")
+    }
+
     func testChoosingAResultGoesToTheCardAndEndsTheSearch() throws {
         try XCTSkipUnless(
             UIDevice.current.userInterfaceIdiom == .pad,

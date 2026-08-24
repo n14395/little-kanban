@@ -322,7 +322,13 @@ struct BoardSidebar: View {
         let count = store.count(of: view, today: dayClock.today)
 
         return Button {
-            store.selectSurface(isActive ? .board : .view(view.id))
+            // **Not a toggle.** Pressing the row of the view you are already on
+            // used to send you back to the board, which is a second meaning for
+            // one control and the wrong one: a destination row means "go here",
+            // and a row that undoes itself is a row you cannot press twice. The
+            // store's `surface` already refuses a no-op assignment, so arriving
+            // where you are costs nothing.
+            store.selectSurface(.view(view.id))
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: view.symbol)
@@ -354,7 +360,7 @@ struct BoardSidebar: View {
         // The name, the count as the value and the trait are all as they were.
         .accessibilityRepresentation {
             Button(view.label) {
-                store.selectSurface(isActive ? .board : .view(view.id))
+                store.selectSurface(.view(view.id))
             }
                 .accessibilityValue(Text(verbatim: "\(count)"))
                 .accessibilityAddTraits(isActive ? [.isSelected] : [])
@@ -468,38 +474,62 @@ struct BoardSidebar: View {
         }
     }
 
-    /// iPad only, and the `#if` is about *reachability* rather than about size:
-    /// SwiftUI puts Settings… and ⌘, on the macOS app menu for free, so a second
-    /// door there would be a duplicate, while on iPad this sidebar is the whole
-    /// of the chrome and without the row export, import, the backups and the
-    /// reset have no way in at all.
-    @ViewBuilder private var settingsRow: some View {
-        #if os(iOS)
-        Button { store.isShowingSettings = true } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "gearshape")
-                    .imageScale(.small)
-                    .foregroundStyle(palette.inkText(0.5))
-                    .frame(width: metrics.rowGlyph)
-                    .accessibilityHidden(true)
-                Text("Settings")
-                    .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
-                    .foregroundStyle(palette.ink(0.66))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.vertical, metrics.rowVerticalPadding)
-            .padding(.horizontal, 10)
-            .frame(minHeight: metrics.rowHit)
-            .hoverBackground(palette.ink(0.05), radius: metrics.rowRadius)
+    /// **On every platform**, which it was not: the row was `#if os(iOS)` on
+    /// the reasoning that ⌘, and the app menu are the desk's door and a second
+    /// one would be a duplicate. That is true of the *key* and not of the list:
+    /// this section is where the app's own furniture is kept, and a Manage
+    /// section that holds the labels and the Trash on all three platforms and
+    /// the settings on two is a list that reads differently depending on which
+    /// machine you are sitting at. The menu keeps ⌘, ; this is the row.
+    ///
+    /// `SettingsLink` rather than a flag, because the desk's Settings is a
+    /// *scene*: `store.isShowingSettings` raises the sheet the phone and the
+    /// iPad use and does nothing at all on macOS, where the window is opened by
+    /// the system.
+    private var settingsRow: some View {
+        Group {
+            #if os(macOS)
+            SettingsLink { settingsRowLabel }
+            #else
+            Button { store.isShowingSettings = true } label: { settingsRowLabel }
+            #endif
         }
         .buttonStyle(.bare)
         .accessibilityRepresentation {
+            // A `SettingsLink` is a button whose action belongs to the system,
+            // so the substitute carries the name and leaves the press to it —
+            // on iOS the flag is the whole of the action and is set here.
+            #if os(macOS)
+            SettingsLink {
+                Text("Settings", comment: "Accessibility name of the sidebar row that opens Settings")
+            }
+            #else
             Button(String(localized: "Settings",
                           comment: "Accessibility name of the sidebar row that opens Settings")) {
                 store.isShowingSettings = true
             }
+            #endif
         }
-        #endif
+    }
+
+    /// Drawn once for both, so the two doors cannot drift apart in a row that
+    /// is the same row on either platform.
+    private var settingsRowLabel: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "gearshape")
+                .imageScale(.small)
+                .foregroundStyle(palette.inkText(0.5))
+                .frame(width: metrics.rowGlyph)
+                .accessibilityHidden(true)
+            Text("Settings")
+                .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                .foregroundStyle(palette.ink(0.66))
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, metrics.rowVerticalPadding)
+        .padding(.horizontal, 10)
+        .frame(minHeight: metrics.rowHit)
+        .hoverBackground(palette.ink(0.05), radius: metrics.rowRadius)
     }
 
     // MARK: The foot of the list

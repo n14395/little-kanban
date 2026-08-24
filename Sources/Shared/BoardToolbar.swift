@@ -176,9 +176,10 @@ struct BoardToolbar: View {
     /// Whether the results panel is under the field. Not simply "the field has
     /// focus": clicking a result moves focus out of the field on macOS, and a
     /// panel that vanished on that would be a panel whose rows cannot be
-    /// clicked. It is opened by asking for the field and closed by the four
-    /// things that end a search — Escape, a result, the × , and putting the
-    /// folded row away.
+    /// clicked. It is opened by asking for the field and closed by the things
+    /// that end a search — Escape, a result, the × , putting the folded row
+    /// away, and a click that landed somewhere else entirely, which is
+    /// ``dismissCatcher``.
     @State private var isShowingResults = false
     /// Which result Return would take. Held here rather than in the panel
     /// because the keys that move it are pressed in the *field*: the panel
@@ -216,6 +217,10 @@ struct BoardToolbar: View {
         }
         .hairline(.bottom, color: palette.ink(0.07))
         .coordinateSpace(.named(Self.barSpace))
+        // Under the panel and over the board: clicking away is the fifth way
+        // out of a search, and until this it was the missing one — see
+        // ``dismissCatcher``.
+        .overlay(alignment: .topLeading) { dismissCatcher }
         // Over the board rather than in it, and drawn by the bar because the
         // bar owns the field: the panel is laid out against `fieldFrame`, which
         // only this view has.
@@ -240,6 +245,15 @@ struct BoardToolbar: View {
         .onChange(of: foldsSearch) { _, folded in
             if !folded { isSearchOpen = false }
         }
+        // The source list is the one place a reader clicks away to that the
+        // catcher cannot cover: on the desk it is drawn *above* the header —
+        // it has to be, or the Inbox panel would slide across it — and on the
+        // iPad it is a column of the split view, outside this view's tree
+        // altogether. What a click in it does is change the surface, so that is
+        // what is watched. Choosing a result changes the surface too and has
+        // already closed everything by the time this runs, which is what the
+        // guard inside is for.
+        .onChange(of: store.surface) { _, _ in dismissSearch() }
     }
 
     /// The bar itself: one row, whatever the width.
@@ -329,6 +343,77 @@ struct BoardToolbar: View {
             )
             .transition(.opacity)
         }
+    }
+
+    /// **The click that lands somewhere else.**
+    ///
+    /// The panel is not a popover — it is an overlay this bar draws — so
+    /// nothing dismisses it on our behalf, and until this there were four ways
+    /// out of a search and none of them was the obvious one: Escape, a result,
+    /// the ×, and the folded row's own button. A reader who typed, read the
+    /// list and then went back to the board was left with the list hanging over
+    /// the top of it.
+    ///
+    /// **A catcher rather than "the field lost focus"**, which is the tempting
+    /// spelling and the broken one. Clicking a *result* takes focus out of the
+    /// field before the row's own click lands, so a panel that closed on focus
+    /// would be a panel whose rows cannot be clicked — the reason
+    /// ``isShowingResults`` exists apart from the focus state at all. It is also
+    /// no answer on the iPad, where a tap outside a field takes nothing away
+    /// from it.
+    ///
+    /// It starts where the header stops, so every control in the bar — and the
+    /// field itself, wherever the fold has put it — still takes the click it was
+    /// given. The click that dismisses is **swallowed**, which is what every
+    /// popover on both platforms does with the click that closes it: the card
+    /// under the pointer is one press away rather than selected by a press that
+    /// was meant to put a list down.
+    @ViewBuilder
+    private var dismissCatcher: some View {
+        if isShowingResults {
+            // The reader is for the header's own height, which is the one
+            // number here that is not fixed: the bar grows a row when the field
+            // folds into it, and the catcher has to start under both.
+            GeometryReader { proxy in
+                Color.clear
+                    .frame(width: Self.catcherSpread, height: Self.catcherSpread)
+                    .contentShape(.rect)
+                    .offset(x: -Self.catcherSpread / 2, y: proxy.size.height)
+                    .onTapGesture { dismissSearch() }
+                    // Nothing to meet: a reader on VoiceOver leaves a search the
+                    // way they entered it, and an invisible ten-thousand-point
+                    // rectangle in the rotor is a bug however it is labelled.
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    /// How far the catcher reaches. A number, because there is nothing here to
+    /// fit to: it is laid out in the header's frame and has to cover a window
+    /// that is any size the display is. Ten thousand points is past the largest
+    /// Apple sells and costs nothing — one clear layer, clipped by the window it
+    /// is drawn in.
+    private static let catcherSpread: CGFloat = 10_000
+
+    /// What clicking away does: the panel goes and the field gives up the
+    /// keyboard.
+    ///
+    /// **The query stays**, which is the whole difference between this and
+    /// Escape. The click ends the *reading of the list*, not the search: what
+    /// was typed is still in the field with its × beside it, so the reader puts
+    /// the caret back and carries on, or clears it. Escape is the explicit
+    /// cancel and takes the query with it — throwing it away because somebody
+    /// glanced at the board would be answering a click with a cancel nobody
+    /// asked for.
+    ///
+    /// The one thing that does go is a folded row with nothing typed in it. That
+    /// row exists in order to be typed in; left standing empty it is a strip of
+    /// chrome over the board that the reader has to put away by hand.
+    private func dismissSearch() {
+        guard isShowingResults || isSearchOpen else { return }
+        isSearchFocused = false
+        closeResults()
+        if store.query.isEmpty { isSearchOpen = false }
     }
 
     /// A result the user picked: go to the card, and the search is over.
@@ -488,12 +573,22 @@ struct BoardToolbar: View {
         return store.isInboxOpen ? palette.ink(0.07) : .clear
     }
 
-    /// The active board's name, renamed where it is written. `nil` is a state
-    /// the user can reach by deleting their last board, and it says so rather
-    /// than leaving the bar looking unfinished.
+    /// **What is on screen, named.** A saved view standing in front of the
+    /// board takes the title, with its own symbol beside it; otherwise it is the
+    /// active board's name, renamed where it is written. `nil` is a state the
+    /// user can reach by deleting their last board, and it says so rather than
+    /// leaving the bar looking unfinished.
+    ///
+    /// The view used to be named in a bar of its own under this one, which said
+    /// the same thing twice: the title said which board you were *not* looking
+    /// at, and the strip under it said which view you were. One title that
+    /// answers "where am I" is the whole of what a title is for, and it gives
+    /// the board back the 46 points that strip was taking.
     @ViewBuilder
     private var title: some View {
-        if let board = store.activeBoard {
+        if let view = store.activeView {
+            viewTitle(view)
+        } else if let board = store.activeBoard {
             Group {
                 if renamingBoardID == board.id {
                     TextField("Board name", text: $draft)
@@ -546,6 +641,37 @@ struct BoardToolbar: View {
                 .foregroundStyle(palette.inkText(0.4))
                 .lineLimit(1)
         }
+    }
+
+    /// A saved view's name in the title, under its own symbol.
+    ///
+    /// Not editable, unlike the board's: a view is renamed in its own editor,
+    /// where its rules are — and a title that is a text field on one destination
+    /// and a label on the next is a title nobody can trust to be either.
+    ///
+    /// The symbol is sized off the title rather than given a number of its own,
+    /// because the title grows with Dynamic Type and a glyph pinned to points
+    /// would come adrift of it. Quieter than the words for the sidebar row's
+    /// reason: a column of glyphs should not read as loud as the names.
+    /// See ``PhoneHeader/titleID`` for why a title needs an identifier.
+    static let titleID = "BoardTitle"
+
+    private func viewTitle(_ view: SavedView) -> some View {
+        HStack(spacing: 9) {
+            Image(systemName: view.symbol)
+                .font(palette.ui(metrics.titleSize * 0.6, .semibold, relativeTo: .title3))
+                .foregroundStyle(palette.inkText(0.5))
+                .accessibilityHidden(true)
+            Text(view.label)
+                .font(palette.display(metrics.titleSize))
+                .foregroundStyle(palette.ink)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .frame(minHeight: chrome(metrics.control))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier(Self.titleID)
+        .accessibilityAddTraits(.isHeader)
     }
 
     /// The field, in the bar or in the row that drops out from under it. The
