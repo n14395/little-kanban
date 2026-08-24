@@ -23,11 +23,11 @@ import Testing
         tasks: [TaskItem] = SyncStoreTests.filed,
         boards: [Board] = SeedData.boards,
         nextSerial: Int = 344,
-        accent: AccentTheme = .indigo
+        themes: ThemeSettings = TestBoard.otherThemes
     ) -> BoardSnapshot {
         BoardSnapshot(
             tasks: tasks, boards: boards, labels: LabelDef.seed,
-            nextSerial: nextSerial, accentTheme: accent, activeBoardID: boards.first?.id
+            nextSerial: nextSerial, activeBoardID: boards.first?.id, themes: themes
         )
     }
 
@@ -45,7 +45,7 @@ import Testing
 
         let read = try #require(try sync.load())
         #expect(read.nextSerial == written.nextSerial)
-        #expect(read.accentTheme == written.accentTheme)
+        #expect(read.themes == written.themes)
         #expect(read.activeBoardID == written.activeBoardID)
         #expect(read.boards == written.boards)
         #expect(read.labels == written.labels)
@@ -297,16 +297,16 @@ import Testing
         fromFile.title = "What the file says"
         try temp.file.write(
             BoardSnapshot(tasks: [fromFile], boards: SeedData.boards, labels: LabelDef.seed,
-                          nextSerial: 100, accentTheme: .ember,
-                          activeBoardID: SeedData.defaultBoard.id),
+                          nextSerial: 100,
+            activeBoardID: SeedData.defaultBoard.id),
             generation: temp.file.nextWriteGeneration()
         )
         // …and the records another.
         var fromSync = fromFile
         fromSync.title = "What the records say"
         try sync.apply(BoardSnapshot(tasks: [fromSync], boards: SeedData.boards, labels: LabelDef.seed,
-                                     nextSerial: 100, accentTheme: .ember,
-                                     activeBoardID: SeedData.defaultBoard.id))
+                                     nextSerial: 100,
+            activeBoardID: SeedData.defaultBoard.id))
 
         let store = BoardStore.restored(file: temp.file, sync: sync)
         #expect(store.tasks.first?.title == "What the records say")
@@ -320,8 +320,8 @@ import Testing
         let sync = try BoardSyncStore.inMemory()
         let board = BoardSnapshot(
             tasks: TestBoard.tasks(on: SeedData.defaultBoard), boards: SeedData.boards,
-            labels: LabelDef.seed, nextSerial: 210, accentTheme: .pine,
-            activeBoardID: SeedData.defaultBoard.id
+            labels: LabelDef.seed, nextSerial: 210,
+            activeBoardID: SeedData.defaultBoard.id, themes: TestBoard.otherThemes
         )
         try temp.file.write(board, generation: temp.file.nextWriteGeneration())
         #expect(try sync.load() == nil)
@@ -332,7 +332,7 @@ import Testing
         let records = try #require(try sync.load())
         #expect(Set(records.tasks.map(\.id)) == Set(board.tasks.map(\.id)))
         #expect(records.nextSerial == 210)
-        #expect(records.accentTheme == .pine)
+        #expect(records.themes == TestBoard.otherThemes)
     }
 
     /// A store that cannot be opened at all must not read as a board with
@@ -341,7 +341,7 @@ import Testing
         let temp = TempBoard()
         let board = BoardSnapshot(
             tasks: TestBoard.tasks(on: SeedData.defaultBoard), boards: SeedData.boards,
-            labels: LabelDef.seed, nextSerial: 100, accentTheme: .ember,
+            labels: LabelDef.seed, nextSerial: 100,
             activeBoardID: SeedData.defaultBoard.id
         )
         try temp.file.write(board, generation: temp.file.nextWriteGeneration())

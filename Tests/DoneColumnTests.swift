@@ -66,7 +66,7 @@ import Testing
 
     private static func store(file: BoardFile? = nil) -> BoardStore {
         BoardStore(tasks: tasks(), columns: columns, labels: LabelDef.seed,
-                   accentTheme: .ember, nextSerial: BoardSnapshot.baseSerial, file: file)
+                    nextSerial: BoardSnapshot.baseSerial, file: file)
     }
 
     /// The whole of what being Done is worth, asked at once: the tick, the chip,
@@ -77,7 +77,7 @@ import Testing
     private func expectDoneBehaviours(
         _ store: BoardStore, done: BoardColumn.ID, task: TaskItem.ID, _ label: String
     ) throws {
-        let palette = Palette(colorScheme: .light)
+        let palette = Palette(theme: ThemePresets.fallback(for: .light))
         #expect(store.isDone(store[task]!) == false, "\(label): the probe started from Done")
         #expect(store[task]?.subtasks.contains(where: { !$0.done }) == true, "\(label): nothing left to tick")
 
@@ -117,7 +117,7 @@ import Testing
         #expect(store.completedTasks.isEmpty)
         #expect(store.weeklyShippedCount(today: CalendarDay(Date.now)) == 0)
 
-        let palette = Palette(colorScheme: .light)
+        let palette = Palette(theme: ThemePresets.fallback(for: .light))
         #expect(palette.dueTone(urgency: .overdue, isDone: store.isDone(moved))
                 != palette.dueTone(urgency: .overdue, isDone: true))
 

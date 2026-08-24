@@ -152,13 +152,13 @@ enum ScaleBoard {
     @MainActor
     static func store(taskCount: Int, file: BoardFile? = nil) -> BoardStore {
         BoardStore(tasks: Array(tasks.prefix(taskCount)), boards: boards, activeBoardID: boards[0].id,
-                   labels: labels, accentTheme: .ember, nextSerial: 900 + taskCount, file: file)
+                   labels: labels, nextSerial: 900 + taskCount, file: file)
     }
 
     /// The board as it is written to disk — what the debounced save re-encodes.
     static func snapshot(taskCount: Int = ScaleBoard.taskCount) -> BoardSnapshot {
         BoardSnapshot(tasks: Array(tasks.prefix(taskCount)), boards: boards, labels: labels,
-                      nextSerial: 900 + taskCount, accentTheme: .ember, activeBoardID: boards[0].id)
+                      nextSerial: 900 + taskCount, activeBoardID: boards[0].id)
     }
 
     /// How many activity entries the whole board carries — the number the save

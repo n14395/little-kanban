@@ -551,11 +551,11 @@ import Testing
 
     // MARK: What is deliberately not on the stack
 
-    @Test func theAccentThemeIsAPreferenceNotBoardData() {
+    @Test func theThemeSelectionIsAPreferenceNotBoardData() {
         let (store, undo) = TestBoard.undoing()
-        step(undo) { store.setAccentTheme(.pine) }
+        step(undo) { store.selectTheme(TestBoard.otherDarkTheme) }
         #expect(undoEverything(undo, on: store) == 0)
-        #expect(store.accentTheme == .pine)
+        #expect(store.themes.darkID == TestBoard.otherDarkTheme.id)
     }
 
     // MARK: Passthroughs and the manager-less case

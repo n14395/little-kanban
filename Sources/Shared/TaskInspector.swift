@@ -112,7 +112,7 @@ struct TaskInspector: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .frame(width: chrome.scaling(metrics.width, cap: Self.widthCap))
-        .background(palette.panel)
+        .background(palette.panelOverlay)
         .hairline(.leading, color: isColumn ? palette.ink(0.08) : .clear)
         .transition(.opacity)
         // What Handoff carries to the other device, and what Spotlight offers
@@ -273,7 +273,7 @@ struct TaskInspector: View {
     private var titleField: some View {
         TextField("Task title", text: binding(.title))
             .textFieldStyle(.plain)
-            .font(SimpleKanbanFont.serif(metrics.titleSize))
+            .font(palette.display(metrics.titleSize))
             .lineSpacing(3)
             .foregroundStyle(palette.ink)
             .focused($focusedField, equals: .title)
@@ -286,7 +286,7 @@ struct TaskInspector: View {
     private var noteField: some View {
         TextField("Add a description", text: binding(.note), axis: .vertical)
             .textFieldStyle(.plain)
-            .font(SimpleKanbanFont.ui(metrics.noteSize, .medium, relativeTo: .subheadline))
+            .font(palette.ui(metrics.noteSize, .medium, relativeTo: .subheadline))
             .lineSpacing(4)
             .foregroundStyle(palette.ink(0.62))
             .focused($focusedField, equals: .note)
@@ -349,7 +349,7 @@ struct TaskInspector: View {
     /// three names stay aligned however wide they grow.
     private func fieldName(_ text: LocalizedStringKey) -> some View {
         Text(text)
-            .font(SimpleKanbanFont.ui(metrics.fieldNameSize, .bold, relativeTo: .footnote))
+            .font(palette.ui(metrics.fieldNameSize, .bold, relativeTo: .footnote))
             .foregroundStyle(palette.inkText(0.42))
             .frame(minWidth: metrics.fieldNameWidth, alignment: .leading)
     }
@@ -360,7 +360,7 @@ struct TaskInspector: View {
                 Text("Checklist").sectionLabelStyle(size: 10.5, opacity: Palette.readableInk)
                 ProgressMeter(fraction: task.subtaskFraction, height: 4)
                 Text(task.subtaskProgressText)
-                    .font(SimpleKanbanFont.ui(11, .bold, relativeTo: .caption2))
+                    .font(palette.ui(11, .bold, relativeTo: .caption2))
                     .foregroundStyle(palette.inkText(0.45))
             }
             ChecklistView(task: task, scope: .desk, metrics: metrics.checklist)

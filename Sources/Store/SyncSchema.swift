@@ -209,7 +209,11 @@ final class StoredLabel {
 final class StoredMeta {
     var id: UUID = StoredMeta.singletonID
     var nextSerial: Int = BoardSnapshot.baseSerial
-    var accentThemeKey: String = AccentTheme.ember.rawValue
+    /// ``ThemeSettings`` as JSON, for `StoredBoard.dot`'s reason: a theme is a
+    /// tree of structs and none of them has an attribute layout SwiftData can
+    /// store. Optional, and read leniently, so a record written by a build
+    /// before there were themes syncs into one that has them.
+    var themesJSON: Data?
     var activeBoardID: UUID?
     var updatedAt: Date = Date.distantPast
 

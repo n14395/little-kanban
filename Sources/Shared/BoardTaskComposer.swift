@@ -41,7 +41,7 @@ struct BoardTaskComposer: View {
         return TextField("Task title, then ⏎", text: $store.draft)
             .accessibilityLabel("Task title")
             .textFieldStyle(.plain)
-            .font(SimpleKanbanFont.ui(metrics.font, .bold, relativeTo: .subheadline))
+            .font(palette.ui(metrics.font, .bold, relativeTo: .subheadline))
             .foregroundStyle(palette.ink)
             .focused($isFocused)
             .onSubmit { store.commitDraft() }

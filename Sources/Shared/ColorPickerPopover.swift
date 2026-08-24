@@ -230,7 +230,7 @@ struct ColorPickerPopover: View {
             Text("Hex").sectionLabelStyle(size: 10.5, tracking: 0.08, opacity: Palette.readableInk)
             TextField("Hex", text: $hexText)
                 .textFieldStyle(.plain)
-                .font(SimpleKanbanFont.ui(metrics.font, .semibold, relativeTo: .subheadline))
+                .font(palette.ui(metrics.font, .semibold, relativeTo: .subheadline))
                 .foregroundStyle(palette.ink)
                 .focused($isHexFocused)
                 #if os(iOS)
@@ -264,7 +264,7 @@ struct ColorPickerPopover: View {
         HStack(spacing: 8) {
             Button { store.saveColor(.hex(draftValue)) } label: {
                 Text("Save to Palette")
-                    .font(SimpleKanbanFont.ui(metrics.font, .bold, relativeTo: .subheadline))
+                    .font(palette.ui(metrics.font, .bold, relativeTo: .subheadline))
                     .foregroundStyle(isSaved ? palette.inkText(0.35) : palette.accent)
                     .padding(.horizontal, 10)
                     .frame(minHeight: metrics.hit)
@@ -277,7 +277,7 @@ struct ColorPickerPopover: View {
             Spacer(minLength: 0)
             Button { dismiss() } label: {
                 Text("Done")
-                    .font(SimpleKanbanFont.ui(metrics.font, .bold, relativeTo: .subheadline))
+                    .font(palette.ui(metrics.font, .bold, relativeTo: .subheadline))
                     .foregroundStyle(palette.onAccent)
                     .padding(.horizontal, 14)
                     .frame(minHeight: metrics.hit)
@@ -306,7 +306,7 @@ struct ColorPickerPopover: View {
     private func value(of swatch: SwatchColor) -> UInt32? {
         switch swatch {
         case .rgb(let value, _): value
-        case .accent: palette.accentTheme.hex
+        case .accent: palette.accentValue
         case .ink: nil
         }
     }

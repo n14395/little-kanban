@@ -36,12 +36,16 @@ final class SettingsTabsTests: XCTestCase {
     /// The four, in the order the strip draws them. **General** leads, so it is
     /// the one the sheet opens on and the one the other tests measure against.
     ///
-    /// Each marker is picked from a *group* the pane holds alone: Theme is
+    /// Each marker is picked from a *group* the pane holds alone: Appearance is
     /// General's, Order cards by is the Board's, the reminder switch is
     /// Notifications', and the iCloud switch is Data's. A marker that two panes
     /// could show would pass this suite while the strip did nothing.
+    ///
+    /// General's was "Theme" until the theme engine took that word for something
+    /// bigger: the light/dark override is *Appearance* now and Themes is the row
+    /// under it. See **Themes** in the README.
     private let subjects = [
-        Subject(chipID: "SettingsTab.general", control: "Theme"),
+        Subject(chipID: "SettingsTab.general", control: "Appearance"),
         Subject(chipID: "SettingsTab.board", control: "Order cards by"),
         Subject(chipID: "SettingsTab.notifications",
                 control: "Remind me on the due date", isToggle: true),

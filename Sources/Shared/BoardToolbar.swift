@@ -535,14 +535,14 @@ struct BoardToolbar: View {
                     .accessibilityHint("Renames this board")
                 }
             }
-            .font(SimpleKanbanFont.serif(metrics.titleSize))
+            .font(palette.display(metrics.titleSize))
             .foregroundStyle(palette.ink)
             // Switching boards under a live field would rename the new one to
             // the old one's half-typed name.
             .onChange(of: board.id) { _, _ in renamingBoardID = nil }
         } else {
             Text("No board", comment: "Toolbar title once the last board has been deleted")
-                .font(SimpleKanbanFont.serif(metrics.titleSize))
+                .font(palette.display(metrics.titleSize))
                 .foregroundStyle(palette.inkText(0.4))
                 .lineLimit(1)
         }
@@ -563,7 +563,7 @@ struct BoardToolbar: View {
                 .accessibilityHidden(true)
             TextField("Search tasks", text: $store.query)
                 .textFieldStyle(.plain)
-                .font(SimpleKanbanFont.ui(metrics.searchFont, .semibold, relativeTo: .subheadline))
+                .font(palette.ui(metrics.searchFont, .semibold, relativeTo: .subheadline))
                 .foregroundStyle(palette.ink)
                 .focused($isSearchFocused)
                 .fieldHitArea(minHeight: metrics.fieldHit) { isSearchFocused = true }

@@ -17,7 +17,7 @@ import Testing
     /// "never changed".
     private func backedUp(_ temp: TempBoard, nextSerial: Int = 111) throws -> (backup: URL, snapshot: BoardSnapshot) {
         let good = BoardSnapshot(tasks: TestBoard.tasks, labels: LabelDef.seed,
-                                 nextSerial: nextSerial, accentTheme: .pine)
+                                 nextSerial: nextSerial)
         try temp.file.write(good, generation: temp.file.nextWriteGeneration())
         temp.file.backupIfDue()
         return (try #require(temp.file.backups().first), good)
@@ -35,7 +35,7 @@ import Testing
         _ temp: TempBoard, secondsAgo: TimeInterval = 60, nextSerial: Int
     ) throws -> URL {
         let snapshot = BoardSnapshot(tasks: TestBoard.tasks, labels: LabelDef.seed,
-                                     nextSerial: nextSerial, accentTheme: .pine)
+                                     nextSerial: nextSerial)
         try FileManager.default.createDirectory(at: temp.file.backupsDirectory, withIntermediateDirectories: true)
         let stamp = BoardFile.stamp(Date.now.addingTimeInterval(-secondsAgo))
         let url = temp.file.backupsDirectory.appending(path: "board-\(stamp).json")

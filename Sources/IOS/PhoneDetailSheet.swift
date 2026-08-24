@@ -40,10 +40,10 @@ struct PhoneDetailSheet: View {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
                 Button("Done", action: dismissKeyboard)
-                    .font(SimpleKanbanFont.ui(15, .bold, relativeTo: .body))
+                    .font(palette.ui(15, .bold, relativeTo: .body))
             }
         }
-        .background(palette.sheet)
+        .background(palette.windowFill)
         // Four fifths of the screen, near enough the design's 82%, and back
         // from the `.large` this was raised to. The board it came up over stays
         // legible above it, which is the whole point of a sheet that is not a
@@ -72,7 +72,7 @@ struct PhoneDetailSheet: View {
         .presentationDetents([.fraction(0.8)])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(28)
-        .presentationBackground(palette.sheet)
+        .presentationBackground(palette.windowFill)
         // The phone's open task, published for Handoff and Spotlight the same
         // way the desk publishes the inspector's.
         .taskUserActivity(task)
@@ -137,7 +137,7 @@ struct PhoneDetailSheet: View {
     private var titleField: some View {
         TextField("Task title", text: binding(.title))
             .textFieldStyle(.plain)
-            .font(SimpleKanbanFont.serif(29))
+            .font(palette.display(29))
             .lineSpacing(3)
             .foregroundStyle(palette.ink)
             .focused($focusedField, equals: .title)
@@ -152,7 +152,7 @@ struct PhoneDetailSheet: View {
     private var noteField: some View {
         TextField("Add a description", text: binding(.note), axis: .vertical)
             .textFieldStyle(.plain)
-            .font(SimpleKanbanFont.ui(14.5, .medium, relativeTo: .subheadline))
+            .font(palette.ui(14.5, .medium, relativeTo: .subheadline))
             .lineSpacing(5)
             .foregroundStyle(palette.ink(0.62))
             .focused($focusedField, equals: .note)
@@ -203,7 +203,7 @@ struct PhoneDetailSheet: View {
             // trims back to a disc so the corners are not live.
             Button(action: dismiss) {
                 Image(systemName: "xmark")
-                    .font(SimpleKanbanFont.ui(12, .semibold, relativeTo: .footnote))
+                    .font(palette.ui(12, .semibold, relativeTo: .footnote))
                     .fontWeight(.semibold)
                     .foregroundStyle(palette.inkText(0.55))
                     .frame(minWidth: 28, minHeight: 28)
@@ -281,7 +281,7 @@ struct PhoneDetailSheet: View {
                 Text("Checklist").sectionLabelStyle(opacity: Palette.readableInk)
                 ProgressMeter(fraction: task.subtaskFraction, height: 4)
                 Text(task.subtaskProgressText)
-                    .font(SimpleKanbanFont.ui(12, .bold, relativeTo: .caption))
+                    .font(palette.ui(12, .bold, relativeTo: .caption))
                     .foregroundStyle(palette.inkText(0.45))
             }
             VStack(spacing: 0) {
@@ -316,7 +316,7 @@ struct PhoneDetailSheet: View {
                     Image(systemName: "arrow.uturn.backward")
                     Text("Restore to Board")
                 }
-                .font(SimpleKanbanFont.ui(14.5, .bold, relativeTo: .subheadline))
+                .font(palette.ui(14.5, .bold, relativeTo: .subheadline))
                 .foregroundStyle(palette.accent)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 48)
@@ -337,7 +337,7 @@ struct PhoneDetailSheet: View {
                 Image(systemName: "trash")
                 Text("Trash Task")
             }
-            .font(SimpleKanbanFont.ui(14.5, .bold, relativeTo: .subheadline))
+            .font(palette.ui(14.5, .bold, relativeTo: .subheadline))
             .foregroundStyle(destructiveTone.foreground)
             .frame(maxWidth: .infinity)
             .frame(minHeight: 48)

@@ -31,9 +31,9 @@ struct ColumnPill: View {
     var body: some View {
         HStack(spacing: 6) {
             Text(name)
-                .font(SimpleKanbanFont.ui(12.5, .bold, relativeTo: .footnote))
+                .font(palette.ui(12.5, .bold, relativeTo: .footnote))
             Text("\(count)")
-                .font(SimpleKanbanFont.ui(10.5, .extraBold, relativeTo: .caption2))
+                .font(palette.ui(10.5, .extraBold, relativeTo: .caption2))
                 .opacity(0.65)
         }
         .foregroundStyle(isCurrent ? palette.onAccent : palette.inkText(0.6))

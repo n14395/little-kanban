@@ -189,8 +189,10 @@ final class BoardSyncStore {
                 .sorted { $0.position < $1.position }
                 .map(Self.value(of:)),
             nextSerial: meta?.nextSerial ?? BoardSnapshot.baseSerial,
-            accentTheme: meta.flatMap { AccentTheme(rawValue: $0.accentThemeKey) } ?? .ember,
-            activeBoardID: meta?.activeBoardID
+            activeBoardID: meta?.activeBoardID,
+            themes: meta?.themesJSON.flatMap {
+                try? JSONDecoder().decode(ThemeSettings.self, from: $0)
+            } ?? .seed
         )
         lastWritten = snapshot
         return snapshot
@@ -223,7 +225,7 @@ final class BoardSyncStore {
     private func applyMeta(_ snapshot: BoardSnapshot, changedFrom previous: BoardSnapshot?) throws {
         let unchanged = previous.map {
             $0.nextSerial == snapshot.nextSerial
-                && $0.accentTheme == snapshot.accentTheme
+                && $0.themes == snapshot.themes
                 && $0.activeBoardID == snapshot.activeBoardID
         } ?? false
         guard !unchanged else { return }
@@ -234,7 +236,7 @@ final class BoardSyncStore {
             return fresh
         }()
         meta.nextSerial = snapshot.nextSerial
-        meta.accentThemeKey = snapshot.accentTheme.rawValue
+        meta.themesJSON = try? JSONEncoder().encode(snapshot.themes)
         meta.activeBoardID = snapshot.activeBoardID
         meta.updatedAt = .now
     }

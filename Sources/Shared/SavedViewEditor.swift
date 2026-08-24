@@ -81,7 +81,7 @@ struct SavedViewEditor: View {
         }
         .frame(width: chrome.scaling(metrics.width, cap: 1.35))
         .frame(maxHeight: 620)
-        .background(palette.sheet)
+        .background(palette.windowFill)
         .onAppear { draft = store.view(id: viewID) }
         // Every way out is the same way out — Done, Escape, the sheet's own
         // grabber — so the commit hangs off the disappearance rather than off
@@ -94,14 +94,14 @@ struct SavedViewEditor: View {
     private var header: some View {
         HStack(spacing: 12) {
             Text("Edit View")
-                .font(SimpleKanbanFont.ui(15, .extraBold, relativeTo: .headline))
+                .font(palette.ui(15, .extraBold, relativeTo: .headline))
                 .foregroundStyle(palette.ink)
             Spacer(minLength: 0)
             // What the rule currently gathers, live. The one number that says
             // whether the thing being written works.
             if let draft {
                 Text(matchCount(draft))
-                    .font(SimpleKanbanFont.ui(12, .semibold, relativeTo: .caption))
+                    .font(palette.ui(12, .semibold, relativeTo: .caption))
                     .foregroundStyle(palette.inkText(0.5))
                     .monospacedDigit()
             }
@@ -143,7 +143,7 @@ struct SavedViewEditor: View {
                     text: Binding(get: { draft.name }, set: { edit { $0.name = $1 } ($0) })
                 )
                 .textFieldStyle(.plain)
-                .font(SimpleKanbanFont.ui(14, .semibold, relativeTo: .body))
+                .font(palette.ui(14, .semibold, relativeTo: .body))
                 .foregroundStyle(palette.ink)
                 .focused($isNameFocused)
                 .padding(.horizontal, 10)
@@ -216,7 +216,7 @@ struct SavedViewEditor: View {
                     set: { on in change { $0.limit = on ? ($0.limit ?? 20) : nil } }
                 )) {
                     Text("Show only the first few")
-                        .font(SimpleKanbanFont.ui(13, .semibold, relativeTo: .subheadline))
+                        .font(palette.ui(13, .semibold, relativeTo: .subheadline))
                         .foregroundStyle(palette.ink(0.7))
                 }
                 .toggleStyle(.switch)
@@ -228,7 +228,7 @@ struct SavedViewEditor: View {
                     ) {
                         Text(String(localized: "At most \(limit)",
                                     comment: "How many cards a view shows at most"))
-                            .font(SimpleKanbanFont.ui(13, .semibold, relativeTo: .subheadline))
+                            .font(palette.ui(13, .semibold, relativeTo: .subheadline))
                             .foregroundStyle(palette.ink(0.7))
                             .monospacedDigit()
                     }
@@ -301,7 +301,7 @@ private struct RuleGroupView: View {
     private var joinerRow: some View {
         HStack(spacing: 8) {
             Text(depth == 0 ? "Match" : "and")
-                .font(SimpleKanbanFont.ui(13, .semibold, relativeTo: .subheadline))
+                .font(palette.ui(13, .semibold, relativeTo: .subheadline))
                 .foregroundStyle(palette.ink(0.7))
             Picker("", selection: Binding(
                 get: { rule.joiner ?? .all },
@@ -319,7 +319,7 @@ private struct RuleGroupView: View {
             .pickerStyle(.menu)
             .fixedSize()
             Text("of the following")
-                .font(SimpleKanbanFont.ui(13, .semibold, relativeTo: .subheadline))
+                .font(palette.ui(13, .semibold, relativeTo: .subheadline))
                 .foregroundStyle(palette.ink(0.7))
             Spacer(minLength: 0)
             if depth > 0 {
@@ -335,7 +335,7 @@ private struct RuleGroupView: View {
                 change { tree in tree.appending(.criterion(ViewCriterion()), to: rule.id) }
             } label: {
                 Label("Add criterion", systemImage: "plus")
-                    .font(SimpleKanbanFont.ui(12.5, .semibold, relativeTo: .caption))
+                    .font(palette.ui(12.5, .semibold, relativeTo: .caption))
             }
             .buttonStyle(.bare)
             .foregroundStyle(palette.accent)
@@ -351,7 +351,7 @@ private struct RuleGroupView: View {
                     }
                 } label: {
                     Label("Add group", systemImage: "plus.rectangle.on.rectangle")
-                        .font(SimpleKanbanFont.ui(12.5, .semibold, relativeTo: .caption))
+                        .font(palette.ui(12.5, .semibold, relativeTo: .caption))
                 }
                 .buttonStyle(.bare)
                 .foregroundStyle(palette.accent)
@@ -443,7 +443,7 @@ private struct CriterionRow: View {
                 .multilineTextAlignment(.trailing)
                 .monospacedDigit()
                 Text("days")
-                    .font(SimpleKanbanFont.ui(12.5, .medium, relativeTo: .caption))
+                    .font(palette.ui(12.5, .medium, relativeTo: .caption))
                     .foregroundStyle(palette.inkText(0.5))
             }
         case .priority:

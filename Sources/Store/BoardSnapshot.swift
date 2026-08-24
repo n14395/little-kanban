@@ -23,7 +23,10 @@ struct BoardSnapshot: Codable, Sendable {
     /// distinguishes a board's codes, and a per-board counter would hand two
     /// boards the same number and make the prefix load-bearing.
     var nextSerial: Int
-    var accentTheme: AccentTheme
+    /// Which theme fills the light slot and which fills the dark one, plus the
+    /// themes the user made. Since v12, when the accent — four fixed choices —
+    /// became one parameter of a whole theme. See ``ThemeSettings``.
+    var themes: ThemeSettings = .seed
     /// The board last looked at. This one *is* saved, unlike the saved view —
     /// which board you are on is where your work is, not where you happened to
     /// glance. Optional so a file whose boards have been hand-edited still
@@ -49,10 +52,10 @@ struct BoardSnapshot: Codable, Sendable {
     /// written before them means: a build whose sidebar offered exactly those.
     var views: [SavedView] = SavedView.seededAll
 
-    static let currentVersion = 11
+    static let currentVersion = 12
 
     enum CodingKeys: String, CodingKey {
-        case version, tasks, boards, labels, nextSerial, accentTheme, activeBoardID, trash, palette, views
+        case version, tasks, boards, labels, nextSerial, activeBoardID, trash, palette, views, themes
     }
 
     /// Written out rather than synthesised, for one field.
@@ -79,7 +82,6 @@ struct BoardSnapshot: Codable, Sendable {
         boards = try container.decode([Board].self, forKey: .boards)
         labels = try container.decode([LabelDef].self, forKey: .labels)
         nextSerial = try container.decode(Int.self, forKey: .nextSerial)
-        accentTheme = try container.decode(AccentTheme.self, forKey: .accentTheme)
         activeBoardID = try container.decodeIfPresent(Board.ID.self, forKey: .activeBoardID)
         trash = try container.decodeIfPresent([TrashedItem].self, forKey: .trash) ?? []
         // Lenient for `trash`'s reason, and one of its own: a palette decoded
@@ -94,6 +96,12 @@ struct BoardSnapshot: Codable, Sendable {
         // somebody who deleted all seven, and handing them back would make the
         // deletion un-stick on every launch.
         views = try container.decodeIfPresent([SavedView].self, forKey: .views) ?? SavedView.seededAll
+        // Lenient once more, and the absence means the two defaults: a file
+        // written before v12 chose an accent rather than a theme, and what its
+        // accent becomes is `BoardMigration.migrate(v11:accent:)`'s answer
+        // rather than this decoder's — it needs the bytes, which are gone by
+        // the time this runs.
+        themes = try container.decodeIfPresent(ThemeSettings.self, forKey: .themes) ?? .seed
     }
 
     init(
@@ -102,22 +110,22 @@ struct BoardSnapshot: Codable, Sendable {
         boards: [Board] = SeedData.boards,
         labels: [LabelDef],
         nextSerial: Int,
-        accentTheme: AccentTheme,
         activeBoardID: Board.ID? = nil,
         trash: [TrashedItem] = [],
         views: [SavedView] = SavedView.seededAll,
-        palette: [PaletteSwatch] = PaletteSwatch.seed
+        palette: [PaletteSwatch] = PaletteSwatch.seed,
+        themes: ThemeSettings = .seed
     ) {
         self.version = version
         self.tasks = tasks
         self.boards = boards
         self.labels = labels
         self.nextSerial = nextSerial
-        self.accentTheme = accentTheme
         self.activeBoardID = activeBoardID
         self.trash = trash
         self.views = views
         self.palette = palette
+        self.themes = themes
     }
 
     /// The serial a fresh board starts minting from.
@@ -303,7 +311,10 @@ struct BoardFile: Sendable {
             ? BoardSnapshot.migrate(v8: snapshot, legacyDoneColumns: legacyDoneColumns(in: data))
             : snapshot
         let atV10 = migratedFrom < 10 ? BoardSnapshot.migrate(v9: atV9) : atV9
-        return (BoardSnapshot.migrate(v10: atV10), migratedFrom)
+        let atV11 = migratedFrom < 11 ? BoardSnapshot.migrate(v10: atV10) : atV10
+        // The accent comes out of the bytes for `legacyDoneColumns`' reason:
+        // v12 removed the field, so the decoded value no longer has it.
+        return (BoardSnapshot.migrate(v11: atV11, accent: legacyAccent(in: data)), migratedFrom)
     }
 
     /// Every version up to and including v8, decoded and walked forward to the
@@ -313,6 +324,15 @@ struct BoardFile: Sendable {
         switch try version(of: data) {
         case BoardSnapshot.currentVersion:
             return (try decoder.decode(BoardSnapshot.self, from: data), nil)
+        case 11:
+            // v11 and v12 are the same shape in the one direction that matters
+            // here: v12 *removes* `accentTheme` and *adds* `themes`, both of
+            // which the current decoder is lenient about, so a v11 file reads
+            // whole and its accent is picked up separately — see
+            // `migrate(v11:accent:)`. The bump is for the other direction, as
+            // ever: a v11 build handed a v12 file finds no accent, throws, and
+            // quarantines a board it could otherwise have shown.
+            return (try decoder.decode(BoardSnapshot.self, from: data), 11)
         case 10:
             // v10 and v11 are the same shape: v11 only *adds* the saved views,
             // and the field is defaulted, so the current decoder reads a v10
@@ -439,6 +459,24 @@ struct BoardFile: Sendable {
         guard let roles = try? JSONDecoder().decode(Roles.self, from: data) else { return [] }
         return roles.boards.compactMap { board in
             board.columns.first { $0.role == "done" }?.id
+        }
+    }
+
+    /// The accent a v11 file chose, as a literal.
+    ///
+    /// Out of the bytes rather than off the decoded snapshot, exactly as
+    /// ``legacyDoneColumns(in:)`` is and for the same reason: v12 removed the
+    /// field, so the decoder throws it away. `nil` for a file that never had one
+    /// and for `ink`, which is not a hex — it was the theme's own text colour,
+    /// and there is no theme parameter that can mean that.
+    static func legacyAccent(in data: Data) -> UInt32? {
+        struct Accent: Decodable { var accentTheme: String }
+        guard let found = try? JSONDecoder().decode(Accent.self, from: data) else { return nil }
+        switch found.accentTheme {
+        case "ember": return 0xC2532F
+        case "pine": return 0x1F6F63
+        case "indigo": return 0x3B5BA9
+        default: return nil
         }
     }
 

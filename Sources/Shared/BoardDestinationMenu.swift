@@ -55,7 +55,7 @@ struct BoardDestinationMenu: View {
                     .fill(palette.resolve(board?.dot ?? Board.inboxDot))
                     .frame(width: metrics.dot, height: metrics.dot)
                 Text(board?.name ?? Board.inboxName)
-                    .font(SimpleKanbanFont.ui(metrics.font, .bold, relativeTo: metrics.textStyle))
+                    .font(palette.ui(metrics.font, .bold, relativeTo: metrics.textStyle))
                     .foregroundStyle(palette.ink(metrics.textOpacity))
                     .lineLimit(1)
                     .truncationMode(.tail)

@@ -106,7 +106,7 @@ struct MacRootView: View {
                 MacStatusBar()
             }
         }
-        .background(palette.window)
+        .background(palette.windowFill)
         // The title bar is hidden but SwiftUI still keeps its 32pt out of the
         // safe area, and that band is the whole reason the header used to read
         // as a strip *under* the chrome: the bar was drawn below the traffic
@@ -213,7 +213,7 @@ private struct MacEmptyInspector: View {
             // The panel's own width, grown by whatever `TaskInspector` grows
             // by, so the board does not step sideways when a card is picked.
             .frame(width: chrome.scaling(TaskInspector.Metrics.desk.width, cap: TaskInspector.widthCap))
-            .background(palette.panel)
+            .background(palette.panelOverlay)
             .hairline(.leading, color: palette.ink(0.08))
             .transition(.opacity)
     }
@@ -282,7 +282,7 @@ struct MacSavedViewList: View {
                     Image(systemName: "chevron.left")
                         .imageScale(.small)
                     Text("Board", comment: "Button that leaves a saved view for the column board")
-                        .font(SimpleKanbanFont.ui(12.5, .bold, relativeTo: .subheadline))
+                        .font(palette.ui(12.5, .bold, relativeTo: .subheadline))
                 }
                 .foregroundStyle(palette.inkText(0.55))
                 .padding(.horizontal, 9)
@@ -305,7 +305,7 @@ struct MacSavedViewList: View {
                     .foregroundStyle(palette.inkText(0.45))
                     .accessibilityHidden(true)
                 Text(view.label)
-                    .font(SimpleKanbanFont.ui(14, .extraBold, relativeTo: .headline))
+                    .font(palette.ui(14, .extraBold, relativeTo: .headline))
                     .foregroundStyle(palette.ink)
                 CountPill(count: count)
             }

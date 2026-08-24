@@ -86,7 +86,7 @@ struct SearchResultsPanel: View {
                 rows
             }
         }
-        .background(palette.panel, in: .rect(cornerRadius: metrics.radius))
+        .background(palette.panelSolid, in: .rect(cornerRadius: metrics.radius))
         .overlay {
             RoundedRectangle(cornerRadius: metrics.radius)
                 .strokeBorder(palette.ink(0.09), lineWidth: 1)
@@ -127,7 +127,7 @@ struct SearchResultsPanel: View {
             HStack(alignment: .top, spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(task.displayTitle)
-                        .font(SimpleKanbanFont.ui(metrics.titleSize, .bold, relativeTo: .subheadline))
+                        .font(palette.ui(metrics.titleSize, .bold, relativeTo: .subheadline))
                         .foregroundStyle(palette.ink)
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -136,7 +136,7 @@ struct SearchResultsPanel: View {
                     // first line is where people put the sentence that does it.
                     if let note = Self.firstLine(of: task.note) {
                         Text(note)
-                            .font(SimpleKanbanFont.ui(metrics.noteSize, .medium, relativeTo: .caption))
+                            .font(palette.ui(metrics.noteSize, .medium, relativeTo: .caption))
                             .foregroundStyle(palette.inkText(0.5))
                             .lineLimit(1)
                             .truncationMode(.tail)
@@ -189,7 +189,7 @@ struct SearchResultsPanel: View {
         HStack(spacing: 6) {
             if let board = store.board(id: task.boardID) {
                 Text(board.name)
-                    .font(SimpleKanbanFont.ui(metrics.placeSize, .bold, relativeTo: .caption2))
+                    .font(palette.ui(metrics.placeSize, .bold, relativeTo: .caption2))
                     .foregroundStyle(palette.inkText(0.42))
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -220,7 +220,7 @@ struct SearchResultsPanel: View {
 
     private var nothingMatched: some View {
         Text("No tasks match “\(store.query)”", comment: "Search results panel with no matches")
-            .font(SimpleKanbanFont.ui(metrics.titleSize, .semibold, relativeTo: .subheadline))
+            .font(palette.ui(metrics.titleSize, .semibold, relativeTo: .subheadline))
             .foregroundStyle(palette.inkText(0.5))
             .lineLimit(2)
             .padding(.horizontal, 14)

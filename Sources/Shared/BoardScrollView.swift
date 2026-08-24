@@ -235,7 +235,7 @@ struct BoardScrollView: View {
     private var addColumnButton: some View {
         Button(action: addColumn) {
             Text("Add a column", comment: "Empty board button that starts a column")
-                .font(SimpleKanbanFont.ui(11.5, .bold, relativeTo: .subheadline))
+                .font(palette.ui(11.5, .bold, relativeTo: .subheadline))
                 .foregroundStyle(palette.inkText(0.45))
                 .padding(.horizontal, 11)
                 .padding(.vertical, 6)

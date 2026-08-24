@@ -56,7 +56,7 @@ private struct MenuBarQuickAddView: View {
     @FocusState private var isFieldFocused: Bool
 
     private var palette: Palette {
-        Palette(colorScheme: colorScheme, accentTheme: store.accentTheme)
+        Palette(theme: store.theme(for: colorScheme.themeAppearance))
     }
 
     var body: some View {
@@ -68,7 +68,7 @@ private struct MenuBarQuickAddView: View {
                 Text("Task title, then ⏎")
             }
             .textFieldStyle(.plain)
-            .font(SimpleKanbanFont.ui(14, .medium, relativeTo: .body))
+            .font(palette.ui(14, .medium, relativeTo: .body))
             .focused($isFieldFocused)
             .onSubmit(commit)
             .padding(.horizontal, 10)
@@ -92,7 +92,7 @@ private struct MenuBarQuickAddView: View {
             HStack(spacing: 8) {
                 Text(lastAdded ?? String(localized: "Captured tasks go to the board unopened.",
                                          comment: "Resting caption under the menu bar quick-add field"))
-                    .font(SimpleKanbanFont.ui(11.5, .medium, relativeTo: .caption))
+                    .font(palette.ui(11.5, .medium, relativeTo: .caption))
                     .foregroundStyle(palette.ink(lastAdded == nil ? 0.4 : 0.62))
                     .lineLimit(1)
                 Spacer(minLength: 0)
@@ -101,7 +101,7 @@ private struct MenuBarQuickAddView: View {
                     openWindow(id: "board")
                 } label: {
                     Text("Open Board")
-                        .font(SimpleKanbanFont.ui(11.5, .semibold, relativeTo: .caption))
+                        .font(palette.ui(11.5, .semibold, relativeTo: .caption))
                         .foregroundStyle(palette.accent)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
@@ -112,7 +112,7 @@ private struct MenuBarQuickAddView: View {
         }
         .padding(14)
         .frame(width: 300)
-        .background(palette.panel)
+        .background(palette.panelSolid)
         .environment(\.palette, palette)
         .tint(palette.accent)
         .foregroundStyle(palette.ink)
@@ -135,7 +135,7 @@ private struct MenuBarQuickAddView: View {
             Text("Add to")
         }
         .labelsHidden()
-        .font(SimpleKanbanFont.ui(12, .medium, relativeTo: .caption))
+        .font(palette.ui(12, .medium, relativeTo: .caption))
         .fixedSize()
     }
 

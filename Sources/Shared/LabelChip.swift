@@ -45,10 +45,14 @@ struct LabelChip: View {
     var onRemove: (() -> Void)?
 
     var body: some View {
-        let tone = palette.resolve(label.tone(for: palette.colorScheme))
+        // Derived from the one colour the label carries rather than read from
+        // the pair stored beside it: the *recipe* is the theme's — see
+        // ``ThemeChipRule`` — so every chip on the board re-tints when the theme
+        // changes, including the ones made before it did.
+        let tone = palette.chipTone(for: label)
         HStack(spacing: size.removeSpacing) {
             Text(label.name)
-                .font(SimpleKanbanFont.ui(size.font, .extraBold, relativeTo: .caption2))
+                .font(palette.ui(size.font, .extraBold, relativeTo: .caption2))
                 // Kerning rather than tracking: tracking adds its space after
                 // the *last* glyph too, and the frame is measured without it,
                 // so "DESIGN" was reported clipped inside a 40pt chip it needed
@@ -65,7 +69,7 @@ struct LabelChip: View {
                 // the pointer that was aiming at it.
                 Button(action: onRemove) {
                     Image(systemName: "xmark")
-                        .font(SimpleKanbanFont.ui(size.removeGlyph, .extraBold, relativeTo: .caption2))
+                        .font(palette.ui(size.removeGlyph, .extraBold, relativeTo: .caption2))
                         .fontWeight(.bold)
                 }
                 .buttonStyle(.bare)

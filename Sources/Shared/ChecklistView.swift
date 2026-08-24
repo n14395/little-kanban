@@ -119,7 +119,7 @@ struct ChecklistView: View {
 
             TextField("Sub-task", text: textBinding(for: subtask))
                 .textFieldStyle(.plain)
-                .font(SimpleKanbanFont.ui(metrics.font, .semibold, relativeTo: .footnote))
+                .font(palette.ui(metrics.font, .semibold, relativeTo: .footnote))
                 .foregroundStyle(subtask.done ? palette.inkText(0.4) : palette.ink(0.8))
                 .strikethrough(subtask.done, color: palette.ink(0.4))
                 .focused($focusedRow, equals: subtask.id)
@@ -219,7 +219,7 @@ struct ChecklistView: View {
             store.deleteSubtask(subtask.id, from: task.id)
         } label: {
             Image(systemName: "xmark")
-                .font(SimpleKanbanFont.ui(metrics.deleteGlyph, .bold, relativeTo: .caption2))
+                .font(palette.ui(metrics.deleteGlyph, .bold, relativeTo: .caption2))
                 .fontWeight(.bold)
                 .foregroundStyle(palette.inkText(0.4))
                 .frame(width: metrics.box.hitSize, height: metrics.box.hitSize)
@@ -256,7 +256,7 @@ struct ChecklistView: View {
                 .frame(width: metrics.box.size, height: metrics.box.size)
                 .overlay {
                     Image(systemName: "plus")
-                        .font(SimpleKanbanFont.ui(metrics.box.size * 0.5, .semibold, relativeTo: .caption2))
+                        .font(palette.ui(metrics.box.size * 0.5, .semibold, relativeTo: .caption2))
                         .fontWeight(.semibold)
                         .foregroundStyle(palette.inkText(0.4))
                 }
@@ -265,7 +265,7 @@ struct ChecklistView: View {
 
             TextField("Add new sub-task", text: subtaskDraftBinding)
                 .textFieldStyle(.plain)
-                .font(SimpleKanbanFont.ui(metrics.font, .semibold, relativeTo: .footnote))
+                .font(palette.ui(metrics.font, .semibold, relativeTo: .footnote))
                 .foregroundStyle(palette.ink)
                 .focused($isDraftFocused)
                 .frame(minHeight: metrics.fieldHit)

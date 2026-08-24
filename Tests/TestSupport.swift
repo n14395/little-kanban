@@ -254,6 +254,19 @@ enum TestBoard {
     /// The seeded board and an empty second one.
     static let boards: [Board] = SeedData.boards + [support]
 
+    /// A theme that is not the default in its slot, for the tests whose subject
+    /// is "the appearance was changed" rather than which appearance it was
+    /// changed to. Aurora is dark where Ember is, Daybreak is light where
+    /// Porcelain is, so selecting either moves exactly one of the two slots.
+    static let otherDarkTheme = ThemePresets.theme("1b")!
+    static let otherLightTheme = ThemePresets.theme("1c")!
+
+    /// Both slots moved off their defaults, for a snapshot that has to differ
+    /// from a fresh one.
+    static let otherThemes = ThemeSettings(
+        lightID: otherLightTheme.id, darkID: otherDarkTheme.id
+    )
+
     @MainActor
     static func store(
         tasks: [TaskItem] = TestBoard.tasks,
@@ -262,7 +275,7 @@ enum TestBoard {
         nextSerial: Int = BoardSnapshot.baseSerial
     ) -> BoardStore {
         BoardStore(tasks: tasks, boards: boards, activeBoardID: boards.first?.id, labels: LabelDef.seed,
-                   accentTheme: .ember, nextSerial: nextSerial, file: file)
+                    nextSerial: nextSerial, file: file)
     }
 
     /// A store and the undo manager driving it. The store holds the manager
@@ -418,7 +431,7 @@ enum ViewBoard {
 
     @MainActor
     static func store(tasks: [TaskItem] = ViewBoard.tasks, file: BoardFile? = nil) -> BoardStore {
-        BoardStore(tasks: tasks, labels: LabelDef.seed, accentTheme: .ember,
+        BoardStore(tasks: tasks, labels: LabelDef.seed,
                    nextSerial: BoardSnapshot.baseSerial, file: file)
     }
 
@@ -549,7 +562,10 @@ enum ForeignBoard {
                 + (includingCollision ? [collidingTask] : [])
                 + (includingCodeCollision ? [collidingCodeTask] : []),
             boards: [board], labels: labels, nextSerial: 344,
-            accentTheme: .indigo, activeBoardID: board.id
+            activeBoardID: board.id,
+            // Deliberately not this machine's pair, so that "an import does not
+            // repaint the app" is a claim with something behind it.
+            themes: TestBoard.otherThemes
         )
     }
 }

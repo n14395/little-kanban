@@ -125,12 +125,12 @@ struct TrashView: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.name)
-                    .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                    .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
                     .foregroundStyle(palette.ink)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                 Text(subtitle(item))
-                    .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                    .font(palette.ui(metrics.noteFont, .medium, relativeTo: .caption))
                     .foregroundStyle(palette.inkText(0.45))
                     .multilineTextAlignment(.leading)
             }
@@ -186,7 +186,7 @@ struct TrashView: View {
     ) -> some View {
         Button(action: perform) {
             Text(title)
-                .font(SimpleKanbanFont.ui(metrics.noteFont, .bold, relativeTo: .caption))
+                .font(palette.ui(metrics.noteFont, .bold, relativeTo: .caption))
                 .foregroundStyle(isDestructive ? palette.accent : palette.ink(0.66))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
@@ -208,10 +208,10 @@ struct TrashView: View {
     private var empty: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("The trash is empty")
-                .font(SimpleKanbanFont.ui(metrics.rowFont, .bold, relativeTo: .subheadline))
+                .font(palette.ui(metrics.rowFont, .bold, relativeTo: .subheadline))
                 .foregroundStyle(palette.ink(0.66))
             Text("Tasks, columns and boards you throw away are kept here for 30 days, then deleted.")
-                .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                .font(palette.ui(metrics.noteFont, .medium, relativeTo: .caption))
                 .foregroundStyle(palette.inkText(0.45))
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -228,7 +228,7 @@ struct TrashView: View {
     private var emptyTrashButton: some View {
         Button { isConfirmingEmpty = true } label: {
             Text("Empty Trash")
-                .font(SimpleKanbanFont.ui(metrics.rowFont, .bold, relativeTo: .subheadline))
+                .font(palette.ui(metrics.rowFont, .bold, relativeTo: .subheadline))
                 .foregroundStyle(palette.accent)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
@@ -262,21 +262,21 @@ struct TrashSheet: View {
             .scrollBounceBehavior(.basedOnSize)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(palette.sheet)
-        .presentationBackground(palette.sheet)
+        .background(palette.windowFill)
+        .presentationBackground(palette.windowFill)
     }
 
     private var header: some View {
         HStack(spacing: 8) {
             Text("Trash")
-                .font(SimpleKanbanFont.ui(17, .bold, relativeTo: .headline))
+                .font(palette.ui(17, .bold, relativeTo: .headline))
                 .foregroundStyle(palette.ink)
                 .accessibilityAddTraits(.isHeader)
             CountPill(count: store.trashCount)
             Spacer(minLength: 0)
             Button { dismiss() } label: {
                 Text("Done")
-                    .font(SimpleKanbanFont.ui(metrics.rowFont, .bold, relativeTo: .footnote))
+                    .font(palette.ui(metrics.rowFont, .bold, relativeTo: .footnote))
                     .foregroundStyle(palette.accent)
                     .padding(.horizontal, 8)
                     .frame(minHeight: max(metrics.rowHit, 30))

@@ -90,7 +90,7 @@ struct TrashToast: View {
                 .symbolSize(metrics.glyph, weight: .semibold, relativeTo: .caption)
                 .foregroundStyle(palette.inkText(0.5))
             Text(text)
-                .font(SimpleKanbanFont.ui(metrics.font, .semibold, relativeTo: .footnote))
+                .font(palette.ui(metrics.font, .semibold, relativeTo: .footnote))
                 .foregroundStyle(palette.ink)
                 .lineLimit(2)
                 .multilineTextAlignment(.leading)

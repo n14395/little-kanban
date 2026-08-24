@@ -91,7 +91,7 @@ struct PadRootView: View {
         .leadingEdgeSwipe(perform: revealSidebar)
         .trashToast(metrics: .sheet)
         .environment(focusRelay)
-        .background(palette.appBackground.ignoresSafeArea())
+        .background(palette.windowFill.ignoresSafeArea())
         .motionAnimation(.easeOut(duration: 0.16), value: store.surface)
         // The same two acts the phone marks (5.8): picking where you are.
         .sensoryFeedback(.selection, trigger: store.surface)
@@ -107,7 +107,7 @@ struct PadRootView: View {
             BoardSidebar(metrics: .pad)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .background(palette.sidebar)
+        .background(palette.panelOverlay)
         .navigationSplitViewColumnWidth(
             min: chrome(260, cap: 1.4), ideal: chrome(Self.sidebarIdeal, cap: 1.4),
             max: chrome(360, cap: 1.4)
@@ -177,7 +177,7 @@ struct PadRootView: View {
         // panel; here the two are in different containers, so `zIndex` has
         // nothing to say and the column has to hold its own edge.
         .clipped()
-        .background(palette.window)
+        .background(palette.windowFill)
         .motionAnimation(.easeOut(duration: 0.16), value: store.isInspectorOpen)
         .motionAnimation(.easeOut(duration: 0.16), value: store.isInboxShowing)
         .motionAnimation(.easeOut(duration: 0.16), value: store.selection)
@@ -300,7 +300,7 @@ struct PadRootView: View {
             } else {
                 EmptyStateView.noSelection(metrics: .sheet)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(palette.panel)
+                    .background(palette.panelOverlay)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -401,7 +401,7 @@ struct PadRootView: View {
                 .foregroundStyle(palette.inkText(0.45))
                 .accessibilityHidden(true)
             Text(title)
-                .font(SimpleKanbanFont.ui(17, .extraBold, relativeTo: .headline))
+                .font(palette.ui(17, .extraBold, relativeTo: .headline))
                 .foregroundStyle(palette.ink)
             CountPill(count: count)
 
@@ -410,7 +410,7 @@ struct PadRootView: View {
             if let add {
                 Button(action: add) {
                     Image(systemName: "plus")
-                        .font(SimpleKanbanFont.ui(15, .medium, relativeTo: .body))
+                        .font(palette.ui(15, .medium, relativeTo: .body))
                         .foregroundStyle(palette.inkText(0.45))
                         .frame(minWidth: 44, minHeight: 44)
                 }

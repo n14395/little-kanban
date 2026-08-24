@@ -38,20 +38,20 @@ struct MacShortcutsSheet: View {
             }
         }
         .frame(minWidth: 560, minHeight: 620)
-        .background(palette.window)
+        .background(palette.windowFill)
     }
 
     private var header: some View {
         HStack(spacing: 12) {
             Text("Keyboard Shortcuts", comment: "Title of the macOS shortcuts reference")
-                .font(SimpleKanbanFont.serif(24))
+                .font(palette.display(24))
                 .foregroundStyle(palette.ink)
 
             Spacer(minLength: 0)
 
             Button { dismiss() } label: {
                 Text("Done", comment: "Button that closes the shortcuts reference")
-                    .font(SimpleKanbanFont.ui(12.5, .bold, relativeTo: .subheadline))
+                    .font(palette.ui(12.5, .bold, relativeTo: .subheadline))
                     .foregroundStyle(palette.ink(0.65))
                     .padding(.horizontal, 12)
                     .frame(minHeight: 30)
@@ -82,7 +82,7 @@ struct MacShortcutsSheet: View {
     private func row(_ command: AppCommand) -> some View {
         HStack(spacing: 12) {
             Text(command.title)
-                .font(SimpleKanbanFont.ui(13, .semibold, relativeTo: .subheadline))
+                .font(palette.ui(13, .semibold, relativeTo: .subheadline))
                 .foregroundStyle(palette.ink)
 
             Spacer(minLength: 0)
@@ -93,7 +93,7 @@ struct MacShortcutsSheet: View {
                 ForEach(Array(command.shortcuts.enumerated()), id: \.offset) { index, shortcut in
                     if index > 0 {
                         Text("or", comment: "Between two keys that do the same thing")
-                            .font(SimpleKanbanFont.ui(11, .medium, relativeTo: .caption2))
+                            .font(palette.ui(11, .medium, relativeTo: .caption2))
                             .foregroundStyle(palette.inkText(0.4))
                     }
                     keycap(shortcut.display)
@@ -109,7 +109,7 @@ struct MacShortcutsSheet: View {
 
     private func keycap(_ text: String) -> some View {
         Text(text)
-            .font(SimpleKanbanFont.ui(12, .bold, relativeTo: .footnote))
+            .font(palette.ui(12, .bold, relativeTo: .footnote))
             .foregroundStyle(palette.ink(0.75))
             .padding(.horizontal, 7)
             .frame(minWidth: 26, minHeight: 24)
@@ -147,7 +147,7 @@ struct MacShortcutsSheet: View {
                      comment: "Shortcuts sheet footer naming the menu items that are drawn disabled")
             }
         }
-        .font(SimpleKanbanFont.ui(11.5, .medium, relativeTo: .caption))
+        .font(palette.ui(11.5, .medium, relativeTo: .caption))
         .foregroundStyle(palette.inkText(0.45))
         .fixedSize(horizontal: false, vertical: true)
     }

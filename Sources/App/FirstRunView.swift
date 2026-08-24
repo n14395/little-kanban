@@ -145,8 +145,8 @@ struct FirstRunView: View {
         .scrollBounceBehavior(.basedOnSize)
         .frame(width: metrics.width)
         .frame(minHeight: metrics.minHeight)
-        .background(palette.appBackground)
-        .presentationBackground(palette.appBackground)
+        .background(palette.windowFill)
+        .presentationBackground(palette.windowFill)
         // Every way out of a first launch is a choice, so there is no way out
         // that is not. Starting over can be called off, and a swipe down is
         // what somebody reaches for to do it.
@@ -157,14 +157,14 @@ struct FirstRunView: View {
         VStack(alignment: .leading, spacing: metrics.headerSpacing) {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 Text(title)
-                    .font(SimpleKanbanFont.serif(metrics.title))
+                    .font(palette.display(metrics.title))
                     .foregroundStyle(palette.ink)
                     .accessibilityAddTraits(.isHeader)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if let cancel { cancelButton(cancel) }
             }
             Text(subtitle)
-                .font(SimpleKanbanFont.ui(metrics.subtitle, .medium, relativeTo: .subheadline))
+                .font(palette.ui(metrics.subtitle, .medium, relativeTo: .subheadline))
                 .foregroundStyle(palette.ink(0.5))
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -173,7 +173,7 @@ struct FirstRunView: View {
     private func cancelButton(_ cancel: @escaping () -> Void) -> some View {
         Button(role: .cancel, action: cancel) {
             Text("Cancel", comment: "Button that closes the starter picker leaving the board alone")
-                .font(SimpleKanbanFont.ui(metrics.rowTitle, .semibold, relativeTo: .subheadline))
+                .font(palette.ui(metrics.rowTitle, .semibold, relativeTo: .subheadline))
                 .foregroundStyle(palette.accent)
                 // A finger needs 44 and a pointer claims nothing, the same rule
                 // the rows follow. `.contentShape` because a `.bare` button
@@ -203,10 +203,10 @@ struct FirstRunView: View {
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(template.name)
-                        .font(SimpleKanbanFont.ui(metrics.rowTitle, .bold, relativeTo: .headline))
+                        .font(palette.ui(metrics.rowTitle, .bold, relativeTo: .headline))
                         .foregroundStyle(palette.ink)
                     Text(template.blurb)
-                        .font(SimpleKanbanFont.ui(metrics.rowNote, .medium, relativeTo: .footnote))
+                        .font(palette.ui(metrics.rowNote, .medium, relativeTo: .footnote))
                         .foregroundStyle(palette.ink(0.5))
                         .fixedSize(horizontal: false, vertical: true)
                     columnPreview(template)
@@ -244,7 +244,7 @@ struct FirstRunView: View {
                     .frame(width: metrics.dot, height: metrics.dot)
             }
             Text(Self.summary(template))
-                .font(SimpleKanbanFont.ui(metrics.columnLabel, .semibold, relativeTo: .caption2))
+                .font(palette.ui(metrics.columnLabel, .semibold, relativeTo: .caption2))
                 .foregroundStyle(palette.ink(0.38))
                 .padding(.leading, 2)
         }
@@ -254,7 +254,7 @@ struct FirstRunView: View {
 
     private var footer: some View {
         Text(footnote)
-            .font(SimpleKanbanFont.ui(metrics.footnote, .medium, relativeTo: .caption))
+            .font(palette.ui(metrics.footnote, .medium, relativeTo: .caption))
             .foregroundStyle(palette.ink(0.38))
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -398,13 +398,13 @@ private struct StarterPicker: ViewModifier {
 
 #Preview("First run") {
     FirstRunView(metrics: .desk, templates: SeedData.starters) { _ in }
-        .environment(\.palette, Palette(colorScheme: .light))
+        .environment(\.palette, Palette(theme: ThemePresets.fallback(for: .light)))
         .frame(height: 720)
 }
 
 #Preview("Starting over") {
     FirstRunView(metrics: .desk, occasion: .startingOver, templates: SeedData.starters,
                  choose: { _ in }, cancel: {})
-        .environment(\.palette, Palette(colorScheme: .light))
+        .environment(\.palette, Palette(theme: ThemePresets.fallback(for: .light)))
         .frame(height: 720)
 }

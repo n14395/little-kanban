@@ -139,7 +139,7 @@ struct SettingsView: View {
         /// control, which is nowhere near 44pt on its own.
         var rowHit: CGFloat
         var controlRadius: CGFloat
-        var accent: AccentPicker.Metrics
+        var themes: ThemeBrowserView.Metrics
         var labelManager: LabelManagerView.Metrics
         /// Whether the surface draws its own header. The desk's pane sits in a
         /// window that already has a title bar and a close button.
@@ -148,13 +148,13 @@ struct SettingsView: View {
         static let desk = Metrics(
             width: 520, minHeight: 460, padding: 20, sectionSpacing: 22, rowSpacing: 8,
             panelRadius: 12, titleSize: 15, rowFont: 12.5, noteFont: 11.5, rowHit: 0,
-            controlRadius: 8, accent: .desk, labelManager: .desk,
+            controlRadius: 8, themes: .desk, labelManager: .desk,
             showsHeader: false
         )
         static let sheet = Metrics(
             width: nil, minHeight: nil, padding: 18, sectionSpacing: 26, rowSpacing: 10,
             panelRadius: 14, titleSize: 17, rowFont: 15, noteFont: 13, rowHit: 44,
-            controlRadius: 10, accent: .drawer, labelManager: .sheet,
+            controlRadius: 10, themes: .sheet, labelManager: .sheet,
             showsHeader: true
         )
     }
@@ -201,6 +201,7 @@ struct SettingsView: View {
     @State private var isShowingBackups = false
     @State private var pendingRestore: BoardBackup?
     @State private var notice: SettingsNotice?
+    @State private var isBrowsingThemes = false
     #if os(iOS)
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Which subject the strip is showing. iOS only: the desk's `TabView` keeps
@@ -219,12 +220,17 @@ struct SettingsView: View {
         }
         .frame(width: metrics.width)
         .frame(minHeight: metrics.minHeight)
-        .background(palette.sheet)
-        .presentationBackground(palette.sheet)
+        .background(palette.windowFill)
+        .presentationBackground(palette.windowFill)
         // The app never asks at launch, so the answer can have changed in
         // System Settings since it started.
         .task { await NotificationScheduler.shared.refreshAuthorization() }
         .labelManagerSheet(isPresented: $isManagingLabels, metrics: metrics.labelManager)
+        .sheet(isPresented: $isBrowsingThemes) {
+            ThemeBrowserView(metrics: metrics.themes)
+                .environment(\.palette, palette)
+                .environment(store)
+        }
         .modifier(BoardTransfer(
             isExportingBoard: $isExportingBoard,
             isExportingMarkdown: $isExportingMarkdown,
@@ -355,9 +361,9 @@ struct SettingsView: View {
         return Button { selection = tab } label: {
             HStack(spacing: 6) {
                 Image(systemName: tab.symbol)
-                    .font(SimpleKanbanFont.ui(metrics.noteFont, .semibold, relativeTo: .caption))
+                    .font(palette.ui(metrics.noteFont, .semibold, relativeTo: .caption))
                 Text(tab.title)
-                    .font(SimpleKanbanFont.ui(metrics.rowFont - 1.5, .bold, relativeTo: .subheadline))
+                    .font(palette.ui(metrics.rowFont - 1.5, .bold, relativeTo: .subheadline))
                     .lineLimit(1)
             }
             .foregroundStyle(isCurrent ? palette.onAccent : palette.inkText(0.55))
@@ -403,13 +409,13 @@ struct SettingsView: View {
     private var header: some View {
         HStack(spacing: 8) {
             Text("Settings")
-                .font(SimpleKanbanFont.ui(metrics.titleSize, .bold, relativeTo: .headline))
+                .font(palette.ui(metrics.titleSize, .bold, relativeTo: .headline))
                 .foregroundStyle(palette.ink)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 0)
             Button { dismiss() } label: {
                 Text("Done")
-                    .font(SimpleKanbanFont.ui(metrics.rowFont, .bold, relativeTo: .footnote))
+                    .font(palette.ui(metrics.rowFont, .bold, relativeTo: .footnote))
                     .foregroundStyle(palette.accent)
                     .padding(.horizontal, 8)
                     .frame(minHeight: max(metrics.rowHit, 30))
@@ -433,19 +439,27 @@ struct SettingsView: View {
     private var generalSection: some View {
         VStack(alignment: .leading, spacing: metrics.sectionSpacing) {
             group(String(localized: "Appearance", comment: "Settings group heading")) {
-                row {
-                    AccentPicker(metrics: metrics.accent)
-                }
-                rule
+                // The appearance chooses *which* of the two themes is showing,
+                // so it comes first: the row under it names both, and which one
+                // you are looking at is this row's answer.
                 row {
                     choice(
-                        String(localized: "Theme", comment: "Settings row: light, dark or system"),
-                        value: appearance.label
+                        String(localized: "Appearance", comment: "Settings row: light, dark or system"),
+                        value: appearance.label,
+                        note: String(localized: "Which of the two themes below is showing.",
+                                     comment: "Note under the light/dark/system row")
                     ) {
                         ForEach(AppAppearance.allCases) { option in
                             pick(option.label, isCurrent: option == appearance) { appearance = option }
                         }
                     }
+                }
+                rule
+                action(
+                    String(localized: "Themes…", comment: "Settings row: opens the theme browser"),
+                    note: themeNote
+                ) {
+                    isBrowsingThemes = true
                 }
             }
 
@@ -453,14 +467,14 @@ struct SettingsView: View {
                 row {
                     Toggle(isOn: $resumesLastPlace) {
                         Text("Reopen the view I was on")
-                            .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                            .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
                     }
                 }
                 rule
                 row {
                     Toggle(isOn: $opensInboxAtLaunch) {
                         Text("Open the Inbox with the board")
-                            .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                            .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
                     }
                 }
             }
@@ -486,10 +500,10 @@ struct SettingsView: View {
                 })) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Open at login")
-                            .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                            .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
                         if LaunchAtLogin.needsApproval {
                             Text("Waiting to be allowed in System Settings ▸ General ▸ Login Items.")
-                                .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                                .font(palette.ui(metrics.noteFont, .medium, relativeTo: .caption))
                                 .foregroundStyle(palette.inkText(0.45))
                         }
                     }
@@ -500,9 +514,9 @@ struct SettingsView: View {
                 Toggle(isOn: $showsMenuBarExtra) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Show the menu bar item")
-                            .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                            .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
                         Text("Quick capture from any app, without leaving it.")
-                            .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                            .font(palette.ui(metrics.noteFont, .medium, relativeTo: .caption))
                             .foregroundStyle(palette.inkText(0.45))
                     }
                 }
@@ -547,9 +561,9 @@ struct SettingsView: View {
                     Toggle(isOn: $showsCardTick) {
                         VStack(alignment: .leading, spacing: 3) {
                             Text("Tick cards off from the board")
-                                .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                                .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
                             Text("The circle in a card's leading corner. Turned off, cards close the gutter up; the tick beside the title in the detail panel still finishes one.")
-                                .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                                .font(palette.ui(metrics.noteFont, .medium, relativeTo: .caption))
                                 .foregroundStyle(palette.inkText(0.45))
                         }
                     }
@@ -620,14 +634,14 @@ struct SettingsView: View {
             row {
                 Toggle(isOn: $scheduler.isEnabled) {
                     Text("Remind me on the due date")
-                        .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                        .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
                 }
             }
             rule
             row {
                 DatePicker(selection: $scheduler.reminderTime, displayedComponents: .hourAndMinute) {
                     Text("At")
-                        .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                        .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
                 }
                 .disabled(!scheduler.isEnabled)
                 .opacity(scheduler.isEnabled ? 1 : 0.4)
@@ -636,7 +650,7 @@ struct SettingsView: View {
             row {
                 Toggle(isOn: $scheduler.remindsTheDayBefore) {
                     Text("Also remind me the day before")
-                        .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                        .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
                 }
                 .disabled(!scheduler.isEnabled)
                 .opacity(scheduler.isEnabled ? 1 : 0.4)
@@ -646,9 +660,9 @@ struct SettingsView: View {
                 Toggle(isOn: $scheduler.nagsWhileOverdue) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Tell me daily while anything is overdue")
-                            .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                            .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
                         Text("One notice with a count, not one per card.")
-                            .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                            .font(palette.ui(metrics.noteFont, .medium, relativeTo: .caption))
                             .foregroundStyle(palette.inkText(0.45))
                     }
                 }
@@ -659,7 +673,7 @@ struct SettingsView: View {
                 rule
                 row {
                     Text(explanation)
-                        .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                        .font(palette.ui(metrics.noteFont, .medium, relativeTo: .caption))
                         .foregroundStyle(palette.inkText(0.45))
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -694,7 +708,7 @@ struct SettingsView: View {
                 row {
                     Toggle(isOn: $isSyncOn) {
                         Text("Keep this board on my other devices")
-                            .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                            .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
                     }
                     // A build with no iCloud entitlement cannot sync whatever
                     // this says, and a switch that flips with nothing behind it
@@ -705,7 +719,7 @@ struct SettingsView: View {
                 rule
                 row {
                     Text(syncExplanation)
-                        .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                        .font(palette.ui(metrics.noteFont, .medium, relativeTo: .caption))
                         .foregroundStyle(palette.inkText(0.45))
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -831,10 +845,10 @@ struct SettingsView: View {
         row {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Board file", comment: "Settings row naming where the board is stored")
-                    .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                    .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
                     .foregroundStyle(palette.ink)
                 Text(path)
-                    .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                    .font(palette.ui(metrics.noteFont, .medium, relativeTo: .caption))
                     .foregroundStyle(palette.inkText(0.45))
                     .textSelection(.enabled)
             }
@@ -861,7 +875,7 @@ struct SettingsView: View {
         if backups.isEmpty {
             row {
                 Text("No backups yet. One is taken the first time the board is saved after fifteen minutes' work.")
-                    .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                    .font(palette.ui(metrics.noteFont, .medium, relativeTo: .caption))
                     .foregroundStyle(palette.inkText(0.45))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -875,11 +889,11 @@ struct SettingsView: View {
                             .foregroundStyle(palette.inkText(0.4))
                             .accessibilityHidden(true)
                         Text(Self.stamp(backup))
-                            .font(SimpleKanbanFont.ui(metrics.rowFont, .medium, relativeTo: .subheadline))
+                            .font(palette.ui(metrics.rowFont, .medium, relativeTo: .subheadline))
                             .foregroundStyle(palette.ink(0.8))
                             .frame(maxWidth: .infinity, alignment: .leading)
                         Text("Restore")
-                            .font(SimpleKanbanFont.ui(metrics.noteFont, .bold, relativeTo: .caption))
+                            .font(palette.ui(metrics.noteFont, .bold, relativeTo: .caption))
                             .foregroundStyle(palette.accent)
                     }
                     .padding(.horizontal, 12)
@@ -961,12 +975,12 @@ struct SettingsView: View {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
-                        .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                        .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
                         .foregroundStyle(isDestructive ? palette.accent : palette.ink)
                         .multilineTextAlignment(.leading)
                     if let note {
                         Text(note)
-                            .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                            .font(palette.ui(metrics.noteFont, .medium, relativeTo: .caption))
                             .foregroundStyle(palette.inkText(0.45))
                             .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
@@ -975,7 +989,7 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 if let trailing {
                     Text(trailing)
-                        .font(SimpleKanbanFont.ui(metrics.noteFont, .bold, relativeTo: .caption))
+                        .font(palette.ui(metrics.noteFont, .bold, relativeTo: .caption))
                         .foregroundStyle(palette.inkText(0.4))
                 }
             }
@@ -997,11 +1011,11 @@ struct SettingsView: View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                    .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
                     .foregroundStyle(palette.ink)
                 if let note {
                     Text(note)
-                        .font(SimpleKanbanFont.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                        .font(palette.ui(metrics.noteFont, .medium, relativeTo: .caption))
                         .foregroundStyle(palette.inkText(0.45))
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -1012,10 +1026,10 @@ struct SettingsView: View {
             } label: {
                 HStack(spacing: 6) {
                     Text(value)
-                        .font(SimpleKanbanFont.ui(metrics.rowFont, .bold, relativeTo: .subheadline))
+                        .font(palette.ui(metrics.rowFont, .bold, relativeTo: .subheadline))
                         .foregroundStyle(palette.ink)
                     Image(systemName: "chevron.down")
-                        .font(SimpleKanbanFont.ui(metrics.rowFont - 4, .bold, relativeTo: .caption2))
+                        .font(palette.ui(metrics.rowFont - 4, .bold, relativeTo: .caption2))
                         .foregroundStyle(palette.inkText(0.35))
                 }
                 .frame(minHeight: metrics.rowHit)
@@ -1042,6 +1056,15 @@ struct SettingsView: View {
     }
 
     // MARK: Actions
+
+    /// Both slots named at once, because both are set from the one row and only
+    /// one of them is on screen to be seen.
+    private var themeNote: String {
+        String(
+            localized: "\(store.theme(for: .light).name) in light, \(store.theme(for: .dark).name) in dark.",
+            comment: "Settings note naming the theme in each of the two slots"
+        )
+    }
 
     private var exportFailedTitle: String {
         String(localized: "That export could not be written.",

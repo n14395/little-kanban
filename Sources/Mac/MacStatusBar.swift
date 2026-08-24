@@ -18,7 +18,7 @@ struct MacStatusBar: View {
             Spacer(minLength: 0)
             saveState
         }
-        .font(SimpleKanbanFont.ui(11, .semibold, relativeTo: .caption2))
+        .font(palette.ui(11, .semibold, relativeTo: .caption2))
         .foregroundStyle(palette.inkText(0.4))
         .padding(.horizontal, 18)
         .frame(minHeight: 34)

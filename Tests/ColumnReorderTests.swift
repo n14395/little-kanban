@@ -172,7 +172,14 @@ import Testing
     @Test func aDroppedColumnIsOneUndoStep() {
         let (store, undo) = TestBoard.undoing(boards: TestBoard.boards)
 
-        #expect(store.dropColumn(payload(BoardColumn.backlog, in: store), at: .above(BoardColumn.done.id)))
+        // Grouped by hand, for the reason `step` documents: `undoing` turns
+        // `groupsByEvent` off, and registering an undo outside a group throws
+        // rather than failing an expectation.
+        var landed = false
+        step(undo) {
+            landed = store.dropColumn(payload(BoardColumn.backlog, in: store), at: .above(BoardColumn.done.id))
+        }
+        #expect(landed)
         #expect(order(store) != seeded)
 
         undo.undo()

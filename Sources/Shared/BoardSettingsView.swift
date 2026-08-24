@@ -168,7 +168,7 @@ struct BoardSettingsView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(palette.sheet)
+        .background(palette.windowFill)
         // How it is *presented* — a detent and a grabber on iOS, a fixed frame
         // on the desk — belongs to whatever put it up, the split `SettingsView`
         // makes with `SettingsSheet` and `SettingsWindow`.
@@ -231,13 +231,13 @@ struct BoardSettingsView: View {
     private var header: some View {
         HStack(spacing: 8) {
             Text("Board Settings")
-                .font(SimpleKanbanFont.ui(metrics.rowFont, .bold, relativeTo: .headline))
+                .font(palette.ui(metrics.rowFont, .bold, relativeTo: .headline))
                 .foregroundStyle(palette.ink)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 0)
             Button { dismiss() } label: {
                 Text("Done")
-                    .font(SimpleKanbanFont.ui(metrics.rowFont, .bold, relativeTo: .body))
+                    .font(palette.ui(metrics.rowFont, .bold, relativeTo: .body))
                     .foregroundStyle(palette.accent)
                     .padding(.horizontal, 10)
                     .frame(minHeight: metrics.hit)
@@ -293,7 +293,7 @@ struct BoardSettingsView: View {
             Text("Name").sectionLabelStyle(opacity: Palette.readableInk)
             TextField("Board name", text: $draft)
                 .textFieldStyle(.plain)
-                .font(SimpleKanbanFont.serif(metrics.titleFont))
+                .font(palette.display(metrics.titleFont))
                 .foregroundStyle(palette.ink)
                 .focused($isNameFocused)
                 .submitLabel(.done)
@@ -362,7 +362,7 @@ struct BoardSettingsView: View {
                         .fill(palette.resolve(column.dot))
                         .frame(width: 8, height: 8)
                     Text(column.name)
-                        .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .body))
+                        .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .body))
                         .foregroundStyle(palette.ink(0.8))
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -373,7 +373,7 @@ struct BoardSettingsView: View {
                     // third is now the last row by definition, and the pill was
                     // marking a distinction that no longer exists.
                     Text(verbatim: isOpen ? "\u{2303}" : "\u{2304}")
-                        .font(SimpleKanbanFont.ui(11, .bold, relativeTo: .caption2))
+                        .font(palette.ui(11, .bold, relativeTo: .caption2))
                         .foregroundStyle(palette.inkText(0.35))
                 }
                 .padding(12)
@@ -557,7 +557,7 @@ struct BoardSettingsView: View {
 
             if isDoneColumn(column) {
                 Text("Every board keeps its Done column, at the end. Ticking a task sends it here.")
-                    .font(SimpleKanbanFont.ui(12.5, .medium, relativeTo: .footnote))
+                    .font(palette.ui(12.5, .medium, relativeTo: .footnote))
                     .foregroundStyle(palette.inkText(0.45))
                     .fixedSize(horizontal: false, vertical: true)
             } else {
@@ -594,7 +594,7 @@ struct BoardSettingsView: View {
             Text(title).sectionLabelStyle(size: 10.5, tracking: 0.08, opacity: Palette.readableInk)
             TextField(title, text: text)
                 .textFieldStyle(.plain)
-                .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .body))
+                .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .body))
                 .foregroundStyle(palette.ink)
                 .focused($columnFocus, equals: target)
                 // **Next on the composer's name, Done on everything else.** A
@@ -645,7 +645,7 @@ struct BoardSettingsView: View {
     ) -> some View {
         Button(action: action) {
             Text(verbatim: glyph)
-                .font(SimpleKanbanFont.ui(metrics.rowFont, .bold, relativeTo: .body))
+                .font(palette.ui(metrics.rowFont, .bold, relativeTo: .body))
                 .foregroundStyle(palette.ink(isEnabled ? 0.6 : 0.22))
                 .frame(minWidth: metrics.hit, minHeight: metrics.hit)
                 .background(palette.ink(0.06), in: .rect(cornerRadius: 10))
@@ -674,7 +674,7 @@ struct BoardSettingsView: View {
             )
         } label: {
             Text("Trash Column")
-                .font(SimpleKanbanFont.ui(13.5, .bold, relativeTo: .subheadline))
+                .font(palette.ui(13.5, .bold, relativeTo: .subheadline))
                 .foregroundStyle(destructiveTone.foreground)
                 .padding(.horizontal, 14)
                 .frame(minHeight: metrics.hit)
@@ -693,7 +693,7 @@ struct BoardSettingsView: View {
                 isAddingColumn = true
             } label: {
                 Text("+ Add column")
-                    .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .body))
+                    .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .body))
                     .foregroundStyle(palette.inkText(0.5))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(12)
@@ -719,7 +719,7 @@ struct BoardSettingsView: View {
                 // sheet where every other control clears 44.
                 Button { cancelAddColumn() } label: {
                     Text("Cancel")
-                        .font(SimpleKanbanFont.ui(14, .bold, relativeTo: .subheadline))
+                        .font(palette.ui(14, .bold, relativeTo: .subheadline))
                         .foregroundStyle(palette.inkText(0.55))
                         .padding(.horizontal, 14)
                         .frame(minHeight: metrics.hit)
@@ -729,7 +729,7 @@ struct BoardSettingsView: View {
                 Spacer(minLength: 0)
                 Button { addColumn() } label: {
                     Text("Add Column")
-                        .font(SimpleKanbanFont.ui(14, .bold, relativeTo: .subheadline))
+                        .font(palette.ui(14, .bold, relativeTo: .subheadline))
                         .foregroundStyle(palette.onAccent)
                         .padding(.horizontal, 16)
                         .frame(minHeight: metrics.hit)
@@ -936,7 +936,7 @@ struct BoardSettingsView: View {
                     Image(systemName: "trash")
                     Text("Trash Board")
                 }
-                .font(SimpleKanbanFont.ui(14.5, .bold, relativeTo: .subheadline))
+                .font(palette.ui(14.5, .bold, relativeTo: .subheadline))
                 .foregroundStyle(destructiveTone.foreground)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: metrics.hit + 4)
@@ -945,7 +945,7 @@ struct BoardSettingsView: View {
             .buttonStyle(.bare)
 
             Text("Its cards move to the Inbox rather than being deleted.")
-                .font(SimpleKanbanFont.ui(12.5, .medium, relativeTo: .footnote))
+                .font(palette.ui(12.5, .medium, relativeTo: .footnote))
                 .foregroundStyle(palette.inkText(0.45))
         }
         .padding(.top, 6)

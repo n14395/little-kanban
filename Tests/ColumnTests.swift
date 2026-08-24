@@ -53,7 +53,7 @@ import Testing
 
     private static func store(file: BoardFile? = nil) -> BoardStore {
         BoardStore(tasks: tasks(), columns: columns, labels: LabelDef.seed,
-                   accentTheme: .ember, nextSerial: BoardSnapshot.baseSerial, file: file)
+                    nextSerial: BoardSnapshot.baseSerial, file: file)
     }
 
     private static func undoing() -> (store: BoardStore, undo: UndoManager) {
@@ -121,7 +121,7 @@ import Testing
     }
 
     @Test func theDueChipReadsGreenForADoneRoleAndNotForAnyOther() {
-        let palette = Palette(colorScheme: .light)
+        let palette = Palette(theme: ThemePresets.fallback(for: .light))
         let shipped = palette.dueTone(urgency: .overdue, isDone: true)
         #expect(shipped == palette.dueTone(urgency: .later, isDone: true))
         #expect(shipped != palette.dueTone(urgency: .overdue, isDone: false))
@@ -388,7 +388,7 @@ import Testing
         let temp = TempBoard()
         try temp.file.write(
             BoardSnapshot(tasks: [], boards: [], labels: LabelDef.seed,
-                          nextSerial: 100, accentTheme: .ember),
+                          nextSerial: 100),
             generation: temp.file.nextWriteGeneration()
         )
         let store = BoardStore.restored(file: temp.file)
@@ -408,7 +408,7 @@ import Testing
         #expect(result.failure == nil)
         #expect(result.migratedFromVersion == 3)
         #expect(snapshot.version == BoardSnapshot.currentVersion)
-        #expect(snapshot.accentTheme == .pine)
+        #expect(snapshot.themes.theme(for: .dark).highlight.accent.hex == 0x1F6F63)
         #expect(snapshot.nextSerial == 121)
 
         // Every column keeps the name, short name, dot and order it had when it

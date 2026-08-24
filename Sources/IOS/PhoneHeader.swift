@@ -53,7 +53,7 @@ struct PhoneHeader: View {
                 .accessibilityLabel("Show boards")
 
                 Text(title)
-                    .font(SimpleKanbanFont.serif(isShort ? 22 : 30))
+                    .font(palette.display(isShort ? 22 : 30))
                     .lineSpacing(2)
                     .lineLimit(isShort ? 1 : 2)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -173,7 +173,7 @@ struct PhoneHeader: View {
             }
         } label: {
             Image(systemName: "ellipsis")
-                .font(SimpleKanbanFont.ui(15, .extraBold, relativeTo: .subheadline))
+                .font(palette.ui(15, .extraBold, relativeTo: .subheadline))
                 .foregroundStyle(palette.inkText(0.5))
                 .frame(minWidth: 34, minHeight: 34)
                 .background(palette.ink(0.06), in: .circle)
@@ -215,14 +215,14 @@ struct PhoneHeader: View {
             Image(systemName: view.symbol)
                 .imageScale(.small)
             Text(view.label)
-                .font(SimpleKanbanFont.ui(14.5, .bold, relativeTo: .subheadline))
+                .font(palette.ui(14.5, .bold, relativeTo: .subheadline))
             CountPill(count: listCount, font: 11.5)
             Spacer(minLength: 0)
             Button { store.selectTab(.board) } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "chevron.left").imageScale(.small)
                     Text("Board")
-                        .font(SimpleKanbanFont.ui(13, .bold, relativeTo: .footnote))
+                        .font(palette.ui(13, .bold, relativeTo: .footnote))
                 }
                 .frame(minHeight: 44)
                 .contentShape(.rect)
@@ -244,7 +244,7 @@ struct PhoneHeader: View {
             HStack(spacing: 7) {
                 Image(systemName: "line.3.horizontal.decrease").imageScale(.small)
                 Text("Filtered · \(store.query)")
-                    .font(SimpleKanbanFont.ui(12.5, .bold, relativeTo: .footnote))
+                    .font(palette.ui(12.5, .bold, relativeTo: .footnote))
                     .lineLimit(1)
                 Image(systemName: "xmark.circle.fill").imageScale(.small)
             }
@@ -281,11 +281,11 @@ struct PhoneHeader: View {
 
         return HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .font(SimpleKanbanFont.ui(14, .semibold, relativeTo: .subheadline))
+                .font(palette.ui(14, .semibold, relativeTo: .subheadline))
                 .foregroundStyle(palette.inkText(0.45))
             TextField("Search all tasks", text: $store.query)
                 .textFieldStyle(.plain)
-                .font(SimpleKanbanFont.ui(15, .semibold, relativeTo: .body))
+                .font(palette.ui(15, .semibold, relativeTo: .body))
                 .foregroundStyle(palette.ink)
                 .focused($isSearchFocused)
                 // The 44pt row the catcher below claims for a finger was 22pt to

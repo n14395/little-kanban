@@ -37,7 +37,7 @@ struct MacDueDateSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(title)
-                .font(SimpleKanbanFont.ui(14, .extraBold, relativeTo: .headline))
+                .font(palette.ui(14, .extraBold, relativeTo: .headline))
                 .foregroundStyle(palette.ink)
 
             HStack(spacing: 6) {
@@ -65,7 +65,7 @@ struct MacDueDateSheet: View {
                     apply(nil)
                 } label: {
                     Text("Clear due date", comment: "Button that takes the due date off the tasks the sheet is aimed at")
-                        .font(SimpleKanbanFont.ui(12, .bold, relativeTo: .footnote))
+                        .font(palette.ui(12, .bold, relativeTo: .footnote))
                         .foregroundStyle(palette.inkText(0.55))
                         .padding(.horizontal, 10)
                         .frame(minHeight: 30)
@@ -77,7 +77,7 @@ struct MacDueDateSheet: View {
 
                 Button { dismiss() } label: {
                     Text("Cancel", comment: "Button that closes the due-date sheet without setting a date")
-                        .font(SimpleKanbanFont.ui(12, .bold, relativeTo: .footnote))
+                        .font(palette.ui(12, .bold, relativeTo: .footnote))
                         .foregroundStyle(palette.inkText(0.55))
                         .padding(.horizontal, 12)
                         .frame(minHeight: 30)
@@ -90,7 +90,7 @@ struct MacDueDateSheet: View {
                     apply(CalendarDay(day))
                 } label: {
                     Text("Set", comment: "Button that files the chosen due date onto the tasks the sheet is aimed at")
-                        .font(SimpleKanbanFont.ui(12, .bold, relativeTo: .footnote))
+                        .font(palette.ui(12, .bold, relativeTo: .footnote))
                         .foregroundStyle(palette.onAccent)
                         .padding(.horizontal, 14)
                         .frame(minHeight: 30)
@@ -101,7 +101,7 @@ struct MacDueDateSheet: View {
             }
         }
         .padding(18)
-        .background(palette.window)
+        .background(palette.windowFill)
         // What this is aimed at can go from under it — by an undo, or by the
         // cards being deleted — and a sheet aimed at nothing has nothing to set.
         .onChange(of: living.isEmpty) { _, isEmpty in
@@ -125,7 +125,7 @@ struct MacDueDateSheet: View {
             apply(preset.day(from: today))
         } label: {
             Text(preset.label)
-                .font(SimpleKanbanFont.ui(12, .bold, relativeTo: .footnote))
+                .font(palette.ui(12, .bold, relativeTo: .footnote))
                 .foregroundStyle(palette.ink(0.7))
                 .padding(.horizontal, 10)
                 .frame(minHeight: 28)

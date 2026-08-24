@@ -146,7 +146,7 @@ struct PhoneTabBar: View {
                 HStack(spacing: 5) {
                     if showsGlyphBesideWord { glyph }
                     Text(title)
-                        .font(SimpleKanbanFont.ui(12, isCurrent ? .extraBold : .bold, relativeTo: .caption))
+                        .font(palette.ui(12, isCurrent ? .extraBold : .bold, relativeTo: .caption))
                         .foregroundStyle(tint)
                         // Three single words in three equal thirds of a phone.
                         // At an accessibility size they do not fit, and a word
@@ -201,9 +201,9 @@ struct PhoneTabBar: View {
         if !isHeader {
             LinearGradient(
                 stops: [
-                    .init(color: palette.appBackground.opacity(0), location: 0),
-                    .init(color: palette.appBackground.opacity(0.96), location: 0.6),
-                    .init(color: palette.appBackground.opacity(0.96), location: 1),
+                    .init(color: palette.ground.opacity(0), location: 0),
+                    .init(color: palette.ground.opacity(0.96), location: 0.6),
+                    .init(color: palette.ground.opacity(0.96), location: 1),
                 ],
                 startPoint: .top,
                 endPoint: .bottom

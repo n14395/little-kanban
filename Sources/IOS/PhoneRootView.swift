@@ -129,7 +129,7 @@ struct PhoneRootView: View {
         // puts it.
         .trashToast(metrics: isShort ? .sheet : .phone)
         .background {
-            palette.appBackground
+            palette.windowFill
                 .ignoresSafeArea()
                 // The window, and this is the one thing in the view that is
                 // measured outside the safe area on purpose: the drawer's width
@@ -511,7 +511,7 @@ struct PhoneRootView: View {
     private func addRow(in column: BoardColumn?) -> some View {
         Button { add(to: column) } label: {
             Text("+ Add task to \(column?.name ?? store.mobileColumnName)")
-                .font(SimpleKanbanFont.ui(13.5, .bold, relativeTo: .subheadline))
+                .font(palette.ui(13.5, .bold, relativeTo: .subheadline))
                 .foregroundStyle(palette.inkText(0.45))
                 .frame(maxWidth: .infinity)
                 .padding(14)

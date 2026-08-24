@@ -119,12 +119,17 @@ import Testing
         let (store, undo) = TestBoard.undoing(boards: TestBoard.boards)
         let seeded = store.savedColors
 
-        store.saveColor(.hex(0x123456))
+        // Grouped by hand: `TestBoard.undoing` turns `groupsByEvent` off, and a
+        // registration outside a group is not a failed expectation — it throws
+        // and takes the test host down with it.
+        step(undo) { store.saveColor(.hex(0x123456)) }
         undo.undo()
         #expect(store.savedColors == seeded)
 
         undo.redo()
-        #expect(store.deleteSavedColor(.hex(0x123456)))
+        var removed = false
+        step(undo) { removed = store.deleteSavedColor(.hex(0x123456)) }
+        #expect(removed)
         undo.undo()
         #expect(store.savedColors.contains { $0.swatch == .hex(0x123456) })
     }
@@ -150,7 +155,7 @@ import Testing
     @Test func aFileWithNoPaletteGetsTheSix() throws {
         let snapshot = BoardSnapshot(
             tasks: [], boards: TestBoard.boards, labels: LabelDef.seed,
-            nextSerial: BoardSnapshot.baseSerial, accentTheme: .ember
+            nextSerial: BoardSnapshot.baseSerial
         )
         var json = try JSONSerialization.jsonObject(
             with: try JSONEncoder().encode(snapshot)
@@ -177,7 +182,7 @@ import Testing
         #expect(BoardSnapshot.currentVersion >= 10)
         var v9 = BoardSnapshot(
             tasks: [], boards: TestBoard.boards, labels: LabelDef.seed,
-            nextSerial: BoardSnapshot.baseSerial, accentTheme: .ember
+            nextSerial: BoardSnapshot.baseSerial
         )
         v9.version = 9
         #expect(BoardSnapshot.migrate(v9: v9).version == 10)

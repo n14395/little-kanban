@@ -28,14 +28,14 @@ import UserNotifications
     /// therefore needs `currentVersion` bumped and a migration step — or a
     /// preference, which belongs in `@AppStorage` and must not be here at all.
     static let boardKeys: Set<String> = [
-        "version", "tasks", "boards", "labels", "nextSerial", "accentTheme", "activeBoardID",
+        "version", "tasks", "boards", "labels", "nextSerial", "themes", "activeBoardID",
         "trash", "palette", "views",
     ]
 
     @Test func theBoardDocumentCarriesExactlyTheKeysItIsAllowedTo() throws {
         let snapshot = BoardSnapshot(
             tasks: TestBoard.tasks, boards: TestBoard.boards, labels: LabelDef.seed,
-            nextSerial: 137, accentTheme: .pine, activeBoardID: TestBoard.support.id
+            nextSerial: 137, activeBoardID: TestBoard.support.id
         )
         let keys = Set(try encoded(snapshot).keys)
         #expect(keys == Self.boardKeys,
@@ -47,7 +47,7 @@ import UserNotifications
     @Test func aTaskAndABoardCarryOnlyTheirOwnFields() throws {
         let snapshot = BoardSnapshot(
             tasks: TestBoard.tasks, boards: TestBoard.boards, labels: LabelDef.seed,
-            nextSerial: 137, accentTheme: .pine, activeBoardID: TestBoard.support.id
+            nextSerial: 137, activeBoardID: TestBoard.support.id
         )
         let object = try encoded(snapshot)
         let taskKeys: Set<String> = [
@@ -135,7 +135,7 @@ import UserNotifications
         #expect(reread.tasks == store.tasks)
         #expect(reread.boards == store.boards)
         #expect(reread.labels == store.labels)
-        #expect(reread.accentTheme == store.accentTheme)
+        #expect(reread.themes == store.themes)
         #expect(reread.activeBoardID == store.activeBoardID)
         #expect(Set(try encoded(reread).keys) == Self.boardKeys)
 
@@ -155,16 +155,16 @@ import UserNotifications
     /// move it out of, and moving it now is a schema change for no gain — see
     /// **Settings** in the README.
     @MainActor
-    @Test func theAccentIsTheOnePreferenceThatIsBoardData() throws {
+    @Test func theThemesAreTheOnePreferenceThatIsBoardData() throws {
         let temp = TempBoard()
         let store = TestBoard.store(file: temp.file)
         store.saveNow()
         let before = try temp.bytes()
 
-        store.setAccentTheme(.pine)
+        store.selectTheme(TestBoard.otherDarkTheme)
         store.saveNow()
         #expect(try temp.bytes() != before)
-        #expect(try temp.snapshot().accentTheme == .pine)
+        #expect(try temp.snapshot().themes.darkID == TestBoard.otherDarkTheme.id)
     }
 
     /// A store with no file is a preview or a test, and neither may leave a
@@ -181,18 +181,19 @@ import UserNotifications
         #expect(UserDefaults.standard.object(forKey: BoardStore.sortOrderKey) == nil)
     }
 
-    /// An imported board carries the exporting machine's accent and active
-    /// board in its document, and neither is the file's to change.
+    /// An imported board carries the exporting machine's themes and active
+    /// board in its document, and neither is the file's to change — importing
+    /// somebody's board must not repaint the app.
     @MainActor
     @Test func anImportedFileCannotReachAcrossAndChangeThisMachine() {
         let store = TestBoard.store(tasks: TestBoard.tasks(on: SeedData.defaultBoard))
-        let accent = store.accentTheme
+        let themes = store.themes
         let active = store.activeBoardID
         let order = store.sortOrder
 
         store.importBoard(ForeignBoard.snapshot(includingCollision: true))
 
-        #expect(store.accentTheme == accent)
+        #expect(store.themes == themes)
         #expect(store.activeBoardID == active)
         #expect(store.sortOrder == order)
     }

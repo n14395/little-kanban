@@ -65,7 +65,7 @@ struct PriorityPicker: View {
             HStack(spacing: metrics.spacing) {
                 PriorityDot(priority: task.priority, diameter: metrics.dotDiameter)
                 Text(task.priority.displayName)
-                    .font(SimpleKanbanFont.ui(metrics.font, .bold, relativeTo: .footnote))
+                    .font(palette.ui(metrics.font, .bold, relativeTo: .footnote))
                     .foregroundStyle(palette.ink)
                 Image(systemName: "chevron.down")
                     .symbolSize(metrics.font - 4, weight: .bold, relativeTo: .caption)

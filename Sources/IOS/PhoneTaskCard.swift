@@ -78,7 +78,7 @@ struct PhoneTaskCard: View {
             }
 
             Text(task.displayTitle)
-                .font(SimpleKanbanFont.ui(16, .bold, relativeTo: .body))
+                .font(palette.ui(16, .bold, relativeTo: .body))
                 .lineSpacing(2)
                 .multilineTextAlignment(.leading)
                 .foregroundStyle(isDone ? palette.inkText(0.45) : palette.ink)
@@ -134,7 +134,7 @@ struct PhoneTaskCard: View {
     private var restoreBox: some View {
         Button { store.unarchive(task.id) } label: {
             Image(systemName: "arrow.uturn.backward")
-                .font(SimpleKanbanFont.ui(12, .bold, relativeTo: .caption))
+                .font(palette.ui(12, .bold, relativeTo: .caption))
                 .fontWeight(.bold)
                 .foregroundStyle(palette.accent)
                 .frame(minWidth: 22, minHeight: 22)

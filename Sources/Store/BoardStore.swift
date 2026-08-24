@@ -456,9 +456,16 @@ final class BoardStore {
     /// picker appear in a board's. Deliberately not called `palette`: views
     /// already have a `palette` in the environment and it is the *theme*.
     private(set) var savedColors: [PaletteSwatch] = PaletteSwatch.seed
-    /// The design exposes the accent as an editable prop; this is the choice,
-    /// and it is saved with the board.
-    private(set) var accentTheme: AccentTheme
+    /// **What the app looks like**: which theme fills the light slot, which
+    /// fills the dark one, and the themes the user has built.
+    ///
+    /// Saved with the board rather than in `@AppStorage`, exactly as the accent
+    /// it replaced was. A theme somebody spent an evening on is their work, and
+    /// work belongs in the file that gets exported, backed up and synced — not
+    /// in a preference that stays behind on the old machine. Which of the two
+    /// slots is showing is *not* here: that follows the system appearance and
+    /// the `AppAppearance` override, both of which belong to the machine.
+    private(set) var themes: ThemeSettings
 
     // MARK: Selection
 
@@ -794,7 +801,7 @@ final class BoardStore {
         if let sync, let synced = try? sync.load() {
             let store = BoardStore(
                 tasks: synced.tasks, boards: synced.boards, activeBoardID: synced.activeBoardID,
-                labels: synced.labels, accentTheme: synced.accentTheme,
+                labels: synced.labels, themes: synced.themes,
                 nextSerial: synced.nextSerial,
                 // The board came from the records; the trash is this device's
                 // and only ever lived in the file — see `BoardStore.trash`. The
@@ -823,7 +830,7 @@ final class BoardStore {
                 boards: snapshot.boards,
                 activeBoardID: snapshot.activeBoardID,
                 labels: snapshot.labels,
-                accentTheme: snapshot.accentTheme,
+                themes: snapshot.themes,
                 nextSerial: snapshot.nextSerial,
                 trash: snapshot.trash,
                 views: snapshot.views,
@@ -924,7 +931,7 @@ final class BoardStore {
         boards: [Board] = SeedData.boards,
         activeBoardID: Board.ID? = nil,
         labels: [LabelDef] = LabelDef.seed,
-        accentTheme: AccentTheme = .ember,
+        themes: ThemeSettings = .seed,
         nextSerial: Int = BoardSnapshot.baseSerial,
         trash: [TrashedItem] = [],
         views: [SavedView] = SavedView.seededAll,
@@ -953,7 +960,7 @@ final class BoardStore {
         // six back: a picker with no colours in it offers no way to put one
         // there, which is a corner the interface cannot climb out of.
         self.savedColors = savedColors.isEmpty ? PaletteSwatch.seed : savedColors
-        self.accentTheme = accentTheme
+        self.themes = themes
         self.nextSerial = nextSerial
         self.file = file
         let picked = tasks.first { $0.id == SeedData.dragAndDropTaskID }?.id ?? tasks.first?.id
@@ -977,14 +984,14 @@ final class BoardStore {
         tasks: [TaskItem] = SeedData.tasks,
         columns: [BoardColumn],
         labels: [LabelDef] = LabelDef.seed,
-        accentTheme: AccentTheme = .ember,
+        themes: ThemeSettings = .seed,
         nextSerial: Int = BoardSnapshot.baseSerial,
         file: BoardFile? = nil
     ) {
         var board = SeedData.defaultBoard
         board.columns = columns
         self.init(tasks: tasks, boards: [board], activeBoardID: board.id, labels: labels,
-                  accentTheme: accentTheme, nextSerial: nextSerial, file: file)
+                  themes: themes, nextSerial: nextSerial, file: file)
     }
 
     /// Every task put back through `TaskPlacement` against the boards it is
@@ -1029,8 +1036,8 @@ final class BoardStore {
 
     private var snapshot: BoardSnapshot {
         BoardSnapshot(tasks: tasks, boards: boards, labels: labels, nextSerial: nextSerial,
-                      accentTheme: accentTheme, activeBoardID: activeBoardID, trash: trash,
-                      views: views, palette: savedColors)
+                      activeBoardID: activeBoardID, trash: trash,
+                      views: views, palette: savedColors, themes: themes)
     }
 
     /// Takes on what the load found: a failure to show, and whether saving has
@@ -1332,9 +1339,13 @@ final class BoardStore {
     /// import or a backup can name a column no board here has, and an unplaceable
     /// card belongs in the Inbox rather than nowhere.
     ///
-    /// `accentTheme` and `activeBoardID` are deliberately not adopted. The first
-    /// is a preference the user set on this machine, and the second is where
-    /// they are looking — neither is the arriving file's to change.
+    /// `themes` and `activeBoardID` are deliberately not adopted. The first is
+    /// how this machine has been set to look, and the second is where the user
+    /// is looking — neither is the arriving file's to change. **Importing a
+    /// board should not repaint the app**, which is exactly what adopting the
+    /// themes would do: a board exported from a Neon Grid install would turn a
+    /// Porcelain one black on the way in. Themes travel by their own door — see
+    /// `ThemeDocument` and the theme editor's import.
     ///
     /// The **trash is not adopted either**, and it is the clearest case of the
     /// three. An import is somebody else's file, and their thrown-away boards
@@ -1647,14 +1658,57 @@ final class BoardStore {
         text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
     }
 
-    /// One of the two mutations that deliberately register no undo step — the
-    /// other is `selectBoard`. The accent is a preference rather than board
-    /// data, it is not in `BoardMutation`, and a ⌘Z aimed at a card the user had
-    /// just moved should not repaint the app.
-    func setAccentTheme(_ theme: AccentTheme) {
-        guard theme != accentTheme else { return }
-        accentTheme = theme
+    // MARK: - Themes
+
+    /// The theme showing under a given appearance. See ``ThemeSettings``.
+    func theme(for appearance: ThemeAppearance) -> Theme { themes.theme(for: appearance) }
+
+    /// Puts a theme in whichever of the two slots its own appearance names.
+    ///
+    /// **No undo step**, along with `selectBoard` and the theme methods below.
+    /// How the app looks is a preference rather than board data — it is not in
+    /// `BoardMutation` — and a ⌘Z aimed at a card the user had just moved should
+    /// not repaint the whole window. The editor has Cancel, and deleting asks.
+    func selectTheme(_ theme: Theme) {
+        guard themes.id(for: theme.appearance) != theme.id else { return }
+        themes.select(theme)
         scheduleSave()
+    }
+
+    /// Adds a theme the user built, or replaces the one it is a new version of.
+    /// Refuses a preset — those are the reference points, and the editor makes a
+    /// copy rather than offering to overwrite one.
+    @discardableResult
+    func saveTheme(_ theme: Theme) -> Bool {
+        guard themes.save(theme) else { return false }
+        scheduleSave()
+        return true
+    }
+
+    /// Throws a custom theme away. Any slot wearing it falls back to the preset
+    /// for that slot — see ``ThemeSettings/theme(for:)`` — so the app is never
+    /// left pointing at nothing.
+    @discardableResult
+    func deleteTheme(_ id: Theme.ID) -> Bool {
+        guard themes.delete(id) else { return false }
+        scheduleSave()
+        return true
+    }
+
+    /// Brings in a theme from a file, under a name that is not already taken and
+    /// an identity of its own.
+    ///
+    /// **A fresh id rather than the one in the file.** Two people who both
+    /// started from Ember and edited it would otherwise be carrying the same id
+    /// on two different themes, and importing one would silently overwrite the
+    /// other. An import is a new theme here even when it began as a copy of one
+    /// this machine already has.
+    @discardableResult
+    func importTheme(_ theme: Theme) -> Theme {
+        var arriving = theme.duplicated(named: themes.unusedName(basedOn: theme.name))
+        arriving.appearance = theme.appearance
+        saveTheme(arriving)
+        return arriving
     }
 
     #if DEBUG
@@ -4236,16 +4290,18 @@ final class BoardStore {
         recolorLabel(key, to: labelTones(for: swatch))
     }
 
-    /// A label's four colours for a palette swatch. `.accent` is resolved
-    /// against the theme in force, because a chip's ground is a *tint* and
-    /// `SwatchColor.accent` carries no opacity to tint with; a label painted
-    /// accent is therefore frozen to the accent of the day, which is the honest
-    /// reading of "this colour" for something that has to be two colours in two
-    /// schemes.
+    /// A label's four colours for a palette swatch.
+    ///
+    /// What is stored is the *colour the label was given* — what a picker has to
+    /// ring, and what ``Palette/chipTone(for:)`` derives the chip from at render
+    /// time through the theme's rule. A label painted `.accent` keeps saying
+    /// accent rather than freezing to the accent of the day, exactly as a board
+    /// dot painted accent does, so it follows the theme like everything else
+    /// wearing that colour.
     func labelTones(for swatch: SwatchColor) -> (light: LabelTone, dark: LabelTone) {
         switch swatch {
         case .rgb(let value, _): LabelTone.pair(from: value)
-        case .accent: accentTheme.hex.map(LabelTone.pair(from:)) ?? LabelTone.inkPair
+        case .accent: LabelTone.accentPair
         case .ink: LabelTone.inkPair
         }
     }

@@ -459,7 +459,7 @@ struct BoardTaskCard: View {
                     Image(systemName: "arrow.uturn.backward")
                         .imageScale(.small)
                     Text("Restore", comment: "Button on an archived card that puts it back on the board")
-                        .font(SimpleKanbanFont.ui(11, .bold, relativeTo: .caption2))
+                        .font(palette.ui(11, .bold, relativeTo: .caption2))
                 }
                 .foregroundStyle(palette.inkText(0.55))
                 .padding(.horizontal, 8)
@@ -527,7 +527,7 @@ struct BoardTaskCard: View {
                 }
 
                 Text(task.displayTitle)
-                    .font(SimpleKanbanFont.ui(metrics.titleSize, .bold, relativeTo: .subheadline))
+                    .font(palette.ui(metrics.titleSize, .bold, relativeTo: .subheadline))
                     .lineSpacing(1.5)
                     .foregroundStyle(isDone ? palette.inkText(0.45) : palette.ink)
                     .strikethrough(isDone, color: palette.ink(0.45))
@@ -535,7 +535,7 @@ struct BoardTaskCard: View {
 
                 if !task.note.isEmpty, density.showsDetail {
                     Text(task.note)
-                        .font(SimpleKanbanFont.ui(metrics.noteSize, .medium, relativeTo: .caption))
+                        .font(palette.ui(metrics.noteSize, .medium, relativeTo: .caption))
                         .lineSpacing(1.5)
                         .foregroundStyle(palette.inkText(0.5))
                         .lineLimit(dynamicTypeSize.isAccessibilitySize ? 6 : 2)

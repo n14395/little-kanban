@@ -170,7 +170,7 @@ struct BoardColumnView: View {
                 }
 
             Text(column.name)
-                .font(SimpleKanbanFont.ui(metrics.titleSize, .extraBold, relativeTo: .footnote))
+                .font(palette.ui(metrics.titleSize, .extraBold, relativeTo: .footnote))
                 .kerning(metrics.titleSize * 0.02)
                 .foregroundStyle(palette.ink)
                 .lineLimit(1)
@@ -416,7 +416,7 @@ private struct BoardColumnEditor: View {
             Text(title).sectionLabelStyle(size: 10, opacity: Palette.readableInk)
             TextField(title, text: text)
                 .textFieldStyle(.plain)
-                .font(SimpleKanbanFont.ui(editor.fieldFont, .semibold, relativeTo: .subheadline))
+                .font(palette.ui(editor.fieldFont, .semibold, relativeTo: .subheadline))
                 .foregroundStyle(palette.ink)
                 .focused($focus, equals: target)
                 .padding(.horizontal, 8)

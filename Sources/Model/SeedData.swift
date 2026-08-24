@@ -269,7 +269,7 @@ struct BoardTemplate: Identifiable, Sendable {
     var snapshot: BoardSnapshot {
         BoardSnapshot(
             tasks: tasks, boards: boards, labels: labels, nextSerial: nextSerial,
-            accentTheme: .ember, activeBoardID: boards.first?.id
+            activeBoardID: boards.first?.id
         )
     }
 }

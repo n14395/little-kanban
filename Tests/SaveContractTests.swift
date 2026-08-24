@@ -63,7 +63,7 @@ import Testing
         mutate("renameLabel") { $0.renameLabel("design", to: "Visual design") }
         mutate("recolorLabel") { $0.recolorLabel("design", to: .hex(0xBE2828)) }
         mutate("deleteLabel") { $0.deleteLabel("design") }
-        mutate("setAccentTheme") { $0.setAccentTheme(.pine) }
+        mutate("selectTheme") { $0.selectTheme(TestBoard.otherDarkTheme) }
         mutate("archive") { $0.archive(TestBoard.palette) }
         mutate("archiveCompleted") { $0.archiveCompleted() }
         // A board that starts with something already filed away: archiving first
@@ -173,7 +173,7 @@ import Testing
             )
             let backup = temp.file.backupsDirectory.appending(path: "board-20260814T090000Z.json")
             try BoardSnapshot(tasks: [TestBoard.tasks[0]], boards: [], labels: LabelDef.seed,
-                              nextSerial: 100, accentTheme: .ember).encoded().write(to: backup)
+                              nextSerial: 100).encoded().write(to: backup)
 
             act(store, backup)
             try await Task.sleep(for: .milliseconds(900))

@@ -75,8 +75,8 @@ struct AboutView: View {
             .scrollBounceBehavior(.basedOnSize)
         }
         .frame(width: metrics.width)
-        .background(palette.sheet)
-        .presentationBackground(palette.sheet)
+        .background(palette.windowFill)
+        .presentationBackground(palette.windowFill)
         .task {
             guard startsCheck, checker.state == .idle else { return }
             await checker.check()
@@ -86,13 +86,13 @@ struct AboutView: View {
     private var header: some View {
         HStack(spacing: 8) {
             Text("About", comment: "Title of the About surface")
-                .font(SimpleKanbanFont.ui(17, .bold, relativeTo: .headline))
+                .font(palette.ui(17, .bold, relativeTo: .headline))
                 .foregroundStyle(palette.ink)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 0)
             Button { dismiss() } label: {
                 Text("Done", comment: "Closes the About surface")
-                    .font(SimpleKanbanFont.ui(15, .bold, relativeTo: .subheadline))
+                    .font(palette.ui(15, .bold, relativeTo: .subheadline))
                     .foregroundStyle(palette.accent)
                     .padding(.horizontal, 8)
                     .frame(minHeight: max(metrics.rowHit, 30))
@@ -109,15 +109,15 @@ struct AboutView: View {
         VStack(spacing: 6) {
             AppIconImage(size: metrics.icon)
             Text(Self.displayName)
-                .font(SimpleKanbanFont.serif(metrics.title))
+                .font(palette.display(metrics.title))
                 .foregroundStyle(palette.ink)
             Text(Self.versionLine)
-                .font(SimpleKanbanFont.ui(metrics.version, .semibold, relativeTo: .footnote))
+                .font(palette.ui(metrics.version, .semibold, relativeTo: .footnote))
                 .foregroundStyle(palette.ink(0.45))
                 .textSelection(.enabled)
             if let copyright = UpdateChecker.copyright {
                 Text(copyright)
-                    .font(SimpleKanbanFont.ui(metrics.note, .medium, relativeTo: .caption))
+                    .font(palette.ui(metrics.note, .medium, relativeTo: .caption))
                     .foregroundStyle(palette.ink(0.35))
                     .multilineTextAlignment(.center)
                     .padding(.top, 2)
@@ -146,7 +146,7 @@ struct AboutView: View {
             checkButton
             statusLine
             Text(UpdateChecker.disclosure)
-                .font(SimpleKanbanFont.ui(metrics.note, .medium, relativeTo: .caption))
+                .font(palette.ui(metrics.note, .medium, relativeTo: .caption))
                 .foregroundStyle(palette.ink(0.4))
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -168,7 +168,7 @@ struct AboutView: View {
                     ProgressView().controlSize(.small)
                 }
                 Text("Check for Updates", comment: "Button that asks GitHub for the newest release")
-                    .font(SimpleKanbanFont.ui(metrics.buttonFont, .bold, relativeTo: .subheadline))
+                    .font(palette.ui(metrics.buttonFont, .bold, relativeTo: .subheadline))
                     .foregroundStyle(palette.accent)
             }
             .padding(.horizontal, 12)
@@ -198,7 +198,7 @@ struct AboutView: View {
                 Button { openURL(release.page) } label: {
                     HStack(spacing: 5) {
                         Text("Open the download page", comment: "Opens the GitHub release in a browser")
-                            .font(SimpleKanbanFont.ui(metrics.buttonFont, .bold, relativeTo: .subheadline))
+                            .font(palette.ui(metrics.buttonFont, .bold, relativeTo: .subheadline))
                         Image(systemName: "arrow.up.forward")
                             .imageScale(.small)
                             .accessibilityHidden(true)
@@ -213,7 +213,7 @@ struct AboutView: View {
 
     private func status(_ text: String, tone: Double = 0.5) -> some View {
         Text(text)
-            .font(SimpleKanbanFont.ui(metrics.body, .medium, relativeTo: .footnote))
+            .font(palette.ui(metrics.body, .medium, relativeTo: .footnote))
             .foregroundStyle(palette.ink(tone))
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -295,5 +295,5 @@ private struct AppIconImage: View {
 
 #Preview("About") {
     AboutView(metrics: .desk)
-        .environment(\.palette, Palette(colorScheme: .light))
+        .environment(\.palette, Palette(theme: ThemePresets.fallback(for: .light)))
 }

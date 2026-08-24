@@ -29,6 +29,13 @@ struct ColorWell: View {
         static let sheet = Metrics(
             font: 14.5, height: 44, radius: 11, horizontalPadding: 14, picker: .sheet
         )
+        /// The theme editor, where twenty-odd of these stand in a column beside
+        /// their own labels. Shorter and narrower than the desk's, and the
+        /// popover behind it is the same one — that is the whole point of there
+        /// being one control.
+        static let compact = Metrics(
+            font: 11, height: 26, radius: 7, horizontalPadding: 8, picker: .desk
+        )
     }
 
     @Environment(\.palette) private var palette
@@ -43,7 +50,7 @@ struct ColorWell: View {
     var body: some View {
         Button { isPicking = true } label: {
             Text("Select Colour")
-                .font(SimpleKanbanFont.ui(metrics.font, .bold, relativeTo: .subheadline))
+                .font(palette.ui(metrics.font, .bold, relativeTo: .subheadline))
                 .foregroundStyle(readableInk)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, metrics.horizontalPadding)
@@ -85,7 +92,7 @@ struct ColorWell: View {
     private var resolvedValue: UInt32? {
         switch selection {
         case .rgb(let value, _): value
-        case .accent: palette.accentTheme.hex
+        case .accent: palette.accentValue
         case .ink: nil
         }
     }

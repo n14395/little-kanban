@@ -36,7 +36,7 @@ struct PriorityDot: View {
                 .foregroundStyle(palette.priorityColor(priority))
             if namesPriority, differentiateWithoutColor {
                 Text(priority.displayName)
-                    .font(SimpleKanbanFont.ui(10.5, .extraBold, relativeTo: .caption2))
+                    .font(palette.ui(10.5, .extraBold, relativeTo: .caption2))
                     .textCase(.uppercase)
                     .foregroundStyle(palette.inkText(0.55))
             }
@@ -121,7 +121,7 @@ struct DueChip: View {
                     .accessibilityHidden(true)
             }
             Text(DueDate.label(due, from: today))
-                .font(SimpleKanbanFont.ui(font, .bold, relativeTo: .caption))
+                .font(palette.ui(font, .bold, relativeTo: .caption))
         }
         .foregroundStyle(tone.foreground)
         .padding(.horizontal, horizontalPadding)
@@ -184,7 +184,7 @@ struct ColumnChip: View {
                 .fill(palette.resolve(column?.dot ?? Board.inboxDot))
                 .frame(width: dotDiameter, height: dotDiameter)
             Text(usesShortName ? (column?.short ?? Board.inboxName) : name)
-                .font(SimpleKanbanFont.ui(size.font, .extraBold, relativeTo: .caption2))
+                .font(palette.ui(size.font, .extraBold, relativeTo: .caption2))
                 // See `LabelChip`: tracking would clip the last letter.
                 .kerning(size.font * 0.04)
                 .textCase(.uppercase)
@@ -231,7 +231,7 @@ struct CountPill: View {
 
     var body: some View {
         Text("\(count)")
-            .font(SimpleKanbanFont.ui(font, .bold, relativeTo: .caption2))
+            .font(palette.ui(font, .bold, relativeTo: .caption2))
             .foregroundStyle(palette.inkText(0.4))
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, 1)
@@ -253,7 +253,7 @@ struct SubtaskCountBadge: View {
                     .symbolSize(font, weight: .semibold, relativeTo: .caption)
             }
             Text(text)
-                .font(SimpleKanbanFont.ui(font, .bold, relativeTo: .caption))
+                .font(palette.ui(font, .bold, relativeTo: .caption))
         }
         .foregroundStyle(palette.inkText(0.42))
     }

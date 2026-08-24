@@ -126,7 +126,7 @@ struct PhoneNavDrawer: View {
                 // verbatim: it is spelled the same in every language, and a
                 // literal in a `Text` would have offered it to a translator.
                 Text(verbatim: Self.wordmark)
-                    .font(SimpleKanbanFont.serif(26))
+                    .font(palette.display(26))
                     // Opening the drawer has to move the VoiceOver cursor into
                     // it. Landing on the heading rather than the first row is
                     // what lets the reader hear where they are before they hear
@@ -136,7 +136,7 @@ struct PhoneNavDrawer: View {
                 Spacer(minLength: 0)
                 Button { store.isNavDrawerOpen = false } label: {
                     Image(systemName: "xmark")
-                        .font(SimpleKanbanFont.ui(12, .semibold, relativeTo: .footnote))
+                        .font(palette.ui(12, .semibold, relativeTo: .footnote))
                         .foregroundStyle(palette.inkText(0.55))
                         .frame(minWidth: 30, minHeight: 30)
                         .background(palette.ink(0.07), in: .circle)
@@ -175,7 +175,7 @@ struct PhoneNavDrawer: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background {
             Rectangle()
-                .fill(palette.sidebar)
+                .fill(palette.panelSolid)
                 // The drawer's shadow falls onto the board it is covering, so
                 // it goes the way the drawer opened. Mirrored by hand: a
                 // shadow offset is a raw coordinate and is the one thing on
@@ -237,7 +237,7 @@ struct PhoneNavDrawer: View {
                     .imageScale(.medium)
                     .foregroundStyle(palette.inkText(0.5))
                 Text("Manage labels")
-                    .font(SimpleKanbanFont.ui(15, .semibold, relativeTo: .body))
+                    .font(palette.ui(15, .semibold, relativeTo: .body))
                     .foregroundStyle(palette.ink(0.66))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 CountPill(count: store.labels.count, font: 12.5, horizontalPadding: 8)
@@ -276,7 +276,7 @@ struct PhoneNavDrawer: View {
                     .imageScale(.medium)
                     .foregroundStyle(palette.inkText(0.5))
                 Text("Settings")
-                    .font(SimpleKanbanFont.ui(15, .semibold, relativeTo: .body))
+                    .font(palette.ui(15, .semibold, relativeTo: .body))
                     .foregroundStyle(palette.ink(0.66))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -353,7 +353,7 @@ struct PhoneNavDrawer: View {
     private var newBoardRow: some View {
         Button { isCreatingBoard = true } label: {
             Text("+ New board")
-                .font(SimpleKanbanFont.ui(15, .semibold, relativeTo: .body))
+                .font(palette.ui(15, .semibold, relativeTo: .body))
                 .foregroundStyle(palette.inkText(0.5))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
@@ -379,11 +379,11 @@ struct PhoneNavDrawer: View {
                     .fill(palette.resolve(dot))
                     .frame(width: 8, height: 8)
                 Text(name)
-                    .font(SimpleKanbanFont.ui(15, isActive ? .bold : .semibold, relativeTo: .body))
+                    .font(palette.ui(15, isActive ? .bold : .semibold, relativeTo: .body))
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text("\(count)")
-                    .font(SimpleKanbanFont.ui(12.5, .bold, relativeTo: .caption))
+                    .font(palette.ui(12.5, .bold, relativeTo: .caption))
                     .opacity(isActive ? 0.7 : 0.5)
             }
             .foregroundStyle(isActive ? palette.accent : palette.ink(0.66))
@@ -412,7 +412,7 @@ struct PhoneNavDrawer: View {
                     .imageScale(.small)
                     .frame(width: 17)
                 Text(view.label)
-                    .font(SimpleKanbanFont.ui(15, isActive ? .bold : .semibold, relativeTo: .body))
+                    .font(palette.ui(15, isActive ? .bold : .semibold, relativeTo: .body))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 CountPill(count: store.count(of: view, today: dayClock.today), font: 12.5, horizontalPadding: 8)
             }
@@ -474,7 +474,7 @@ struct PhoneNavDrawer: View {
                     .frame(width: 17)
                     .accessibilityHidden(true)
                 Text("New view")
-                    .font(SimpleKanbanFont.ui(15, .semibold, relativeTo: .subheadline))
+                    .font(palette.ui(15, .semibold, relativeTo: .subheadline))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .foregroundStyle(palette.inkText(0.55))

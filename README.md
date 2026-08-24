@@ -308,8 +308,10 @@ Four details are worth knowing before changing any of it:
   position it draws today. Keep the overhang inside the row: hit-testing does
   not follow a view outside an ancestor.
 - **Where 44pt targets and the design's gaps cannot both fit a 375pt phone, the
-  targets win.** `AccentPicker.Metrics.drawer` tiles its four swatches edge to
-  edge rather than shrink them.
+  targets win.** `ColorPickerPopover.Metrics.sheet` sizes its swatch row so four
+  still fit across the narrowest phone, and `ThemeBrowserView.Metrics.sheet` keeps
+  a 248pt theme tile inside 375 with its own padding either side rather than
+  letting the grid scroll sideways. `TouchTargetTests` holds both.
 - **A `TextField` is not covered by a frame.** Its editable area is the text it
   draws — around 21pt tall inside a 44pt row — so a frame around it buys
   nothing. The row gets a `.contentShape(.rect)` and an `.onTapGesture` that
@@ -741,10 +743,12 @@ direction, the same argument `Priority.max` made: a v9 build reads a v10 file
 perfectly well, silently drops the key, and writes the loss back with every
 colour the user had saved in it.
 
-The app **accent** is not in any of this. `AccentPicker` still offers four whole
-themes rather than a colour: an accent is a set of related tokens — the accent,
-its soft wash, the ink that has to stay readable on it — and picking one arbitrary
-colour for the first of them does not answer the other two.
+The app **accent** is not in any of this, and there is no accent picker any more:
+an accent is a set of related tokens — the accent, its soft wash, the ink that has
+to stay readable on it — and picking one arbitrary colour for the first of them
+does not answer the other two. All three are parameters of the theme now, and
+`SwatchColor.accent` resolves to whichever theme is in force, so a board, a column
+or a label wearing *Accent* repaints when the theme changes. See **Themes**.
 
 **Which board a card is on is one control, `BoardDestinationMenu`, and one
 convention.** Four surfaces were writing "the Inbox, then every board, with the
@@ -1341,6 +1345,220 @@ from its own history. A delete of the board's Done column, or one that would
 leave it with no working column, is **refused with a `ColumnRefusal` the surface
 can show** rather than ignored: from the outside, "delete" doing nothing is
 indistinguishable from a bug.
+
+## Themes
+
+**Everything the app looks like is one value.** `Theme` carries the two faces,
+the window's ground, the panel wash, the card, the ink, the wash, the highlight,
+the two status hues and the two chip recipes; `Palette` holds one and every
+colour, font and corner in the app is a question put to it. Switching theme is an
+assignment — there is no registry to keep in step, nothing to invalidate and
+nothing to tell.
+
+Twenty ship with the app, transcribed from the theme explorer. `ThemePresets.all`
+keeps them in **the document's own order**, which is not the order they were
+designed in: round two (`2a`–`2j`) is the first section of that page and round one
+(`1a`–`1j`) the second, so **Ember is the eleventh of the twenty**. The ids are the
+document's references, kept so that a conversation about "1e" and a tile in the
+picker are the same thing. Ember is the reference point — the shipping theme,
+tuned, with the flat charcoal opened out into a slow warm gradient and the accent
+taken a little hotter — so it is the one to read against the app to see what a
+parameter does.
+
+### Two slots, not one theme
+
+Every preset is absolutely light or absolutely dark. Ember has no light values
+behind it and Porcelain has no dark ones, so a single active theme would mean
+either abandoning the system's light/dark switch or inventing values no designer
+wrote. The board keeps **one theme of each kind** and the appearance setting picks
+between them, the same arrangement macOS uses for wallpaper:
+
+```
+Settings ▸ General ▸ Appearance
+  Appearance   System | Light | Dark     ← which of the two is showing
+  Themes …     Porcelain in light, Ember in dark
+```
+
+`ThemeSettings` holds `lightID`, `darkID` and the user's own themes, and
+`select(_:)` puts a theme in the slot its own `appearance` names and nowhere
+else — so a dark theme cannot end up in the light slot and leave the app
+unreadable at noon. `theme(for:)` falls back to the preset rather than failing,
+twice over: a slot may name a theme this machine has never seen (a board file
+copied from one that had a custom theme), and a theme may have been edited into
+the other kind since the slot was set.
+
+Defaults are **Ember** dark and **Porcelain** light. There is no light twin of
+Ember among the twenty; Porcelain is the document's own light control — warm
+whites, ink text, one vermilion accent — and is the quietest thing to wake up to.
+
+### The parameters, and where each one lands
+
+The sections in the editor are the document's, in its order and under its names,
+so that somebody with the explorer open in one window and the editor in the other
+does not have to translate.
+
+| Parameter | What it paints |
+| --- | --- |
+| display font | Board titles and the inspector's task title. Nothing else — a display face used for a fourth thing stops marking the other three. Family, weight and slant. |
+| ui font | Everything else. Its weight is a **baseline**: the app's two hundred call sites shift with it, so 400 leaves them exactly where they were written and 500 lifts the whole interface by one step. |
+| window bg | `palette.windowFill`, a `LinearGradient` behind the whole window. Nineteen of the twenty carry a gradient. |
+| panel overlay | The sidebar and the inspector, *translucent over the gradient* — so the ground runs through them rather than stopping at their edge. |
+| card | Fill, hairline and radius. The radius is the one size the design varies from theme to theme. |
+| ink | The text colour and its two quieter tiers. |
+| wash | The search field, count pills, the segmented track, an empty meter, and any due date further out than soon. |
+| highlight | The accent, its soft tint, and what can be read on top of it. |
+| status hues | Done, and this-week/medium. |
+| label chips | The **recipe**, not the colours — see below. |
+| due chips | Overdue/today and soon. Anything further out takes the wash; a finished task takes the done hue. |
+
+Three of those needed a decision rather than a transcription.
+
+**Label chips are a rule.** The document fixes four chips per theme — `HEALTH` is
+one teal in every dark theme and another in every light one — but a label here is
+not one of four fixed things: you make labels and give each one a colour from the
+same picker a board and a column are coloured from. So `ThemeChipRule` carries the
+three numbers that turn *any* colour into a ground and a text (lift, ground
+strength, text shade) and the document's four pairs fall out as examples of it.
+`palette.chipTone(for:)` applies it at render time, which means every chip already
+on the board re-tints when the theme changes, including the ones made before it
+did. Dark themes lift the colour before tinting because a 19% wash of `#1F6F63`
+over a near-black card is very nearly the card.
+
+**There is no third status hue.** The overdue red is the due chip's own, and
+`priorityColor(.max)` takes it at full strength, so the app's one alarm colour is
+said once rather than twice.
+
+**On-accent is a parameter rather than a rule.** Ultraviolet's gold takes
+near-black and Aurora's mint takes a deep green, and neither is something the app
+could have worked out.
+
+### What a theme cannot do
+
+The contrast floor. `ThemeInk.muted` and `ThemeInk.faint` are used exactly as
+written for the things that are *not* text — a hairline, a dot, an empty meter
+track — but anything that has to be **read** goes through `palette.inkText(_:)`
+and is never drawn below 68% ink. Text that cannot be read is not a style choice,
+and a theme that could set it could produce an app nobody can use. The editor says
+so under the two fields.
+
+The scrim is not the panel overlay either. A scrim is the *absence* of what is
+behind it, so it goes through `shadow(_:)` and stays black in a dark theme — see
+**Accent** below for what happened the one time those two were the same colour.
+
+### The browser and the editor
+
+`ThemeBrowserView` shows all twenty plus the user's own as **small pictures of the
+app** rather than rows of swatches: a theme is a ground, two faces, a card and
+eight colours working together, and six circles say almost nothing about how that
+comes out. `ThemePreviewTile` is that picture, and every parameter is somewhere in
+it — the gradient at its real angle, the panel strip over it, the title in the
+display face at its own weight and slant, the card at its own radius inside its
+own border, a label chip through the rule, a due chip, a priority dot, the wash.
+
+Pressing a tile puts it in its own slot. Both slots are named at the top of the
+browser, because at any moment one of the two is the one you are looking at and
+the other is not — somebody setting the dark theme in daylight has no other way to
+see that anything happened.
+
+`ThemeEditorView` exposes every parameter as a typed value, not a slider: the
+difference between a theme and a near-miss of one is a number you can read back.
+The colour control is the app's own `ColorWell` over the same
+`BoardStore.savedColors`, so a colour mixed while building a theme is offered the
+next time a label is coloured, and the other way round. Opacity is a field beside
+it rather than a fourth pair of hex digits, because two of a theme's colours are
+only meaningful as tints and the document states them as `rgba(...)` with the
+alpha written out.
+
+**A preset opens as a copy.** `ThemeSettings.save(_:)` refuses one outright: a
+reference point that can be overwritten is not one. A new theme starts from the
+preset for its slot rather than from black, because a form of thirty empty fields
+is not a starting point.
+
+Deleting a custom theme **asks first**, which deleting a saved colour does not.
+The difference is that there is no ⌘Z on a settings surface and a theme is an
+evening's work, where a deleted colour removes an *offer* and nothing wearing it
+changes.
+
+### The file
+
+`ThemeDocument` writes plain `.json`, pretty-printed with sorted keys, colours as
+`#RRGGBB` or `#RRGGBBAA`. It is about sixty lines and is meant to be read: a theme
+should be something you can paste into a message, put in a gist, or open in an
+editor and change one hex in. Giving it a bespoke extension would buy an icon and
+cost all of that.
+
+One shape is written — an envelope with a format marker, a version and an array,
+so exporting one theme and exporting a library are the same format — and three are
+read: that envelope, a bare array, and a bare object. The last two are what
+somebody who wrote a theme by hand is likely to hand it, and refusing them would
+be pedantry. A file that will not read names the field that broke, because
+`DecodingError`'s own description names a Swift type and a coding path and neither
+means anything to somebody editing a hex.
+
+An import always gets a **fresh id**. Two people who both started from Ember and
+edited it would otherwise be carrying the same id on two different themes, and
+importing one would silently overwrite the other.
+
+### Where they live
+
+In the board file, at snapshot **v12**, exactly where the accent was and for the
+same reason: a theme somebody spent an evening on is their work, and work belongs
+in the file that gets exported, backed up and synced rather than in a preference
+that stays behind on the old machine. Which of the two slots is *showing* is not
+in there — that follows the system appearance and the `AppAppearance` override,
+both of which belong to the machine.
+
+`adoptContent` does not take them, along with the active board. **Importing a
+board must not repaint the app**: a board exported from a Neon Grid install would
+otherwise turn a Porcelain one black on the way in. Themes travel by their own
+door.
+
+Selecting, saving and deleting register **no undo step**, along with `selectBoard`.
+How the app looks is a preference rather than board data, it is not in
+`BoardMutation`, and a ⌘Z aimed at a card the user had just moved should not
+repaint the window.
+
+`migrate(v11:accent:)` is the step, and it is the only one that needs the raw
+bytes: v12 removes `accentTheme`, so the field is gone from the decoded value by
+the time the step runs, and `BoardSnapshot.legacyAccent(in:)` reads it out of the
+JSON the way `legacyDoneColumns(in:)` already does. **The old accent is not thrown
+away.** Ember's rust is the default themes' own accent already, near enough, so it
+migrates untouched; Pine and Indigo exist nowhere in the twenty, so rather than
+silently repaint an app that has been green for a year the step seeds a copy of
+each default wearing the old colour and selects them — with `onAccent` recomputed
+by luminance, because white text on Pine's green is not the same decision as white
+text on Ember's rust. Ink migrates to the presets: it meant "the accent is the
+text colour", which is a thing a theme has no parameter for.
+
+### The seventeen faces
+
+The presets call for seventeen families, and all seventeen are bundled under the
+SIL Open Font License with their licence files beside them — about 5.6 MB, because
+fifteen of them ship as **variable** fonts: one file with a weight axis rather
+than five files. Five static weights of seventeen families would be eighty-five
+files.
+
+That is also why `FontCatalog` exists. SwiftUI's `Font.custom` takes a PostScript
+name, not a family and a weight, and the names CoreText fabricates for the named
+instances of a variable font are not names anybody would guess: Work Sans at 800
+is `WorkSansRoman-ExtraBold`, Space Grotesk at 700 is `SpaceGrotesk-Light_Bold`,
+DM Sans at 500 is `DMSans-9ptRegular_Medium`. So the family and the weight go to
+the font matcher and the name that comes back is cached, keyed on all three of
+family, weight and slant. A family the matcher has never heard of returns `nil`
+and is cached as `nil`, so a theme naming a font nobody has does not re-run the
+matcher on every frame.
+
+A theme may also name any font **installed on the machine** — it is the user's
+theme, and if they have bought a face they should be able to set the app in it.
+Those come second in the picker and under their own heading, because a theme built
+on one will not travel: opened anywhere else it falls back to a system face, and
+the editor says so under the row when that is what has been chosen.
+
+Only Instrument Serif and Newsreader ship a real italic, which is all the presets
+need. A slant asked for on any other family is **sheared** rather than dropped —
+worse than a drawn italic and much better than a theme that asks for italic Sora
+and silently gets roman.
+
 
 ## Editing
 
@@ -4244,12 +4462,13 @@ which is the only evidence a v1 board carries about when anything happened.
 
 ### Accent
 
-`AccentTheme` was fully wired in the design's palette but had no UI. There is a
-swatch row in Settings ▸ Appearance and in the iOS drawer now, and the choice is
-saved with the board — see **Settings** for why it stays there while the
-appearance override does not. The macOS source list carried a third copy under
-its rows and no longer does: the list is destinations, and the accent is global
-to the app rather than a place to go.
+**The accent is a parameter of the theme.** It began as `AccentTheme`, four whole
+palettes with a swatch row in Settings; it is now `Theme.highlight`, which carries
+the accent, its soft wash and the ink that goes on top of it as three fields a
+theme states outright. The swatch row is gone, and so is the enum — see **Themes**
+for what replaced it and for how a board that had chosen Pine or Indigo keeps its
+colour across the v12 migration. The choice is still saved with the board, for the
+reason **Settings** gives.
 
 `SwatchColor` keeps literals as `.rgb(hex, opacity:)` rather than a built
 `Color` — that is what makes a user-created label encodable, since `Color` is
@@ -4300,7 +4519,8 @@ They paid hardest on the phone, where the strip shows about three chips at a tim
 and the other five were off the side of the screen. So:
 
 - **General** — what the app looks like and how it comes up. *Appearance* (the
-  accent and a light/dark/system override) and *At launch* (reopen the last view,
+  light/dark/system override and the theme browser behind it — see **Themes**)
+  and *At launch* (reopen the last view,
   open the Inbox with the board), plus *This Mac* on the desk: open at login and
   the menu bar item. Those last two are still the desk's alone, but the `#if` is
   now around **two rows** rather than around a case of `SettingsTab`, so
@@ -5095,6 +5315,7 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `TaskSearchTests` | the ranking, one rung at a time: a title that *is* the query above one that starts with it, a word of the title above a letter run inside a word, a hyphen starting a word, the title above the note, the sum over tokens, folding on both sides, and a missing token being a miss however well the rest scored. Then what the store does with it — a title hit ahead of a note hit whatever order the board holds them in, `updatedAt` breaking a tie, an empty query being every task rather than none, and the results spanning the Inbox as well as every board |
 | `SearchScopingTests` | which surfaces the one query is allowed to act on — the whole truth table of tab × saved view for `mobileAppliesQuery`, the "Filtered" notice, the add row and the column chips; a query typed on Search leaving the Board alone, and the Inbox's slide-over out of its reach whatever tab is under it; whitespace not counting as a filter; clearing costing no undo step and no write; picking a tab or capturing a card leaving the saved view; `allowsCardDrag` off in every saved view and *on* under a query; and the rule the results panel is for — no column slice, Inbox or saved view narrowed by a query, while the search itself still answers from every board at once |
 | `LabelTests` | slug trimming, empty-slug fallback, the 40-character cap, rename keeping the key, delete stripping it from every task |
+| `ThemeTests` | the theme engine, and almost none of it is checkable by looking: the twenty presets in the document's own order with Ember eleventh, Ember's every value against the page it was transcribed from, the two the document sets in italic and the one with four gradient stops, every preset's faces being bundled and resolving at all five weights; the colour codec — hex out, hex/rgba/shorthand in, nonsense refused, opacity quantised so a theme survives its own export; the CSS gradient angle, pinned on the four axes where it is exact and on a corner where it is not; the two slots, a theme going only into the one its kind names, a slot naming nothing falling back, a preset refusing to be saved over; what a theme paints — the accent, max priority being the overdue hue, the due chips, a label's chip through the rule rather than off the stored pair, and the contrast floor holding whatever the theme's ink tiers say; and the file — every preset round-tripping, the two hand-written shapes accepted, and a broken colour naming the field it is in |
 | `TransferTests` | the drag payloads — the plain-text and `Codable` forms of a card, a checklist row and a column, that a column's carries the board it is on, and that all three exported type identifiers match the ones `project.yml` declares |
 | `SavedViewTests` | every view's badge equalling its list's length whenever nothing is typed, and a query being the only thing that may part them; every predicate at the day either side of every bound it draws — Today carrying overdue, Upcoming strictly ahead, `0...6` for the week — the cap at twenty, the two views that override the board's order and the four that do not, Done left out of four of six, archived tasks in one of six, and a query narrowing a view *after* its cap rather than before |
 | `SavedViewSeedTests` | **the acceptance test for custom views**: each of the seeded seven, rebuilt out of criteria, gathering exactly what the enum's hand-written predicate gathered — the predicates transcribed into the suite, since the thing they are the reference for deleted them, and run card by card over every `WeekMeaning` (the week decides one of the seven and is a preference, so the default alone tests a third of *Due this week*), then again over a board with cards filed away, which is the half a live board cannot ask. Then the two claims that are not a predicate: *Recently updated* still newest-first and capped at twenty against a 25-card fixture written oldest-first, and the Archive still newest-filing against three cards written in the reverse of the order they must come back in. Then that the other five leave the board's own order alone; that no seeded rule needs more than three criteria to say; and that every criterion in every seeded rule is a field-and-comparator pair the editor's own pickers can actually produce |
@@ -5256,7 +5477,7 @@ an empty board over a real one. `SeedData` exposes the seed ids as named statics
 
 Every user-facing sentence goes through `String(localized:comment:)` or
 `Text(_:comment:)` and lands in `Resources/Localizable.xcstrings`, the String
-Catalog `SWIFT_EMIT_LOC_STRINGS` extracts into (580 keys). **The catalogue is
+Catalog `SWIFT_EMIT_LOC_STRINGS` extracts into (784 keys). **The catalogue is
 part of the change**: refreshing it after adding strings means building *both*
 platforms and merging the compiler's output from both, because half the view code
 is behind `#if os(iOS)` and syncing from macOS alone marks every iOS-only string
@@ -5304,7 +5525,7 @@ catalogue is in the target at all — it sat in none for a while, and every
 `String(localized:)` in the app quietly returned its own key — and one asserts
 that the words those helpers draw are in it.
 
-115 of the 517 keys have no `comment:` for the translator. All of them are in view
+115 of the keys have no `comment:` for the translator. All of them are in view
 files, and most are `Button`/`Label` titles, whose initialisers have no comment
 parameter — adding one means rewriting the control with an explicit
 `label: { Text(_:comment:) }`. `String(localized:)` *does* take one, and the
@@ -5373,9 +5594,14 @@ existed. Every title, sidebar row and drawer row reads `store.activeBoard?.name`
 
 ## Fonts
 
-Manrope and Instrument Serif are bundled under the SIL Open Font License
-(see `Resources/Fonts/OFL-*.txt`) and registered by `FontRegistry` on first use
-rather than at launch: `hasCustomFonts` is a `static let` whose initialiser does
-the registering, so it runs exactly once, under the runtime's own lock, the first
-time anything asks for a font. Delete the folder and the app falls back to the
-system faces.
+Seventeen families are bundled under the SIL Open Font License (see
+`Resources/Fonts/OFL-*.txt`) — the faces the twenty themes are set in — and
+registered by `FontCatalog` on first use rather than at launch:
+`bundledFamilies` is a `static let` whose initialiser does the registering, so it
+runs exactly once, under the runtime's own lock, the first time anything asks for
+a font. Delete the folder and every theme falls back to a system face of the same
+kind.
+
+Fifteen of the seventeen are **variable** fonts, which is what keeps the folder to
+5.6 MB and is also why resolving a face is not a matter of writing down a name.
+See **Themes ▸ The seventeen faces**.

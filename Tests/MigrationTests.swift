@@ -34,7 +34,7 @@ import Testing
         #expect(result.migratedFromVersion == 2)
         #expect(snapshot.version == BoardSnapshot.currentVersion)
         #expect(snapshot.nextSerial == BoardSnapshot.baseSerial)
-        #expect(snapshot.accentTheme == .ember)
+        #expect(snapshot.themes == .seed)
         #expect(snapshot.labels == LabelDef.seed)
 
         // Nothing written before v3 was ever archived, and the step says so
@@ -112,7 +112,11 @@ import Testing
 
         #expect(walked.version == loaded.version)
         #expect(walked.nextSerial == loaded.nextSerial)
-        #expect(walked.accentTheme == loaded.accentTheme)
+        // Not the themes: `migrate(v4:)` is the last *shape* change and stamps
+        // the current version, so a hand-walk stops before the v12 step, which
+        // is the only one that needs the raw bytes — the old accent is not on
+        // the decoded value any more. `theV1FixtureStillLoads` is where that
+        // step is asked about.
         #expect(walked.labels == loaded.labels)
         // Task ids are minted fresh by the v1 step — nothing in a v1 file
         // referred to them — so everything else is compared instead.
@@ -136,7 +140,7 @@ import Testing
         filed.archivedAt = TestBoard.at(1_500)
         let written = BoardSnapshot(
             tasks: Array(TestBoard.tasks.dropLast()) + [filed],
-            labels: LabelDef.seed, nextSerial: 121, accentTheme: .pine
+            labels: LabelDef.seed, nextSerial: 121, themes: TestBoard.otherThemes
         )
         try temp.file.write(written, generation: temp.file.nextWriteGeneration())
 
@@ -160,7 +164,7 @@ import Testing
         let temp = TempBoard()
         try temp.file.write(
             BoardSnapshot(tasks: TestBoard.tasks, labels: LabelDef.seed,
-                          nextSerial: 100, accentTheme: .ember),
+                          nextSerial: 100),
             generation: temp.file.nextWriteGeneration()
         )
         #expect(try temp.text().contains("archivedAt") == false)
@@ -168,7 +172,7 @@ import Testing
 
         let filed = TestBoard.tasks(archiving: [TestBoard.palette: 900])
         try temp.file.write(
-            BoardSnapshot(tasks: filed, labels: LabelDef.seed, nextSerial: 100, accentTheme: .ember),
+            BoardSnapshot(tasks: filed, labels: LabelDef.seed, nextSerial: 100),
             generation: temp.file.nextWriteGeneration()
         )
         #expect(try temp.text().contains("\"archivedAt\""))
@@ -185,7 +189,7 @@ import Testing
         var object = try #require(
             try JSONSerialization.jsonObject(with: try encode(
                 BoardSnapshot(tasks: TestBoard.tasks, labels: LabelDef.seed,
-                              nextSerial: 100, accentTheme: .ember)
+                              nextSerial: 100)
             )) as? [String: Any]
         )
         object["version"] = BoardSnapshot.currentVersion + 1

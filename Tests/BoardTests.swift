@@ -64,7 +64,7 @@ import Testing
     private static func store(file: BoardFile? = nil) -> BoardStore {
         BoardStore(
             tasks: tasks(), boards: [alpha, beta], activeBoardID: alphaID, labels: LabelDef.seed,
-            accentTheme: .ember, nextSerial: BoardSnapshot.baseSerial + 3, file: file
+             nextSerial: BoardSnapshot.baseSerial + 3, file: file
         )
     }
 
@@ -725,7 +725,7 @@ import Testing
         #expect(fromV3.activeBoardID == fromV4.activeBoardID)
         #expect(fromV3.nextSerial == fromV4.nextSerial)
         #expect(fromV3.labels == fromV4.labels)
-        #expect(fromV3.accentTheme == fromV4.accentTheme)
+        #expect(fromV3.themes == fromV4.themes)
     }
 
     @Test func everyFixtureStillLoadsAllTheWayForwardOntoABoard() throws {

@@ -47,7 +47,9 @@ import Testing
             ("LabelManagerView.sheet.swatchHit", LabelManagerView.Metrics.sheet.swatchHit),
             ("LabelManagerView.sheet.glyphHit", LabelManagerView.Metrics.sheet.glyphHit),
             ("LabelManagerView.sheet.rowMinHeight", LabelManagerView.Metrics.sheet.rowMinHeight),
-            ("AccentPicker.drawer.swatchHit", AccentPicker.Metrics.drawer.swatchHit),
+            ("ThemeBrowserView.sheet.hit", ThemeBrowserView.Metrics.sheet.hit),
+            ("ThemeField.sheet.hit", ThemeField.Metrics.sheet.hit),
+            ("ThemeField.sheet.rowHeight", ThemeField.Metrics.sheet.rowHeight),
             ("LabelEditor.sheet.addHit", LabelEditor.Metrics.sheet.addHit),
             ("LabelPickerList.sheet.rowHit", LabelPickerList.Metrics.sheet.rowHit),
             ("DueDateField.sheet.chipHit", DueDateField.Metrics.sheet.chipHit),
@@ -162,8 +164,11 @@ import Testing
         #expect(deskRow.hitSize >= deskRow.size && deskRow.hitSize < Self.finger)
         let swatches = ColorPickerPopover.Metrics.desk
         #expect(swatches.swatchHit >= swatches.swatch && swatches.swatchHit < Self.finger)
-        let accent = AccentPicker.Metrics.desk
-        #expect(accent.swatchHit >= accent.swatch && accent.swatchHit < Self.finger)
+        // The theme editor's colour well is the fourth: it is the app's one
+        // `ColorWell` at a size that suits a column of twenty-five of them, and
+        // it is pointer-only — the popover behind it is the finger-sized one.
+        let well = ColorWell.Metrics.compact
+        #expect(well.height >= 24 && well.height < Self.finger)
     }
 
     /// §9's negative-padding clause. The checklist box claims 44 and hands the
@@ -238,12 +243,13 @@ import Testing
         let inner = picker.width - 2 * picker.spacing
         #expect(inner / picker.swatchHit >= 4, "the palette wraps to fewer than four across")
 
-        let accent = AccentPicker.Metrics.drawer
-        let themes = CGFloat(AccentTheme.allCases.count)
-        // The word "Accent" and its `Spacer` share the line, so the swatches get
-        // what is left of the drawer rather than all of it.
-        let accentRow = themes * accent.swatchHit + (themes - 1) * accent.spacing
-        #expect(accentRow <= phone / 2, "\(accentRow)pt of swatches crowds the label off the row")
+        // A theme tile is a fixed 248pt picture, and the browser is a grid of
+        // them: one has to fit inside the narrowest phone with the sheet's own
+        // padding either side, or the column that holds it scrolls sideways.
+        let browser = ThemeBrowserView.Metrics.sheet
+        let tile = 248 * browser.tileScale
+        #expect(tile + 2 * browser.padding <= phone, "\(tile)pt of tile does not fit the phone")
+        #expect(browser.columnWidth <= tile, "the grid asks for a column wider than the tile in it")
     }
 
     /// One palette for every surface *and* every kind of thing, or a board

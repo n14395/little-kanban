@@ -110,7 +110,7 @@ struct DueDateField: View {
             Image(systemName: "calendar")
                 .symbolSize(metrics.chipFont - 1, weight: .semibold, relativeTo: .caption)
             Text("Add due date")
-                .font(SimpleKanbanFont.ui(metrics.chipFont, .bold, relativeTo: .footnote))
+                .font(palette.ui(metrics.chipFont, .bold, relativeTo: .footnote))
         }
         .foregroundStyle(palette.inkText(0.45))
         .padding(.horizontal, metrics.addHorizontalPadding)
@@ -157,7 +157,7 @@ struct DueDateField: View {
                         Image(systemName: "xmark.circle")
                             .symbolSize(metrics.rowFont, weight: .semibold, relativeTo: .subheadline)
                         Text("Clear due date")
-                            .font(SimpleKanbanFont.ui(metrics.rowFont, .bold, relativeTo: .caption))
+                            .font(palette.ui(metrics.rowFont, .bold, relativeTo: .caption))
                     }
                     .foregroundStyle(palette.inkText(0.6))
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -183,7 +183,7 @@ struct DueDateField: View {
             setPickerOpen(false)
         } label: {
             Text(preset.label)
-                .font(SimpleKanbanFont.ui(metrics.rowFont, .bold, relativeTo: .caption))
+                .font(palette.ui(metrics.rowFont, .bold, relativeTo: .caption))
                 .foregroundStyle(isCurrent ? palette.onAccent : palette.ink(0.65))
                 .lineLimit(1)
                 .padding(.vertical, metrics.rowVerticalPadding - 2)

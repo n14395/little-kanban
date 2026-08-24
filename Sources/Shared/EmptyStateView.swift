@@ -72,16 +72,16 @@ struct EmptyStateView: View {
         VStack(spacing: metrics.actionSpacing) {
             VStack(spacing: metrics.textSpacing) {
                 Image(systemName: symbol)
-                    .font(SimpleKanbanFont.ui(metrics.symbol, .medium, relativeTo: .title2))
+                    .font(palette.ui(metrics.symbol, .medium, relativeTo: .title2))
                     .foregroundStyle(palette.ink(metrics.symbolOpacity))
                     .padding(.bottom, metrics.symbolSpacing)
 
                 Text(headline)
-                    .font(SimpleKanbanFont.serif(metrics.headline))
+                    .font(palette.display(metrics.headline))
                     .foregroundStyle(palette.ink(0.75))
 
                 Text(message)
-                    .font(SimpleKanbanFont.ui(metrics.message, .medium, relativeTo: .footnote))
+                    .font(palette.ui(metrics.message, .medium, relativeTo: .footnote))
                     .foregroundStyle(palette.inkText(0.45))
                     .lineSpacing(2)
             }
@@ -101,7 +101,7 @@ struct EmptyStateView: View {
             if let actionTitle, let action {
                 Button(action: action) {
                     Text(actionTitle)
-                        .font(SimpleKanbanFont.ui(metrics.actionFont, .bold, relativeTo: .subheadline))
+                        .font(palette.ui(metrics.actionFont, .bold, relativeTo: .subheadline))
                         .foregroundStyle(palette.accent)
                         .padding(.horizontal, metrics.actionHorizontalPadding)
                         .padding(.vertical, metrics.actionVerticalPadding)

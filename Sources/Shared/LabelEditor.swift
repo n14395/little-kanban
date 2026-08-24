@@ -181,7 +181,7 @@ struct LabelPickerList: View {
                 .foregroundStyle(palette.inkText(0.4))
             TextField("New label, then ⏎", text: draftBinding)
                 .textFieldStyle(.plain)
-                .font(SimpleKanbanFont.ui(metrics.fieldFont, .bold, relativeTo: .caption))
+                .font(palette.ui(metrics.fieldFont, .bold, relativeTo: .caption))
                 .foregroundStyle(palette.ink)
                 .focused($isFieldFocused)
                 .onSubmit { store.commitLabelDraft(for: scope, task: task.id) }

@@ -241,7 +241,7 @@ import Testing
         encoder.outputFormatting = [.sortedKeys]
         let bytes = try encoder.encode(
             BoardSnapshot(version: BoardSnapshot.currentVersion + 1, tasks: TestBoard.tasks,
-                          labels: LabelDef.seed, nextSerial: 100, accentTheme: .ember)
+                          labels: LabelDef.seed, nextSerial: 100)
         )
         let temp = TempBoard()
         try temp.put(bytes)
@@ -284,7 +284,7 @@ import Testing
         let temp = TempBoard()
         let written = BoardSnapshot(
             tasks: TestBoard.tasks, boards: SeedData.boards + [second], labels: LabelDef.seed,
-            nextSerial: 121, accentTheme: .pine, activeBoardID: second.id
+            nextSerial: 121, activeBoardID: second.id
         )
         try temp.file.write(written, generation: temp.file.nextWriteGeneration())
 

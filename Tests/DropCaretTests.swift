@@ -359,7 +359,7 @@ import Testing
     /// wash of it a few points wide, and the priority dot is seven across.
     @MainActor
     private static func accentRows(in raster: Raster) -> ClosedRange<Int>? {
-        let accent = Palette(colorScheme: .light).accent.resolve(in: EnvironmentValues())
+        let accent = Palette(theme: ThemePresets.fallback(for: .light)).accent.resolve(in: EnvironmentValues())
         let (r, g, b) = (accent.red, accent.green, accent.blue)
         var rows: [Int] = []
         for row in 0..<raster.height where raster.fraction(ofRow: row, near: (r, g, b)) > 0.5 {
@@ -377,7 +377,7 @@ import Testing
         let card = BoardTaskCard(task: store[TestBoard.cafe]!)
             .frame(width: 260)
             .environment(store)
-            .environment(\.palette, Palette(colorScheme: .light))
+            .environment(\.palette, Palette(theme: ThemePresets.fallback(for: .light)))
             .environment(\.dayClock, DayClock(today: TestBoard.dueDay))
         return Raster(rendering: card)
     }

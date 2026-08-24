@@ -39,10 +39,13 @@ import Testing
     }
 
     private func surfaces(_ palette: Palette) -> [(String, Color)] {
+        // Flattened, because contrast is a fact about what the eye sees and a
+        // theme's card and panel are translucent over a gradient. `ground` is
+        // the gradient's own representative stop — see `ThemeGradient`.
         [
-            ("card", palette.card), ("panel", palette.panel), ("sheet", palette.sheet),
-            ("sidebar", palette.sidebar), ("window", palette.window),
-            ("app", palette.appBackground),
+            ("card", palette.cardSolid),
+            ("panel", palette.panelSolid),
+            ("window", palette.ground),
         ]
     }
 
@@ -53,7 +56,7 @@ import Testing
     /// and this is the claim that makes.
     @Test func everySecondaryToneIsReadableOnEverySurfaceItIsDrawnOn() {
         for scheme in [ColorScheme.light, .dark] {
-            let palette = Palette(colorScheme: scheme)
+            let palette = Palette(theme: ThemePresets.fallback(for: scheme.themeAppearance))
             for requested in [0.38, 0.4, 0.42, 0.45, 0.5, 0.55, 0.6] {
                 for (name, surface) in surfaces(palette) {
                     let ink = composite(palette.inkText(requested), over: surface)
@@ -70,7 +73,7 @@ import Testing
     /// A tone the design already drew darker than the floor is left exactly as
     /// it was: the floor is a floor, not a flattening.
     @Test func aToneAlreadyDarkEnoughIsUntouched() {
-        let palette = Palette(colorScheme: .light)
+        let palette = Palette(theme: ThemePresets.fallback(for: .light))
         #expect(palette.inkText(0.8) == palette.ink(0.8))
         #expect(palette.inkText(0.4) == palette.ink(Palette.readableInk))
     }
@@ -80,7 +83,7 @@ import Testing
     /// enough out to be only a date — was the one that failed, at 3.95:1.
     @Test func theDueChipIsReadableAtEveryUrgencyInEitherScheme() {
         for scheme in [ColorScheme.light, .dark] {
-            let palette = Palette(colorScheme: scheme)
+            let palette = Palette(theme: ThemePresets.fallback(for: scheme.themeAppearance))
             for isDone in [false, true] {
                 for urgency in [DueUrgency.overdue, .today, .soon, .later] {
                     let tone = palette.dueTone(urgency: urgency, isDone: isDone)
@@ -135,7 +138,7 @@ import Testing
     /// again, so the two are held together: every tint the palette tells apart
     /// has a mark that tells the same states apart.
     @Test func everyDistinctTintHasItsOwnMark() {
-        let palette = Palette(colorScheme: .light)
+        let palette = Palette(theme: ThemePresets.fallback(for: .light))
         var byTint: [String: Set<String?>] = [:]
         for isDone in [false, true] {
             for urgency in [DueUrgency.overdue, .today, .soon, .later] {

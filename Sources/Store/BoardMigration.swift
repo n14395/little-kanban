@@ -21,9 +21,8 @@ struct BoardSnapshotV1: Decodable {
     var tasks: [TaskItemV1]
     var labels: [LabelDef]
     var nextSerial: Int
-    var accentTheme: AccentTheme
 
-    enum CodingKeys: String, CodingKey { case version, tasks, labels, nextSerial, accentTheme }
+    enum CodingKeys: String, CodingKey { case version, tasks, labels, nextSerial }
 
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -34,8 +33,6 @@ struct BoardSnapshotV1: Decodable {
         // the ones already on the board. `migrate` raises it further if the
         // board's own codes have climbed past it.
         nextSerial = try container.decodeIfPresent(Int.self, forKey: .nextSerial) ?? BoardSnapshot.baseSerial
-        let accent = try container.decodeIfPresent(String.self, forKey: .accentTheme) ?? ""
-        accentTheme = AccentTheme(rawValue: accent) ?? .ember
     }
 }
 
@@ -115,23 +112,20 @@ struct BoardSnapshotV2: Decodable {
     var tasks: [TaskItemV2]
     var labels: [LabelDef]
     var nextSerial: Int
-    var accentTheme: AccentTheme
 
-    enum CodingKeys: String, CodingKey { case tasks, labels, nextSerial, accentTheme }
+    enum CodingKeys: String, CodingKey { case tasks, labels, nextSerial }
 
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         tasks = try container.decode([TaskItemV2].self, forKey: .tasks)
         labels = try container.decodeIfPresent([LabelDef].self, forKey: .labels) ?? LabelDef.seed
         nextSerial = try container.decodeIfPresent(Int.self, forKey: .nextSerial) ?? BoardSnapshot.baseSerial
-        accentTheme = try container.decodeIfPresent(AccentTheme.self, forKey: .accentTheme) ?? .ember
     }
 
-    init(tasks: [TaskItemV2], labels: [LabelDef], nextSerial: Int, accentTheme: AccentTheme) {
+    init(tasks: [TaskItemV2], labels: [LabelDef], nextSerial: Int) {
         self.tasks = tasks
         self.labels = labels
         self.nextSerial = nextSerial
-        self.accentTheme = accentTheme
     }
 }
 
@@ -208,9 +202,8 @@ struct BoardSnapshotV3: Decodable {
     var tasks: [TaskItemV3]
     var labels: [LabelDef]
     var nextSerial: Int
-    var accentTheme: AccentTheme
 
-    enum CodingKeys: String, CodingKey { case version, tasks, labels, nextSerial, accentTheme }
+    enum CodingKeys: String, CodingKey { case version, tasks, labels, nextSerial }
 
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -218,15 +211,13 @@ struct BoardSnapshotV3: Decodable {
         tasks = try container.decode([TaskItemV3].self, forKey: .tasks)
         labels = try container.decodeIfPresent([LabelDef].self, forKey: .labels) ?? LabelDef.seed
         nextSerial = try container.decodeIfPresent(Int.self, forKey: .nextSerial) ?? BoardSnapshot.baseSerial
-        accentTheme = try container.decodeIfPresent(AccentTheme.self, forKey: .accentTheme) ?? .ember
     }
 
-    init(tasks: [TaskItemV3], labels: [LabelDef], nextSerial: Int, accentTheme: AccentTheme) {
+    init(tasks: [TaskItemV3], labels: [LabelDef], nextSerial: Int) {
         self.version = 3
         self.tasks = tasks
         self.labels = labels
         self.nextSerial = nextSerial
-        self.accentTheme = accentTheme
     }
 }
 
@@ -303,9 +294,8 @@ struct BoardSnapshotV4: Decodable {
     var columns: [BoardColumn]
     var labels: [LabelDef]
     var nextSerial: Int
-    var accentTheme: AccentTheme
 
-    enum CodingKeys: String, CodingKey { case version, tasks, columns, labels, nextSerial, accentTheme }
+    enum CodingKeys: String, CodingKey { case version, tasks, columns, labels, nextSerial }
 
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -314,16 +304,14 @@ struct BoardSnapshotV4: Decodable {
         columns = try container.decodeIfPresent([BoardColumn].self, forKey: .columns) ?? BoardColumn.workflow
         labels = try container.decodeIfPresent([LabelDef].self, forKey: .labels) ?? LabelDef.seed
         nextSerial = try container.decodeIfPresent(Int.self, forKey: .nextSerial) ?? BoardSnapshot.baseSerial
-        accentTheme = try container.decodeIfPresent(AccentTheme.self, forKey: .accentTheme) ?? .ember
     }
 
-    init(tasks: [TaskItemV4], columns: [BoardColumn], labels: [LabelDef], nextSerial: Int, accentTheme: AccentTheme) {
+    init(tasks: [TaskItemV4], columns: [BoardColumn], labels: [LabelDef], nextSerial: Int) {
         self.version = 4
         self.tasks = tasks
         self.columns = columns
         self.labels = labels
         self.nextSerial = nextSerial
-        self.accentTheme = accentTheme
     }
 }
 
@@ -404,8 +392,7 @@ extension BoardSnapshot {
         BoardSnapshotV2(
             tasks: v1.tasks.map(TaskItemV2.init(v1:)),
             labels: v1.labels,
-            nextSerial: max(v1.nextSerial, serialFloor(for: v1.tasks)),
-            accentTheme: v1.accentTheme
+            nextSerial: max(v1.nextSerial, serialFloor(for: v1.tasks))
         )
     }
 
@@ -420,8 +407,7 @@ extension BoardSnapshot {
         BoardSnapshotV3(
             tasks: v2.tasks.map(TaskItemV3.init(v2:)),
             labels: v2.labels,
-            nextSerial: v2.nextSerial,
-            accentTheme: v2.accentTheme
+            nextSerial: v2.nextSerial
         )
     }
 
@@ -446,8 +432,7 @@ extension BoardSnapshot {
             tasks: v3.tasks.map(TaskItemV4.init(v3:)),
             columns: BoardColumn.workflow,
             labels: v3.labels,
-            nextSerial: v3.nextSerial,
-            accentTheme: v3.accentTheme
+            nextSerial: v3.nextSerial
         )
     }
 
@@ -494,7 +479,6 @@ extension BoardSnapshot {
             boards: [board],
             labels: v4.labels,
             nextSerial: v4.nextSerial,
-            accentTheme: v4.accentTheme,
             activeBoardID: board.id
         )
     }
@@ -659,8 +643,68 @@ extension BoardSnapshot {
     /// kinder failure.
     static func migrate(v10: BoardSnapshot) -> BoardSnapshot {
         var snapshot = v10
-        snapshot.version = BoardSnapshot.currentVersion
+        snapshot.version = 11
         return snapshot
+    }
+
+    /// v12 makes the app's whole appearance board data.
+    ///
+    /// Until now the only thing a user could change about how the app looked was
+    /// the accent, chosen from four; a theme carries the ground, the two faces,
+    /// the card, the ink, the wash, the highlight, the status hues and the two
+    /// chip recipes, and there are twenty of them plus whatever the user builds.
+    /// So `accentTheme` goes and ``BoardSnapshot/themes`` arrives — one theme
+    /// for the light slot, one for the dark, and the user's own beside them.
+    ///
+    /// **The accent is not thrown away.** `accent` is the literal the old file
+    /// chose, read out of the bytes by
+    /// ``BoardSnapshot/legacyAccent(in:)`` because the field is gone by the time
+    /// this runs. Ember's rust is the default themes' own accent already, near
+    /// enough — Ember *is* the shipping theme, tuned — so it migrates to the two
+    /// presets untouched. Pine and Indigo do not exist anywhere in the twenty,
+    /// so rather than silently repaint an app that has been green for a year,
+    /// the step seeds a copy of each default theme wearing the old colour and
+    /// selects them. The user finds their app the colour they left it, and the
+    /// twenty presets one tap away.
+    ///
+    /// Ink migrates to the presets: it meant "the accent is the text colour",
+    /// which is a thing a theme has no parameter for and which no preset does.
+    ///
+    /// **The bump is for the other direction**, as every bump here is: a v11
+    /// build handed a v12 file finds no `accentTheme`, throws `keyNotFound`, and
+    /// quarantines a board it could have opened.
+    static func migrate(v11: BoardSnapshot, accent: UInt32? = nil) -> BoardSnapshot {
+        var snapshot = v11
+        snapshot.version = BoardSnapshot.currentVersion
+        snapshot.themes = themes(carrying: accent)
+        return snapshot
+    }
+
+    /// The default pair, or a copy of each wearing `accent`.
+    private static func themes(carrying accent: UInt32?) -> ThemeSettings {
+        guard let accent, accent != 0xC2532F else { return .seed }
+        var settings = ThemeSettings.seed
+        for appearance in ThemeAppearance.allCases {
+            var theme = ThemePresets.fallback(for: appearance)
+            theme.id = "migrated-\(appearance.rawValue)-\(ColorMath.hexString(accent).dropFirst())"
+            theme.name = theme.name + " (" + ColorMath.hexString(accent) + ")"
+            theme.highlight = ThemeHighlight(
+                accent: ThemeColor(accent),
+                // The preset's own tint strength, kept: how *far* a selected row
+                // is washed is the theme's judgement and does not change because
+                // the hue did.
+                soft: ThemeColor(accent, opacity: theme.highlight.soft.opacity),
+                // Worked out rather than kept: the preset's on-accent was chosen
+                // against the preset's accent, and white text on Pine's green is
+                // not the same decision as white text on Ember's rust.
+                onAccent: ThemeColor(
+                    ColorMath.prefersDarkText(on: accent) ? 0x141211 : 0xFCFBF9
+                )
+            )
+            settings.custom.append(theme)
+            settings.select(theme)
+        }
+        return settings
     }
 
     /// Fixed rather than fresh so migrating the same bytes twice — a file

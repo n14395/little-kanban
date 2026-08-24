@@ -94,7 +94,7 @@ struct InboxPanel: View {
         }
         .frame(width: chrome(metrics.width))
         .frame(maxHeight: .infinity)
-        .background(isDropTarget ? palette.accent.opacity(0.07) : palette.panel)
+        .background(isDropTarget ? palette.accent.opacity(0.07) : palette.panelOverlay)
         .hairline(.trailing, color: palette.ink(0.08))
         .overlay {
             if isDropTarget {
@@ -173,7 +173,7 @@ struct InboxPanel: View {
                 .foregroundStyle(palette.inkText(0.45))
                 .accessibilityHidden(true)
             Text(Board.inboxName)
-                .font(SimpleKanbanFont.ui(metrics.titleSize, .extraBold, relativeTo: .headline))
+                .font(palette.ui(metrics.titleSize, .extraBold, relativeTo: .headline))
                 .foregroundStyle(palette.ink)
             CountPill(count: count)
 
@@ -181,7 +181,7 @@ struct InboxPanel: View {
 
             Button { store.beginAdding(in: .inbox) } label: {
                 Image(systemName: "plus")
-                    .font(SimpleKanbanFont.ui(metrics.glyph, .medium, relativeTo: .footnote))
+                    .font(palette.ui(metrics.glyph, .medium, relativeTo: .footnote))
                     .foregroundStyle(palette.inkText(0.45))
                     .frame(minWidth: metrics.button, minHeight: metrics.button)
             }

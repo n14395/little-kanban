@@ -158,7 +158,7 @@ struct RootView: View {
     /// `preferredColorScheme` alone: that propagates *downwards*, so the view
     /// that sets it does not see it, and the palette is built in this body.
     private var palette: Palette {
-        Palette(colorScheme: appearance.colorScheme ?? colorScheme, accentTheme: store.accentTheme)
+        Palette(theme: store.theme(for: (appearance.colorScheme ?? colorScheme).themeAppearance))
     }
 
     var body: some View {
@@ -264,7 +264,7 @@ private struct SettingsWindow: View {
     @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
 
     private var palette: Palette {
-        Palette(colorScheme: appearance.colorScheme ?? colorScheme, accentTheme: store.accentTheme)
+        Palette(theme: store.theme(for: (appearance.colorScheme ?? colorScheme).themeAppearance))
     }
 
     var body: some View {
@@ -292,7 +292,7 @@ private struct AboutWindow: View {
     let startsCheck: Bool
 
     private var palette: Palette {
-        Palette(colorScheme: appearance.colorScheme ?? colorScheme, accentTheme: store.accentTheme)
+        Palette(theme: store.theme(for: (appearance.colorScheme ?? colorScheme).themeAppearance))
     }
 
     var body: some View {
@@ -321,7 +321,7 @@ private struct SettingsSheet: ViewModifier {
     /// the default light palette — and this sheet then opened cream-coloured
     /// over a dark board, with the default accent rather than the user's.
     private var palette: Palette {
-        Palette(colorScheme: appearance.colorScheme ?? colorScheme, accentTheme: store.accentTheme)
+        Palette(theme: store.theme(for: (appearance.colorScheme ?? colorScheme).themeAppearance))
     }
 
     func body(content: Content) -> some View {
@@ -362,7 +362,7 @@ private struct BoardSettingsSheet: ViewModifier {
     /// root's own `.environment(\.palette,)` and would otherwise read the
     /// default light palette.
     private var palette: Palette {
-        Palette(colorScheme: appearance.colorScheme ?? colorScheme, accentTheme: store.accentTheme)
+        Palette(theme: store.theme(for: (appearance.colorScheme ?? colorScheme).themeAppearance))
     }
 
     func body(content: Content) -> some View {
@@ -390,7 +390,7 @@ private struct BoardSettingsSheet: ViewModifier {
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(28)
-        .presentationBackground(palette.sheet)
+        .presentationBackground(palette.windowFill)
         #else
         BoardSettingsView(
             boardID: request.board,
@@ -426,7 +426,7 @@ private struct SaveFailureBanner: ViewModifier {
     /// palette, so the banner was drawing itself out of the light theme on a
     /// dark board.
     private var palette: Palette {
-        Palette(colorScheme: appearance.colorScheme ?? colorScheme, accentTheme: store.accentTheme)
+        Palette(theme: store.theme(for: (appearance.colorScheme ?? colorScheme).themeAppearance))
     }
 
     func body(content: Content) -> some View {
@@ -468,14 +468,14 @@ private struct SaveFailureBanner: ViewModifier {
                     .foregroundStyle(palette.accent)
                     .accessibilityHidden(true)
                 Text(message)
-                    .font(SimpleKanbanFont.ui(13, .semibold, relativeTo: .footnote))
+                    .font(palette.ui(13, .semibold, relativeTo: .footnote))
                     .foregroundStyle(palette.ink)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Button { store.dismissError() } label: {
                 Image(systemName: "xmark")
-                    .font(SimpleKanbanFont.ui(11, .bold, relativeTo: .caption2))
+                    .font(palette.ui(11, .bold, relativeTo: .caption2))
                     .foregroundStyle(palette.ink(0.55))
                     .frame(width: 44, height: 44)
             }
@@ -577,7 +577,7 @@ private struct FirstRunChoice: ViewModifier {
     /// it would read is the default light palette — which is how a picker comes
     /// to open cream-coloured over a dark board.
     private var palette: Palette {
-        Palette(colorScheme: appearance.colorScheme ?? colorScheme, accentTheme: store.accentTheme)
+        Palette(theme: store.theme(for: (appearance.colorScheme ?? colorScheme).themeAppearance))
     }
 
     /// Written only by the choice. The getter is what closes the cover once the
@@ -620,10 +620,10 @@ private struct SettingsWithAbout: View {
         Button { isShowingAbout = true } label: {
             HStack(spacing: 8) {
                 Text(AboutView.displayName)
-                    .font(SimpleKanbanFont.ui(14, .semibold, relativeTo: .subheadline))
+                    .font(palette.ui(14, .semibold, relativeTo: .subheadline))
                     .foregroundStyle(palette.ink(0.75))
                 Text(AboutView.versionLine)
-                    .font(SimpleKanbanFont.ui(12.5, .medium, relativeTo: .caption))
+                    .font(palette.ui(12.5, .medium, relativeTo: .caption))
                     .foregroundStyle(palette.ink(0.4))
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
@@ -642,7 +642,7 @@ private struct SettingsWithAbout: View {
         .accessibilityValue(AboutView.versionLine)
         .background {
             Rectangle()
-                .fill(palette.sheet)
+                .fill(palette.windowFill)
                 .hairline(.top, color: palette.ink(0.08))
                 .ignoresSafeArea(edges: .bottom)
         }

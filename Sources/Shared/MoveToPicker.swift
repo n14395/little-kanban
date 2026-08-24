@@ -115,7 +115,7 @@ struct MoveToPicker: View {
                 let isCurrent = destination.placement.columnID == currentColumnID
                 Button { onSelect(destination.placement) } label: {
                     Text(destination.title)
-                        .font(SimpleKanbanFont.ui(metrics.font, .bold, relativeTo: .caption))
+                        .font(palette.ui(metrics.font, .bold, relativeTo: .caption))
                         .foregroundStyle(isCurrent ? palette.ink : palette.inkText(0.5))
                         .lineLimit(1)
                         .fixedSize(horizontal: !expanding, vertical: false)

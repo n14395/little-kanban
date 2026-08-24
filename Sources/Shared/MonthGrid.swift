@@ -85,7 +85,7 @@ struct MonthGrid: View {
     private var header: some View {
         HStack(spacing: 0) {
             Text(Self.monthTitle(month))
-                .font(SimpleKanbanFont.ui(metrics.titleFont, .extraBold, relativeTo: .subheadline))
+                .font(palette.ui(metrics.titleFont, .extraBold, relativeTo: .subheadline))
                 .foregroundStyle(palette.ink)
             Spacer(minLength: 8)
             arrow("chevron.left", by: -1, name: "Previous month")
@@ -111,7 +111,7 @@ struct MonthGrid: View {
         HStack(spacing: 0) {
             ForEach(Array(Self.weekdayTitles().enumerated()), id: \.offset) { _, title in
                 Text(title)
-                    .font(SimpleKanbanFont.ui(metrics.weekdayFont, .extraBold, relativeTo: .caption2))
+                    .font(palette.ui(metrics.weekdayFont, .extraBold, relativeTo: .caption2))
                     .foregroundStyle(palette.inkText(0.4))
                     .textCase(.uppercase)
                     .lineLimit(1)
@@ -145,7 +145,7 @@ struct MonthGrid: View {
         let isThisMonth = day.month == month.month && day.year == month.year
         return Button { select(day) } label: {
             Text("\(day.day)")
-                .font(SimpleKanbanFont.ui(metrics.dayFont, isToday ? .extraBold : .semibold,
+                .font(palette.ui(metrics.dayFont, isToday ? .extraBold : .semibold,
                                           relativeTo: .footnote))
                 .foregroundStyle(colour(isSelected: isSelected, isToday: isToday, isThisMonth: isThisMonth))
                 .frame(maxWidth: .infinity)

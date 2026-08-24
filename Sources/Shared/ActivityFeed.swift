@@ -93,13 +93,13 @@ struct ActivityFeed: View {
 
     private func text(_ entry: ActivityEntry, today: CalendarDay) -> Text {
         Text(entry.text(today: today))
-            .font(SimpleKanbanFont.ui(metrics.font, .medium, relativeTo: .caption))
+            .font(palette.ui(metrics.font, .medium, relativeTo: .caption))
             .foregroundColor(palette.ink(Self.textInk))
     }
 
     private func stamp(_ entry: ActivityEntry, now: Date) -> Text {
         Text("· \(entry.whenText(from: now))")
-            .font(SimpleKanbanFont.ui(metrics.font, .semibold, relativeTo: .caption))
+            .font(palette.ui(metrics.font, .semibold, relativeTo: .caption))
             .foregroundColor(palette.ink(Self.stampInk))
     }
 }

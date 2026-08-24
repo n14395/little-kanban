@@ -584,7 +584,7 @@ final class FakeNotificationCenter: TaskNotificationCenter, @unchecked Sendable 
         // …and none of it is board data. See `PreferenceTests` for the whole
         // claim; this is the half that names these three keys.
         let snapshot = BoardSnapshot(tasks: TestBoard.tasks, labels: LabelDef.seed,
-                                     nextSerial: 100, accentTheme: .ember)
+                                     nextSerial: 100)
         let json = String(decoding: try JSONEncoder().encode(snapshot), as: UTF8.self)
         #expect(!json.contains("Reminder"))
         #expect(!json.contains("reminder"))

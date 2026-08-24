@@ -69,8 +69,8 @@ struct LabelManagerView: View {
         }
         .frame(width: metrics.width)
         .frame(maxHeight: metrics.maxHeight)
-        .background(palette.sheet)
-        .presentationBackground(palette.sheet)
+        .background(palette.windowFill)
+        .presentationBackground(palette.windowFill)
         .onChange(of: focusedKey) { previous, current in
             if previous != nil { commitRename() }
             if let current {
@@ -84,13 +84,13 @@ struct LabelManagerView: View {
     private var header: some View {
         HStack(spacing: 8) {
             Text("Labels")
-                .font(SimpleKanbanFont.ui(metrics.titleFont, .bold, relativeTo: .headline))
+                .font(palette.ui(metrics.titleFont, .bold, relativeTo: .headline))
                 .foregroundStyle(palette.ink)
             CountPill(count: store.labels.count)
             Spacer(minLength: 0)
             Button { dismiss() } label: {
                 Text("Done")
-                    .font(SimpleKanbanFont.ui(metrics.nameFont, .bold, relativeTo: .footnote))
+                    .font(palette.ui(metrics.nameFont, .bold, relativeTo: .footnote))
                     .foregroundStyle(palette.accent)
                     .padding(.horizontal, 8)
                     .frame(minHeight: metrics.glyphHit)
@@ -106,7 +106,7 @@ struct LabelManagerView: View {
     private var content: some View {
         if store.labels.isEmpty {
             Text("No labels yet. Add one from a task's Labels field.")
-                .font(SimpleKanbanFont.ui(metrics.nameFont, .medium, relativeTo: .footnote))
+                .font(palette.ui(metrics.nameFont, .medium, relativeTo: .footnote))
                 .foregroundStyle(palette.inkText(0.45))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(metrics.panelPadding)
@@ -130,7 +130,7 @@ struct LabelManagerView: View {
 
                 TextField("Label name", text: nameBinding(for: label))
                     .textFieldStyle(.plain)
-                    .font(SimpleKanbanFont.ui(metrics.nameFont, .bold, relativeTo: .footnote))
+                    .font(palette.ui(metrics.nameFont, .bold, relativeTo: .footnote))
                     .foregroundStyle(palette.ink)
                     .focused($focusedKey, equals: label.key)
                     .onSubmit { focusedKey = nil }
@@ -174,7 +174,7 @@ struct LabelManagerView: View {
             store.deleteLabel(label.key)
         } label: {
             Image(systemName: "trash")
-                .font(SimpleKanbanFont.ui(metrics.glyph, .bold, relativeTo: .footnote))
+                .font(palette.ui(metrics.glyph, .bold, relativeTo: .footnote))
                 .fontWeight(.semibold)
                 .foregroundStyle(palette.inkText(0.4))
                 .frame(minWidth: metrics.glyphHit, minHeight: metrics.glyphHit)

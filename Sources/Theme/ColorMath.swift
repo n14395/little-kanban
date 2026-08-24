@@ -136,6 +136,21 @@ enum ColorMath {
     /// towards white, which is what keeps a lightened colour from going chalky:
     /// blending `#1F6F63` halfway to white gives a washed grey-green, while
     /// lifting its brightness keeps the green.
+    /// `top` at `opacity` over `bottom`, flattened. Straight source-over in
+    /// sRGB, which is what every surface in the app is composited in and so what
+    /// the eye is already comparing the result against.
+    static func composite(_ top: UInt32, opacity: Double, over bottom: UInt32) -> UInt32 {
+        let alpha = min(max(opacity, 0), 1)
+        var out: UInt32 = 0
+        for shift in [16, 8, 0] {
+            let a = Double((top >> UInt32(shift)) & 0xFF)
+            let b = Double((bottom >> UInt32(shift)) & 0xFF)
+            let mixed = UInt32((b + (a - b) * alpha).rounded())
+            out |= min(mixed, 255) << UInt32(shift)
+        }
+        return out
+    }
+
     static func shade(_ value: UInt32, by amount: Double) -> UInt32 {
         var color = hsb(of: value)
         if amount >= 0 {

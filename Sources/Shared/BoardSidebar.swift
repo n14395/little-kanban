@@ -161,7 +161,7 @@ struct BoardSidebar: View {
         .padding(.top, 14)
         .padding(.bottom, 12)
         .frame(width: chrome.scaling(metrics.width, cap: 1.4))
-        .background(palette.sidebar)
+        .background(palette.panelOverlay)
         .hairline(.trailing, color: palette.ink(0.07))
         .labelManagerSheet(isPresented: managingLabels, metrics: metrics.labelManager)
         .sheet(item: $editing) { draft in
@@ -273,11 +273,11 @@ struct BoardSidebar: View {
             Button(action: createBoard) {
                 HStack(spacing: 9) {
                     Image(systemName: "plus")
-                        .font(SimpleKanbanFont.ui(9, .bold, relativeTo: .caption2))
+                        .font(palette.ui(9, .bold, relativeTo: .caption2))
                         .frame(width: 7)
                         .accessibilityHidden(true)
                     Text("New board", comment: "Sidebar row that starts a board")
-                        .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                        .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .foregroundStyle(palette.inkText(0.45))
@@ -335,7 +335,7 @@ struct BoardSidebar: View {
                     .frame(width: metrics.rowGlyph)
                     .accessibilityHidden(true)
                 Text(view.label)
-                    .font(SimpleKanbanFont.ui(metrics.rowFont, isActive ? .bold : .semibold, relativeTo: .subheadline))
+                    .font(palette.ui(metrics.rowFont, isActive ? .bold : .semibold, relativeTo: .subheadline))
                     .foregroundStyle(isActive ? palette.accent : palette.ink(0.66))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 CountPill(count: count)
@@ -408,7 +408,7 @@ struct BoardSidebar: View {
                     .frame(width: metrics.rowGlyph)
                     .accessibilityHidden(true)
                 Text("New view")
-                    .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                    .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
                     .foregroundStyle(palette.inkText(0.55))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -444,7 +444,7 @@ struct BoardSidebar: View {
                     .frame(width: metrics.rowGlyph)
                     .accessibilityHidden(true)
                 Text("Labels")
-                    .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                    .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
                     .foregroundStyle(palette.ink(0.66))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 CountPill(count: store.labels.count)
@@ -483,7 +483,7 @@ struct BoardSidebar: View {
                     .frame(width: metrics.rowGlyph)
                     .accessibilityHidden(true)
                 Text("Settings")
-                    .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                    .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
                     .foregroundStyle(palette.ink(0.66))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -566,7 +566,7 @@ struct BoardSidebar: View {
                     .frame(width: metrics.rowGlyph)
                     .accessibilityHidden(true)
                 Text("Trash")
-                    .font(SimpleKanbanFont.ui(metrics.rowFont, isOpen ? .bold : .semibold, relativeTo: .subheadline))
+                    .font(palette.ui(metrics.rowFont, isOpen ? .bold : .semibold, relativeTo: .subheadline))
                     .foregroundStyle(isOpen ? palette.accent : palette.ink(0.66))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 CountPill(count: count)
@@ -727,7 +727,7 @@ struct BoardSidebar: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             if let count {
                 Text("\(count)")
-                    .font(SimpleKanbanFont.ui(11, .bold, relativeTo: .caption2))
+                    .font(palette.ui(11, .bold, relativeTo: .caption2))
                     .opacity(isActive ? 0.7 : 0.5)
             }
         }
@@ -747,7 +747,7 @@ struct BoardSidebar: View {
 
     private func rowName(_ text: String, isActive: Bool) -> some View {
         Text(text)
-            .font(SimpleKanbanFont.ui(metrics.rowFont, isActive ? .bold : .semibold, relativeTo: .subheadline))
+            .font(palette.ui(metrics.rowFont, isActive ? .bold : .semibold, relativeTo: .subheadline))
             .lineLimit(1)
             .truncationMode(.tail)
     }

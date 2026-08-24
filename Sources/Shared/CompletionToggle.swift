@@ -74,7 +74,7 @@ struct CompletionToggle: View {
             .overlay {
                 if isDone {
                     Image(systemName: "checkmark")
-                        .font(SimpleKanbanFont.ui(
+                        .font(palette.ui(
                             metrics.size * metrics.glyphScale, .bold, relativeTo: .caption2
                         ))
                         .fontWeight(.bold)

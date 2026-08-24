@@ -46,6 +46,15 @@ struct LabelTone: Hashable, Sendable, Codable {
     /// The pair for a colour that is not a literal: the theme's own ink, at the
     /// two weights the `API` seed label uses. A picker can return `.ink` — the
     /// palette has a grey in it — and there is no hue to derive anything from.
+    /// The pair for a label painted with the accent, which is not a colour but
+    /// a *reference* to one. Stored as the reference, so the label follows the
+    /// theme the way a board dot painted accent does; the chip's two colours are
+    /// worked out from it at render time by ``Palette/chipTone(for:)``.
+    static let accentPair: (light: LabelTone, dark: LabelTone) = (
+        light: LabelTone(background: .accent, foreground: .accent),
+        dark: LabelTone(background: .accent, foreground: .accent)
+    )
+
     static let inkPair: (light: LabelTone, dark: LabelTone) = (
         light: LabelTone(background: .ink(opacity: 0.08), foreground: .ink(opacity: 0.6)),
         dark: LabelTone(background: .ink(opacity: 0.10), foreground: .ink(opacity: 0.65))

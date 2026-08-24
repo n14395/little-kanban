@@ -372,7 +372,7 @@ import Testing
         try FileManager.default.createDirectory(
             at: temp.file.backupsDirectory, withIntermediateDirectories: true
         )
-        try BoardSnapshot(tasks: [], boards: [], labels: [], nextSerial: 100, accentTheme: .ember)
+        try BoardSnapshot(tasks: [], boards: [], labels: [], nextSerial: 100)
             .encoded()
             .write(to: temp.file.backupsDirectory.appending(path: "board-20260814T090000Z.json"))
         let backup = try #require(temp.file.backups().first)
@@ -433,8 +433,8 @@ import Testing
 
         // The accent is a preference, not board data: it is not in
         // `BoardMutation`, so there is nothing for a step to restore.
-        step(undo) { store.setAccentTheme(.pine) }
-        #expect(store.accentTheme == .pine)
+        step(undo) { store.selectTheme(TestBoard.otherDarkTheme) }
+        #expect(store.themes.darkID == TestBoard.otherDarkTheme.id)
         #expect(undo.undoActionName == "")
         #expect(board(store) == before)
 

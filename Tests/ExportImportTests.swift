@@ -27,7 +27,7 @@ import UniformTypeIdentifiers
         return BoardSnapshot(
             tasks: [loaded, filed] + tasks[2..<5] + [tasks[0]],
             boards: TestBoard.boards, labels: LabelDef.seed, nextSerial: 187,
-            accentTheme: .indigo, activeBoardID: TestBoard.support.id
+            activeBoardID: TestBoard.support.id
         )
     }
 
@@ -37,7 +37,7 @@ import UniformTypeIdentifiers
         #expect(read.boards == written.boards, what)
         #expect(read.labels == written.labels, what)
         #expect(read.nextSerial == written.nextSerial, what)
-        #expect(read.accentTheme == written.accentTheme, what)
+        #expect(read.themes == written.themes, what)
         #expect(read.activeBoardID == written.activeBoardID, what)
     }
 
@@ -155,19 +155,20 @@ import UniformTypeIdentifiers
         #expect(store.tasks.first { $0.title == "Somebody's stray thought" }?.isUnfiled == true)
     }
 
-    /// The active board is where the user is looking, and the accent is a
-    /// preference they set on this machine. Neither is the arriving file's to
-    /// change, and both are in the document the file carries.
-    @Test func theActiveBoardAndTheAccentAreNotTheFilesToChange() {
+    /// The active board is where the user is looking, and the themes are how
+    /// this machine has been set to look. Neither is the arriving file's to
+    /// change, and both are in the document the file carries — **importing a
+    /// board must not repaint the app**.
+    @Test func theActiveBoardAndTheThemesAreNotTheFilesToChange() {
         let store = TestBoard.store(tasks: TestBoard.tasks(on: SeedData.defaultBoard))
         let wasActive = store.activeBoardID
-        let wasAccent = store.accentTheme
+        let wasThemes = store.themes
         #expect(ForeignBoard.snapshot().activeBoardID != wasActive)
-        #expect(ForeignBoard.snapshot().accentTheme != wasAccent)
+        #expect(ForeignBoard.snapshot().themes != wasThemes)
 
         store.importBoard(ForeignBoard.snapshot())
         #expect(store.activeBoardID == wasActive)
-        #expect(store.accentTheme == wasAccent)
+        #expect(store.themes == wasThemes)
     }
 
     /// The same claim of `merging` itself rather than of the store.
@@ -176,18 +177,18 @@ import UniformTypeIdentifiers
     /// merge that copied them across is invisible from outside today — and a
     /// trap for the first caller that writes a merged snapshot straight to disk
     /// or hands it anywhere else.
-    @Test func theMergeItselfLeavesTheAccentAndTheActiveBoardAlone() {
+    @Test func theMergeItselfLeavesTheThemesAndTheActiveBoardAlone() {
         let mine = BoardSnapshot(
             tasks: TestBoard.tasks(on: SeedData.defaultBoard), boards: [SeedData.defaultBoard],
-            labels: LabelDef.seed, nextSerial: 100, accentTheme: .ember,
+            labels: LabelDef.seed, nextSerial: 100,
             activeBoardID: SeedData.defaultBoard.id
         )
         let incoming = ForeignBoard.snapshot(includingCollision: true)
-        #expect(incoming.accentTheme != mine.accentTheme)
+        #expect(incoming.themes != mine.themes)
         #expect(incoming.activeBoardID != mine.activeBoardID)
 
         let merged = mine.merging(incoming).snapshot
-        #expect(merged.accentTheme == mine.accentTheme)
+        #expect(merged.themes == mine.themes)
         #expect(merged.activeBoardID == mine.activeBoardID)
         #expect(merged.version == BoardSnapshot.currentVersion)
     }
@@ -392,7 +393,7 @@ import UniformTypeIdentifiers
         )
         arriving.placement = .column(board: clashing.id, column: BoardColumn.backlog.id)
         let incoming = BoardSnapshot(tasks: [arriving], boards: [clashing], labels: [],
-                                     nextSerial: 200, accentTheme: .ember)
+                                     nextSerial: 200)
 
         let store = TestBoard.store(tasks: TestBoard.tasks(on: SeedData.defaultBoard))
         store.importBoard(incoming)
@@ -415,7 +416,7 @@ import UniformTypeIdentifiers
         incomingBoard.codePrefix = "XX"
         incomingBoard.columns = [BoardColumn.backlog, TestBoard.queue]
         let incoming = BoardSnapshot(tasks: [], boards: [incomingBoard], labels: [],
-                                     nextSerial: 200, accentTheme: .ember)
+                                     nextSerial: 200)
 
         let store = TestBoard.store(tasks: TestBoard.tasks(on: SeedData.defaultBoard))
         let summary = store.importBoard(incoming)
@@ -460,7 +461,7 @@ import UniformTypeIdentifiers
         let snapshot = BoardSnapshot(
             tasks: TestBoard.tasks(on: SeedData.defaultBoard, archiving: [TestBoard.palette: 300]),
             boards: [SeedData.defaultBoard], labels: LabelDef.seed,
-            nextSerial: 100, accentTheme: .ember
+            nextSerial: 100
         )
         let markdown = BoardMarkdown.render(snapshot, today: TestBoard.dueDay)
 

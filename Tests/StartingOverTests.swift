@@ -52,9 +52,9 @@ import Testing
     /// board they are replacing.
     @Test func theAccentSurvives() {
         let store = TestBoard.store()
-        store.setAccentTheme(.ink)
+        store.selectTheme(TestBoard.otherDarkTheme)
         store.startOver(with: SeedData.sprint.snapshot)
-        #expect(store.accentTheme == .ink)
+        #expect(store.themes.darkID == TestBoard.otherDarkTheme.id)
     }
 
     /// One ⌘Z, and it puts back everything — which is the whole reason the

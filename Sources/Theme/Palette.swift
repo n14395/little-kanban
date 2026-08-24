@@ -1,90 +1,129 @@
 import SwiftUI
 
-/// The four accent options the design exposes as an editable prop.
-enum AccentTheme: String, CaseIterable, Identifiable, Sendable, Codable {
-    case ember, pine, indigo, ink
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .ember: "Ember"
-        case .pine: "Pine"
-        case .indigo: "Indigo"
-        case .ink: "Ink"
-        }
-    }
-
-    /// The accent as a literal, for the places that need the *value* and not
-    /// the colour — deriving a label's four tones from it, mostly, where the
-    /// arithmetic happens in the model and there is no `Color` to take apart.
-    ///
-    /// `nil` for Ink, which is not a hex: it is the theme's own ink and differs
-    /// between light and dark. A caller that needs a number has to say what it
-    /// means by the absence of one.
-    var hex: UInt32? {
-        switch self {
-        case .ember: 0xC2532F
-        case .pine: 0x1F6F63
-        case .indigo: 0x3B5BA9
-        case .ink: nil
-        }
-    }
-}
-
-/// Colour tokens lifted from the design's `[data-theme="light"]` /
-/// `[data-theme="dark"]` blocks.
+/// Every colour, face and corner in the app, asked of the theme in force.
 ///
-/// Anything the spec writes as `rgba(var(--ink-rgb), a)` goes through
-/// ``ink(_:)`` and anything written as `rgba(var(--sh-rgb), a)` goes through
-/// ``shadow(_:)`` — those two differ in dark mode, where shadows go pure black
-/// while ink goes near-white.
+/// **The palette used to be the theme.** Two columns of literals — one under
+/// `[data-theme="light"]`, one under `[data-theme="dark"]` — and a `colorScheme`
+/// to pick between them. It holds a ``Theme`` now, and every one of these
+/// properties is a question put to it, so switching theme is an assignment and
+/// nothing has to be invalidated, re-registered or told.
+///
+/// What is *not* in the theme is still here, and deliberately: the contrast
+/// floor under text (``inkText(_:)``), the scrim behind a panel, and the rule
+/// for which of black or white can be read on an arbitrary colour. Those are not
+/// taste, and a theme that could set them could produce an app that cannot be
+/// read.
 struct Palette: Equatable, Sendable {
-    var colorScheme: ColorScheme
-    var accentTheme: AccentTheme = .ember
+    var theme: Theme
 
-    private var isDark: Bool { colorScheme == .dark }
+    init(theme: Theme) {
+        self.theme = theme
+    }
+
+    /// Which way round the app is, for the handful of things that ask the
+    /// question rather than take a colour: the system's own chrome, the
+    /// keyboard, and the two places a scrim has to be heavier in the dark.
+    var colorScheme: ColorScheme { theme.appearance.colorScheme }
+
+    var isDark: Bool { theme.appearance == .dark }
+
+    // MARK: Type
+
+    /// The UI face, `step` from its baseline. See ``ThemeFont/weight``.
+    func ui(
+        _ size: CGFloat, _ step: SimpleKanbanFont.Weight = .regular,
+        relativeTo textStyle: Font.TextStyle = .body
+    ) -> Font {
+        SimpleKanbanFont.font(theme.uiFont, size: size, step: step, relativeTo: textStyle)
+    }
+
+    /// The display face — board titles and the task title in the inspector, and
+    /// nothing else. The design is emphatic about the "and nothing else": a
+    /// display face used for a fourth thing stops being the thing that marks the
+    /// other three.
+    func display(_ size: CGFloat, relativeTo textStyle: Font.TextStyle = .title) -> Font {
+        SimpleKanbanFont.font(theme.displayFont, size: size, relativeTo: textStyle)
+    }
 
     // MARK: Ink & shadow
 
-    /// `--ink-rgb`
-    private var inkHex: UInt32 { isDark ? 0xEEEAE2 : 0x171310 }
-    /// `--sh-rgb`
-    private var shadowHex: UInt32 { isDark ? 0x000000 : 0x171310 }
+    private var inkHex: UInt32 { theme.ink.base.hex }
 
-    var ink: Color { Color(hex: inkHex) }
+    var ink: Color { theme.ink.base.color }
     func ink(_ opacity: Double) -> Color { Color(hex: inkHex, opacity: opacity) }
-    func shadow(_ opacity: Double) -> Color { Color(hex: shadowHex, opacity: opacity) }
+
+    /// Ink at the theme's own two quieter weights, for the things that are not
+    /// text: a hairline, a dot, an empty meter track. Text goes through
+    /// ``inkText(_:)`` and gets a floor.
+    var inkMuted: Color { ink(theme.ink.muted) }
+    var inkFaint: Color { ink(theme.ink.faint) }
+
+    /// Not the theme's ink. A shadow is the *absence* of what is behind it, and
+    /// in a dark theme that is black rather than the near-white the text is
+    /// drawn in — see ``scrim(_:)`` for what happened the last time these two
+    /// were the same colour.
+    func shadow(_ opacity: Double) -> Color {
+        Color(hex: isDark ? 0x000000 : inkHex, opacity: opacity)
+    }
 
     // MARK: Surfaces
 
-    /// `--win` — the macOS window body.
-    var window: Color { Color(hex: isDark ? 0x191614 : 0xFCFBF9) }
-    /// `--side` — sidebar and iOS navigation drawer.
-    var sidebar: Color { Color(hex: isDark ? 0x141211 : 0xF1EDE6) }
-    /// `--card` — task cards and popovers.
-    var card: Color { Color(hex: isDark ? 0x221E1B : 0xFFFFFF) }
-    /// `--panel` — the macOS inspector.
-    var panel: Color { Color(hex: isDark ? 0x171514 : 0xFAF8F4) }
-    /// `--app` — the iOS app background.
-    var appBackground: Color { Color(hex: isDark ? 0x131110 : 0xF6F3EE) }
-    /// `--sheet` — the iOS detail sheet.
-    var sheet: Color { Color(hex: isDark ? 0x1C1917 : 0xFBF9F5) }
+    /// The window's ground. Every theme but the flattest carries a gradient, so
+    /// this is a `LinearGradient` rather than a `Color` — it is a `ShapeStyle`
+    /// either way and goes into `.background(_:)` unchanged.
+    var windowFill: LinearGradient {
+        LinearGradient(
+            gradient: theme.windowBackground.gradient,
+            startPoint: theme.windowBackground.startPoint,
+            endPoint: theme.windowBackground.endPoint
+        )
+    }
+
+    /// The one flat colour that stands for the window, for the places a gradient
+    /// cannot go: a colour being interpolated towards transparent, a menu-bar
+    /// popover with no window behind it, a thumbnail. See
+    /// ``ThemeGradient/representative``.
+    var ground: Color { theme.windowBackground.representative.color }
+
+    /// The wash a sidebar or an inspector lays over the window.
+    ///
+    /// **Translucent, and that is the point.** The design draws one ground for
+    /// the whole window and darkens or lightens the panels over it, so the
+    /// gradient runs *through* the sidebar rather than stopping at its edge. A
+    /// panel that painted an opaque colour would cut the window in three.
+    var panelOverlay: Color { theme.panelOverlay.color }
+
+    /// The same wash with the window's own colour already behind it, for a panel
+    /// that has no window behind it to be washed over: the menu-bar popover.
+    var panelSolid: Color { theme.panelOverlay.composited(over: theme.windowBackground.representative).color }
+
+    /// The window's ground with the panel wash already on it, as a view, for a
+    /// panel that covers rather than sits beside: the iPhone's navigation
+    /// drawer. Layered rather than flattened so the gradient still runs through
+    /// it — a drawer painted one flat colour is a slab across a window that is
+    /// not flat anywhere else.
+    var panelBackdrop: some View { windowFill.overlay(panelOverlay) }
+
+    var card: Color { theme.card.fill.color }
+    /// A card standing on its own — a popover, a sheet's backing — where the
+    /// window is not behind it to show through.
+    var cardSolid: Color { theme.card.fill.composited(over: theme.windowBackground.representative).color }
+    var cardBorder: Color { theme.card.border.color }
+    var cardRadius: CGFloat { theme.card.radius }
+
+    /// The design's `wash`: the search field, count pills, the segmented
+    /// control's track, an empty meter.
+    var wash: Color { theme.wash.color }
 
     // MARK: Accent
 
-    var accent: Color {
-        accentTheme.hex.map { Color(hex: $0) } ?? ink
-    }
+    var accent: Color { theme.highlight.accent.color }
+    var accentSoft: Color { theme.highlight.soft.color }
 
-    var accentSoft: Color {
-        switch accentTheme {
-        case .ember: Color(hex: 0xC2532F, opacity: 0.12)
-        case .pine: Color(hex: 0x1F6F63, opacity: 0.13)
-        case .indigo: Color(hex: 0x3B5BA9, opacity: 0.12)
-        case .ink: ink(0.08)
-        }
-    }
+    /// The accent as a number, for the places that need the *value* and not the
+    /// colour: deriving a label's chip from it, ringing it in a picker, deciding
+    /// what can be read on it.
+    var accentValue: UInt32 { theme.highlight.accent.hex }
 
     // MARK: Resolution
 
@@ -101,6 +140,14 @@ struct Palette: Equatable, Sendable {
     }
 }
 
+extension ColorScheme {
+    /// Which of a board's two theme slots this scheme asks for. Anything the
+    /// framework adds beyond light and dark reads as light, which is the safe
+    /// half: a light theme on a dark system is legible, and the reverse is a
+    /// window nobody can see.
+    var themeAppearance: ThemeAppearance { self == .dark ? .dark : .light }
+}
+
 extension EnvironmentValues {
-    @Entry var palette = Palette(colorScheme: .light)
+    @Entry var palette = Palette(theme: ThemePresets.fallback(for: .light))
 }

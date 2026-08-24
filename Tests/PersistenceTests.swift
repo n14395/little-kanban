@@ -30,7 +30,7 @@ import Testing
             tasks: [task] + TestBoard.tasks[2..<5] + [filed],
             labels: LabelDef.seed,
             nextSerial: 137,
-            accentTheme: .pine
+            themes: TestBoard.otherThemes
         )
         try temp.file.write(written, generation: temp.file.nextWriteGeneration())
 
@@ -40,7 +40,7 @@ import Testing
         #expect(result.migratedFromVersion == nil)
         #expect(read.version == BoardSnapshot.currentVersion)
         #expect(read.nextSerial == 137)
-        #expect(read.accentTheme == .pine)
+        #expect(read.themes == TestBoard.otherThemes)
         #expect(read.labels == LabelDef.seed)
         #expect(read.tasks == written.tasks)
         #expect(read.tasks[0].activity.map(\.kind) == TestBoard.everyActivityKind)
@@ -51,7 +51,7 @@ import Testing
     @Test func aDueDateIsStoredAsAReadableDay() throws {
         let temp = TempBoard()
         let snapshot = BoardSnapshot(tasks: TestBoard.tasks, labels: LabelDef.seed,
-                                     nextSerial: 100, accentTheme: .ember)
+                                     nextSerial: 100)
         try temp.file.write(snapshot, generation: temp.file.nextWriteGeneration())
         #expect(try temp.text().contains("\"due\" : \"2026-08-20\""))
     }
@@ -67,7 +67,14 @@ import Testing
         #expect(result.migratedFromVersion == 1)
         #expect(result.failure == nil)
         #expect(snapshot.version == BoardSnapshot.currentVersion)
-        #expect(snapshot.accentTheme == .pine)
+        // The fixture chose Pine, which is not any of the twenty themes' accent,
+        // so the v12 step carries it across on a copy of each default rather
+        // than repainting a board that has been green since v1. See
+        // `BoardMigration.migrate(v11:accent:)`.
+        #expect(snapshot.themes.custom.count == 2)
+        #expect(snapshot.themes.custom.allSatisfy { $0.highlight.accent.hex == 0x1F6F63 })
+        #expect(snapshot.themes.theme(for: .dark).highlight.accent.hex == 0x1F6F63)
+        #expect(snapshot.themes.theme(for: .light).highlight.accent.hex == 0x1F6F63)
         #expect(snapshot.nextSerial == 100)
         #expect(snapshot.labels.map(\.key) == ["design", "ios", "api", "bug", "polish", "release-1-2"])
         #expect(snapshot.labels.last?.name == "Release 1.2")
@@ -184,7 +191,7 @@ import Testing
     @Test func truncatedJSONFallsBackAndIsMovedAside() throws {
         let temp = TempBoard()
         let whole = try encode(BoardSnapshot(tasks: TestBoard.tasks, labels: LabelDef.seed,
-                                             nextSerial: 100, accentTheme: .ember))
+                                             nextSerial: 100))
         try temp.put(whole.prefix(whole.count / 2))
         let result = temp.file.load()
         #expect(result.snapshot == nil)
@@ -340,7 +347,7 @@ import Testing
     @Test func aBackupCanBeReadBackAsABoard() throws {
         let temp = TempBoard()
         let snapshot = BoardSnapshot(tasks: TestBoard.tasks, labels: LabelDef.seed,
-                                     nextSerial: 111, accentTheme: .pine)
+                                     nextSerial: 111)
         try temp.file.write(snapshot, generation: temp.file.nextWriteGeneration())
         temp.file.backupIfDue()
 
@@ -353,7 +360,7 @@ import Testing
 
     @Test func aSecondBackupWaitsForTheInterval() throws {
         let temp = TempBoard()
-        try temp.file.write(BoardSnapshot(tasks: [], labels: [], nextSerial: 100, accentTheme: .ember),
+        try temp.file.write(BoardSnapshot(tasks: [], labels: [], nextSerial: 100),
                             generation: temp.file.nextWriteGeneration())
         temp.file.backupIfDue()
         temp.file.backupIfDue()
@@ -373,8 +380,8 @@ import Testing
         let stale = temp.file.nextWriteGeneration()
         let fresh = temp.file.nextWriteGeneration()
 
-        let newer = BoardSnapshot(tasks: TestBoard.tasks, labels: LabelDef.seed, nextSerial: 200, accentTheme: .ember)
-        let older = BoardSnapshot(tasks: [], labels: [], nextSerial: 100, accentTheme: .ember)
+        let newer = BoardSnapshot(tasks: TestBoard.tasks, labels: LabelDef.seed, nextSerial: 200)
+        let older = BoardSnapshot(tasks: [], labels: [], nextSerial: 100)
         #expect(try temp.file.write(newer, generation: fresh) == true)
         #expect(try temp.file.write(older, generation: stale) == false)
         #expect(try temp.snapshot().nextSerial == 200)

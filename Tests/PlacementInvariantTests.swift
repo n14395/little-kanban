@@ -83,7 +83,7 @@ import Testing
     private static func store(file: BoardFile? = nil) -> BoardStore {
         let store = BoardStore(
             tasks: tasks(), boards: [alpha, beta], activeBoardID: alphaID, labels: LabelDef.seed,
-            accentTheme: .ember, nextSerial: BoardSnapshot.baseSerial + 7, file: file
+             nextSerial: BoardSnapshot.baseSerial + 7, file: file
         )
         // The pager starts on a real column of the active board, so the phone's
         // "add here" is a board placement rather than falling through to the Inbox.
@@ -367,7 +367,7 @@ import Testing
             at: 0
         )
         let store = BoardStore(tasks: [wanderer], boards: [Self.alpha, Self.beta],
-                               activeBoardID: Self.alphaID)
+ activeBoardID: Self.alphaID)
         #expect(store[Self.spare].map { store.isDone($0) } == true)
 
         store.reopen(Self.spare)

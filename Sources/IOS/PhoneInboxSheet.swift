@@ -159,7 +159,7 @@ struct PhoneInboxSheet: View {
                     .presentationDetents([.fraction(metrics.heightFraction)])
                     .presentationDragIndicator(.visible)
                     .presentationCornerRadius(metrics.cornerRadius)
-                    .presentationBackground(palette.sheet)
+                    .presentationBackground(palette.windowFill)
             }
         }
         // A card tapped in here opens the editor. Upright the root cannot put
@@ -373,7 +373,10 @@ struct PhoneInboxSheet: View {
         // rather than filling a detent, and a `VStack` asked for a height it
         // does not need would leave its ground short of the corner.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(isDropTarget ? palette.accent.opacity(0.07) : palette.sheet)
+        // The tint goes *over* the ground rather than replacing it: the ground
+        // is the theme's gradient now, and a flat accent wash in its place would
+        // make the panel change shape as well as colour under a card.
+        .background { palette.windowFill.overlay(isDropTarget ? palette.accent.opacity(0.07) : .clear) }
         // Most of a panel is the space around its cards, and empty space is hit
         // tested only where something has said what shape it is.
         .contentShape(.rect)
@@ -396,7 +399,7 @@ struct PhoneInboxSheet: View {
     private var header: some View {
         HStack(spacing: 10) {
             Text(Board.inboxName)
-                .font(SimpleKanbanFont.serif(metrics.titleSize))
+                .font(palette.display(metrics.titleSize))
                 .foregroundStyle(palette.ink)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($isTitleFocused)
@@ -404,7 +407,7 @@ struct PhoneInboxSheet: View {
             Spacer(minLength: 0)
             Button { store.isInboxOpen = false } label: {
                 Image(systemName: "xmark")
-                    .font(SimpleKanbanFont.ui(12, .semibold, relativeTo: .footnote))
+                    .font(palette.ui(12, .semibold, relativeTo: .footnote))
                     .fontWeight(.semibold)
                     .foregroundStyle(palette.inkText(0.55))
                     .frame(minWidth: 28, minHeight: 28)
@@ -449,7 +452,7 @@ struct PhoneInboxSheet: View {
     private var addRow: some View {
         Button(action: add) {
             Text("+ Add task to \(Board.inboxName)")
-                .font(SimpleKanbanFont.ui(13.5, .bold, relativeTo: .subheadline))
+                .font(palette.ui(13.5, .bold, relativeTo: .subheadline))
                 .foregroundStyle(palette.inkText(0.45))
                 .frame(maxWidth: .infinity)
                 .padding(14)

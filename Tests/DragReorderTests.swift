@@ -93,7 +93,7 @@ import Testing
 
     private func store() -> BoardStore {
         BoardStore(tasks: Self.tasks, boards: Self.boards, activeBoardID: Self.boards[0].id,
-                   labels: LabelDef.seed, accentTheme: .ember, nextSerial: BoardSnapshot.baseSerial)
+                   labels: LabelDef.seed, nextSerial: BoardSnapshot.baseSerial)
     }
 
     /// The cards sharing a placement, in board order — which is the order the

@@ -175,6 +175,6 @@ import Testing
         #expect(store.labelTones(for: .ink(opacity: 0.35)).light == LabelTone.inkPair.light)
         // The accent is resolved against the theme in force: a chip's ground is
         // a tint, and `.accent` carries no opacity to tint with.
-        #expect(store.labelTones(for: .accent).light == LabelTone.pair(from: AccentTheme.ember.hex!).light)
+        #expect(store.labelTones(for: .accent).light == LabelTone.accentPair.light)
     }
 }
