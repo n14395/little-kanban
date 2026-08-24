@@ -467,7 +467,7 @@ import Testing
         step(undo) { store.toggleLabel("bug", on: TestBoard.cafe) }
         step(undo) { store.createLabel(named: "Infra Work", on: TestBoard.cafe) }
         step(undo) { store.renameLabel("design", to: "Visual design") }
-        step(undo) { store.recolorLabel("design", to: LabelDef.palette[0]) }
+        step(undo) { store.recolorLabel("design", to: .hex(0x3B5BA9)) }
         step(undo) { store.deleteLabel("design") }
 
         #expect(undo.undoActionName == "Delete Label")

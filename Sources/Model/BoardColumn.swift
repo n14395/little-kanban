@@ -25,6 +25,16 @@ struct BoardColumn: Identifiable, Hashable, Codable, Sendable {
     var name: String
     var short: String
     var dot: SwatchColor
+
+    /// What a column made by hand starts as, before anybody picks a colour.
+    ///
+    /// **Deliberately not one of `Board.dots`.** The six are choices; this is
+    /// the absence of one, which is why the composer's swatches show no ring
+    /// until a swatch is pressed. Named rather than spelled twice, because
+    /// `BoardStore.addColumn` takes it as a parameter default and
+    /// `BoardSettingsView` opens its picker on it — two spellings of one
+    /// default would differ the day one of them was changed.
+    static let defaultDot: SwatchColor = .ink(opacity: 0.35)
 }
 
 extension BoardColumn {

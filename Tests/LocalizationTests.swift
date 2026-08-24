@@ -209,7 +209,7 @@ import Testing
     @Test func theStringsShownThroughViewHelpersAreInTheTable() throws {
         let table = try compiledTable()
         let throughAHelper = [
-            "Boards", "Views", "Labels", "Reminders",   // sidebar and drawer section headings
+            "Boards", "Views", "Manage", "Labels", "Reminders",  // sidebar and drawer section headings
             "Name", "Short",                            // the column editors, both platforms
             "Due", "Priority",                          // inspector field names, phone attribute cards
             "Move Up", "Move Down",                     // the drawer's column stepper

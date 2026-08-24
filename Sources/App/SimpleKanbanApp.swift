@@ -383,6 +383,8 @@ private struct BoardSettingsSheet: ViewModifier {
             boardID: request.board,
             metrics: .sheet,
             focusesName: request.focusesName,
+            addsColumn: request.addsColumn,
+            namesNewBoard: request.namesNewBoard,
             expandsColumn: request.column
         )
         .presentationDetents([.large])
@@ -394,6 +396,8 @@ private struct BoardSettingsSheet: ViewModifier {
             boardID: request.board,
             metrics: .desk,
             focusesName: request.focusesName,
+            addsColumn: request.addsColumn,
+            namesNewBoard: request.namesNewBoard,
             expandsColumn: request.column
         )
         .frame(width: 420, height: 560)

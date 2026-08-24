@@ -80,6 +80,153 @@ final class BoardSettingsSheetTests: XCTestCase {
             .first { $0.frame.minY > header.maxY && $0.frame.maxY < foot.minY }
     }
 
+    /// **A new column is named, abbreviated and coloured in one go**, and the
+    /// composer still clears the software keyboard now that it holds all three.
+    ///
+    /// **Landscape, because that is where this has already gone wrong once.**
+    /// 402pt of phone minus a keyboard leaves around 238 for a composer that
+    /// was near 200 when it carried a Role picker above its Name field — the
+    /// picker measured unhittable, and every column made in landscape came out
+    /// a Backlog with nothing said. The roles left in v9 and the Short field
+    /// has taken back some of the height they freed, so the clearance is
+    /// measured rather than assumed: `isHittable` is what a control being under
+    /// the keyboard actually looks like from out here.
+    ///
+    /// Skipped where there is no software keyboard to clear — a simulator with
+    /// a hardware keyboard attached would pass this whatever the layout did,
+    /// and a test that cannot fail is worse than none.
+    func testAColumnIsNamedAbbreviatedAndColouredClearOfTheKeyboard() throws {
+        try XCTSkipUnless(
+            UIDevice.current.userInterfaceIdiom == .phone,
+            "the keyboard only takes half the screen on a phone"
+        )
+        let app = opened()
+        XCUIDevice.shared.orientation = .landscapeLeft
+
+        let add = app.buttons["+ Add column"]
+        XCTAssertTrue(add.waitForExistence(timeout: 10), "no way to add a column")
+        add.tap()
+
+        let name = app.textFields["Column name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5), "the composer has no Name field")
+        name.tap()
+        name.typeText("Blocked")
+
+        let keyboard = app.keyboards.firstMatch
+        guard keyboard.waitForExistence(timeout: 3) else {
+            throw XCTSkip("no software keyboard on this simulator, so there is nothing to clear")
+        }
+
+        // The two controls that could not be reached before this change at all:
+        // the abbreviation and the dot were editable only by making the column
+        // and then opening the row that had just appeared.
+        let short = app.textFields["Short name"]
+        XCTAssertTrue(short.exists, "the composer has no Short field")
+        XCTAssertTrue(
+            short.isHittable,
+            "the Short field is under the keyboard — \(short.frame) against \(keyboard.frame)"
+        )
+        let swatch = try XCTUnwrap(
+            composerSwatch("Indigo", beside: name, in: app), "the composer has no colour swatches"
+        )
+        XCTAssertTrue(
+            swatch.isHittable,
+            "the swatches are under the keyboard — \(swatch.frame) against \(keyboard.frame)"
+        )
+        let confirm = app.buttons["Add Column"]
+        XCTAssertTrue(
+            confirm.isHittable,
+            "Add Column is under the keyboard — \(confirm.frame) against \(keyboard.frame)"
+        )
+
+        short.tap()
+        short.typeText("Blk")
+        // Pressed rather than just measured: a picker bound to nothing draws
+        // exactly the same six circles, and the ring is what says otherwise.
+        swatch.tap()
+        XCTAssertTrue(swatch.isSelected, "pressing a swatch did not mark it as the colour")
+
+        confirm.tap()
+        XCTAssertTrue(name.waitForNonExistence(timeout: 5), "the composer stayed open")
+        XCTAssertNotNil(columnRow("Blocked", in: app), "the column was never added")
+    }
+
+    /// One of the composer's swatches, told from the board's own by where it
+    /// sits: the board's colour row is above the columns and scrolls away with
+    /// them, while the composer's is level with its Name field in one row and
+    /// under it in two. Both rows publish the same six names, so a plain query
+    /// matches twice.
+    private func composerSwatch(
+        _ colour: String, beside name: XCUIElement, in app: XCUIApplication
+    ) -> XCUIElement? {
+        app.buttons
+            .matching(NSPredicate(format: "label == %@", colour))
+            .allElementsBoundByIndex
+            .first { $0.frame.minY >= name.frame.minY - 1 }
+    }
+
+    /// **Dragging a column row lands it in the gap the caret marked**, which is
+    /// the wiring `ColumnReorderTests` cannot see: `dropColumn(_:at:)` answers
+    /// the same whether or not anything on screen is attached to it.
+    ///
+    /// What a real drag exercises is the lift — the payload closure
+    /// `.draggable` evaluates when the *session* starts, which is the only
+    /// signal this sheet has that a column is in the air — and the two
+    /// half-height drop zones that are in the tree only while one is.
+    ///
+    /// **Aimed at the top of a row while dragging downwards**, which is the one
+    /// aim the two rules disagree about and is exactly the report that started
+    /// this: dropping Backlog on In Progress used to land it *after* In
+    /// Progress, because a drop that names a row can only be resolved by the
+    /// direction of travel. The gap the pointer is in says *before*, so this
+    /// asserts Backlog second rather than third — the old rule satisfies every
+    /// other line here and fails that one.
+    ///
+    /// Re-seeded first: this reads positions, so a second run on the same
+    /// simulator would otherwise measure what the first one left.
+    func testAColumnDraggedIntoAGapLandsInIt() throws {
+        let app = opened()
+
+        let backlog = try XCTUnwrap(columnRow("Backlog", in: app), "no Backlog column")
+        let upNext = try XCTUnwrap(columnRow("Up Next", in: app), "no Up Next column")
+        let inProgress = try XCTUnwrap(columnRow("In Progress", in: app), "no In Progress column")
+        XCTAssertLessThan(
+            backlog.frame.minY, upNext.frame.minY, "the sheet did not start in board order"
+        )
+        XCTAssertLessThan(
+            upNext.frame.minY, inProgress.frame.minY, "the sheet did not start in board order"
+        )
+
+        // The top of In Progress: the half that means *above this column*,
+        // which is the gap between it and Up Next.
+        let grip = backlog.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let gap = inProgress.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08))
+        grip.press(
+            forDuration: 0.6, thenDragTo: gap, withVelocity: .slow, thenHoldForDuration: 0.6
+        )
+
+        // Polled, because the rows animate into place and their frames settle
+        // after the gesture ends — the same wait the board strip's drag needed.
+        let landed = expectation(description: "the column landed in the gap it was aimed at")
+        let poll = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { timer in
+            guard let moved = self.columnRow("Backlog", in: app),
+                  let above = self.columnRow("Up Next", in: app),
+                  let below = self.columnRow("In Progress", in: app)
+            else { return }
+            if above.frame.minY < moved.frame.minY, moved.frame.minY < below.frame.minY {
+                timer.invalidate()
+                landed.fulfill()
+            }
+        }
+        wait(for: [landed], timeout: 10)
+        poll.invalidate()
+
+        // And Done is still last, which is what makes it the Done column.
+        let done = try XCTUnwrap(columnRow("Done", in: app), "the board lost its Done column")
+        let moved = try XCTUnwrap(columnRow("Backlog", in: app), "the board lost the column it moved")
+        XCTAssertLessThan(moved.frame.minY, done.frame.minY, "the column landed past Done")
+    }
+
     /// **The warning.** Trashing a column moves every card on it somewhere else,
     /// and the cards are not necessarily the cards of whoever is in here
     /// reshaping a board — so the button asks, in this board's own numbers, and

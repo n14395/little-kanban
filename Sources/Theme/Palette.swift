@@ -14,6 +14,22 @@ enum AccentTheme: String, CaseIterable, Identifiable, Sendable, Codable {
         case .ink: "Ink"
         }
     }
+
+    /// The accent as a literal, for the places that need the *value* and not
+    /// the colour — deriving a label's four tones from it, mostly, where the
+    /// arithmetic happens in the model and there is no `Color` to take apart.
+    ///
+    /// `nil` for Ink, which is not a hex: it is the theme's own ink and differs
+    /// between light and dark. A caller that needs a number has to say what it
+    /// means by the absence of one.
+    var hex: UInt32? {
+        switch self {
+        case .ember: 0xC2532F
+        case .pine: 0x1F6F63
+        case .indigo: 0x3B5BA9
+        case .ink: nil
+        }
+    }
 }
 
 /// Colour tokens lifted from the design's `[data-theme="light"]` /
@@ -58,12 +74,7 @@ struct Palette: Equatable, Sendable {
     // MARK: Accent
 
     var accent: Color {
-        switch accentTheme {
-        case .ember: Color(hex: 0xC2532F)
-        case .pine: Color(hex: 0x1F6F63)
-        case .indigo: Color(hex: 0x3B5BA9)
-        case .ink: ink
-        }
+        accentTheme.hex.map { Color(hex: $0) } ?? ink
     }
 
     var accentSoft: Color {

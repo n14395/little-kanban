@@ -50,10 +50,6 @@ struct PadRootView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var chrome = ChromeScale()
 
-    /// A flat list on a 13" display — `TaskListMetrics.pad`, named beside its
-    /// siblings rather than here, so a test can enumerate it.
-    private static let listMetrics = TaskListMetrics.pad
-
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebar
@@ -285,8 +281,11 @@ struct PadRootView: View {
         switch store.surface {
         case .board:
             BoardScrollView(metrics: .pad)
-        case .view(let view):
-            savedViewList(view)
+        case .view(let id):
+            // Looked up on every draw rather than carried: the view is editable
+            // now, so a copy taken when the surface was chosen would go on
+            // drawing the rule the editor has just changed.
+            if let view = store.view(id: id) { savedViewList(view) }
         }
     }
 
@@ -385,7 +384,7 @@ struct PadRootView: View {
     /// raises a sheet the iPad never presents; and the keyboard reaches these
     /// rows for the same reason the desk's do.
     private func list(_ tasks: [TaskItem]) -> some View {
-        TaskListView(tasks: tasks, metrics: Self.listMetrics) { task in
+        TaskColumnsView(tasks: tasks, metrics: .pad) { task in
             ListCard(task: task, metrics: .pad, focus: $focus)
         }
     }

@@ -224,8 +224,10 @@ import Testing
     /// lost at every quit is the view standing in front of it.
     @Test func theViewIsWrittenDownWhicheverWayTheSettingIsSet() {
         let store = TestBoard.store()
-        store.selectSurface(.view(.upcoming))
-        #expect(store.lastSurfaceName == "upcoming",
+        store.selectSurface(.view(SavedView.upcoming.id))
+        // The **id**, since v11: a view is a row in the file now, so the key
+        // holds something that still names one after it has been renamed.
+        #expect(store.lastSurfaceName == SavedView.upcoming.id.uuidString,
                 "the view was not written down, so turning the setting on would resume nothing")
     }
 
@@ -240,14 +242,14 @@ import Testing
     /// to do.
     @Test func returningToTheBoardIsRememberedAsTheBoard() {
         let store = TestBoard.store()
-        store.selectSurface(.view(.archive))
-        #expect(store.lastSurfaceName == "archive")
+        store.selectSurface(.view(SavedView.archive.id))
+        #expect(store.lastSurfaceName == SavedView.archive.id.uuidString)
         store.selectSurface(.board)
         #expect(store.lastSurfaceName == BoardStore.boardSurfaceName,
                 "the board was forgotten, so resuming from it would land somewhere else")
-        // And it is not a `SavedView` — the name has to be one no case answers
-        // to, or the resume would read it back as a view that does not exist
-        // and fall through to the landing surface anyway.
-        #expect(SavedView(rawValue: BoardStore.boardSurfaceName) == nil)
+        // And it names no view — neither a uuid nor one of the old enum's
+        // spellings, both of which `surface(named:among:)` still resolves, or
+        // the resume would read the board back as a view.
+        #expect(BoardStore.surface(named: BoardStore.boardSurfaceName, among: store.views) == .board)
     }
 }

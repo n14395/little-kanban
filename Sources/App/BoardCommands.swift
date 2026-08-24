@@ -284,9 +284,9 @@ struct BoardCommands: Commands {
 
         Divider()
 
-        ForEach(SavedView.allCases) { view in
-            row(view.label, isCurrent: store.activeView == view) {
-                store.selectSurface(.view(view))
+        ForEach(store.views) { view in
+            row(view.label, isCurrent: store.activeView?.id == view.id) {
+                store.selectSurface(.view(view.id))
             }
         }
 

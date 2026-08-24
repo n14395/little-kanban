@@ -55,7 +55,12 @@ enum PhoneTab: String, CaseIterable, Identifiable, Sendable {
 /// their work is, while *whether they are looking at it* is not.
 enum BoardSurface: Hashable, Sendable {
     case board
-    case view(SavedView)
+    /// **The view's id, not the view.** A `SavedView` is editable now, so a
+    /// surface carrying a copy of one would go on drawing the rule the user had
+    /// before they opened the editor — and a surface carrying a *deleted* view
+    /// would draw a list nothing can reach. The id is looked up on every read;
+    /// see ``BoardStore/activeView``.
+    case view(SavedView.ID)
 }
 
 /// Which detail surface a piece of transient editing state belongs to. The
@@ -336,6 +341,25 @@ struct BoardMutation: Equatable, Sendable {
     /// without it claims an empty trash, and against a store that has one that
     /// reads as a change nobody made.
     var trash: [TrashedItem]
+    /// The saved views, in sidebar order.
+    ///
+    /// In here for `boards`' reason: since the seven stopped being an enum,
+    /// making, renaming, re-ruling, reordering and deleting one are edits to the
+    /// board file, and every one of them has to be a single ⌘Z. Required and
+    /// undefaulted for the same reason as the two above — a mutation built
+    /// without it would claim the seeded seven, which against a store the user
+    /// has added a view to reads as a deletion nobody asked for.
+    var views: [SavedView]
+    /// The colours every picker offers.
+    ///
+    /// In here for the same reason the rest is: saving one and deleting one are
+    /// edits to the board file, and a ⌘Z that put a deleted colour back on the
+    /// palette but left the *board* as it was would be restoring half of what
+    /// the user just did. Required and undefaulted like its neighbours — a
+    /// mutation built without it would claim the six the app ships with, which
+    /// against a store the user has added a colour to reads as a deletion
+    /// nobody asked for.
+    var savedColors: [PaletteSwatch]
 }
 
 /// Which edge of which card a dragged one would land against.
@@ -350,6 +374,25 @@ enum DropCaret: Hashable, Sendable {
 
     /// The card the caret is drawn against.
     var card: TaskItem.ID {
+        switch self {
+        case .above(let id), .below(let id): id
+        }
+    }
+}
+
+/// Which edge of which column a dragged one would land against — ``DropCaret``
+/// for the settings sheet's list of columns, and the same shape for the same
+/// reason: the mark is drawn by whichever row it names, on the side it names.
+///
+/// A separate type rather than a reuse: both ids are `UUID`, so one enum would
+/// take a card's id where a column's belongs and nothing would say otherwise
+/// until a drop landed somewhere absurd.
+enum ColumnCaret: Hashable, Sendable {
+    case above(BoardColumn.ID)
+    case below(BoardColumn.ID)
+
+    /// The column the caret is drawn against.
+    var column: BoardColumn.ID {
         switch self {
         case .above(let id), .below(let id): id
         }
@@ -402,6 +445,17 @@ final class BoardStore {
     /// Ordered — the label picker lists them in creation order, and new labels
     /// take their colour from the palette by current count.
     private(set) var labels: [LabelDef] { didSet { labelsByKey = nil } }
+    /// The saved views, in sidebar order — the seeded seven plus whatever the
+    /// user has made. Board data since v10; see ``SavedView``.
+    private(set) var views: [SavedView]
+    /// **The colours every picker in the app offers**, in the order they are
+    /// drawn — see ``PaletteSwatch``.
+    ///
+    /// One list rather than one per picker, and stored rather than constant,
+    /// because that is the whole of what makes a colour saved in a column's
+    /// picker appear in a board's. Deliberately not called `palette`: views
+    /// already have a `palette` in the environment and it is the *theme*.
+    private(set) var savedColors: [PaletteSwatch] = PaletteSwatch.seed
     /// The design exposes the accent as an editable prop; this is the choice,
     /// and it is saved with the board.
     private(set) var accentTheme: AccentTheme
@@ -452,15 +506,6 @@ final class BoardStore {
     // MARK: Board interaction
 
     var draggingID: TaskItem.ID?
-    /// The column being dragged by its name, or `nil` when none is.
-    ///
-    /// A separate flag from `draggingID` rather than a shared "something is in
-    /// the air", because the two say different things to the same view: a card
-    /// in flight makes a column a place to *put* it, and a column in flight
-    /// makes it a place to put a *column*. Nothing can raise both — a pointer
-    /// carries one payload — and `BoardColumnView` reads this to decide which
-    /// of its two drop destinations is the live one.
-    var draggingColumnID: BoardColumn.ID?
     var dropTargetColumnID: BoardColumn.ID?
     /// Which insertion point the pointer is over, set by the half of the card
     /// it is in — `nil` when it is over a list's own ground rather than over a
@@ -560,14 +605,24 @@ final class BoardStore {
     /// other subject in there is a preference about how the app behaves; this
     /// one is the user's own work, waiting thirty days to be either wanted again
     /// or gone. A preference can wait, and a card thrown away on Tuesday cannot
-    /// wait past the thirtieth day, so it has a door of its own now: the bin at
-    /// the foot of the source list on macOS and iPad, and the board menu on the
-    /// phone.
+    /// wait past the thirtieth day, so it has a door of its own now: the Trash
+    /// row under Views in the source list on macOS and iPad, and the board menu
+    /// on the phone.
     ///
     /// On the store rather than in a view because the three doors are in three
     /// different trees — `BoardSidebar` on two platforms, `PhoneHeader` on the
     /// third — and the phone's sheet is presented by the root, which is neither.
     var isShowingTrash: Bool = false
+    /// Which view the editor is open on, on the surfaces where the thing that
+    /// *asks* for it is not the thing that can present it.
+    ///
+    /// The phone's drawer is that case, and it is `isShowingTrash`'s case
+    /// exactly: a drawer row can raise a flag and not a sheet, because the
+    /// drawer closes on its way out and takes any sheet it was presenting with
+    /// it. `PhoneRootView` presents; the drawer only names. The two pointer
+    /// surfaces keep the id in their own `@State` — the sidebar does not go
+    /// anywhere when a sheet opens over it.
+    var editingViewID: SavedView.ID?
     /// Whether File ▸ Export… / Import… has asked for its panel. On the store
     /// for the reason the shortcuts sheet is: the menu bar lives outside every
     /// window's view tree, and the panels are presented by a view inside one.
@@ -771,6 +826,8 @@ final class BoardStore {
                 accentTheme: snapshot.accentTheme,
                 nextSerial: snapshot.nextSerial,
                 trash: snapshot.trash,
+                views: snapshot.views,
+                savedColors: snapshot.palette,
                 file: file,
                 sync: sync
             )
@@ -821,7 +878,7 @@ final class BoardStore {
            let raw = Preferences.defaults.string(forKey: Preferences.lastSurfaceKey) {
             // An unrecognised name is the board: it is what a downgrade leaves
             // behind, and the board is the answer that is always true.
-            surface = SavedView(rawValue: raw).map(BoardSurface.view) ?? .board
+            surface = Self.surface(named: raw, among: views)
         }
         // **After the surface, not before it.** "Open the Inbox with the board"
         // is a promise about the board, and a launch that lands on Today has not
@@ -870,6 +927,8 @@ final class BoardStore {
         accentTheme: AccentTheme = .ember,
         nextSerial: Int = BoardSnapshot.baseSerial,
         trash: [TrashedItem] = [],
+        views: [SavedView] = SavedView.seededAll,
+        savedColors: [PaletteSwatch] = PaletteSwatch.seed,
         file: BoardFile? = nil,
         sync: BoardSyncStore? = nil
     ) {
@@ -884,6 +943,16 @@ final class BoardStore {
         self.trash = trash
         self.activeBoardID = boards.contains { $0.id == activeBoardID } ? activeBoardID : boards.first?.id
         self.labels = labels
+        // A file whose views have been hand-edited away gets the seven back, for
+        // the palette's reason below: a sidebar with no views in it offers no
+        // way to make one, since **New view** is drawn under the list it would
+        // join. Deleting them one at a time is still allowed — that leaves the
+        // row, and the file keeps an empty array.
+        self.views = views
+        // A file whose palette has been hand-edited down to nothing gets the
+        // six back: a picker with no colours in it offers no way to put one
+        // there, which is a corner the interface cannot climb out of.
+        self.savedColors = savedColors.isEmpty ? PaletteSwatch.seed : savedColors
         self.accentTheme = accentTheme
         self.nextSerial = nextSerial
         self.file = file
@@ -960,7 +1029,8 @@ final class BoardStore {
 
     private var snapshot: BoardSnapshot {
         BoardSnapshot(tasks: tasks, boards: boards, labels: labels, nextSerial: nextSerial,
-                      accentTheme: accentTheme, activeBoardID: activeBoardID, trash: trash)
+                      accentTheme: accentTheme, activeBoardID: activeBoardID, trash: trash,
+                      views: views, palette: savedColors)
     }
 
     /// Takes on what the load found: a failure to show, and whether saving has
@@ -1279,7 +1349,13 @@ final class BoardStore {
             labels: content.labels,
             nextSerial: content.nextSerial,
             boards: content.boards,
-            trash: trash
+            trash: trash,
+            views: content.views,
+            // Somebody else's file brings their palette with it: it is board
+            // content like the labels, and an import that kept this board's six
+            // would leave every imported label wearing a colour the picker no
+            // longer offers.
+            savedColors: content.palette
         ))
         scheduleSave()
     }
@@ -1303,7 +1379,8 @@ final class BoardStore {
     var canRedo: Bool { undoManager?.canRedo ?? false }
 
     private var mutation: BoardMutation {
-        BoardMutation(tasks: tasks, labels: labels, nextSerial: nextSerial, boards: boards, trash: trash)
+        BoardMutation(tasks: tasks, labels: labels, nextSerial: nextSerial, boards: boards,
+                      trash: trash, views: views, savedColors: savedColors)
     }
 
     /// Runs `body` as one undoable step named `name`.
@@ -1519,6 +1596,8 @@ final class BoardStore {
         nextSerial = state.nextSerial
         boards = state.boards
         trash = state.trash
+        views = state.views
+        savedColors = state.savedColors
         // See `trashAnnouncement`: the message describes an act this is
         // reversing, so it goes with it.
         trashAnnouncement = nil
@@ -1526,6 +1605,11 @@ final class BoardStore {
         // the creation of one, say — and a surface reading `activeBoard` must
         // never be shown nothing while there is still a board to show.
         if !boards.contains(where: { $0.id == activeBoardID }) { activeBoardID = boards.first?.id }
+        // And it may have taken away the *view* being looked at — undoing the
+        // creation of one — which leaves a surface naming nothing. The board is
+        // the answer that is always available, and it is what deleting the view
+        // you are standing on already does.
+        if let id = activeView?.id, !views.contains(where: { $0.id == id }) { surface = .board }
         // The search memo is keyed on a per-task counter that a wholesale
         // replacement does not bump, so it is dropped rather than trusted.
         searchTexts.removeAll()
@@ -1771,7 +1855,11 @@ final class BoardStore {
         case .board:
             let onTheBoard = columns.flatMap { visibleTasks(in: $0.id).map(\.id) }
             return isInboxOpen ? inboxTasks.map(\.id) + onTheBoard : onTheBoard
-        case .view(let view):
+        case .view(let id):
+            // A surface naming a view that has since gone selects nothing, which
+            // is what is on screen: `apply` puts the surface back to the board
+            // on the next pass.
+            guard let view = self.view(id: id) else { return [] }
             return tasks(in: view, today: today).map(\.id)
         }
     }
@@ -2204,7 +2292,7 @@ final class BoardStore {
     var surface: BoardSurface = .board {
         didSet {
             guard surface != oldValue else { return }
-            lastSurfaceName = activeView?.rawValue ?? Self.boardSurfaceName
+            lastSurfaceName = activeView?.id.uuidString ?? Self.boardSurfaceName
             Preferences.remember(surface: lastSurfaceName)
         }
     }
@@ -2247,9 +2335,28 @@ final class BoardStore {
     /// board would be hiding something rather than answering with it.
     /// `RootSurface` needs the size class as well to pick a *layout*; this is
     /// only choosing where to land, and an iPad in Slide Over is still an iPad.
+    /// Resolves what was written down last time.
+    ///
+    /// **Two spellings, because v9 wrote the other one.** Until the views became
+    /// data this key held an enum's raw value — `"today"` — and it now holds a
+    /// uuid. A file being read for the first time after the migration still has
+    /// the old spelling in `UserDefaults`, which is not migrated with the board,
+    /// so a preset name resolves through ``SavedView/id(of:)``. Anything else,
+    /// including a view since deleted, is the board.
+    static func surface(named raw: String, among views: [SavedView]) -> BoardSurface {
+        if let id = UUID(uuidString: raw), views.contains(where: { $0.id == id }) {
+            return .view(id)
+        }
+        if let preset = SavedView.Preset(rawValue: raw) {
+            let id = SavedView.id(of: preset)
+            if views.contains(where: { $0.id == id }) { return .view(id) }
+        }
+        return .board
+    }
+
     static var landingSurface: BoardSurface {
         #if os(iOS)
-        UIDevice.current.userInterfaceIdiom == .phone ? .view(.today) : .board
+        UIDevice.current.userInterfaceIdiom == .phone ? .view(SavedView.id(of: .today)) : .board
         #else
         .board
         #endif
@@ -2262,9 +2369,15 @@ final class BoardStore {
     /// is what every "close this view" affordance means; the Inbox is left
     /// through `selectSurface(_:)` or the tab bar instead.
     var activeView: SavedView? {
-        get { if case .view(let view) = surface { view } else { nil } }
-        set { surface = newValue.map(BoardSurface.view) ?? .board }
+        get {
+            guard case .view(let id) = surface else { return nil }
+            return views.first { $0.id == id }
+        }
+        set { surface = newValue.map { BoardSurface.view($0.id) } ?? .board }
     }
+
+    /// The view with this id, or `nil` once it has been deleted.
+    func view(id: SavedView.ID) -> SavedView? { views.first { $0.id == id } }
 
     /// Picks what the main surface shows. On macOS this is the sidebar's
     /// destination; on iOS the tab bar drives it through `selectTab`.
@@ -2357,7 +2470,15 @@ final class BoardStore {
         guard let task = self[id] else { return }
         clearQuery()
         if task.isArchived {
-            activeView = .archive
+            // The seeded Archive, by id. Somebody who deleted it has nowhere
+            // archived to be shown, so the card's own place is the fallback —
+            // which for an archived card is the column it was filed from.
+            let archive = SavedView.id(of: .archive)
+            if views.contains(where: { $0.id == archive }) {
+                surface = .view(archive)
+            } else {
+                showPlace(of: task.id)
+            }
         } else {
             showPlace(of: task.id)
         }
@@ -2391,10 +2512,134 @@ final class BoardStore {
     }
 
     private func members(of view: SavedView, today: CalendarDay) -> [TaskItem] {
-        var members = tasks.filter { view.matches($0, today: today, isDone: isDone($0), week: weekMeaning) }
-        if let sort = view.sort { members = Self.stableSorted(members, by: sort) }
+        // `now` is taken once for the whole pass rather than per task: the
+        // "updated within the last N days" criteria measure against it, and a
+        // clock read per card would put two cards either side of a cutoff that
+        // moved between them.
+        let now = Date.now
+        var members = tasks.filter {
+            view.matches($0, today: today, isDone: isDone($0), week: weekMeaning, now: now)
+        }
+        if let sort = view.sort.comparator { members = Self.stableSorted(members, by: sort) }
         if let limit = view.limit { members = Array(members.prefix(limit)) }
         return members
+    }
+
+    // MARK: - Saved views
+
+    /// Makes a view and returns it, so the caller can open the editor on it.
+    ///
+    /// Appended rather than inserted: the sidebar's order is the user's, and a
+    /// new row landing at the top would push the one they were aiming at down
+    /// under the cursor.
+    @discardableResult
+    func addView(named name: String = "") -> SavedView {
+        let trimmed = Self.viewName(name)
+        let view = SavedView.blank(
+            named: trimmed.isEmpty
+                ? String(localized: "New View", comment: "Default name for a newly created saved view")
+                : trimmed
+        )
+        undoable(String(localized: "Add View", comment: "Undo action name for creating a saved view")) {
+            views.append(view)
+            scheduleSave()
+        }
+        return view
+    }
+
+    /// Writes a view back after the editor has finished with it.
+    ///
+    /// The whole view at once rather than a setter per field: the editor works
+    /// on a copy and commits, so a rule, a name, a glyph and a sort changed in
+    /// one sitting are one ⌘Z — which is what "I did not mean that" means about
+    /// a session with an editor.
+    ///
+    /// An empty name is refused rather than accepted, the way a board's and a
+    /// column's are: a row with nothing on it cannot be told from a bug.
+    func updateView(_ view: SavedView) {
+        guard let index = views.firstIndex(where: { $0.id == view.id }) else { return }
+        var next = view
+        next.name = Self.viewName(view.name)
+        guard !next.name.isEmpty else { return }
+        guard next != views[index] else { return }
+        undoable(String(localized: "Edit View", comment: "Undo action name for editing a saved view")) {
+            views[index] = next
+            scheduleSave()
+        }
+    }
+
+    /// A copy, named "… copy", landing directly under the one it came from —
+    /// which is where somebody duplicating a row is looking.
+    @discardableResult
+    func duplicateView(_ id: SavedView.ID) -> SavedView? {
+        guard let index = views.firstIndex(where: { $0.id == id }) else { return nil }
+        var copy = views[index]
+        copy.id = UUID()
+        copy.name = String(
+            localized: "\(views[index].name) copy",
+            comment: "Name of a duplicated saved view — the original's name followed by 'copy'"
+        )
+        // A duplicate is the user's own view whatever it was copied from, so it
+        // loses the preset: the hand-written empty state belongs to the seeded
+        // row, and two rows claiming it would both say "Nothing due today".
+        copy.preset = nil
+        let made = copy
+        undoable(String(localized: "Duplicate View", comment: "Undo action name for duplicating a saved view")) {
+            views.insert(made, at: index + 1)
+            scheduleSave()
+        }
+        return made
+    }
+
+    /// Deletes a view. One ⌘Z, like everything else — there is no trash for a
+    /// view: a `TrashedItem` holds work, and a view holds none. What is lost is
+    /// a rule, and ⌘Z is the right size of net for that.
+    func deleteView(_ id: SavedView.ID) {
+        guard views.contains(where: { $0.id == id }) else { return }
+        undoable(String(localized: "Delete View", comment: "Undo action name for deleting a saved view")) {
+            views.removeAll { $0.id == id }
+            scheduleSave()
+        }
+        // Standing on the view that just went is standing on nothing. `apply`
+        // says the same thing for the undo path; this is the direct one.
+        if case .view(id) = surface { surface = .board }
+    }
+
+    func moveView(fromOffsets: IndexSet, toOffset: Int) {
+        var next = views
+        next.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        guard next != views else { return }
+        undoable(String(localized: "Reorder Views", comment: "Undo action name for reordering the saved views")) {
+            views = next
+            scheduleSave()
+        }
+    }
+
+    /// Puts the seven back, alongside whatever the user has made.
+    ///
+    /// The way out of having deleted Today and wanting it again — and the reason
+    /// deleting a seeded view needs no confirmation. Only the ones that are
+    /// actually missing are restored, by id, so pressing it twice is not two
+    /// copies of the Archive.
+    func restoreSeededViews() {
+        let present = Set(views.map(\.id))
+        let missing = SavedView.seededAll.filter { !present.contains($0.id) }
+        guard !missing.isEmpty else { return }
+        undoable(String(localized: "Restore Views", comment: "Undo action name for restoring the built-in saved views")) {
+            views.append(contentsOf: missing)
+            scheduleSave()
+        }
+    }
+
+    /// Whether any of the seeded seven is missing, which is the only condition
+    /// under which **Restore Built-in Views** is worth offering.
+    var isMissingSeededViews: Bool {
+        let present = Set(views.map(\.id))
+        return SavedView.Preset.allCases.contains { !present.contains(SavedView.id(of: $0)) }
+    }
+
+    static func viewName(_ raw: String) -> String {
+        raw.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// `sorted(by:)` is not stable, and the Archive's comparator ties whenever
@@ -2432,21 +2677,6 @@ final class BoardStore {
         dropTargetCaret = nil
         isInboxDropTarget = false
     }
-
-    /// Says a column has been picked up, from `beginDrag`'s signal and with its
-    /// expiry: `.draggable` asking for its payload is the one moment both
-    /// platforms agree on, and a session the OS eats would otherwise leave the
-    /// board thinking a column is still in the air forever.
-    func beginColumnDrag(_ id: BoardColumn.ID) {
-        Task { @MainActor [weak self] in
-            guard let self, draggingColumnID != id else { return }
-            draggingColumnID = id
-            try? await Task.sleep(for: .seconds(Self.liftExpiry))
-            if draggingColumnID == id { endColumnDrag() }
-        }
-    }
-
-    func endColumnDrag() { draggingColumnID = nil }
 
     /// Says a card has been picked up, from the one signal a build without
     /// `onDragSessionUpdated` has: the moment `.draggable` is asked for its
@@ -2812,12 +3042,28 @@ final class BoardStore {
 
     /// Takes a task back out of Done, to wherever it was working before.
     func reopen(_ id: TaskItem.ID) {
-        guard let task = self[id], !task.isArchived, isDone(task) else { return }
-        let target = reopenPlacement(for: task)
+        guard let target = reopenTarget(for: id) else { return }
         undoable(String(localized: "Reopen Task", comment: "Undo action name for reopening a completed task")) {
             performMove(id, to: target)
         }
     }
+
+    /// Where reopening would send a card, or `nil` when there is nowhere for it
+    /// to go.
+    ///
+    /// A board whose only column is its Done one has no working column to go
+    /// back to — which is what every board looks like the moment it is made —
+    /// and `reopenPlacement` answers that by handing back the placement the card
+    /// already has. Read here as "nothing to do", so the tick that would perform
+    /// it is not drawn live: a control that can be pressed and changes nothing
+    /// is indistinguishable from a bug.
+    private func reopenTarget(for id: TaskItem.ID) -> TaskPlacement? {
+        guard let task = self[id], !task.isArchived, isDone(task) else { return nil }
+        let target = reopenPlacement(for: task)
+        return target == task.placement ? nil : target
+    }
+
+    func canReopen(_ id: TaskItem.ID) -> Bool { reopenTarget(for: id) != nil }
 
     /// Where a completed task goes back to: the newest column its own history
     /// names other than Done. A task that reached Done without ever being moved
@@ -3359,7 +3605,7 @@ final class BoardStore {
     /// archived card — in the Archive the verb is Restore and only Restore.
     func canToggleCompletion(_ id: TaskItem.ID) -> Bool {
         guard let task = self[id], !task.isArchived else { return false }
-        return isDone(task) || canComplete(id)
+        return canReopen(id) || canComplete(id)
     }
 
     /// Whether archiving this card would do anything. A card already in the
@@ -3944,7 +4190,11 @@ final class BoardStore {
 
         undoable(action) {
             if !exists {
-                let tone = LabelDef.palette[labels.count % LabelDef.palette.count]
+                // Round the *saved* palette rather than a list of its own, so a
+                // colour the user added is handed out to new labels like every
+                // other, and one they deleted stops being.
+                let swatch = savedColors[labels.count % savedColors.count].swatch
+                let tone = labelTones(for: swatch)
                 labels.append(LabelDef(key: key, name: trimmed, light: tone.light, dark: tone.dark))
             }
             if let index = position(of: taskID), !tasks[index].labelKeys.contains(key) {
@@ -3975,6 +4225,31 @@ final class BoardStore {
 
     /// Recolours a label. Tasks are untouched — they store the key, and the
     /// colour lives on the definition.
+    /// Recolours a label from one colour, which is what a picker returns.
+    ///
+    /// The four a chip actually wears are derived here rather than in the view
+    /// — see ``LabelTone/pair(from:)`` — because the same derivation has to run
+    /// where a *new* label takes the next colour in the palette, and two copies
+    /// of it would make a label created in one place a different colour from
+    /// the same label recoloured in another.
+    func recolorLabel(_ key: String, to swatch: SwatchColor) {
+        recolorLabel(key, to: labelTones(for: swatch))
+    }
+
+    /// A label's four colours for a palette swatch. `.accent` is resolved
+    /// against the theme in force, because a chip's ground is a *tint* and
+    /// `SwatchColor.accent` carries no opacity to tint with; a label painted
+    /// accent is therefore frozen to the accent of the day, which is the honest
+    /// reading of "this colour" for something that has to be two colours in two
+    /// schemes.
+    func labelTones(for swatch: SwatchColor) -> (light: LabelTone, dark: LabelTone) {
+        switch swatch {
+        case .rgb(let value, _): LabelTone.pair(from: value)
+        case .accent: accentTheme.hex.map(LabelTone.pair(from:)) ?? LabelTone.inkPair
+        case .ink: LabelTone.inkPair
+        }
+    }
+
     func recolorLabel(_ key: String, to tone: (light: LabelTone, dark: LabelTone)) {
         guard let index = labels.firstIndex(where: { $0.key == key }),
               labels[index].light != tone.light || labels[index].dark != tone.dark
@@ -4065,7 +4340,7 @@ final class BoardStore {
     func addColumn(
         named name: String,
         short: String = "",
-        dot: SwatchColor = .ink(opacity: 0.35)
+        dot: SwatchColor = BoardColumn.defaultDot
     ) -> BoardColumn.ID? {
         let trimmed = Self.columnName(name)
         guard !trimmed.isEmpty, let boardIndex = activeBoardIndex else { return nil }
@@ -4125,6 +4400,52 @@ final class BoardStore {
         }
     }
 
+    // MARK: The palette
+
+    /// Adds a colour to the palette every picker draws from.
+    ///
+    /// **A no-op for a colour already in it**, rather than a second entry: the
+    /// list is a set of choices drawn in order, and two swatches of the same
+    /// colour are one choice a person has to compare pixel by pixel. It is not
+    /// a failure either — pressing Save on a colour that is already saved has
+    /// got the user exactly what they asked for.
+    ///
+    /// Opacity is dropped on the way in. A picker offers a colour rather than a
+    /// colour-and-a-transparency, and a 40% swatch on the palette's own ground
+    /// draws as a different colour from the one it puts on a card.
+    func saveColor(_ swatch: SwatchColor) {
+        let saved: SwatchColor = if case .rgb(let value, _) = swatch { .hex(value) } else { swatch }
+        guard !savedColors.contains(where: { $0.swatch == saved }) else { return }
+        undoable(String(localized: "Save Colour", comment: "Undo action name for adding a colour to the palette")) {
+            savedColors.append(PaletteSwatch(saved))
+            scheduleSave()
+        }
+    }
+
+    /// Takes a colour out of the palette.
+    ///
+    /// **Nothing wearing it changes.** A board, a column and a label each store
+    /// the colour itself rather than a place in this list, so deleting a swatch
+    /// removes an *offer* and never repaints anything — which is what makes the
+    /// button safe enough to sit in a context menu with no alert in front of it.
+    /// ⌘Z puts the offer back.
+    ///
+    /// The accent is refused: it is not a hex but "whatever the accent theme
+    /// is", nothing else in the palette can say that, and a board wearing it
+    /// would be left pointing at a choice the picker no longer offers. See
+    /// ``PaletteSwatch/isRemovable``.
+    @discardableResult
+    func deleteSavedColor(_ swatch: SwatchColor) -> Bool {
+        guard let index = savedColors.firstIndex(where: { $0.swatch == swatch }),
+              savedColors[index].isRemovable, savedColors.count > 1
+        else { return false }
+        undoable(String(localized: "Delete Colour", comment: "Undo action name for removing a colour from the palette")) {
+            savedColors.remove(at: index)
+            scheduleSave()
+        }
+        return true
+    }
+
     /// Reorders the active board's columns. Logs nothing, for `moveSubtask`'s
     /// reason: the order is on screen, and a feed of "column moved" would bury
     /// the changes that matter.
@@ -4153,34 +4474,54 @@ final class BoardStore {
     ///
     /// `move(fromOffsets:toOffset:)` counts the offset in the **pre-move**
     /// array, so landing after the target is one past it and landing before it
-    /// is exactly it. Every reorder in this app is that one expression — the
-    /// checklist's rows, the board's columns — and it is here rather than in
-    /// either of them because a drag is not reachable from a test and this is
-    /// the half that can be.
+    /// is exactly it. It is here rather than in the view because a drag is not
+    /// reachable from a test and this is the half that can be.
+    ///
+    /// **The checklist's rows are what is left using it.** The board's cards and
+    /// the settings sheet's columns both moved to a caret, which names a gap and
+    /// so needs no rule for turning a row into one — see ``drop(_:at:)`` and
+    /// ``dropColumn(_:at:)``.
     static func dropOffset(from: Int, to: Int) -> Int {
         to > from ? to + 1 : to
     }
 
-    /// Puts the dragged column where `target` sits, which is what dropping one
-    /// column on another means.
+    /// Puts the dragged column in the gap the caret names.
+    ///
+    /// **This replaced `dropColumn(_:onto:)`**, and for the reason ``drop(_:at:)``
+    /// replaced the cards' `move(_:onto:)`: a drop that names a *row* can only be
+    /// resolved by the direction the drag came from, so the same gap was reached
+    /// by aiming at one row from above and the other from below, and the top of
+    /// the list could not be named at all. Worse, it is unguessable from the
+    /// outside — what lit up was the row the pointer was on, which is not where
+    /// the column was going. A caret names the gap, so this inserts into it.
     ///
     /// Refused across boards — `moveColumn` is defined over the active board, so
-    /// an index from another one names a place in a list this column is not in —
-    /// and refused onto itself, where there is nothing to do. `false` says the
-    /// drop was not taken, which is what a drop handler owes its caller.
-    ///
-    /// Refused for the Done column too, which nothing offers as a drag in the
-    /// first place: `false` here is the answer to a payload that came from
-    /// somewhere the interface does not go. Dropping another column *onto* Done
-    /// is allowed and lands it in front — `moveColumn` clamps it.
+    /// an index from another one names a place in a list this column is not in.
+    /// Refused against itself, and against the gaps either side of itself, where
+    /// there is nothing to do. Refused for the Done column in both directions:
+    /// it never travels, and nothing lands after it, because being last is what
+    /// makes it the Done column. `false` says the drop was not taken, which is
+    /// what a drop handler owes its caller.
     @discardableResult
-    func dropColumn(_ payload: ColumnTransfer, onto target: BoardColumn.ID) -> Bool {
-        guard payload.boardID == activeBoardID,
+    func dropColumn(_ payload: ColumnTransfer, at caret: ColumnCaret) -> Bool {
+        guard payload.boardID == activeBoardID, payload.columnID != caret.column,
               let from = columns.firstIndex(where: { $0.id == payload.columnID }),
-              let to = columns.firstIndex(where: { $0.id == target }),
-              from != to, from != columns.indices.last
+              let anchor = columns.firstIndex(where: { $0.id == caret.column }),
+              let last = columns.indices.last, from != last
         else { return false }
-        moveColumn(fromOffsets: IndexSet(integer: from), toOffset: Self.dropOffset(from: from, to: to))
+        let offset: Int
+        switch caret {
+        case .above:
+            // Already sitting in that gap: the row under the caret is the one
+            // immediately after the dragged column.
+            guard anchor != from + 1 else { return false }
+            offset = anchor
+        case .below:
+            guard anchor != last else { return false }
+            guard anchor != from - 1 else { return false }
+            offset = anchor + 1
+        }
+        moveColumn(fromOffsets: IndexSet(integer: from), toOffset: offset)
         return true
     }
 
@@ -4233,7 +4574,13 @@ final class BoardStore {
     /// no board the user made. See `init`.
     private func detachSurfacesFromMissingColumns() {
         let ids = Set(columns.map(\.id))
-        if let first = columns.first?.id, !ids.contains(mobileColumnID) {
+        // The first **working** column, never Done: a board that has only just
+        // been made holds nothing else, and pointing the pager's composer at it
+        // would have the first card added on that board arrive already complete.
+        // Left where it is when there is none, which `mobileAddPlacement` reads
+        // as "not a column of this board" and answers with the Inbox — the same
+        // answer it gave when a new board had no columns at all.
+        if let first = workingColumns.first?.id, !ids.contains(mobileColumnID) {
             mobileColumnID = first
         }
         if let addingColumnID, !ids.contains(addingColumnID) { cancelDraft() }
@@ -4265,13 +4612,20 @@ final class BoardStore {
     /// Adds a board and moves to it. Returns its id, or `nil` for a name with
     /// nothing in it — an unnamed board is unreachable in the sidebar.
     ///
-    /// **It starts with no columns.** It used to arrive holding a copy of the
-    /// seed workflow — Backlog, Up Next, In Progress, Done — so that a card
-    /// could be put on it straight away, and the first thing anyone making a
-    /// board of their own did was delete four columns they had not asked for.
-    /// A new board is a blank one; every surface that draws a board with no
-    /// columns offers the column composer instead of the card one, which is the
-    /// first thing a blank board needs.
+    /// **It starts with its Done column and nothing else.** It used to arrive
+    /// holding a copy of the seed workflow — Backlog, Up Next, In Progress,
+    /// Done — so that a card could be put on it straight away, and the first
+    /// thing anyone making a board of their own did was delete four columns they
+    /// had not asked for. Then it arrived with none at all, which left the one
+    /// column every board is *required* to have as something the app added
+    /// behind the user's back with their first real one.
+    ///
+    /// One column, and it is the one that cannot be argued with: every board
+    /// keeps a Done column — see ``Board/doneColumn`` — so a board that has one
+    /// and nothing else is a board with the whole of its workflow still to say.
+    /// Every surface that draws a board with no *working* column offers the
+    /// column composer instead of the card one, which is the first thing such a
+    /// board needs.
     ///
     /// The invariant this does *not* touch is deletion's: `deleteColumn` still
     /// refuses to take a board's last Done column or its last working one. A
@@ -4286,7 +4640,7 @@ final class BoardStore {
         let board = Board(
             name: trimmed,
             dot: dot,
-            columns: [],
+            columns: [.freshDone()],
             codePrefix: Board.codePrefix(codePrefix, fallingBackTo: trimmed)
         )
         undoable(String(localized: "New Board", comment: "Undo action name for adding a board")) {
@@ -4387,6 +4741,11 @@ final class BoardStore {
     /// The columns the pager steps through: the active board's. The Inbox is
     /// not among them — it is a tab of its own, and global.
     var pagerColumns: [BoardColumn] { columns }
+
+    /// The active board's columns before Done — what "is this board set up yet"
+    /// is asked of. `columns` alone answers *yes* for a board that has only just
+    /// been made, which now always holds its Done column.
+    var workingColumns: [BoardColumn] { activeBoard?.workingColumns ?? [] }
 
     private var mobileColumnIndex: Int {
         columns.firstIndex { $0.id == mobileColumnID } ?? 0

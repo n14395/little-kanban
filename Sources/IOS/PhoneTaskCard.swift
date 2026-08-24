@@ -48,10 +48,19 @@ struct PhoneTaskCard: View {
         .padding(.top, 1)
         .padding(.bottom, 12)
         .background {
-            RoundedRectangle(cornerRadius: 16)
-                .fill(palette.card)
-                .shadow(color: palette.shadow(0.05), radius: 9, y: 6)
-                .shadow(color: palette.shadow(0.07), radius: 1, y: 1)
+            // The checklist line is part of the card's ground rather than
+            // something laid on top of it, so its ends follow the corners and
+            // the shadows below are the card's — see `BoardTaskCard`, which
+            // draws the same line the same way.
+            ZStack(alignment: .bottom) {
+                RoundedRectangle(cornerRadius: 16).fill(palette.card)
+                if task.hasSubtasks {
+                    ProgressMeter(fraction: task.subtaskFraction, height: 5, isFlush: true)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: palette.shadow(0.05), radius: 9, y: 6)
+            .shadow(color: palette.shadow(0.07), radius: 1, y: 1)
         }
         // The one act on this surface that deserves `.success` (5.8). Read off
         // the card's own state rather than counted in the store, so it fires

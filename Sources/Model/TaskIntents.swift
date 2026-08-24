@@ -463,7 +463,12 @@ struct ShowTodayIntent: AppIntent {
     func perform() async throws -> some IntentResult {
         let store = try TaskIntentBridge.require()
         store.clearQuery()
-        store.activeView = .today
+        // By id rather than by case: since v11 the views are rows in the file,
+        // and Today is one of them. Somebody who deleted it gets the board,
+        // which is the answer that is always available — the intent opens the
+        // app either way, which is what "Show Today" mostly means to a user
+        // saying it to Siri.
+        store.surface = .view(SavedView.id(of: .today))
         #if os(iOS)
         store.isNavDrawerOpen = false
         store.sheetID = nil

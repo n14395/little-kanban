@@ -74,8 +74,8 @@ enum AppAppearance: String, CaseIterable, Identifiable, Sendable {
 ///
 /// **The Trash is not here at all** — it never belonged in a preferences
 /// surface. It is the user's own work rather than a setting about the app, so it
-/// has a door of its own: the bin at the foot of the source list on macOS and
-/// iPad, and the board menu on the phone. See **The trash** in the README.
+/// has a door of its own: the Trash row under Views in the source list on macOS
+/// and iPad, and the board menu on the phone. See **The trash** in the README.
 enum SettingsTab: String, CaseIterable, Identifiable, Sendable {
     case general, board, notifications, data
 

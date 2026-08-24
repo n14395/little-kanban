@@ -219,10 +219,14 @@ import Testing
         #expect(store.canToggleCompletion(TestBoard.palette))
     }
 
-    /// A board with nowhere to complete *into* — which `trashColumn` refuses to
-    /// leave behind, but a hand-edited file can still arrive like. The panel
-    /// draws the tick as unable rather than drawing it live and swallowing the
-    /// press.
+    /// **A board of one column, which is the state every board is made in.**
+    ///
+    /// That column is the board's last and so its Done one, and there is nowhere
+    /// to work — so the card is already complete and cannot be completed, and
+    /// reopening it has no column to go back to. Neither direction of the tick
+    /// can act, and the panel draws it as unable rather than live and swallowing
+    /// the press. See `DoneColumnTests` for the same claim through the store's
+    /// own `createBoard`.
     @Test func aCardWithNoDoneColumnToReachCannotBeTicked() {
         let onlyColumn = BoardColumn(name: "Only", short: "ON", dot: .ink(opacity: 0.35))
         let board = Board(name: "No finish line", dot: .ink(opacity: 0.35),

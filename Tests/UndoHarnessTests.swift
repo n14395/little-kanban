@@ -20,7 +20,7 @@ import Testing
     /// would be incapable of failing.
     private func board(_ store: BoardStore) -> BoardMutation {
         BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0,
-                      boards: store.boards, trash: store.trash)
+                      boards: store.boards, trash: store.trash, views: store.views, savedColors: store.savedColors)
     }
 
     // MARK: 1 — text typed before an interleaved step is recoverable
@@ -289,7 +289,7 @@ import Testing
             store.commitLabelDraft(for: .desk, task: TestBoard.cafe)
         }
         check("renameLabel") { $0.renameLabel("design", to: "Visual design") }
-        check("recolorLabel") { $0.recolorLabel("design", to: LabelDef.palette[3]) }
+        check("recolorLabel") { $0.recolorLabel("design", to: .hex(0xBE2828)) }
         check("deleteLabel") { $0.deleteLabel("design") }
         check("archive") { $0.archive(TestBoard.palette) }
         check("archiveCompleted") { $0.archiveCompleted() }
@@ -320,6 +320,24 @@ import Testing
         check("recolorColumn") { $0.recolorColumn(BoardColumn.backlog.id, to: .accent) }
         check("moveColumn") { $0.moveColumn(fromOffsets: [1], toOffset: 0) }
         check("deleteColumn") { $0.deleteColumn(BoardColumn.upNext.id) }
+        // The saved views, board data since v11. A view holds a rule rather
+        // than work, so there is no trash for one — ⌘Z is the whole of the net,
+        // which is exactly why each of these has to register a step.
+        check("addView") { $0.addView(named: "Blocked work") }
+        check("updateView") { store in
+            guard var view = store.views.first else { return }
+            view.name = "Renamed"
+            store.updateView(view)
+        }
+        check("duplicateView") { store in
+            guard let id = store.views.first?.id else { return }
+            store.duplicateView(id)
+        }
+        check("moveView") { $0.moveView(fromOffsets: [1], toOffset: 0) }
+        check("deleteView") { store in
+            guard let id = store.views.first?.id else { return }
+            store.deleteView(id)
+        }
         // The placement pair. `file` needs somewhere else to file it to.
         check("file", boards: TestBoard.boards) {
             $0.file(TestBoard.widget, onto: TestBoard.support.id, column: TestBoard.queue.id)
@@ -395,7 +413,15 @@ import Testing
         #expect(named["importBoard"] == "Import Board")
         #expect(named["restore(fromBackup:)"] == "Restore Backup")
         #expect(named["startOver"] == "Start Over")
-        #expect(named.count == 49)
+        #expect(named["addView"] == "Add View")
+        #expect(named["updateView"] == "Edit View")
+        #expect(named["duplicateView"] == "Duplicate View")
+        #expect(named["moveView"] == "Reorder Views")
+        #expect(named["deleteView"] == "Delete View")
+        // Five more than 49: the saved-view mutations that arrived with v11.
+        // `restoreSeededViews` is not among them — it is only reachable once
+        // something has been deleted, so the harness cannot call it cold.
+        #expect(named.count == 54)
     }
 
     /// The mutating methods that deliberately register nothing, each for a

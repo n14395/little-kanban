@@ -202,14 +202,13 @@ struct PhoneNavDrawer: View {
 
             sectionHeader("Views", topPadding: 24)
             VStack(spacing: 2) {
-                // Not `filters`: the Inbox is the row above the boards on
-                // this surface, and listing it again here would be two ways to
-                // the same place a thumb's width apart.
-                ForEach(SavedView.phoneFilters) { viewRow($0) }
-                // The Archive is where things go rather than a filter over the
-                // board, so it sits under the filters with a gap instead of in
-                // amongst them.
-                viewRow(.archive).padding(.top, 6)
+                // The seeded Inbox is dropped rather than the whole list being a
+                // fixed seven: the Inbox is the row above the boards on this
+                // surface, and listing it again here would be two ways to the
+                // same place a thumb's width apart. A view the *user* built that
+                // happens to gather the Inbox is theirs and is drawn.
+                ForEach(store.views.filter { $0.preset != .inbox }) { viewRow($0) }
+                newViewRow
             }
             .padding(.horizontal, 12)
 
@@ -406,7 +405,7 @@ struct PhoneNavDrawer: View {
     /// which is worse than showing nothing. Selecting the open view again is a
     /// second way back to the board, next to the board row's own.
     private func viewRow(_ view: SavedView) -> some View {
-        let isActive = store.activeView == view
+        let isActive = store.activeView?.id == view.id
         return Button { open(view) } label: {
             HStack(spacing: 10) {
                 Image(systemName: view.symbol)
@@ -438,6 +437,67 @@ struct PhoneNavDrawer: View {
                 )
                 .accessibilityAddTraits(isActive ? [.isSelected] : [])
         }
+        .contextMenu { viewMenu(view) }
+    }
+
+    /// The same three the sidebar's rows carry. A long press, because the
+    /// drawer's rows have no room for a trailing `…` and a tap already means
+    /// *go there* — the board rows below make the same trade.
+    @ViewBuilder private func viewMenu(_ view: SavedView) -> some View {
+        Button { edit(view.id) } label: {
+            Label("Edit View…", systemImage: "slider.horizontal.3")
+        }
+        Button {
+            if let copy = store.duplicateView(view.id) { edit(copy.id) }
+        } label: {
+            Label("Duplicate View", systemImage: "plus.square.on.square")
+        }
+        Divider()
+        Button(role: .destructive) { store.deleteView(view.id) } label: {
+            Label("Delete View", systemImage: "trash")
+        }
+        if store.isMissingSeededViews {
+            Divider()
+            Button { store.restoreSeededViews() } label: {
+                Label("Restore Built-in Views", systemImage: "arrow.uturn.backward")
+            }
+        }
+    }
+
+    /// The way to make one, under the list it joins — where the sidebar's own
+    /// **New view** row sits, and where **New board** sits under the boards.
+    private var newViewRow: some View {
+        Button { edit(store.addView().id) } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "plus")
+                    .imageScale(.small)
+                    .frame(width: 17)
+                    .accessibilityHidden(true)
+                Text("New view")
+                    .font(SimpleKanbanFont.ui(15, .semibold, relativeTo: .subheadline))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .foregroundStyle(palette.inkText(0.55))
+            .padding(12)
+            .frame(minHeight: 44)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.bare)
+        .accessibilityRepresentation {
+            Button(String(localized: "New view",
+                          comment: "Accessibility name of the drawer row that creates a saved view")) {
+                edit(store.addView().id)
+            }
+        }
+    }
+
+    /// Names the view and gets out of the way. The drawer cannot present the
+    /// sheet itself — it is about to close, and a sheet presented from a view
+    /// leaving the tree goes with it — so `PhoneRootView` presents on the flag.
+    /// See ``BoardStore/editingViewID``.
+    private func edit(_ id: SavedView.ID) {
+        store.editingViewID = id
+        store.isNavDrawerOpen = false
     }
 
     /// The drawer covers the list it is changing, so a pick has to close it —
@@ -448,7 +508,7 @@ struct PhoneNavDrawer: View {
     /// and returning from Today to a board the user was not on would be the
     /// drawer answering a question nobody asked.
     private func open(_ view: SavedView) {
-        if store.activeView == view {
+        if store.activeView?.id == view.id {
             store.selectTab(store.tab)
         } else {
             store.activeView = view
@@ -485,10 +545,18 @@ struct PhoneNavDrawer: View {
 }
 
 extension View {
-    /// Presents the "name it" prompt a new board needs. An alert rather than a
-    /// sheet: a board is a name, and the name is the whole of what is being
-    /// asked for.
+    /// Makes a board and opens its settings on the empty name field, the moment
+    /// `isPresented` goes true.
     ///
+    /// **It used to be an alert asking for a name**, on the argument that a
+    /// board *is* a name. It is not: it is a name and the columns work moves
+    /// through, and a board arrives holding only its Done column — so the next
+    /// thing to do after naming one is always to say what its columns are. The
+    /// settings sheet holds both, in that order, and the desk's sidebar row does
+    /// exactly this too.
+    ///
+    /// The binding stays rather than becoming a call, because the two callers
+    /// are a drawer row and an empty state that also want to know it happened.
     /// Shared by the drawer's "+ New board" row and by the empty state the Board
     /// tab shows once the last board has been deleted, which is a state the user
     /// has to be able to leave.
@@ -505,23 +573,19 @@ private struct NewBoardAlert: ViewModifier {
     @Binding var isPresented: Bool
     let onCreate: (Board.ID) -> Void
 
-    @State private var name = ""
-
     func body(content: Content) -> some View {
-        content.alert("New Board", isPresented: $isPresented) {
-            TextField("Board name", text: $name)
-            Button("Cancel", role: .cancel) { name = "" }
-            Button("Create") {
-                // `createBoard` refuses a blank name and moves to the board it
-                // made, so the caller only has to say where to look afterwards.
-                if let id = store.createBoard(named: name) {
-                    store.selectTab(.board)
-                    onCreate(id)
-                }
-                name = ""
-            }
-        } message: {
-            Text("A board has columns of its own. Anything you have not filed stays in the Inbox.")
+        // `task(id:)` rather than `onChange` for `BoardSidebar`'s reason: the
+        // asking surface can be going away in the same turn, and this has to run
+        // on the way in either way.
+        content.task(id: isPresented) {
+            guard isPresented else { return }
+            isPresented = false
+            // `createBoard` moves to the board it made, so the caller only has
+            // to say where to look afterwards.
+            guard let id = store.createBoard(named: Board.defaultName) else { return }
+            store.selectTab(.board)
+            store.boardSettings = BoardSettingsRequest(board: id, namesNewBoard: true)
+            onCreate(id)
         }
     }
 }

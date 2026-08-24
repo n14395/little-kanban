@@ -35,22 +35,56 @@ struct BoardSettingsView: View {
         var spacing: CGFloat
         var padding: CGFloat
         var radius: CGFloat
-        var dots: DotPicker.Metrics
+        /// How far a row's two insertion targets reach past it, into the gap
+        /// either side. Half the 2pt the rows are spaced by would be 1, which is
+        /// nothing to aim at; this overlaps the neighbouring row instead, and
+        /// the half nearest the pointer is the one it is over.
+        static let dropReach: CGFloat = 6
+
+        /// The narrowest a Name field may be before the composer gives up on
+        /// one row and stacks its colour swatches under the fields. Not per
+        /// idiom: it is how much of a column name has to be legible while it is
+        /// typed, which is the same question on every surface.
+        static let nameFloor: CGFloat = 140
+
+        /// What the Short field claims beside a Name field that takes the rest.
+        /// Sized to what goes in it — "Backlog", "Doing", "Rev" — rather than to
+        /// a share of the row, because the row is a different width on every
+        /// surface and the word in it is not.
+        var shortWidth: CGFloat
+        /// What the colour button claims beside the two fields, where they
+        /// share a row. Wider than the words need so the swatch reads as a
+        /// swatch rather than as a tinted label.
+        var colourWidth: CGFloat
+        var colorWell: ColorWell.Metrics
 
         static let desk = Metrics(
             titleFont: 21, rowFont: 13, fieldFont: 13, hit: 28,
-            spacing: 15, padding: 18, radius: 10, dots: .desk
+            spacing: 15, padding: 18, radius: 10, shortWidth: 96,
+            colourWidth: 132, colorWell: .desk
         )
         static let sheet = Metrics(
             titleFont: 26, rowFont: 15, fieldFont: 15, hit: 44,
-            spacing: 18, padding: 20, radius: 12, dots: .sheet
+            spacing: 18, padding: 20, radius: 12, shortWidth: 108,
+            colourWidth: 148, colorWell: .sheet
         )
     }
 
-    /// Which of the column editor's fields has the caret. The pair is the same
-    /// on every row, so one enum covers whichever row is open, plus the
-    /// composer's own field at the bottom of the list.
-    private enum ColumnField: Hashable { case name, short, new }
+    /// Which field holds the keyboard. Two rows have two fields each — a
+    /// column's editor and the composer that makes one — so this names the row
+    /// as well as the field, and the two questions the rest of the file asks of
+    /// it are answered here rather than at each site by listing cases.
+    private enum ColumnField: Hashable {
+        case name, short, new, newShort
+
+        /// The composer's pair, which is what the software keyboard has to be
+        /// scrolled clear of: it is the last thing in the sheet.
+        var isComposer: Bool { self == .new || self == .newShort }
+
+        /// The two that hold an abbreviation rather than a name, so a reader
+        /// hears the same thing in either row.
+        var isShort: Bool { self == .short || self == .newShort }
+    }
 
 
     @Environment(\.palette) private var palette
@@ -63,6 +97,13 @@ struct BoardSettingsView: View {
     /// Set by the routes that say *rename* rather than *settings*, which name
     /// the one field they mean and so should land the caret in it.
     var focusesName: Bool = false
+    /// Whether to arrive with the add-column composer already open — see
+    /// ``BoardSettingsRequest/addsColumn``.
+    var addsColumn: Bool = false
+    /// Whether the board has just been made — see
+    /// ``BoardSettingsRequest/namesNewBoard``. The name field arrives focused
+    /// and empty.
+    var namesNewBoard: Bool = false
     /// A column to arrive with already unfolded, set by the routes that name
     /// one: a phone chip's **Edit Column…** and the desk column header's.
     ///
@@ -86,9 +127,25 @@ struct BoardSettingsView: View {
     /// bottom of the screen.
     @State private var expandedColumnID: BoardColumn.ID?
     @State private var isAddingColumn = false
+    /// The gap a column being dragged would land in, and the column in the air
+    /// that would land there. Local because this is the only place a column is
+    /// dragged — the board's own strip re-orders from a menu — and because a
+    /// session left open by a drag that ended inside a dismissed sheet would
+    /// outlive the thing that started it.
+    @State private var columnCaret: ColumnCaret?
+    @State private var draggingColumnID: BoardColumn.ID?
     @State private var columnNameDraft = ""
     @State private var columnShortDraft = ""
     @State private var newColumnName = ""
+    /// The abbreviation for the column being composed. Empty is a real answer,
+    /// not a missing one — `addColumn` reads it as "call it what the column is
+    /// called".
+    @State private var newColumnShort = ""
+    /// The dot for the column being composed. Opens on the same value a column
+    /// made without touching the picker would have had — see
+    /// ``BoardColumn/defaultDot``, which is why no swatch is ringed to begin
+    /// with.
+    @State private var newColumnDot = BoardColumn.defaultDot
     @FocusState private var columnFocus: ColumnField?
     /// Why the last delete did not happen. `BoardColumnView` keeps the same
     /// state for the same reason: a menu item that silently does nothing is
@@ -115,9 +172,14 @@ struct BoardSettingsView: View {
         // How it is *presented* — a detent and a grabber on iOS, a fixed frame
         // on the desk — belongs to whatever put it up, the split `SettingsView`
         // makes with `SettingsSheet` and `SettingsWindow`.
-        .focusWhenReady($isNameFocused, when: focusesName)
+        .focusWhenReady($isNameFocused, when: focusesName || namesNewBoard)
         .onAppear {
-            draft = board?.name ?? ""
+            // Empty for a board that has only just been made: it is called
+            // ``Board/defaultName`` and nobody chose that, so the field shows
+            // its placeholder and the first keystroke is the name. Closing
+            // without typing leaves the board called what it was — `renameBoard`
+            // refuses an empty name, and `commitRename` reads the kept one back.
+            draft = namesNewBoard ? "" : (board?.name ?? "")
             // `addColumn` and `moveColumn` are defined over the *active* board —
             // a column has no board of its own to name, only the board that
             // holds it. Editing a board that is not the one on screen would
@@ -129,6 +191,7 @@ struct BoardSettingsView: View {
             if let expandsColumn, let column = board?.column(id: expandsColumn) {
                 open(column)
             }
+            if addsColumn { isAddingColumn = true }
         }
         .onDisappear {
             commitRename()
@@ -192,12 +255,9 @@ struct BoardSettingsView: View {
                     nameField
                     VStack(alignment: .leading, spacing: 7) {
                         Text("Colour").sectionLabelStyle(opacity: Palette.readableInk)
-                        DotPicker(current: board.dot, metrics: metrics.dots) {
+                        ColorWell(selection: board.dot, metrics: metrics.colorWell) {
                             store.recolorBoard(boardID, to: $0)
                         }
-                        // The row of squares tiles edge to edge, so the first dot
-                        // sits inset from the margin the fields keep.
-                        .padding(.leading, -(metrics.dots.hitSize - metrics.dots.dot) / 2)
                     }
                     columns(board)
                     deleteRow
@@ -215,7 +275,7 @@ struct BoardSettingsView: View {
                 if isOpen { reveal(in: proxy) }
             }
             .onChange(of: columnFocus) { _, focus in
-                if focus == .new { reveal(in: proxy) }
+                if focus?.isComposer == true { reveal(in: proxy) }
             }
             // A sheet opened straight onto a column has to *show* it. The board
             // name, the colour row and however many columns come first are
@@ -259,15 +319,29 @@ struct BoardSettingsView: View {
     /// became board data in D1, but every call site for the store's column
     /// mutations was in `Sources/Mac/`, so a board created here was stuck with
     /// the four it was seeded with for good.
+    /// The columns in board order, with the composer **between the working ones
+    /// and Done**.
+    ///
+    /// Where a new column actually goes — `addColumn` inserts in front of Done,
+    /// which stays last — so the button sits where the column it makes will
+    /// appear. On the end it read as "add a column after Done", which is the one
+    /// place a column cannot go.
+    ///
+    /// `index` is the column's place in `board.columns`, not in either of the
+    /// two runs, because that is what `move(from:to:)` and `moveColumn` count in.
     private func columns(_ board: Board) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
+        let count = board.columns.count
+        return VStack(alignment: .leading, spacing: 7) {
             Text("Columns").sectionLabelStyle(opacity: Palette.readableInk)
             VStack(spacing: 2) {
-                ForEach(Array(board.columns.enumerated()), id: \.element.id) { index, column in
-                    columnRow(column, index: index, count: board.columns.count)
+                ForEach(Array(board.workingColumns.enumerated()), id: \.element.id) { index, column in
+                    columnRow(column, index: index, count: count)
                 }
             }
             addColumnRow
+            if let done = board.doneColumn {
+                columnRow(done, index: count - 1, count: count)
+            }
         }
     }
 
@@ -307,6 +381,20 @@ struct BoardSettingsView: View {
                 .contentShape(.rect)
             }
             .buttonStyle(.bare)
+            // **The grip.** The closed header only: an open row is one being
+            // typed into, and a drag starting on its fields would fight the
+            // caret. `BoardColumnView` makes the same trade for the same reason
+            // — there the whole header is the grip and the two buttons on it
+            // take their own presses first.
+            .modifier(
+                ColumnRowGrip(
+                    isEnabled: !isOpen && !isDoneColumn(column),
+                    payload: {
+                        liftColumn(column.id)
+                        return ColumnTransfer(column, on: boardID)
+                    }
+                )
+            )
             // `viewRow`'s treatment, for `viewRow`'s reason: the row is one
             // thing to a reader — the column's name, its role as the value.
             .accessibilityRepresentation {
@@ -328,8 +416,116 @@ struct BoardSettingsView: View {
             }
         }
         .background(isOpen ? palette.ink(0.045) : .clear, in: .rect(cornerRadius: metrics.radius))
+        // **Where a dragged column would land**, drawn in the gap it would land
+        // in rather than on a row it would not.
+        .overlay { dropZones(for: column) }
+        .overlay(alignment: caretEdge(for: column) ?? .top) { caretMark(for: column) }
         // What `expandsColumn` scrolls to.
         .id(column.id)
+    }
+
+    // MARK: Re-ordering by drag
+
+    /// The row's two halves, as separate insertion targets: the top half means
+    /// *above this column*, the bottom half means *below it*. `BoardTaskCard`
+    /// does the same for the board's cards, and the notes there are the notes
+    /// here — halves because a drop that names a *row* can only mean a gap by
+    /// guessing which way the drag came from, over the row rather than behind
+    /// it because a drop stops at whatever is in front, and only while
+    /// something is in the air because otherwise they take the tap that opens
+    /// the row.
+    ///
+    /// The Done row is the one that draws a single zone: nothing lands after
+    /// it, so the whole of it means *in front of Done*. And they reach
+    /// ``Metrics/dropReach`` past the row at each end so one row's halves meet
+    /// the next one's in the middle of the gap, and a pointer between two rows
+    /// is over one of them rather than over neither.
+    @ViewBuilder private func dropZones(for column: BoardColumn) -> some View {
+        if draggingColumnID != nil {
+            VStack(spacing: 0) {
+                dropZone(.above(column.id))
+                if !isDoneColumn(column) { dropZone(.below(column.id)) }
+            }
+            .padding(.vertical, -Metrics.dropReach)
+        }
+    }
+
+    private func dropZone(_ caret: ColumnCaret) -> some View {
+        Color.clear
+            .contentShape(.rect)
+            .dropDestination(for: ColumnTransfer.self) { items, _ in
+                defer { endColumnDrag() }
+                guard let dropped = items.first else { return false }
+                commitColumnRename()
+                return store.dropColumn(dropped, at: caret)
+            } isTargeted: { targeted in
+                // Cleared only by the half that set it: leaving one for the next
+                // fires this one's `false` after the other's `true`, and an
+                // unguarded clear would take the new target down with it.
+                if targeted {
+                    columnCaret = caret
+                } else if columnCaret == caret {
+                    columnCaret = nil
+                }
+            }
+    }
+
+    /// Which edge of this row the mark goes on, or `nil` for no mark.
+    ///
+    /// Nothing against the row in the air — it is about to leave, and a line on
+    /// a row that is going says nothing about where anything lands — and nothing
+    /// against the two gaps it already sits between, which is `dropColumn`
+    /// refusing a move to where the column already is, read back.
+    private func caretEdge(for column: BoardColumn) -> Alignment? {
+        guard let columnCaret, columnCaret.column == column.id,
+              let dragging = draggingColumnID, dragging != column.id,
+              let from = store.columns.firstIndex(where: { $0.id == dragging }),
+              let anchor = store.columns.firstIndex(where: { $0.id == column.id })
+        else { return nil }
+        switch columnCaret {
+        case .above: return anchor == from + 1 ? nil : .top
+        case .below: return anchor == from - 1 ? nil : .bottom
+        }
+    }
+
+    /// The insertion point: the line that says *here*, in the gap the column
+    /// would land in. The same mark the board's cards and the checklist's rows
+    /// draw, drawn against the row it names rather than floating in the gap —
+    /// an overlay knows its row's bounds and not the list's spacing.
+    @ViewBuilder private func caretMark(for column: BoardColumn) -> some View {
+        if caretEdge(for: column) != nil {
+            Capsule()
+                .fill(palette.accent)
+                .frame(height: 3)
+                .padding(.horizontal, 1)
+                // A mark, not a target: without this it is a hole in the row it
+                // is drawn on, and the drop under it goes nowhere.
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
+    /// A column has left the ground. Deferred into a task of its own because
+    /// this is called from the payload closure `.draggable` evaluates when the
+    /// session starts, and writing state straight from there is writing it
+    /// inside a view update — the latch and the expiry are `BoardStore.beginDrag`'s,
+    /// which is where the same problem was solved for cards.
+    ///
+    /// **The expiry is what a cancelled drag needs.** A column let go over
+    /// nothing tells nobody, and until this clears the zones stay over every row
+    /// and take the tap that opens one.
+    private func liftColumn(_ id: BoardColumn.ID) {
+        Task { @MainActor in
+            guard draggingColumnID != id else { return }
+            draggingColumnID = id
+            try? await Task.sleep(for: .seconds(BoardStore.liftExpiry))
+            if draggingColumnID == id { endColumnDrag() }
+        }
+    }
+
+    private func endColumnDrag() {
+        draggingColumnID = nil
+        columnCaret = nil
     }
 
     /// Whether this is the board's Done column: its last, which is
@@ -353,20 +549,11 @@ struct BoardSettingsView: View {
     /// that would leave a person pressing them to find out why.
     private func columnEditor(_ column: BoardColumn, index: Int, count: Int) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            columnField("Name", text: $columnNameDraft, focus: .name)
-            // Nothing else edits the abbreviation, and `MoveToPicker` is what
-            // draws it: without this a column renamed on the phone went on
-            // calling itself by the old name in the only control the phone has
-            // for moving a card.
-            columnField("Short", text: $columnShortDraft, focus: .short)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Colour").sectionLabelStyle(size: 10.5, tracking: 0.08, opacity: Palette.readableInk)
-                DotPicker(current: column.dot, metrics: metrics.dots) {
-                    store.recolorColumn(column.id, to: $0)
-                }
-                .padding(.leading, -(metrics.dots.hitSize - metrics.dots.dot) / 2)
-            }
+            columnShape(
+                name: $columnNameDraft, nameFocus: .name,
+                short: $columnShortDraft, shortFocus: .short,
+                dot: column.dot, setDot: { store.recolorColumn(column.id, to: $0) }
+            )
 
             if isDoneColumn(column) {
                 Text("Every board keeps its Done column, at the end. Ticking a task sends it here.")
@@ -375,9 +562,13 @@ struct BoardSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 HStack(spacing: 8) {
-                    // Reordering, for a list that cannot be dragged: these rows
-                    // are a `VStack` in a sheet's scroller, and `onMove` belongs
-                    // to `List`. The drawer's board rows make the same trade.
+                    // **The reachable half of re-ordering.** The rows are
+                    // draggable — see ``ColumnRowGrip`` — and a drag is not a
+                    // control: it cannot be reached by keyboard, VoiceOver
+                    // cannot offer it, and Switch Control cannot perform it. So
+                    // the pair stays. It is also the only route while a row is
+                    // open, which is exactly when somebody is deciding where the
+                    // column they are editing belongs.
                     stepButton("Move Up", glyph: "\u{2191}", isEnabled: index > 0) {
                         move(from: index, to: index - 1)
                     }
@@ -406,11 +597,18 @@ struct BoardSettingsView: View {
                 .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .body))
                 .foregroundStyle(palette.ink)
                 .focused($columnFocus, equals: target)
-                .submitLabel(.done)
+                // **Next on the composer's name, Done on everything else.** A
+                // Return that made the column would step over a field the user
+                // can see directly underneath the caret, and a keyboard that
+                // says "done" while there is a filled-in field below it is
+                // saying the wrong thing. The composer's Short is the end of
+                // the chain and makes the column.
+                .submitLabel(target == .new ? .next : .done)
                 .onSubmit {
-                    if target == .new {
-                        addColumn()
-                    } else {
+                    switch target {
+                    case .new: columnFocus = .newShort
+                    case .newShort: addColumn()
+                    case .name, .short:
                         commitColumnRename()
                         columnFocus = nil
                     }
@@ -430,7 +628,7 @@ struct BoardSettingsView: View {
                         .onTapGesture { columnFocus = target }
                 }
                 .accessibilityLabel(
-                    target == .short
+                    target.isShort
                         ? String(localized: "Short name",
                                  comment: "Accessibility name for the field holding a column's abbreviation")
                         : String(localized: "Column name",
@@ -508,12 +706,11 @@ struct BoardSettingsView: View {
 
     private var addColumnComposer: some View {
         VStack(alignment: .leading, spacing: 14) {
-            // A name and nothing else. There used to be four role segments
-            // above this field, and they had to be *above* it because the band
-            // below is where the software keyboard lands — a tap aimed at Doing
-            // or Done reached the keyboard instead and the column was made a
-            // Backlog without a word said. Both problems left with the roles.
-            columnField("Name", text: $newColumnName, focus: .new)
+            columnShape(
+                name: $newColumnName, nameFocus: .new,
+                short: $newColumnShort, shortFocus: .newShort,
+                dot: newColumnDot, setDot: { newColumnDot = $0 }
+            )
             HStack(spacing: 8) {
                 // The height belongs inside the label. Hung on the `Button`
                 // instead it framed the control and not its shape, and
@@ -544,6 +741,86 @@ struct BoardSettingsView: View {
         .padding(12)
         .background(palette.ink(0.045), in: .rect(cornerRadius: metrics.radius))
         .id(Self.composerAnchor)
+    }
+
+    /// **Name, Short and Colour — the whole of what a column is**, in the one
+    /// arrangement both the composer and a column's own editor draw them in.
+    ///
+    /// One function rather than two layouts, because they are the same three
+    /// controls a moment apart: the composer is the column, and the editor is
+    /// the column once it exists. Two arrangements is two places for them to
+    /// drift, and this file has been through that once already — see
+    /// `renameColumn(_:to:short:)`, which exists because the phone could rename
+    /// a column and nothing could rename its abbreviation.
+    ///
+    /// **One row where there is width for it, two where there is not**, and the
+    /// fallback is measured rather than a taste. All three stacked, the composer
+    /// stands near 300pt; a landscape phone leaves 184 between the sheet's
+    /// header and the top of the software keyboard, and the controls below the
+    /// caret go under it — the same failure the four role segments used to cause
+    /// here, which is why they had to sit *above* the name field rather than
+    /// below it. A landscape phone is the one surface with no height and plenty
+    /// of width, so it is the one that gets the single row; the fields keep a
+    /// floor of ``Metrics/nameFloor`` so "fits" cannot mean a name field
+    /// squeezed to nothing.
+    private func columnShape(
+        name: Binding<String>, nameFocus: ColumnField,
+        short: Binding<String>, shortFocus: ColumnField,
+        dot: SwatchColor, setDot: @escaping (SwatchColor) -> Void
+    ) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 12) {
+                columnFields(name: name, nameFocus: nameFocus, short: short, shortFocus: shortFocus)
+                columnColour(dot: dot, fillsTheRow: false, setDot: setDot)
+            }
+            VStack(alignment: .leading, spacing: 14) {
+                columnFields(name: name, nameFocus: nameFocus, short: short, shortFocus: shortFocus)
+                columnColour(dot: dot, fillsTheRow: true, setDot: setDot)
+            }
+        }
+    }
+
+    /// Name and Short, side by side on every surface: an abbreviation is a word
+    /// rather than a sentence, so it is the half that takes a fixed width.
+    ///
+    /// Nothing else edits the abbreviation, and `MoveToPicker` is what draws it —
+    /// without this a column renamed on the phone went on calling itself by the
+    /// old name in the only control the phone has for moving a card.
+    ///
+    /// **Empty Short is an answer**: `addColumn` falls back to the full name,
+    /// and `renameColumn` keeps the one the column has. The placeholder stays
+    /// the word "Short" rather than echoing the name to say so — measured,
+    /// "Code Review" in a 96pt field renders as "Code Reviev", and a control
+    /// that looks broken while explaining itself has explained nothing.
+    private func columnFields(
+        name: Binding<String>, nameFocus: ColumnField,
+        short: Binding<String>, shortFocus: ColumnField
+    ) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            columnField("Name", text: name, focus: nameFocus)
+                .frame(minWidth: Metrics.nameFloor)
+            columnField("Short", text: short, focus: shortFocus)
+                .frame(width: metrics.shortWidth)
+        }
+    }
+
+    /// The swatches. `setDot` is the difference between the two callers rather
+    /// than a second control: the editor recolours the column as it is pressed,
+    /// and the composer holds the pick on a value until Add Column is, because
+    /// there is no column to recolour yet.
+    ///
+    /// `fillsTheRow` is whether the button takes the width it is given or the
+    /// ``Metrics/colourWidth`` it needs: stacked under the fields it runs the
+    /// width of them, and beside them it takes its own share.
+    private func columnColour(
+        dot: SwatchColor, fillsTheRow: Bool, setDot: @escaping (SwatchColor) -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Colour").sectionLabelStyle(size: 10.5, tracking: 0.08, opacity: Palette.readableInk)
+            ColorWell(selection: dot, metrics: metrics.colorWell) { setDot($0) }
+                .frame(maxWidth: fillsTheRow ? .infinity : metrics.colourWidth)
+        }
+        .frame(maxWidth: fillsTheRow ? .infinity : metrics.colourWidth, alignment: .leading)
     }
 
     /// What `reveal` scrolls to. The composer is the last thing in the sheet, so
@@ -577,12 +854,15 @@ struct BoardSettingsView: View {
     /// A name with nothing in it is refused by the store, and the composer stays
     /// open rather than closing on a column that was never made.
     private func addColumn() {
-        guard store.addColumn(named: newColumnName) != nil else { return }
+        guard store.addColumn(named: newColumnName, short: newColumnShort, dot: newColumnDot) != nil
+        else { return }
         cancelAddColumn()
     }
 
     private func cancelAddColumn() {
         newColumnName = ""
+        newColumnShort = ""
+        newColumnDot = BoardColumn.defaultDot
         columnFocus = nil
         isAddingColumn = false
     }
@@ -680,6 +960,27 @@ struct BoardSettingsView: View {
     private func commitRename() {
         store.renameBoard(boardID, to: draft)
         draft = store.board(id: boardID)?.name ?? draft
+    }
+}
+
+/// The drag half of re-ordering a column in the settings sheet.
+///
+/// A `ViewModifier` rather than a ternary because `.draggable` takes a payload
+/// and not an optional one — `DraggableWhenOrdered` is the same shape for the
+/// same reason. The payload is built when the *session* starts rather than when
+/// the row is drawn, which is what keeps the column's name on it current after a
+/// rename in the row above.
+private struct ColumnRowGrip: ViewModifier {
+    let isEnabled: Bool
+    let payload: () -> ColumnTransfer
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.draggable(payload())
+        } else {
+            content
+        }
     }
 }
 

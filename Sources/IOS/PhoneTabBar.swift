@@ -81,7 +81,7 @@ struct PhoneTabBar: View {
             slot(PhoneTab.board.label, symbol: PhoneTab.board.symbol, isCurrent: isCurrent(.board)) {
                 store.selectTab(.board)
             }
-            slot(Board.inboxName, symbol: SavedView.inbox.symbol, isCurrent: store.isInboxOpen) {
+            slot(Board.inboxName, symbol: SavedView.seeded(.inbox).symbol, isCurrent: store.isInboxOpen) {
                 store.toggleInbox()
             }
             slot(PhoneTab.search.label, symbol: PhoneTab.search.symbol, isCurrent: isCurrent(.search)) {

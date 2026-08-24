@@ -49,7 +49,8 @@ enum ScaleBoard {
     // MARK: Shape
 
     static let labels: [LabelDef] = (0..<labelCount).map { n in
-        let tone = LabelDef.palette[n % LabelDef.palette.count]
+        let swatch = PaletteSwatch.seed[n % PaletteSwatch.seed.count].swatch
+        let tone = if case .rgb(let value, _) = swatch { LabelTone.pair(from: value) } else { LabelTone.inkPair }
         return LabelDef(key: "scale-\(n)", name: "Scale \(n)", light: tone.light, dark: tone.dark)
     }
 

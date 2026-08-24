@@ -103,6 +103,8 @@ struct PhoneRootView: View {
                         // A no-op in portrait, where the horizontal insets are
                         // zero and the clip is the scroll view's own bounds.
                         .clipped()
+                } else if isShort, store.activeView != nil {
+                    taskColumns(tasks)
                 } else {
                     taskList(tasks)
                 }
@@ -228,6 +230,25 @@ struct PhoneRootView: View {
                 .environment(\.palette, palette)
                 .environment(\.dayClock, dayClock)
         }
+        // The drawer's rows raise this and close; see
+        // `BoardStore.editingViewID` for why the asking and the presenting are
+        // two different surfaces here and one on the iPad.
+        .sheet(item: viewEditorPresentation) { draft in
+            SavedViewEditor(viewID: draft.id, metrics: .sheet)
+                .environment(store)
+                .environment(\.palette, palette)
+                .environment(\.dayClock, dayClock)
+        }
+    }
+
+    /// Written through a binding for `trashPresentation`'s reason: every way out
+    /// of the sheet — Done, a swipe down, the view being deleted underneath it —
+    /// goes through one place.
+    private var viewEditorPresentation: Binding<SavedViewDraft?> {
+        Binding(
+            get: { store.editingViewID.flatMap { store.view(id: $0) }.map(SavedViewDraft.init) },
+            set: { store.editingViewID = $0?.id }
+        )
     }
 
     /// The panel itself, built the same way for both shapes — the environment
@@ -362,6 +383,30 @@ struct PhoneRootView: View {
         }
     }
 
+    /// A saved view on a phone held sideways, which is the one shape on this
+    /// platform with width to spend — see ``TaskColumnsView``.
+    ///
+    /// **Across and then down, where the two wide surfaces go down and then
+    /// across.** The flow follows the scroll, and the scroll follows the shape
+    /// of the screen: a landscape phone has 390-odd points of height, which is
+    /// two cards, so wrapping downward would mean paging sideways through
+    /// columns two deep — a worse read than the single list it replaced. Wrapped
+    /// across, the same width holds two cards a row on a 17 Pro and three on a
+    /// Pro Max — see ``TaskColumnMetrics/phone`` for that arithmetic — and the
+    /// surface goes on scrolling the way it always did.
+    ///
+    /// **A saved view only, and only on its side.** The Inbox tab and the Search
+    /// tab draw through ``taskList(_:)`` whichever way the phone is held: they
+    /// are `TaskListView`'s last call site, and the trailing rows they carry —
+    /// the empty state, the dashed add row — are rows of that list rather than
+    /// cards. Upright, a saved view has one column's width and there is nothing
+    /// to wrap into.
+    private func taskColumns(_ tasks: [TaskItem]) -> some View {
+        TaskColumnsView(tasks: tasks, metrics: .phone, flow: .acrossThenDown) { task in
+            PlatformTaskCard(task: task, showsColumn: showsPlaceChips)
+        }
+    }
+
     /// The touch preset, with the room under the last card taken back on a
     /// screen that has none to spare.
     ///
@@ -410,10 +455,10 @@ struct PhoneRootView: View {
             // something to say when there is no board to draw — and has to
             // offer the way back, which is the only one there is.
             guard let board = store.activeBoard else { return noBoard }
-            // A board and no columns is a *new* board — they start blank now.
-            // Not the same empty as a column with nothing in it, and not the
-            // same way out either.
-            guard !store.columns.isEmpty else { return blankBoard(board) }
+            // A board with nothing but its Done column is a *new* board — that
+            // is the one column every board is made holding. Not the same empty
+            // as a column with nothing in it, and not the same way out either.
+            guard !store.workingColumns.isEmpty else { return blankBoard(board) }
             return emptyColumn(column)
         }
     }

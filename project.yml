@@ -158,35 +158,43 @@ targets:
         DEVELOPMENT_TEAM: P52946XHRJ
         TARGETED_DEVICE_FAMILY: "1,2"
         ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
-        # Sync is one line away, and deliberately not switched on here.
-        #
-        # `Resources/SimpleKanban-CloudKit.entitlements` and its iOS twin carry
-        # the same keys plus the iCloud container and the push environment. The
-        # App ID and the container have to exist under the team above before a
-        # build carrying them will sign — Xcode registers both the first time
-        # you tick iCloud ▸ CloudKit on the target with automatic signing, or
-        # `xcodebuild -allowProvisioningUpdates` does it from here. Until then a
-        # build with those entitlements fails to sign and `./build.sh` with it,
-        # so the plain files stay wired and the app runs on the local SwiftData
-        # store with sync off. To turn it on, point these three lines at the
-        # `-CloudKit` files and uncomment the compilation condition below.
+        # **Sync is on.** These three files carry the iCloud container
+        # `iCloud.com.n14395.SimpleKanban` and the push environment on top of
+        # the sandbox keys; the App ID and the container are registered under
+        # the team above, which is what `xcodebuild -allowProvisioningUpdates`
+        # did the first time a build carrying them was signed. A build whose
+        # team cannot reach that container fails to sign, and `./build.sh` with
+        # it — the plain `Resources/SimpleKanban.entitlements` is still there,
+        # and pointing the macOS line back at it puts the app on the local
+        # SwiftData store with sync off.
         #
         # The app does not take these lines on trust. `CloudKitEntitlement`
         # checks the running signature before `BoardSyncStore` names a
         # container, because asking for one the build was not signed for is not
         # an error anybody can catch — it is a trap on CoreData's own queue,
         # which is exactly how this app used to die on its second launch.
-        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Resources/SimpleKanban.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Resources/SimpleKanban-CloudKit.entitlements
         # iOS gets its own file rather than sharing the Mac's: the sandbox keys
         # there are macOS-only, and only the iCloud pair is common. There is no
         # non-CloudKit iOS file because iOS needs no entitlement to run the
         # local store — the setting appears only when sync is switched on.
-        # CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: Resources/SimpleKanban-iOS-CloudKit.entitlements
-        # CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Resources/SimpleKanban-iOS-CloudKit.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: Resources/SimpleKanban-iOS-CloudKit.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Resources/SimpleKanban-iOS-CloudKit.entitlements
         # macOS reads its own code signature and needs no flag. iOS has no
         # public API for that — `SecTask` is macOS-only — so it is told, here,
         # beside the entitlements file it has to agree with.
-        # SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphone*]: $(inherited) SIMPLE_KANBAN_CLOUDKIT
+        #
+        # **`iphoneos*`, not `iphone*`.** The wider spelling matches the
+        # simulator too, and a simulator build is *never* entitled whatever the
+        # lines above say — Xcode strips the entitlements dict to empty, which
+        # `codesign -d --entitlements` on the built .app confirms. So the flag
+        # there claims a container the process does not hold, which is the one
+        # arrangement `CloudKitEntitlement` exists to prevent. Measured on an
+        # iPhone 17 Pro simulator: the app asked for the container and CoreData
+        # answered `CKAccountStatusNoAccount` rather than trapping, only because
+        # no iCloud account was signed in on that device — sign one in and the
+        # entitlement check is what is left to fail.
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]: $(inherited) SIMPLE_KANBAN_CLOUDKIT
     scheme:
       testTargets:
         - SimpleKanbanTests

@@ -15,7 +15,7 @@ import Testing
 
     private func board(_ store: BoardStore) -> BoardMutation {
         BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0,
-                      boards: store.boards, trash: store.trash)
+                      boards: store.boards, trash: store.trash, views: store.views, savedColors: store.savedColors)
     }
 
     // MARK: What archiving takes away
@@ -474,7 +474,7 @@ import Testing
     /// The surface really does hand the menu a selection of filed cards.
     @Test func selectAllOnTheArchiveSelectsTheFiledCards() {
         let store = store()
-        store.selectSurface(.view(.archive))
+        store.selectSurface(.view(SavedView.archive.id))
         store.selectAllVisible(today: TestBoard.dueDay)
         #expect(store.selection == Set(filed))
     }

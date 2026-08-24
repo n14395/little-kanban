@@ -30,17 +30,6 @@ struct TaskListMetrics {
     static let sheet = TaskListMetrics(
         rowSpacing: 10, horizontalPadding: 20, maxRowWidth: .infinity, topInset: 2, bottomInset: 130
     )
-    /// The iPad's flat surfaces: the Inbox and the saved views, drawn with the
-    /// board's own card. Wider rows than the desk's because a 13" pane has the
-    /// width, and no floating tab bar to leave room under — the phone's 130pt
-    /// of bottom inset is for a bar the iPad does not have.
-    ///
-    /// Beside its siblings rather than in `PadRootView`, which is where it was:
-    /// a preset held privately inside a view is one nothing outside can name,
-    /// and `TouchTargetTests` enumerates these by type.
-    static let pad = TaskListMetrics(
-        rowSpacing: 10, horizontalPadding: 20, maxRowWidth: 720, topInset: 12, bottomInset: 28
-    )
     /// The Inbox panel, which is a column's width. No cap, because the panel
     /// *is* the cap — and the gutter and the gap between cards are a column's
     /// own, so a card in the panel sits on the same grid as a card beside it.

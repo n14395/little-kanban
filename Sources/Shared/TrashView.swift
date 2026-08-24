@@ -7,10 +7,10 @@ import SwiftUI
 /// wrong shelf: everything else in there is a preference about how the app
 /// behaves, and this is the user's own work sitting out a thirty-day countdown.
 /// A preference can wait; a card thrown away on Tuesday cannot wait past the
-/// thirtieth day. So it hangs off a bin at the foot of the source list on macOS
-/// and iPad — a popover beside the button, which is where the list it is about
-/// already is — and off the board menu on the phone, which is that surface's
-/// drawer for everything with no other home. See ``TrashedItem`` for what is
+/// thirtieth day. So it hangs off a **Trash** row in the source list on macOS
+/// and iPad, under Views and below the Archive — a popover beside the row, which
+/// is where the list it is about already is — and off the board menu on the
+/// phone, which is that surface's drawer for everything with no other home. See ``TrashedItem`` for what is
 /// kept and why the three kinds are not the same shape.
 ///
 /// **Restore is the ordinary button and Delete is the guarded one**, which is

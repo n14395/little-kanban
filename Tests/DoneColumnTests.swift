@@ -182,7 +182,7 @@ import Testing
         let store = Self.store()
         let boardID = try #require(store.activeBoardID)
         let payload = ColumnTransfer(Self.landed, on: boardID)
-        #expect(store.dropColumn(payload, onto: Self.inFlight.id) == false)
+        #expect(store.dropColumn(payload, at: .above(Self.inFlight.id)) == false)
         #expect(store.columns.map(\.name) == ["In flight", "Done", "Landed"])
     }
 
@@ -215,17 +215,20 @@ import Testing
     /// app, columns added to it by hand, and every Done behaviour following the
     /// last one.
     ///
-    /// **A new board arrives blank** — see `BoardStore.createBoard` — and gains
-    /// its Done column along with the first column the user adds, so there is
-    /// never a board holding nothing but somewhere to finish.
-    @Test func aBoardBuiltByHandGetsItsDoneColumnWithItsFirstColumn() throws {
+    /// **A new board arrives holding its Done column and nothing else** — see
+    /// `BoardStore.createBoard` — and every column its owner adds goes in front
+    /// of it, so the board is never without somewhere to finish and never gains
+    /// one behind their back.
+    @Test func aBoardBuiltByHandAddsItsColumnsInFrontOfDone() throws {
         let store = Self.store()
         let boardID = try #require(store.createBoard(named: "Gamma", codePrefix: "GA"))
-        #expect(store.columns.isEmpty)
+        #expect(store.columns.count == 1, "a new board did not arrive with its Done column")
+        let doneID = try #require(store.doneColumnID)
+        #expect(store.workingColumns.isEmpty, "a new board arrived with somewhere to work")
 
         let queueID = try #require(store.addColumn(named: "Queue", short: "Queue"))
-        #expect(store.columns.count == 2, "the first column did not bring a Done column with it")
-        let doneID = try #require(store.doneColumnID)
+        #expect(store.columns.count == 2)
+        #expect(store.doneColumnID == doneID, "the first column added took the finished work")
         #expect(doneID != queueID)
         #expect(store.columns.first?.id == queueID)
 
@@ -302,27 +305,48 @@ import Testing
         #expect(store[captured]?.subtasks.allSatisfy { !$0.done } == true)
     }
 
-    /// **A board with one column has nowhere to finish, not nothing to do.**
+    /// **A board with one column has somewhere to finish and nowhere to work.**
     ///
-    /// The rule is "the last column", and a single column is trivially the last
-    /// one — so the naive reading has every card on such a board arrive already
-    /// complete. It is the work column, and the board has no Done column at all
-    /// until it has a second. `BoardStore` will not build one of these — see
-    /// `addColumn`, which mints the pair, and `deleteColumn`, which refuses the
-    /// second-to-last — so this is about a board arriving in an import or a
-    /// hand-edited file.
-    @Test func aBoardWithASingleColumnHasNowhereToFinishRatherThanNowhereToWork() {
-        let only = BoardColumn(name: "Only", short: "ON", dot: .accent)
+    /// That is the state every board is made in, and the rule is uniform: the
+    /// last column is Done, and a single column is trivially the last. So the
+    /// board has no landing column, which is what makes it refuse a card rather
+    /// than land one in Done and complete it on arrival, and every surface that
+    /// draws it offers a column instead of a card.
+    @Test func aBoardWithOnlyItsDoneColumnHasNowhereToLandACard() {
+        let only = BoardColumn(name: "Done", short: "Done", dot: .accent)
         let bare = Board(name: "Bare", dot: .accent, columns: [only], codePrefix: "BA")
-        #expect(bare.doneColumn == nil, "the only column read as Done")
-        #expect(bare.workingColumns.map(\.id) == [only.id])
-        #expect(bare.landingColumn?.id == only.id)
+        #expect(bare.doneColumn?.id == only.id)
+        #expect(bare.workingColumns.isEmpty)
+        #expect(bare.landingColumn == nil, "a card filed onto a new board would arrive complete")
 
-        // And an empty board has neither.
+        // And a board with no columns at all — which nothing makes any more, but
+        // an import can be — has neither.
         let empty = Board(name: "Empty", dot: .accent, columns: [], codePrefix: "EM")
         #expect(empty.doneColumn == nil)
         #expect(empty.workingColumns.isEmpty)
         #expect(empty.landingColumn == nil)
+    }
+
+    /// And the tick on such a card is not drawn live: it is in the Done column,
+    /// so it reads as complete, and reopening it has nowhere to send it.
+    @Test func aCardInABoardsOnlyColumnCannotBeUnticked() throws {
+        let store = Self.store()
+        let boardID = try #require(store.createBoard(named: "Gamma"))
+        let done = try #require(store.doneColumnID)
+        let card = store.addTask(to: done, title: "Nowhere to go back to")
+        #expect(store.isDone(store[card]!))
+        #expect(store.canComplete(card) == false)
+        #expect(store.canReopen(card) == false)
+        #expect(store.canToggleCompletion(card) == false)
+
+        let before = store.tasks
+        store.reopen(card)
+        #expect(store.tasks == before, "a reopen that says it cannot act moved a card")
+
+        // Give it somewhere to work and the tick comes alive.
+        _ = store.addColumn(named: "Queue")
+        #expect(store.canReopen(card))
+        #expect(store.board(id: boardID)?.workingColumns.count == 1)
     }
 
     // MARK: What the "move to" control offers

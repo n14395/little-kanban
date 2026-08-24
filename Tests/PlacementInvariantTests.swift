@@ -101,7 +101,7 @@ import Testing
 
     private func board(_ store: BoardStore) -> BoardMutation {
         BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0,
-                      boards: store.boards, trash: store.trash)
+                      boards: store.boards, trash: store.trash, views: store.views, savedColors: store.savedColors)
     }
 
     // MARK: The property

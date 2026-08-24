@@ -67,10 +67,15 @@ import Testing
             ("SettingsView.sheet.rowHit", SettingsView.Metrics.sheet.rowHit),
             // The board's own settings, which both touch idioms draw at
             // `.sheet`: the iPad gets this sheet rather than the desk's, because
-            // every control in it — a colour swatch, a step arrow, a field —
+            // every control in it — the colour button, a step arrow, a field —
             // is one a finger has to land on.
             ("BoardSettingsView.sheet.hit", BoardSettingsView.Metrics.sheet.hit),
-            ("BoardSettingsView.sheet.dots.hitSize", BoardSettingsView.Metrics.sheet.dots.hitSize),
+            // The colour control, and the popover it opens: the swatches in
+            // there are the row `DotPicker` used to draw inline, at the same
+            // 44 they always claimed.
+            ("ColorWell.sheet.height", ColorWell.Metrics.sheet.height),
+            ("ColorPickerPopover.sheet.swatchHit", ColorPickerPopover.Metrics.sheet.swatchHit),
+            ("ColorPickerPopover.sheet.hit", ColorPickerPopover.Metrics.sheet.hit),
             // The iPad draws the desk's board at touch sizes, so `.pad` is a
             // touch preset and belongs here beside `.sheet`. Measured on a
             // booted iPad too — see the iPad section of the README — but a
@@ -78,9 +83,6 @@ import Testing
             ("BoardTaskCard.pad.toggle.hitSize", BoardTaskCard.Metrics.pad.toggle.hitSize),
             ("BoardTaskCard.pad.restoreHit", BoardTaskCard.Metrics.pad.restoreHit),
             ("BoardColumnView.pad.headerButton", BoardColumnView.Metrics.pad.headerButton),
-            // The add-column tile stands on its side, so its *width* is what a
-            // finger has to land on rather than an incidental of the column.
-            ("BoardColumnView.pad.addColumnWidth", BoardColumnView.Metrics.pad.addColumnWidth),
             ("BoardColumnView.pad.rowHit", BoardColumnView.Metrics.pad.rowHit),
             ("BoardColumnView.ColumnEditorMetrics.pad.fieldHit",
              BoardColumnView.ColumnEditorMetrics.pad.fieldHit),
@@ -158,8 +160,8 @@ import Testing
         #expect(desk.hitSize >= desk.size && desk.hitSize < Self.finger)
         let deskRow = CompletionToggle.Metrics.deskRow
         #expect(deskRow.hitSize >= deskRow.size && deskRow.hitSize < Self.finger)
-        let manager = LabelManagerView.Metrics.desk
-        #expect(manager.swatchHit >= manager.swatch && manager.swatchHit < Self.finger)
+        let swatches = ColorPickerPopover.Metrics.desk
+        #expect(swatches.swatchHit >= swatches.swatch && swatches.swatchHit < Self.finger)
         let accent = AccentPicker.Metrics.desk
         #expect(accent.swatchHit >= accent.swatch && accent.swatchHit < Self.finger)
     }
@@ -219,15 +221,22 @@ import Testing
 
     /// Where 44pt targets and the design's gaps cannot both fit the narrowest
     /// supported phone, §9 says the targets win and the spacing gives way.
-    /// Both of these are a row of round swatches, which is where that bites.
+    ///
+    /// **A row of swatches is what bites, and there is one left.** The colour
+    /// rows the boards, the columns and the labels each drew are one popover
+    /// now — see ``ColorPickerPopover``, whose swatches wrap in a `FlowLayout`
+    /// rather than being sized to a phone, because the palette is the user's
+    /// and can be any length. What it *cannot* do is be wider than the phone it
+    /// hangs off.
     @Test func theSwatchRowsFitTheNarrowestPhone() {
         let phone: CGFloat = 375
 
-        let manager = LabelManagerView.Metrics.sheet
-        let swatches = CGFloat(LabelDef.palette.count)
-        let colourRow = swatches * manager.swatchHit + (swatches - 1) * manager.swatchSpacing
-        let colourBudget = phone - 2 * manager.panelPadding - 2 * manager.rowPadding
-        #expect(colourRow <= colourBudget, "\(colourRow)pt of swatches in \(colourBudget)pt of row")
+        let picker = ColorPickerPopover.Metrics.sheet
+        #expect(picker.width <= phone - 16, "the picker is wider than the phone it opens on")
+        // Four to a row at the narrowest, which is what a wrapping row needs to
+        // be worth wrapping.
+        let inner = picker.width - 2 * picker.spacing
+        #expect(inner / picker.swatchHit >= 4, "the palette wraps to fewer than four across")
 
         let accent = AccentPicker.Metrics.drawer
         let themes = CGFloat(AccentTheme.allCases.count)
@@ -235,21 +244,14 @@ import Testing
         // what is left of the drawer rather than all of it.
         let accentRow = themes * accent.swatchHit + (themes - 1) * accent.spacing
         #expect(accentRow <= phone / 2, "\(accentRow)pt of swatches crowds the label off the row")
-
-        // The board editor's row is drawn in `Sources/IOS`, so its geometry is
-        // out of this target's reach and only the count it is sized against can
-        // be pinned here: six 44pt targets, butted up with no spacing left to
-        // give away. A seventh colour is what breaks it, silently, on the
-        // narrowest phone only.
-        let dots = CGFloat(Board.dotPalette.count)
-        #expect(Board.dotPalette.count == 6)
-        #expect(dots * 44 <= phone, "\(dots * 44)pt of board swatches does not fit \(phone)pt")
     }
 
-    /// One palette for both surfaces, or a board coloured on the phone cannot be
-    /// put back to that colour on the desk. The seed workflow's own dots have to
-    /// be in it for the same reason: a column recoloured by accident is only
-    /// undoable while the swatch it arrived with is still on offer.
+    /// One palette for every surface *and* every kind of thing, or a board
+    /// coloured on the phone cannot be put back to that colour on the desk and a
+    /// colour saved on a column cannot be given to a label. The seed workflow's
+    /// own dots have to be in it for a related reason: a column recoloured by
+    /// accident is only undoable while the swatch it arrived with is still on
+    /// offer, and the seed is what a board file starts its palette with.
     @Test func theBoardAndColumnSwatchesCoverWhatTheSeedShipsWith() {
         #expect(Set(BoardColumn.workflow.map(\.dot)).isSubset(of: Set(Board.dotPalette)))
         #expect(Board.dotPalette.contains(SeedData.defaultBoard.dot))
@@ -265,20 +267,24 @@ import Testing
     /// the colours on the model, so a picker cannot go on drawing a swatch the
     /// model has no word for, and a swatch and its name cannot drift apart.
     @Test func everySwatchOnOfferCarriesAName() {
-        for dot in Board.dots {
-            #expect(dot.name.isEmpty == false)
+        for swatch in PaletteSwatch.seed {
+            #expect(swatch.name?.isEmpty == false, "a shipped colour has no name")
+            #expect(swatch.displayName.isEmpty == false)
         }
-        for tone in LabelDef.tones {
-            #expect(tone.name.isEmpty == false)
-        }
-        #expect(Set(Board.dots.map(\.name)).count == Board.dots.count, "two dots share a name")
-        #expect(Set(LabelDef.tones.map(\.name)).count == LabelDef.tones.count, "two tones share a name")
+        #expect(Set(PaletteSwatch.seed.map(\.displayName)).count == PaletteSwatch.seed.count,
+                "two shipped colours share a name")
 
-        // The derived lists the rest of the app takes are exactly these, in this
-        // order — a name added to one and not the other would be a picker
+        // **A colour the user mixed answers to its hex**, which is the honest
+        // name for one nobody has named — and still not its position.
+        #expect(PaletteSwatch(.hex(0x123456)).displayName == "#123456")
+        // Unless it is one of the shipped ones added back by hand, which gets
+        // the word it has always had.
+        #expect(PaletteSwatch(.hex(0xC2532F)).displayName == "Ember")
+
+        // The derived list the rest of the app takes is exactly this one, in
+        // this order — a name added to one and not the other would be a picker
         // labelling the wrong swatch rather than a compile error.
         #expect(Board.dotPalette == Board.dots.map(\.swatch))
-        #expect(LabelDef.palette.map(\.light) == LabelDef.tones.map(\.light))
-        #expect(LabelDef.palette.map(\.dark) == LabelDef.tones.map(\.dark))
+        #expect(PaletteSwatch.seed.map(\.swatch) == Board.dotPalette)
     }
 }

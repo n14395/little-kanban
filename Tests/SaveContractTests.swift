@@ -61,7 +61,7 @@ import Testing
             store.commitLabelDraft(for: .desk, task: TestBoard.cafe)
         }
         mutate("renameLabel") { $0.renameLabel("design", to: "Visual design") }
-        mutate("recolorLabel") { $0.recolorLabel("design", to: LabelDef.palette[3]) }
+        mutate("recolorLabel") { $0.recolorLabel("design", to: .hex(0xBE2828)) }
         mutate("deleteLabel") { $0.deleteLabel("design") }
         mutate("setAccentTheme") { $0.setAccentTheme(.pine) }
         mutate("archive") { $0.archive(TestBoard.palette) }
@@ -85,6 +85,29 @@ import Testing
         mutate("recolorColumn") { $0.recolorColumn(BoardColumn.backlog.id, to: .accent) }
         mutate("moveColumn") { $0.moveColumn(fromOffsets: [1], toOffset: 0) }
         mutate("deleteColumn") { $0.deleteColumn(BoardColumn.upNext.id) }
+        // The saved views, which became board data in v11: making, editing,
+        // duplicating, reordering and deleting one are edits to the file like a
+        // column's, and each owes the disk a write and costs exactly one ⌘Z.
+        mutate("addView") { $0.addView(named: "Blocked work") }
+        mutate("updateView") { store in
+            guard var view = store.views.first else { return }
+            view.name = "Renamed"
+            store.updateView(view)
+        }
+        mutate("duplicateView") { store in
+            guard let id = store.views.first?.id else { return }
+            store.duplicateView(id)
+        }
+        mutate("moveView") { $0.moveView(fromOffsets: [1], toOffset: 0) }
+        mutate("deleteView") { store in
+            guard let id = store.views.first?.id else { return }
+            store.deleteView(id)
+        }
+        mutate("restoreSeededViews") { store in
+            guard let id = store.views.first?.id else { return }
+            store.deleteView(id)
+            store.restoreSeededViews()
+        }
         // The placement pair, and the board list — both need a second board to
         // be capable of failing.
         mutate("file", boards: TestBoard.boards) {

@@ -609,6 +609,56 @@ extension BoardSnapshot {
             reordered.append(reordered.remove(at: landing))
             snapshot.boards[index].columns = reordered
         }
+        snapshot.version = 9
+        return snapshot
+    }
+
+    /// Version 9 → 10.
+    ///
+    /// v10 adds the palette: the colours every picker offers are stored in the
+    /// file now rather than being six constants in the source, because a colour
+    /// the user mixes has to outlive the picker they mixed it in and a colour
+    /// they delete has to leave every other picker with it.
+    ///
+    /// There is nothing to convert. A v9 file carries no palette, `palette`
+    /// defaults to ``PaletteSwatch/seed``, and those six are exactly what a v9
+    /// build's pickers offered — so a board migrated by this step comes out
+    /// showing the same colours it went in showing.
+    ///
+    /// **The bump is for the other direction**, as it was for `Priority.max`: a
+    /// v9 build handed a v10 file decodes it perfectly well and silently drops
+    /// the key, then writes the file back without it. The user loses every
+    /// colour they saved and nothing anywhere says so. Refusing to open the file
+    /// is the kinder failure.
+    /// Stamps **10** rather than `currentVersion`, for `migrate(v5:)`'s reason:
+    /// this is one step of a chain, and `migrate(v10:)` carries it the rest of
+    /// the way.
+    static func migrate(v9: BoardSnapshot) -> BoardSnapshot {
+        var snapshot = v9
+        snapshot.version = 10
+        return snapshot
+    }
+
+    /// v11 makes the saved views board data. The seven were an enum in the
+    /// source until now — the same seven in every install, unnameable and
+    /// unchangeable — and they are rows in the file from here, so a view can be
+    /// made, re-ruled, renamed and thrown away like a board or a column.
+    ///
+    /// **There is nothing to convert, and that is the point.** A v10 file
+    /// carries no `views`, `views` defaults to ``SavedView/seededAll``, and
+    /// those seven are precisely what a v10 build's sidebar drew — so a board
+    /// migrated by this step comes out showing the same views it went in
+    /// showing, in the same order, gathering the same cards.
+    /// `SavedViewSeedTests` is what says the last of those is true rather than
+    /// merely intended: it puts each seeded rule against the predicate the enum
+    /// used, over a board built to make the two disagree if they can.
+    ///
+    /// **The bump is for the other direction.** A v10 build handed a v11 file
+    /// decodes it happily, ignores the key, and writes the file back without it
+    /// — losing every view the user made, silently. Refusing to open it is the
+    /// kinder failure.
+    static func migrate(v10: BoardSnapshot) -> BoardSnapshot {
+        var snapshot = v10
         snapshot.version = BoardSnapshot.currentVersion
         return snapshot
     }

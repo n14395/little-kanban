@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The board's label vocabulary: rename in place, recolour from
-/// `LabelDef.palette`, delete. A plain view so a Settings pane can host the same
+/// The board's label vocabulary: rename in place, recolour from the board's
+/// own palette, delete. A plain view so a Settings pane can host the same
 /// body later; `View.labelManagerSheet(isPresented:metrics:)` is how the sidebar
 /// and the drawer put it on screen today.
 struct LabelManagerView: View {
@@ -18,9 +18,7 @@ struct LabelManagerView: View {
         var rowMinHeight: CGFloat
         var listSpacing: CGFloat
         var panelPadding: CGFloat
-        var swatch: CGFloat
-        var swatchRingGap: CGFloat
-        var swatchRingWidth: CGFloat
+        var colorWell: ColorWell.Metrics
         var swatchSpacing: CGFloat
         /// The square a swatch claims. Six of them share one row, so on touch
         /// the drawn circle is nowhere near the 44pt a finger needs.
@@ -39,14 +37,14 @@ struct LabelManagerView: View {
             width: 396, maxHeight: 520, titleFont: 13, nameFont: 12.5, chipSize: .compact,
             rowSpacing: 8, rowPadding: 10, rowRadius: 12, rowMinHeight: 0,
             listSpacing: 8, panelPadding: 14,
-            swatch: 14, swatchRingGap: 3, swatchRingWidth: 1.5, swatchSpacing: 4,
+            colorWell: .desk, swatchSpacing: 4,
             swatchHit: 26, glyph: 11, glyphHit: 26, fieldHit: 0
         )
         static let sheet = Metrics(
             width: nil, maxHeight: nil, titleFont: 15, nameFont: 15, chipSize: .comfortable,
             rowSpacing: 10, rowPadding: 14, rowRadius: 14, rowMinHeight: 44,
             listSpacing: 10, panelPadding: 16,
-            swatch: 20, swatchRingGap: 4, swatchRingWidth: 2, swatchSpacing: 6,
+            colorWell: .sheet, swatchSpacing: 6,
             swatchHit: 44, glyph: 15, glyphHit: 44, fieldHit: 44
         )
     }
@@ -186,37 +184,20 @@ struct LabelManagerView: View {
         .accessibilityLabel("Delete label")
     }
 
+    /// **The same colour control every other surface uses.** It was a row of
+    /// ten hand-tuned swatches of its own, which is why a colour saved while
+    /// recolouring a board could not be given to a label: the two lists had
+    /// nothing to do with each other. Now both draw the board's palette, and
+    /// the four colours a chip actually wears — a tinted ground and text on it,
+    /// in each scheme — are derived from the one this returns. See
+    /// `BoardStore.recolorLabel(_:to:)` and ``LabelTone/pair(from:)``.
     private func swatches(for label: LabelDef) -> some View {
         HStack(spacing: metrics.swatchSpacing) {
-            ForEach(LabelDef.tones) { tone in
-                swatch(tone, on: label)
+            ColorWell(selection: label.baseColor, metrics: metrics.colorWell) {
+                store.recolorLabel(label.key, to: $0)
             }
             Spacer(minLength: 0)
         }
-    }
-
-    private func swatch(_ entry: LabelDef.PaletteEntry, on label: LabelDef) -> some View {
-        let resolved = palette.resolve(palette.colorScheme == .dark ? entry.dark : entry.light)
-        let isCurrent = label.light == entry.light && label.dark == entry.dark
-        return Button {
-            store.recolorLabel(label.key, to: entry.tone)
-        } label: {
-            Circle()
-                .fill(resolved.background)
-                .overlay { Circle().strokeBorder(resolved.foreground.opacity(0.55), lineWidth: 1) }
-                .frame(width: metrics.swatch, height: metrics.swatch)
-                .padding(metrics.swatchRingGap)
-                .overlay {
-                    Circle().strokeBorder(
-                        isCurrent ? palette.ink(0.45) : .clear,
-                        lineWidth: metrics.swatchRingWidth
-                    )
-                }
-                .frame(minWidth: metrics.swatchHit, minHeight: metrics.swatchHit)
-        }
-        .buttonStyle(.bare)
-        .accessibilityLabel(entry.name)
-        .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
     }
 
     private func usageCount(of label: LabelDef) -> Int {

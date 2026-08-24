@@ -259,7 +259,8 @@ struct SubtaskCountBadge: View {
     }
 }
 
-/// A flat progress meter — the checklist bar and the "This week" bar.
+/// A flat progress meter — the checklist bar, the "This week" bar, and the line
+/// along the foot of a card that has a checklist.
 struct ProgressMeter: View {
     @Environment(\.palette) private var palette
     /// The bar shares a row with a heading and a count, and at an accessibility
@@ -271,12 +272,20 @@ struct ProgressMeter: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let fraction: Double
     var height: CGFloat = 4
+    /// Whether the meter's own ends are shaped.
+    ///
+    /// Rounded where it floats in a row with air either side of it — the
+    /// inspector's checklist, the week meter. Square where something else's
+    /// corners are already doing the shaping, which is the card's bottom edge:
+    /// a capsule there leaves a sliver of card showing at each end, under a
+    /// clip that was going to round the corners anyway.
+    var isFlush: Bool = false
 
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
-                Capsule().fill(palette.ink(0.1))
-                Capsule()
+                track.fill(palette.ink(0.1))
+                track
                     .fill(palette.accent)
                     .frame(width: max(0, min(1, fraction)) * proxy.size.width)
             }
@@ -286,4 +295,6 @@ struct ProgressMeter: View {
         .opacity(dynamicTypeSize.isAccessibilitySize ? 0 : 1)
         .accessibilityHidden(true)
     }
+
+    private var track: AnyShape { isFlush ? AnyShape(Rectangle()) : AnyShape(Capsule()) }
 }

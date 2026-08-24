@@ -68,7 +68,7 @@ import Testing
     /// an "exactly as it was" assertion.
     private func board(_ store: BoardStore) -> BoardMutation {
         BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0,
-                      boards: store.boards, trash: store.trash)
+                      boards: store.boards, trash: store.trash, views: store.views, savedColors: store.savedColors)
     }
 
     /// The migrated board's columns. They were a flat `BoardSnapshot.columns`
@@ -182,6 +182,25 @@ import Testing
         let store = Self.store()
         let id = store.addColumn(named: "Blocked")
         #expect(store.column(id: id)?.short == "Blocked")
+    }
+
+    /// The dot the composer's swatches pick — held on the way in rather than
+    /// applied afterwards, because until Add Column is pressed there is no
+    /// column to recolour.
+    ///
+    /// The default is the same value `BoardSettingsView` opens its picker on,
+    /// which is why it is a name rather than a literal: a column made without
+    /// touching the swatches has to come out the colour the untouched picker was
+    /// showing, and it is deliberately *not* one of `Board.dots`.
+    @Test func aColumnKeepsTheColourItWasMadeWith() {
+        let store = Self.store()
+        let picked = store.addColumn(named: "Blocked", dot: .hex(0x3B5BA9))
+        #expect(store.column(id: picked)?.dot == .hex(0x3B5BA9))
+
+        let untouched = store.addColumn(named: "Waiting")
+        #expect(store.column(id: untouched)?.dot == BoardColumn.defaultDot)
+        #expect(Board.dotPalette.contains(BoardColumn.defaultDot) == false,
+                "the default is one of the six, so an untouched picker would ring it")
     }
 
     @Test func renamingAColumnLeavesItsAbbreviationAloneUnlessOneIsGiven() {

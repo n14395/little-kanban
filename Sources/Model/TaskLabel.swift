@@ -8,6 +8,48 @@ struct LabelTone: Hashable, Sendable, Codable {
     static func tinted(_ hex: UInt32, _ opacity: Double, on foreground: UInt32) -> LabelTone {
         LabelTone(background: .rgb(hex, opacity: opacity), foreground: .hex(foreground))
     }
+
+    /// The four colours a chip needs, worked out from the one a picker returns.
+    ///
+    /// **Because a colour picker returns a colour and a label wears four.** A
+    /// chip is a tinted ground with text on it, in both schemes, and the ten
+    /// pairs the app shipped with were hand-tuned — which is fine for ten and
+    /// impossible for "any colour the user mixes". So the pair is derived:
+    /// the ground is the colour itself at a low opacity so it sits *on* the
+    /// card rather than over it, and the text is the same hue taken away from
+    /// the ground — darker in light mode, lighter in dark — because a chip
+    /// whose text is a different colour from its ground reads as two things.
+    ///
+    /// The numbers are read off the seeds rather than invented: `Design` is
+    /// `#C2532F` on a 12% ground with `#9E3E1F` text in light, and a lifted
+    /// `#E87C58` ground with `#F1B49B` text in dark. See ``LabelDef/seed``,
+    /// which keeps its hand-tuned values — nothing already on a board is
+    /// repainted by this arriving.
+    ///
+    /// The **dark** ground is lifted before it is tinted. A dark chip is a
+    /// low-opacity wash over a near-black card, and `#1F6F63` at 19% over that
+    /// is almost the card: what the eye needs is the *lighter* relative of the
+    /// colour, which is what the seeds all use.
+    static func pair(from hex: UInt32) -> (light: LabelTone, dark: LabelTone) {
+        (
+            light: LabelTone(
+                background: .rgb(hex, opacity: 0.13),
+                foreground: .hex(ColorMath.shade(hex, by: -0.2))
+            ),
+            dark: LabelTone(
+                background: .rgb(ColorMath.shade(hex, by: 0.45), opacity: 0.19),
+                foreground: .hex(ColorMath.shade(hex, by: 0.78))
+            )
+        )
+    }
+
+    /// The pair for a colour that is not a literal: the theme's own ink, at the
+    /// two weights the `API` seed label uses. A picker can return `.ink` — the
+    /// palette has a grey in it — and there is no hue to derive anything from.
+    static let inkPair: (light: LabelTone, dark: LabelTone) = (
+        light: LabelTone(background: .ink(opacity: 0.08), foreground: .ink(opacity: 0.6)),
+        dark: LabelTone(background: .ink(opacity: 0.10), foreground: .ink(opacity: 0.65))
+    )
 }
 
 /// A label definition. `key` is the stable slug stored on tasks; `name` is what
@@ -22,6 +64,21 @@ struct LabelDef: Identifiable, Hashable, Sendable, Codable {
 
     func tone(for colorScheme: ColorScheme) -> LabelTone {
         colorScheme == .dark ? dark : light
+    }
+
+    /// The one colour a picker shows for this label, out of the four it wears.
+    ///
+    /// The light ground, at full strength: it *is* the colour the pair was
+    /// derived from — see ``LabelTone/pair(from:)`` — so a label made from the
+    /// palette's Ember comes back to the picker with Ember ringed. The opacity
+    /// is dropped because the ground is a tint of the colour rather than the
+    /// colour, and a swatch drawn at 13% is a swatch of the card behind it.
+    var baseColor: SwatchColor {
+        switch light.background {
+        case .rgb(let value, _): .hex(value)
+        case .ink(let opacity): .ink(opacity: opacity)
+        case .accent: .accent
+        }
     }
 }
 
@@ -51,49 +108,16 @@ extension LabelDef {
                  dark: .tinted(0xE6AF3C, 0.18, on: 0xEFCB84)),
     ]
 
-    /// One colour a label can be given, in both schemes, under a name.
+    /// **The ten hand-tuned pairs that used to live here are gone.** A label's
+    /// colour is picked from `BoardStore.savedColors` now, the same list a board
+    /// and a column are picked from, and the four colours a chip wears are
+    /// derived from the one that comes back — see ``LabelTone/pair(from:)``. Two
+    /// palettes was the reason a colour saved while recolouring a board could
+    /// not be given to a label.
     ///
-    /// `Board.Dot`'s counterpart for the thing that carries a background and a
-    /// foreground rather than a single dot. The name is here beside the hexes
-    /// rather than in the picker for the same reason: a swatch announced as
-    /// "Colour 4" tells a VoiceOver user its position and nothing about what
-    /// choosing it does, and a name kept in the view drifts from the colour the
-    /// moment either is edited.
-    struct PaletteEntry: Identifiable, Hashable, Sendable {
-        var light: LabelTone
-        var dark: LabelTone
-        var name: String
+    /// The seeds above keep their hand-tuned values on purpose: nothing already
+    /// on a board is repainted by the derivation arriving.
 
-        var id: LabelTone { light }
-        var tone: (light: LabelTone, dark: LabelTone) { (light, dark) }
-    }
-
-    /// Colours handed out, in order, to labels the user creates. The names are
-    /// the ones `Board.dots` already uses wherever the hex is the same one.
-    static let tones: [PaletteEntry] = [
-        PaletteEntry(light: .tinted(0x3B5BA9, 0.12, on: 0x2F4A8C),
-                     dark: .tinted(0x6E96F0, 0.18, on: 0xA9C2F7),
-                     name: String(localized: "Indigo", comment: "Label colour")),
-        PaletteEntry(light: .tinted(0x783CA0, 0.12, on: 0x6A3C9E),
-                     dark: .tinted(0xB478F0, 0.18, on: 0xCDAEF5),
-                     name: String(localized: "Violet", comment: "Label colour")),
-        PaletteEntry(light: .tinted(0x1F6F63, 0.13, on: 0x175A50),
-                     dark: .tinted(0x50BEAA, 0.18, on: 0x87DBC9),
-                     name: String(localized: "Pine", comment: "Label colour")),
-        PaletteEntry(light: .tinted(0xBE2828, 0.12, on: 0xA32222),
-                     dark: .tinted(0xF05A5A, 0.18, on: 0xF5A0A0),
-                     name: String(localized: "Red", comment: "Label colour")),
-        PaletteEntry(light: .tinted(0xC98A16, 0.15, on: 0x8A5D06),
-                     dark: .tinted(0xE6AF3C, 0.18, on: 0xEFCB84),
-                     name: String(localized: "Amber", comment: "Label colour")),
-        PaletteEntry(light: LabelTone(background: .ink(opacity: 0.08), foreground: .ink(opacity: 0.6)),
-                     dark: LabelTone(background: .ink(opacity: 0.10), foreground: .ink(opacity: 0.65)),
-                     name: String(localized: "Stone", comment: "Label colour")),
-    ]
-
-    /// The tones alone, which is what `recolorLabel` and the round-robin in
-    /// `addLabel` take. `Board.dotPalette` stands in the same place.
-    static var palette: [(light: LabelTone, dark: LabelTone)] { tones.map(\.tone) }
 
     /// Slugifies user input the way the spec does: lowercase, non-alphanumerics
     /// collapsed to single hyphens — then trimmed, so "Infra Work!" is

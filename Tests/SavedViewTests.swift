@@ -147,12 +147,12 @@ import Testing
     }
 
     @Test func onlyRecentlyUpdatedAndTheArchiveOverrideTheBoardsOwnOrder() {
-        #expect(SavedView.today.sort == nil)
-        #expect(SavedView.upcoming.sort == nil)
-        #expect(SavedView.highPriority.sort == nil)
-        #expect(SavedView.dueThisWeek.sort == nil)
-        #expect(SavedView.recentlyUpdated.sort != nil)
-        #expect(SavedView.archive.sort != nil)
+        #expect(SavedView.today.sort == .manual)
+        #expect(SavedView.upcoming.sort == .manual)
+        #expect(SavedView.highPriority.sort == .manual)
+        #expect(SavedView.dueThisWeek.sort == .manual)
+        #expect(SavedView.recentlyUpdated.sort == .recentlyUpdated)
+        #expect(SavedView.archive.sort == .recentlyArchived)
         for view in SavedView.allCases where view != .recentlyUpdated {
             #expect(view.limit == nil, "\(view.rawValue) should not cap its list")
         }
@@ -406,25 +406,34 @@ import Testing
     /// and a drawer row above the boards, and a third route to one place on the
     /// smallest screen is noise rather than convenience.
     @Test func thePhoneDoesNotListTheInboxAmongItsViews() {
-        #expect(SavedView.phone == SavedView.allCases.filter { $0 != .inbox })
-        #expect(SavedView.phoneFilters.contains(.inbox) == false)
-        #expect(SavedView.phoneFilters.contains(.archive) == false)
+        #expect(SavedView.phone.map(\.preset) == SavedView.seededAll.map(\.preset).filter { $0 != .inbox })
+        #expect(SavedView.phoneFilters.contains { $0.preset == .inbox } == false)
+        #expect(SavedView.phoneFilters.contains { $0.preset == .archive } == false)
         // And it is not a general-purpose "hide things" list: everything else
         // the desk offers, the phone offers.
-        #expect(SavedView.phoneFilters == SavedView.filters.filter { $0 != .inbox })
+        #expect(SavedView.phoneFilters.map(\.preset) == SavedView.filters.map(\.preset).filter { $0 != .inbox })
     }
 
-    // MARK: The enum's own surface
+    // MARK: The seeded seven
 
-    @Test func everyViewNamesItselfAndCarriesASymbol() {
-        #expect(SavedView.allCases.count == 7)
-        #expect(SavedView.allCases.map(\.id) == SavedView.allCases.map(\.rawValue))
-        #expect(Set(SavedView.allCases.map(\.label)).count == 7)
-        #expect(Set(SavedView.allCases.map(\.symbol)).count == 7)
-        #expect(SavedView.allCases.allSatisfy { !$0.label.isEmpty && !$0.symbol.isEmpty })
-        // It is `Codable` against its raw value, so a later phase can remember
-        // the last view as a preference without inventing a mapping.
-        #expect(SavedView(rawValue: "dueThisWeek") == .dueThisWeek)
+    /// What the enum used to guarantee by being an enum, now that the seven are
+    /// rows in a file: seven of them, each with a name, a glyph and an id of its
+    /// own, and every id **fixed** rather than minted — a migration that made a
+    /// fresh one each run would lose the last-surface preference on every launch
+    /// and hand somebody two Archives the second time it ran.
+    @Test func everySeededViewNamesItselfAndKeepsItsID() {
+        let seeded = SavedView.seededAll
+        #expect(seeded.count == 7)
+        #expect(Set(seeded.map(\.id)).count == 7)
+        #expect(Set(seeded.map(\.label)).count == 7)
+        #expect(Set(seeded.map(\.symbol)).count == 7)
+        #expect(seeded.allSatisfy { !$0.label.isEmpty && !$0.symbol.isEmpty })
+        #expect(seeded.map(\.preset) == SavedView.Preset.allCases.map { $0 })
+        // Twice through, same ids.
+        #expect(SavedView.seededAll.map(\.id) == seeded.map(\.id))
+        // And every one of them still says it is what it was seeded as, which
+        // is what the hand-written empty states are gated on.
+        #expect(seeded.allSatisfy { $0.isUnchangedPreset })
     }
 
     @Test func theActiveViewIsSessionStateAndNotBoardData() {

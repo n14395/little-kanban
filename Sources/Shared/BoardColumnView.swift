@@ -20,7 +20,6 @@ struct BoardColumnView: View {
         /// column's width for a two-word button is a card's worth of board
         /// spent on nothing, so it claims a strip and turns the words to match.
         /// Touch still needs 44 of it.
-        var addColumnWidth: CGFloat
         var headerButtonRadius: CGFloat
         /// The "+" glyph inside it.
         var headerGlyph: CGFloat
@@ -32,21 +31,21 @@ struct BoardColumnView: View {
         var composer: BoardTaskComposer.Metrics
         var emptyState: EmptyStateView.Metrics
         var editor: ColumnEditorMetrics
-        var dots: DotPicker.Metrics
+        var colorWell: ColorWell.Metrics
 
         static let desk = Metrics(
             width: 272, cornerRadius: 16, horizontalPadding: 8, topPadding: 10, bottomPadding: 8,
-            titleSize: 12.5, headerButton: 22, addColumnWidth: 38, headerButtonRadius: 7,
+            titleSize: 12.5, headerButton: 22, headerButtonRadius: 7,
             headerGlyph: 12, rowHit: 0,
             cardSpacing: 8, card: .desk, composer: .desk, emptyState: .desk,
-            editor: .desk, dots: .desk
+            editor: .desk, colorWell: .desk
         )
         static let pad = Metrics(
             width: 320, cornerRadius: 18, horizontalPadding: 10, topPadding: 12, bottomPadding: 10,
-            titleSize: 13.5, headerButton: 44, addColumnWidth: 44, headerButtonRadius: 12,
+            titleSize: 13.5, headerButton: 44, headerButtonRadius: 12,
             headerGlyph: 15, rowHit: 44,
             cardSpacing: 10, card: .pad, composer: .pad, emptyState: .sheet,
-            editor: .pad, dots: .sheet
+            editor: .pad, colorWell: .sheet
         )
     }
 
@@ -101,11 +100,6 @@ struct BoardColumnView: View {
     @FocusState.Binding var focus: TaskItem.ID?
 
     @State private var isEditing = false
-    /// Lit while a dragged column is over this one. Local rather than in the
-    /// store, unlike `dropTargetColumnID`: a card's caret has to be drawn
-    /// against a card the pointer never touched, and this is only ever drawn by
-    /// the column under it.
-    @State private var isColumnDropTarget = false
     /// Why the last delete did not happen. A refusal has an explanation to
     /// show — from the outside, a menu item that does nothing is a bug.
     @State private var refusal: ColumnRefusal?
@@ -123,23 +117,19 @@ struct BoardColumnView: View {
         .padding(.top, metrics.topPadding)
         .padding(.bottom, metrics.bottomPadding)
         .frame(width: chrome(metrics.width))
-        // The same tint a card in flight draws, and deliberately: it says "let
-        // go here" either way, and only one kind of thing can be in the air at a
-        // time, so there is nothing for a second colour to tell apart.
+        // Lit while a card is over the column, which is the only thing that can
+        // be dropped on one: a column is re-ordered from a menu now, so there is
+        // no second kind of landing here to tell apart.
         .background(
-            isDropTarget || isColumnDropTarget
-                ? palette.accent.opacity(0.07) : palette.ink(0.035),
+            isDropTarget ? palette.accent.opacity(0.07) : palette.ink(0.035),
             in: .rect(cornerRadius: metrics.cornerRadius)
         )
         .overlay {
-            if isDropTarget || isColumnDropTarget {
+            if isDropTarget {
                 RoundedRectangle(cornerRadius: metrics.cornerRadius)
                     .strokeBorder(palette.accent, lineWidth: 2)
             }
         }
-        // Above the card destination below, and drawn only while a column is in
-        // the air — see ``columnDropZone``.
-        .overlay { columnDropZone }
         // Only this app's cards are a payload — a URL dragged out of Safari
         // used to light the column up as a drop target. Dropping is off in a
         // saved view, for the reason `BoardTaskCard` explains.
@@ -208,83 +198,11 @@ struct BoardColumnView: View {
         .padding(.horizontal, 8)
         .padding(.top, 2)
         .padding(.bottom, 10)
-        // **The grip a column is re-ordered by.** See ``lifted()``.
-        //
-        // Not on the Done column, which is its board's last and stays there —
-        // see ``Board/doneColumn``. A grip that lifted and then refused to land
-        // anywhere is worse than no grip: the store would refuse the drop, and
-        // the only thing on screen to explain it would be the column sliding
-        // back. `dropColumn` refuses it too, because a payload can also arrive
-        // from a build that offered the drag.
-        .contentShape(.rect)
-        .modifier(ColumnGrip(isEnabled: !isDone, lift: lifted))
     }
 
-    /// The payload, and the session with it — `ReorderableCard`'s trick, for its
-    /// reason: `.draggable` takes this as an autoclosure and calls it when a
-    /// session begins rather than when the header is drawn, which makes it the
-    /// one moment both platforms agree a column has been picked up.
-    ///
-    /// **The whole header row is the grip, and it had to be.** The name alone
-    /// was the obvious answer and it does not work: the board is a horizontal
-    /// `ScrollView`, and a lift that starts on a run of text 57pt wide loses the
-    /// touch to the scroller's pan every single time — measured on an iPad Air,
-    /// where the board slid sideways and the column stayed exactly where it was.
-    /// Padding the text was not enough; giving it the width the header had left
-    /// was not enough either. What wins is the header itself, at the full width
-    /// of the column. It is also the honest shape to aim at: the dot, the name
-    /// and the count are one label, and the only two things in that row with
-    /// business of their own are the `…` and `+` buttons, which take their own
-    /// taps before this ever sees them.
     /// Whether this is its board's Done column — the one that neither moves nor
     /// goes. See ``Board/doneColumn``.
     private var isDone: Bool { store.isDone(column: column.id) }
-
-    private func lifted() -> ColumnTransfer {
-        store.beginColumnDrag(column.id)
-        // The board this column is actually on, looked up rather than assumed
-        // to be the active one — that is the fact `dropColumn` refuses across,
-        // and a payload that simply repeated `activeBoardID` would make the
-        // refusal tautological. A column no board owns cannot be drawn here at
-        // all, and the fresh id it would carry is refused on arrival, which is
-        // the right answer to a drag of nothing.
-        return ColumnTransfer(column, on: store.board(ofColumn: column.id)?.id ?? Board.ID())
-    }
-
-    /// Where a dragged column can land: this whole column, but **only while one
-    /// is in the air**.
-    ///
-    /// An overlay rather than a second `dropDestination` on the body, which
-    /// already carries one for cards — ``ReorderableCard`` draws its gaps the
-    /// same way and for the same reason. Nothing can be dragging a card and a
-    /// column at once, so covering the card destination while a column is in
-    /// flight costs nothing, and the rest of the time this is not in the tree at
-    /// all.
-    ///
-    /// The whole column rather than its header: the header is where the grip is,
-    /// but a 30pt band is not where a pointer carrying a column expects to have
-    /// to let go.
-    @ViewBuilder private var columnDropZone: some View {
-        if store.draggingColumnID != nil {
-            Color.clear
-                .contentShape(.rect)
-                .dropDestination(for: ColumnTransfer.self) { items, _ in
-                    defer { store.endColumnDrag() }
-                    guard let dropped = items.first else { return false }
-                    isColumnDropTarget = false
-                    return store.dropColumn(dropped, onto: column.id)
-                } isTargeted: { targeted in
-                    // Not the column being dragged: a line against the column
-                    // that is leaving says nothing about where it lands.
-                    // Not the column being dragged — a line against the column
-                    // that is leaving says nothing about where it lands — and
-                    // not past Done, which a drop here would be asking for: the
-                    // store lands it in front instead, so the line belongs on
-                    // the column before this one, not on this one.
-                    isColumnDropTarget = targeted && store.draggingColumnID != column.id && !isDone
-                }
-        }
-    }
 
     /// Everything that can be done to the column itself, plus — on a Done
     /// column with something in it — the archive.
@@ -326,18 +244,30 @@ struct BoardColumnView: View {
             }
             .disabled(store.activeBoardID == nil)
             Divider()
+            // **Both are dead on the Done column, and Right is dead on the one
+            // in front of it.** Done is the board's last column and that is what
+            // makes it the column a tick sends cards to — see
+            // ``Board/doneColumn`` — so it does not move, and nothing moves past
+            // it. `moveColumn` refuses and clamps the same two cases; these are
+            // greyed rather than left live because a menu item that can be
+            // pressed and does nothing is indistinguishable from a bug, and
+            // there is nothing to explain afterwards that the position does not
+            // already say.
             Button {
                 store.moveColumn(fromOffsets: IndexSet(integer: index), toOffset: index - 1)
             } label: {
                 Label("Move Left", systemImage: "arrow.left")
             }
-            .disabled(index == 0)
+            .disabled(index == 0 || isDone)
             Button {
                 store.moveColumn(fromOffsets: IndexSet(integer: index), toOffset: index + 2)
             } label: {
                 Label("Move Right", systemImage: "arrow.right")
             }
-            .disabled(index == store.columns.count - 1)
+            // `count - 2`, not `count - 1`: the last column is Done, so the one
+            // before it is already as far right as a working column goes. Done
+            // itself satisfies this too, which is why it needs no clause.
+            .disabled(index >= store.columns.count - 2)
             Divider()
             // The cards go to the first column left rather than anywhere final,
             // so this asks for no confirmation either — but it can be refused,
@@ -427,29 +357,6 @@ struct BoardColumnView: View {
     }
 }
 
-/// The header's drag grip, on every column but Done.
-///
-/// A `ViewModifier` rather than a ternary because `.draggable` takes a payload,
-/// not an optional one — `DraggableWhenOrdered` is the same shape for the same
-/// reason. `lift` stays an escaping closure so the payload is still built when
-/// the *session* starts rather than when the header is drawn; see ``lifted()``,
-/// which is what makes `beginColumnDrag` land at the right moment.
-private struct ColumnGrip: ViewModifier {
-    let isEnabled: Bool
-    let lift: () -> ColumnTransfer
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if isEnabled {
-            content
-                .draggable(lift())
-                .help("Drag to re-order the columns")
-        } else {
-            content.help("The Done column stays at the end")
-        }
-    }
-}
-
 /// Name, abbreviation and dot for one column, in a popover off its header.
 ///
 /// The abbreviation is here because nothing else edits it and `MoveToPicker`
@@ -482,12 +389,9 @@ private struct BoardColumnEditor: View {
             field("Short", text: $short, focus: .short)
             VStack(alignment: .leading, spacing: 6) {
                 Text("Colour").sectionLabelStyle(size: 10, opacity: Palette.readableInk)
-                DotPicker(current: column.dot, metrics: metrics.dots) {
+                ColorWell(selection: column.dot, metrics: metrics.colorWell) {
                     store.recolorColumn(column.id, to: $0)
                 }
-                // Pulled back by half the swatch's own inset so the first dot
-                // lines up with the labels above it rather than its target does.
-                .padding(.leading, -3)
             }
         }
         .padding(editor.padding)
@@ -527,132 +431,3 @@ private struct BoardColumnEditor: View {
     }
 }
 
-/// The trailing tile of the column strip: how a board grows a column.
-///
-/// It names the column and nothing else, which since v9 is everything there is
-/// to say: a column has no role to choose, and it lands where every new column
-/// lands — in front of the board's Done column, which stays last. The role
-/// segments that used to sit under this field are gone, and so is the pair they
-/// were the only pointer-side way to reach.
-struct AddColumnTile: View {
-    @Environment(\.palette) private var palette
-    @Environment(BoardStore.self) private var store
-
-    /// Owned by ``BoardScrollView``, which has to know: an empty board draws
-    /// one empty state instead of the strip, and the tile lives in the strip.
-    @Binding var isComposing: Bool
-    var metrics: BoardColumnView.Metrics = .desk
-
-    @State private var name = ""
-    @FocusState private var isFocused: Bool
-    private var chrome = ChromeScale()
-
-    /// The button is a strip and the composer is a column: naming a column
-    /// wants a text field and the four roles beside it, which is a column's
-    /// width whatever the button that opened it was.
-    var body: some View {
-        Group {
-            if isComposing {
-                composer.frame(width: chrome(metrics.width))
-            } else {
-                button.frame(width: chrome(metrics.addColumnWidth))
-            }
-        }
-        .padding(.top, metrics.topPadding)
-    }
-
-    private var button: some View {
-        Button { isComposing = true } label: {
-            VStack(spacing: 7) {
-                Image(systemName: "plus")
-                    .font(SimpleKanbanFont.ui(11, .bold, relativeTo: .footnote))
-                    .accessibilityHidden(true)
-                // Turned rather than wrapped: the words are the tile's height,
-                // and `verticalText` is what stops them claiming a column's
-                // width while they are drawn on their side.
-                Text("Add column", comment: "Button at the end of the board that starts a column")
-                    .font(SimpleKanbanFont.ui(12.5, .bold, relativeTo: .footnote))
-                    .verticalText()
-            }
-            .foregroundStyle(palette.inkText(0.45))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background {
-                RoundedRectangle(cornerRadius: 16)
-                    .strokeBorder(
-                        palette.ink(0.14), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])
-                    )
-            }
-            // A strip narrower than the dashes are long has nothing to hit at
-            // its edges; the shape is what the pointer and the finger get.
-            .contentShape(.rect(cornerRadius: 16))
-            .hoverBackground(palette.ink(0.05), radius: 16)
-        }
-        .buttonStyle(.bare)
-        // The glyph beside the word is a second element to a reader whatever it
-        // is asked to be; substituting the subtree is what takes it out.
-        .accessibilityRepresentation {
-            Button(String(localized: "Add column",
-                          comment: "Accessibility name of the button that adds a column to the board")) {
-                isComposing = true
-            }
-        }
-    }
-
-    private var composer: some View {
-        TextField("Column name, then ⏎", text: $name)
-            .accessibilityLabel("Column name")
-            .textFieldStyle(.plain)
-            .font(SimpleKanbanFont.ui(12.5, .extraBold, relativeTo: .footnote))
-            .foregroundStyle(palette.ink)
-            .focused($isFocused)
-            .fieldHitArea(minHeight: metrics.rowHit) { isFocused = true }
-            .onSubmit { create() }
-            .onKeyPress(.escape) {
-                cancel()
-                return .handled
-            }
-            .padding(12)
-            .background {
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(palette.card)
-                    .shadow(color: palette.shadow(0.1), radius: 1, y: 1)
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: 16)
-                    .strokeBorder(palette.accent.opacity(0.35), lineWidth: 2)
-            }
-            .focusWhenReady($isFocused)
-            // The tile is a button that becomes a field, and it is a field only
-            // while the field is being used: clicking away puts the button
-            // back. Unlike the *task* composer, which holds a half-typed title
-            // against a stray click, because there the row it leaves behind is
-            // harmless — a column half-named is a control sitting where a
-            // button should be, at the end of the strip, for the session.
-            .onChange(of: isFocused) { _, focused in
-                guard !focused else { return }
-                Task { @MainActor in
-                    // A turn before it acts, and the loss re-checked on the far
-                    // side of it. The strip scrolls this tile into view in the
-                    // same turn the composer opens in — see `BoardScrollView` —
-                    // and a close that fired on any momentary loss would be a
-                    // field that shuts as it appears.
-                    await Task.yield()
-                    guard !isFocused, isComposing else { return }
-                    cancel()
-                }
-            }
-    }
-
-    /// A name with nothing in it is refused by the store, and the field stays
-    /// open rather than closing on a column that was never made.
-    private func create() {
-        guard store.addColumn(named: name) != nil else { return }
-        cancel()
-    }
-
-    private func cancel() {
-        name = ""
-        isComposing = false
-    }
-}

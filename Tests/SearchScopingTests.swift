@@ -205,7 +205,7 @@ import Testing
         store.query = "cafe"
         #expect(store.showsMobileFilterNotice)
         let before = BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0,
-                      boards: store.boards, trash: store.trash)
+                      boards: store.boards, trash: store.trash, views: store.views, savedColors: store.savedColors)
 
         step(undo) { store.clearQuery() }
 
@@ -215,7 +215,7 @@ import Testing
         #expect(store.activeView == .today)     // clearing the search is not leaving the view
         #expect(undo.undoActionName == "")
         #expect(BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0,
-                      boards: store.boards, trash: store.trash) == before)
+                      boards: store.boards, trash: store.trash, views: store.views, savedColors: store.savedColors) == before)
 
         // Session state reaches no file: a query is not part of the board.
         try await Task.sleep(for: .milliseconds(900))

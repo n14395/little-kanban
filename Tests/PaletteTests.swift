@@ -1,127 +1,186 @@
-import SwiftUI
+import Foundation
 import Testing
 @testable import Simple_Kanban
 
-/// The semantic colours, asked the question a view has no way to ask itself.
+/// The palette every colour picker in the app draws from: what is in it, what
+/// can be put in it, what can be taken out, and that it is still there next
+/// time.
 ///
-/// C2 puts every colour in `Palette`, which buys nothing unless what `Palette`
-/// hands out is *right* — and a colour that is wrong in this particular way does
-/// not look wrong, it looks like nothing at all. Contrast is the one property of
-/// a colour pair a test can hold, so the pair a filled control is made of is
-/// held here.
-@Suite struct PaletteSemanticTests {
-    /// WCAG relative luminance. `Color.Resolved` hands back linear sRGB
-    /// components, which is what the coefficients want, so there is no
-    /// gamma step to get wrong here.
-    private func luminance(_ color: Color) -> Double {
-        let resolved = color.resolve(in: EnvironmentValues())
-        return 0.2126 * Double(resolved.linearRed)
-            + 0.7152 * Double(resolved.linearGreen)
-            + 0.0722 * Double(resolved.linearBlue)
+/// **The point of it is that there is one.** A colour saved while recolouring a
+/// column has to be offered the next time a board or a label is recoloured, and
+/// that is not a fact about any picker — it is a fact about the store, which is
+/// the only thing all of them read. So it is asked here rather than in a view
+/// test that could only ever check one surface.
+@MainActor
+@Suite struct PaletteTests {
+    private func store() -> BoardStore { TestBoard.store(boards: TestBoard.boards) }
+
+    // MARK: What a board starts with
+
+    @Test func aFreshBoardOffersTheSixTheAppShipsWith() {
+        let store = store()
+        #expect(store.savedColors.map(\.swatch) == Board.dotPalette)
+        #expect(store.savedColors.first?.swatch == .accent, "the accent is not first")
+        #expect(store.savedColors.allSatisfy { $0.name != nil }, "a shipped colour has no name")
     }
 
-    private func contrast(_ a: Color, _ b: Color) -> Double {
-        let (high, low) = (max(luminance(a), luminance(b)), min(luminance(a), luminance(b)))
-        return (high + 0.05) / (low + 0.05)
+    /// The seed is `Board.dots` rather than a second list, so the colours and
+    /// the names the rest of the app knows them by cannot drift.
+    @Test func theSeedIsTheOneTheRestOfTheAppNames() {
+        #expect(PaletteSwatch.seed.map(\.swatch) == Board.dots.map(\.swatch))
+        #expect(PaletteSwatch.seed.map(\.name) == Board.dots.map { $0.name })
     }
 
-    /// A translucent colour laid over an opaque one, which is the only form a
-    /// scrim is ever seen in.
-    private func composited(_ color: Color, over ground: Color) -> Color {
-        let top = color.resolve(in: EnvironmentValues())
-        let base = ground.resolve(in: EnvironmentValues())
-        let alpha = Double(top.opacity)
-        func mix(_ a: Float, _ b: Float) -> Double {
-            Double(a) * alpha + Double(b) * (1 - alpha)
-        }
-        return Color(
-            red: mix(top.red, base.red),
-            green: mix(top.green, base.green),
-            blue: mix(top.blue, base.blue)
+    // MARK: Saving
+
+    @Test func aSavedColourJoinsTheEndOfTheList() {
+        let store = store()
+        let before = store.savedColors.count
+
+        store.saveColor(.hex(0x123456))
+        #expect(store.savedColors.count == before + 1)
+        #expect(store.savedColors.last?.swatch == .hex(0x123456))
+        // Mixed rather than shipped, so it answers to its hex.
+        #expect(store.savedColors.last?.name == nil)
+        #expect(store.savedColors.last?.displayName == "#123456")
+    }
+
+    /// **Saving a colour that is already saved is not a failure and not a
+    /// duplicate.** The row is a set of choices; two swatches of one colour are
+    /// one choice a person has to tell apart pixel by pixel.
+    @Test func savingTheSameColourTwiceLeavesOneOfIt() {
+        let store = store()
+        store.saveColor(.hex(0x123456))
+        let after = store.savedColors.count
+
+        store.saveColor(.hex(0x123456))
+        #expect(store.savedColors.count == after)
+        // Including the ones it shipped with.
+        store.saveColor(.hex(0xC2532F))
+        #expect(store.savedColors.count == after)
+    }
+
+    /// Opacity is dropped on the way in: a picker offers a colour, and a 40%
+    /// swatch draws as one colour on the palette's ground and another on a card.
+    @Test func aSavedColourIsTheColourWithoutItsOpacity() {
+        let store = store()
+        store.saveColor(.rgb(0x123456, opacity: 0.4))
+        #expect(store.savedColors.last?.swatch == .hex(0x123456))
+        // And it counts as already saved next time round.
+        store.saveColor(.hex(0x123456))
+        #expect(store.savedColors.filter { $0.swatch == .hex(0x123456) }.count == 1)
+    }
+
+    // MARK: Deleting
+
+    @Test func aDeletedColourLeavesEveryPicker() {
+        let store = store()
+        store.saveColor(.hex(0x123456))
+        #expect(store.deleteSavedColor(.hex(0x123456)))
+        #expect(store.savedColors.contains { $0.swatch == .hex(0x123456) } == false)
+    }
+
+    /// **Nothing wearing the colour changes.** A board, a column and a label
+    /// each store the colour itself rather than a place in this list, which is
+    /// what makes deleting safe enough to do with no alert in front of it.
+    @Test func deletingAColourRepaintsNothing() throws {
+        let store = store()
+        let board = try #require(store.activeBoardID)
+        store.recolorBoard(board, to: .hex(0xC2532F))
+        let column = try #require(store.columns.first?.id)
+        store.recolorColumn(column, to: .hex(0xC2532F))
+
+        #expect(store.deleteSavedColor(.hex(0xC2532F)))
+        #expect(store.board(id: board)?.dot == .hex(0xC2532F))
+        #expect(store.column(id: column)?.dot == .hex(0xC2532F))
+    }
+
+    /// The accent is not a hex but "whatever the accent theme is". Nothing else
+    /// in the palette can say that, and a board wearing it would be left
+    /// pointing at a choice no picker offers.
+    @Test func theAccentCannotBeDeleted() {
+        let store = store()
+        #expect(store.deleteSavedColor(.accent) == false)
+        #expect(store.savedColors.contains { $0.swatch == .accent })
+        #expect(PaletteSwatch(.accent).isRemovable == false)
+        #expect(PaletteSwatch(.hex(0xC2532F)).isRemovable)
+    }
+
+    @Test func aColourThatIsNotInThePaletteCannotBeDeletedFromIt() {
+        let store = store()
+        let before = store.savedColors
+        #expect(store.deleteSavedColor(.hex(0xABCDEF)) == false)
+        #expect(store.savedColors == before)
+    }
+
+    /// One ⌘Z each way. Both go through `undoable`, because a palette is the
+    /// user's own work and a mis-aimed context menu is one click.
+    @Test func savingAndDeletingAreEachOneUndoStep() {
+        let (store, undo) = TestBoard.undoing(boards: TestBoard.boards)
+        let seeded = store.savedColors
+
+        store.saveColor(.hex(0x123456))
+        undo.undo()
+        #expect(store.savedColors == seeded)
+
+        undo.redo()
+        #expect(store.deleteSavedColor(.hex(0x123456)))
+        undo.undo()
+        #expect(store.savedColors.contains { $0.swatch == .hex(0x123456) })
+    }
+
+    // MARK: What is still there next time
+
+    @Test func aPaletteSurvivesARelaunch() throws {
+        let temp = TempBoard()
+        let first = TestBoard.store(boards: TestBoard.boards, file: temp.file)
+        first.saveColor(.hex(0x123456))
+        #expect(first.deleteSavedColor(.hex(0xC98A16)))
+        first.saveNow()
+
+        let second = BoardStore.restored(file: temp.file)
+        #expect(second.savedColors.contains { $0.swatch == .hex(0x123456) })
+        #expect(second.savedColors.contains { $0.swatch == .hex(0xC98A16) } == false)
+    }
+
+    /// A board file written before there was a palette gets the six back, not an
+    /// empty picker — those six are exactly what the build that wrote it was
+    /// offering. Same for a file hand-edited down to nothing: a picker with no
+    /// colours in it offers no way to put one there.
+    @Test func aFileWithNoPaletteGetsTheSix() throws {
+        let snapshot = BoardSnapshot(
+            tasks: [], boards: TestBoard.boards, labels: LabelDef.seed,
+            nextSerial: BoardSnapshot.baseSerial, accentTheme: .ember
         )
+        var json = try JSONSerialization.jsonObject(
+            with: try JSONEncoder().encode(snapshot)
+        ) as? [String: Any] ?? [:]
+        json["palette"] = nil
+        json["version"] = 9
+        let data = try JSONSerialization.data(withJSONObject: json)
+
+        let decoded = try BoardFile.decode(data)
+        #expect(decoded.snapshot.palette.map(\.swatch) == Board.dotPalette)
+        #expect(decoded.migratedFrom == 9, "a v9 file was not migrated")
+        #expect(decoded.snapshot.version == BoardSnapshot.currentVersion)
+
+        #expect(BoardStore(savedColors: []).savedColors.map(\.swatch) == Board.dotPalette)
     }
 
-    /// **A scrim has to make the thing behind it darker.** It reads like a
-    /// tautology and was not one: both of the iPhone's covering panels — the
-    /// navigation drawer and the Inbox slide-over — wrote their scrim as
-    /// `ink(0.3)`, and ink in dark mode is 0xEEEAE2. Opening either one laid a
-    /// near-white veil over the board and lit the screen up. It went unnoticed
-    /// because ink and shadow are the same 0x171310 in light mode, so the only
-    /// scheme anybody checked was the one where the two spellings agree.
+    /// The palette is a field, so the version had to move — a build without it
+    /// decodes a file with it perfectly well, drops the key, and writes the loss
+    /// back. See `BoardMigration.migrate(v9:)`.
     ///
-    /// The same defect `aLabelOnTheAccentIsReadableForEveryAccentInEitherScheme`
-    /// exists for, from the other end, and pinned the same way: both schemes,
-    /// because the wrong one is the one nobody looks at.
-    @Test func aScrimDarkensWhatItCoversInEitherScheme() {
-        for scheme in [ColorScheme.light, .dark] {
-            let palette = Palette(colorScheme: scheme)
-            let board = palette.appBackground
-            let veiled = composited(palette.scrim(), over: board)
-            #expect(
-                luminance(veiled) <= luminance(board) * 0.8,
-                "the scrim does not darken the board in \(scheme) — \(luminance(board)) became \(luminance(veiled))"
-            )
-        }
-    }
-
-    /// And it has to fade out rather than jump, because a panel dragged in
-    /// brings its scrim with it a frame at a time.
-    @Test func aScrimFadesWithTheFractionItIsGiven() {
-        for scheme in [ColorScheme.light, .dark] {
-            let palette = Palette(colorScheme: scheme)
-            let board = palette.appBackground
-            let half = luminance(composited(palette.scrim(0.5), over: board))
-            #expect(half < luminance(board), "half a scrim does not darken at all in \(scheme)")
-            #expect(half > luminance(composited(palette.scrim(), over: board)),
-                    "half a scrim is as dark as a whole one in \(scheme)")
-            // Within a rounding step: the composite goes out through
-            // `Color(red:green:blue:)` and back through `resolve`, and a colour
-            // space round trip does not land on the same float it started on.
-            #expect(abs(luminance(composited(palette.scrim(0), over: board)) - luminance(board)) < 0.001,
-                    "a scrim at nothing still marks the board in \(scheme)")
-        }
-    }
-
-    /// Seven views drew the label of a filled accent control as a literal
-    /// `.white`. Three of the four accents are dark, saturated colours in either
-    /// scheme and white is right on them — but `.ink` *is* the ink colour, and
-    /// ink in dark mode is 0xEEEAE2. White on that is white on near-white: the
-    /// source list's capture button, the completion tick, the pager chips
-    /// and the due-date presets were all blank for anyone using the ink accent
-    /// after dark, in both the app and the previews.
-    ///
-    /// Every accent in every scheme, because the defect was in one cell of that
-    /// eight-cell table and nothing else in the app iterates it.
-    @Test func aLabelOnTheAccentIsReadableForEveryAccentInEitherScheme() {
-        for scheme in [ColorScheme.light, .dark] {
-            for theme in AccentTheme.allCases {
-                let palette = Palette(colorScheme: scheme, accentTheme: theme)
-                let ratio = contrast(palette.onAccent, palette.accent)
-                // 4.5:1 is WCAG AA for body text, which is what these labels
-                // are — 12.5pt bold is under the 14pt the large-text
-                // relaxation starts at. `.white` on the dark-mode ink accent
-                // scores 1.2.
-                #expect(ratio >= 4.5,
-                        "\(theme.rawValue) in \(scheme == .dark ? "dark" : "light") reads at \(ratio):1")
-            }
-        }
-    }
-
-    /// The tick a completed card wears, and the accent it sits on, are the pair
-    /// above — so a scheme that inverts one has to invert the other. Named
-    /// separately because `onAccent` is easy to read as "white, spelt longer",
-    /// which is what it was before and is only true for three of the four.
-    @Test func theAccentThatFollowsTheSchemeTakesItsLabelWithIt() {
-        let light = Palette(colorScheme: .light, accentTheme: .ink)
-        let dark = Palette(colorScheme: .dark, accentTheme: .ink)
-        #expect(light.accent != dark.accent)
-        #expect(light.onAccent != dark.onAccent)
-
-        // And the three fixed accents do not move, so a change to the ink case
-        // cannot quietly pull them along.
-        for theme in [AccentTheme.ember, .pine, .indigo] {
-            #expect(Palette(colorScheme: .light, accentTheme: theme).onAccent
-                    == Palette(colorScheme: .dark, accentTheme: theme).onAccent)
-        }
+    /// Asserted as the *step* rather than as the tip: v10 is where the palette
+    /// arrived and stays where it is however many versions land on top of it.
+    @Test func thePaletteArrivedWithAVersionOfItsOwn() {
+        #expect(BoardSnapshot.currentVersion >= 10)
+        var v9 = BoardSnapshot(
+            tasks: [], boards: TestBoard.boards, labels: LabelDef.seed,
+            nextSerial: BoardSnapshot.baseSerial, accentTheme: .ember
+        )
+        v9.version = 9
+        #expect(BoardSnapshot.migrate(v9: v9).version == 10)
+        #expect(BoardSnapshot.migrate(v9: v9).palette.map(\.swatch) == Board.dotPalette)
     }
 }

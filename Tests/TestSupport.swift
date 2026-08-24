@@ -489,9 +489,9 @@ enum ForeignBoard {
     /// definition for `design` renames the importing board's own chips.
     static let labels: [LabelDef] = [
         LabelDef(key: "design", name: "Visual design",
-                 light: LabelDef.palette[0].light, dark: LabelDef.palette[0].dark),
+                 light: LabelTone.pair(from: 0x3B5BA9).light, dark: LabelTone.pair(from: 0x3B5BA9).dark),
         LabelDef(key: "seo", name: "SEO",
-                 light: LabelDef.palette[1].light, dark: LabelDef.palette[1].dark),
+                 light: LabelTone.pair(from: 0x783CA0).light, dark: LabelTone.pair(from: 0x783CA0).dark),
     ]
 
     /// Two cards on the foreign board and one in its Inbox, so an import has to
@@ -552,4 +552,36 @@ enum ForeignBoard {
             accentTheme: .indigo, activeBoardID: board.id
         )
     }
+}
+
+/// The seeded seven, by name, for the suites written while they were an enum.
+///
+/// **Test-only, and deliberately not on the model.** A production call site
+/// saying `SavedView.today` would get a *fresh copy* of the seeded rule rather
+/// than the user's Today — which since v11 they may have renamed, re-ruled or
+/// deleted — and that is exactly the bug the surface carrying an id instead of a
+/// view exists to prevent. Here there is no user, the store is built from
+/// `seededAll`, and the copy and the row are the same thing.
+extension SavedView {
+    static var allCases: [SavedView] { seededAll }
+    /// The five that narrow the board, which is what the sidebar used to draw
+    /// above the Archive.
+    static var filters: [SavedView] { seededAll.filter { $0.preset != .archive } }
+
+    static var inbox: SavedView { seeded(.inbox) }
+    static var today: SavedView { seeded(.today) }
+    static var upcoming: SavedView { seeded(.upcoming) }
+    static var highPriority: SavedView { seeded(.highPriority) }
+    static var dueThisWeek: SavedView { seeded(.dueThisWeek) }
+    static var recentlyUpdated: SavedView { seeded(.recentlyUpdated) }
+    static var archive: SavedView { seeded(.archive) }
+
+    /// What the phone's drawer draws: everything but the seeded Inbox, which it
+    /// reaches from a tab and a row of its own.
+    static var phone: [SavedView] { seededAll.filter { $0.preset != .inbox } }
+    static var phoneFilters: [SavedView] { phone.filter { $0.preset != .archive } }
+
+    /// What `lastSurfaceName` writes down, which since v11 is the id rather
+    /// than an enum case's spelling.
+    var rawValue: String { id.uuidString }
 }

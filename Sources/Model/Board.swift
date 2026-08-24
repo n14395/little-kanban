@@ -71,24 +71,20 @@ struct Board: Identifiable, Hashable, Codable, Sendable {
     /// because "Done" is called Shipped, Live and Published on real boards, and
     /// `SeedData.contentCalendar` already ships one called Published.
     ///
-    /// **Once there are two.** A board with a single column has nowhere to
-    /// finish: that column is where the work *is*, and reading it as Done would
-    /// have every card on the board arrive complete. `BoardStore` will not make
-    /// such a board — `addColumn` mints the pair, and `deleteColumn` refuses the
-    /// second-to-last — so this is about the ones that arrive from outside, in
-    /// an import or a hand-edited file, and it is the harmless answer of the
-    /// two. `nil` likewise for a board with no columns at all, which is what a
-    /// board looks like between being created and being set up.
-    var doneColumn: BoardColumn? { columns.count >= 2 ? columns.last : nil }
+    /// `nil` only for a board with no columns at all, which nothing in the app
+    /// makes any more — a board arrives holding this column and the settings
+    /// sheet is where the rest are added in front of it — but which an import or
+    /// a hand-edited file can still be.
+    var doneColumn: BoardColumn? { columns.last }
 
     /// Every column before Done — the ones work actually moves through.
     ///
     /// What the "move to" control offers, and what a card can be filed into
-    /// without being finished by the act of filing it. A board with no Done
-    /// column of its own is all working columns, for the reason above.
-    var workingColumns: [BoardColumn] {
-        doneColumn == nil ? columns : Array(columns.dropLast())
-    }
+    /// without being finished by the act of filing it. **Empty on a board that
+    /// has only just been made**, which is the state every board starts in: it
+    /// has somewhere to finish and nowhere to work yet, and the board surface
+    /// asks for a column rather than for a card until it has one.
+    var workingColumns: [BoardColumn] { Array(columns.dropLast()) }
 
     /// Where a card lands when it is filed onto this board without being told
     /// where: the first column work can start in.
@@ -110,6 +106,16 @@ extension Board {
 
     /// What a board mints with when it is given nothing better.
     static let defaultCodePrefix = "NW"
+
+    /// What a board is called before its maker has said. Every route that makes
+    /// one goes through it, because none of them asks for a name up front any
+    /// more — the settings sheet opens on the new board with this in the field,
+    /// cleared and focused, and the first keystroke names it. A board that is
+    /// never named keeps this rather than ending up nameless, which `renameBoard`
+    /// refuses anyway.
+    static var defaultName: String {
+        String(localized: "New Board", comment: "What a board is called until it is named")
+    }
 
     /// The Inbox's name and dot. It stopped being a `BoardColumn` when it
     /// became global, so there is nowhere else for a surface to read them from.
@@ -159,13 +165,14 @@ extension Board {
         var id: SwatchColor { swatch }
     }
 
-    /// The dots a board or a column can be given.
+    /// The colours a board file starts its palette with — see
+    /// ``PaletteSwatch/seed``, which is the only thing that reads this now.
     ///
-    /// `LabelDef.palette`'s counterpart for the two things that carry a single
-    /// dot rather than a background/foreground pair. One list on the model
-    /// rather than one per surface, because the two surfaces recolour the same
-    /// property: a board coloured on the phone has to be recolourable back to
-    /// the same colour on the desk.
+    /// It used to be the whole of what a picker could offer, on either surface
+    /// and for a board or a column alike. It is the *seed* since v10: the list
+    /// a picker draws is the user's, in the file, and can be added to and taken
+    /// from. The names stay here because they are what a reader hears, and a
+    /// name kept in a view drifts from the colour the moment either is edited.
     ///
     /// Six, because that is a row of 44pt targets on the narrowest phone with
     /// no spacing left to give away — and the six are chosen so every dot the
@@ -224,6 +231,18 @@ struct BoardSettingsRequest: Identifiable, Hashable, Sendable {
     /// Whether to land the caret in the board's name field, set by the routes
     /// that say *rename* rather than *settings*.
     var focusesName: Bool = false
+    /// Whether to arrive with the add-column composer already open, set by the
+    /// routes that say *add a column* rather than *settings* — the board's own
+    /// empty states, which are the only thing on a board that still offers one
+    /// now that the strip's dashed tile has gone. Same bargain as `focusesName`:
+    /// a button that promises a column should land in a field, not in a sheet
+    /// with a button in it.
+    var addsColumn: Bool = false
+    /// Whether this board has just been made and still carries
+    /// ``Board/defaultName``. The name field arrives focused and **empty**, so
+    /// the first keystroke names the board rather than being appended to a name
+    /// nobody chose. Implies `focusesName`; the two are never both needed.
+    var namesNewBoard: Bool = false
 
     var id: Board.ID { board }
 }

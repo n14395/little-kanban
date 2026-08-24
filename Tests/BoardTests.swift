@@ -80,7 +80,7 @@ import Testing
     /// an "exactly as it was" assertion.
     private func board(_ store: BoardStore) -> BoardMutation {
         BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0,
-                      boards: store.boards, trash: store.trash)
+                      boards: store.boards, trash: store.trash, views: store.views, savedColors: store.savedColors)
     }
 
     // MARK: The invariant
@@ -255,7 +255,7 @@ import Testing
     @Test func filingACardFromADetailSurfaceOpensTheBoardItWentTo() {
         let store = Self.store()
         store.select(Self.onAlpha)
-        store.selectSurface(.view(.today))
+        store.selectSurface(.view(SavedView.today.id))
 
         store.file(Self.onAlpha, onto: Self.betaID)
         store.showPlace(of: Self.onAlpha)
@@ -272,7 +272,7 @@ import Testing
     @Test func sendingACardToTheInboxOpensThePanelBesideTheBoard() {
         let store = Self.store()
         store.isInboxOpen = false
-        store.selectSurface(.view(.today))
+        store.selectSurface(.view(SavedView.today.id))
 
         store.unfile(Self.onAlpha)
         store.showPlace(of: Self.onAlpha)
@@ -407,18 +407,26 @@ import Testing
         #expect(store.boards.count == 2)
     }
 
-    /// **A new board is blank.** It used to arrive holding a copy of the seed
-    /// workflow, and the first thing anyone making a board of their own did was
-    /// delete four columns they had not asked for.
-    @Test func aNewBoardStartsWithNoColumnsAtAll() throws {
+    /// **A new board arrives with its Done column and nothing else.**
+    ///
+    /// It used to hold a copy of the seed workflow, and the first thing anyone
+    /// making a board of their own did was delete four columns they had not
+    /// asked for. Then it held none at all, which left the one column every
+    /// board is *required* to have — see `Board.doneColumn` — as something the
+    /// app added behind the user's back along with their first real one.
+    @Test func aNewBoardStartsWithItsDoneColumnAndNothingElse() throws {
         let store = Self.store()
         let id = try #require(store.createBoard(named: "Gamma"))
         let fresh = try #require(store.board(id: id))
-        #expect(fresh.columns.isEmpty)
-        // …and the store is *on* it, which is what makes the empty board
+        #expect(fresh.columns.count == 1)
+        #expect(fresh.doneColumn?.id == fresh.columns.first?.id)
+        #expect(fresh.workingColumns.isEmpty, "a new board has somewhere to finish, not somewhere to work")
+        // Its own column, not the seed's: two boards may not share a column id.
+        #expect(fresh.columns.first?.id != BoardColumn.done.id)
+        // …and the store is *on* it, which is what makes the blank board
         // surface — and its offer of a first column — the thing on screen.
         #expect(store.activeBoardID == id)
-        #expect(store.columns.isEmpty)
+        #expect(store.workingColumns.isEmpty)
     }
 
     /// The other half of blank: a card added on the phone while a board has no
@@ -442,7 +450,11 @@ import Testing
         store.addTaskToCurrentMobileColumn()
         let added = try #require(store.sheetTask)
         #expect(added.isUnfiled, "a card added on a blank board landed on another board")
-        #expect(store.board(id: blank)?.columns.isEmpty == true)
+        #expect(store.board(id: blank)?.workingColumns.isEmpty == true)
+        // And **not** in the new board's Done column, which is the one column it
+        // does have: a first card that arrived already complete would be worse
+        // than one that went to the Inbox.
+        #expect(store.isDone(added) == false)
     }
 
     @Test func aBoardWithNoPrefixTakesItsInitials() throws {
@@ -563,7 +575,7 @@ import Testing
         let temp = TempBoard()
         let store = Self.store(file: temp.file)
         store.selectBoard(Self.betaID)
-        store.selectSurface(.view(.today))
+        store.selectSurface(.view(SavedView.today.id))
         store.saveNow()
 
         let relaunched = BoardStore.restored(file: temp.file)
@@ -637,8 +649,9 @@ import Testing
         #expect(relaunched.boards.map(\.name) == ["Fresh"])
         #expect(relaunched.activeBoardID == made)
         // Blank, and deliberately: the board surface's own offer is a first
-        // column rather than a first card. See `aNewBoardStartsWithNoColumnsAtAll`.
-        #expect(relaunched.columns.isEmpty)
+        // column rather than a first card. See
+        // `aNewBoardStartsWithItsDoneColumnAndNothingElse`.
+        #expect(relaunched.workingColumns.isEmpty)
     }
 
     // MARK: Migration — v4 → v5

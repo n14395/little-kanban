@@ -180,8 +180,8 @@ struct MacRootView: View {
         switch store.surface {
         case .board:
             BoardScrollView()
-        case .view(let view):
-            MacSavedViewList(view: view)
+        case .view(let id):
+            MacSavedViewList(viewID: id)
         }
     }
 }
@@ -232,23 +232,37 @@ struct MacSavedViewList: View {
     /// See `InboxPanel`: the surface's keyboard focus, not each row's.
     @FocusState private var focus: TaskItem.ID?
 
-    let view: SavedView
+    /// The view's **id**, looked up on every draw. A `SavedView` handed in
+    /// whole would be the one this surface was built with, so a rule edited in
+    /// the editor would leave the list underneath it drawing the old one until
+    /// something else forced a redraw.
+    let viewID: SavedView.ID
 
     var body: some View {
+        guard let view = store.view(id: viewID) else { return AnyView(EmptyView()) }
+        return AnyView(content(view))
+    }
+
+    @ViewBuilder private func content(_ view: SavedView) -> some View {
         // Resolved once and handed down: the header counts the rows it heads,
         // so both have to be the same array.
         let tasks = store.tasks(in: view, today: dayClock.today)
 
         VStack(spacing: 0) {
-            header(count: tasks.count)
+            header(view, count: tasks.count)
             if tasks.isEmpty {
-                emptyState
+                emptyState(view)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 // The card the flat surfaces draw is the keyboard-reachable
                 // one: ⌘A, ⌘C, ⌘V, ⎋ and ↑/↓ read here exactly as they do on
                 // the board, less the two pairs that need columns.
-                TaskListView(tasks: tasks, metrics: .desk) { task in
+                //
+                // Columns rather than one long run down the middle — see
+                // ``TaskColumnsView``. The order the arrows walk is unchanged,
+                // because the order is unchanged: it now runs down a column and
+                // on to the top of the next instead of down a single list.
+                TaskColumnsView(tasks: tasks, metrics: .desk) { task in
                     PlatformTaskCard(task: task, focus: $focus)
                 }
             }
@@ -261,7 +275,7 @@ struct MacSavedViewList: View {
     /// badge on a destination — but a count sitting directly on top of a list
     /// is read as that list's length, and reading "7" above "Nothing matched"
     /// makes the search look broken rather than the view look full.
-    private func header(count: Int) -> some View {
+    private func header(_ view: SavedView, count: Int) -> some View {
         HStack(spacing: 12) {
             Button { store.selectSurface(.board) } label: {
                 HStack(spacing: 5) {
@@ -307,7 +321,7 @@ struct MacSavedViewList: View {
     /// what would land in it. The query no longer narrows a view on this
     /// platform — it opens ``SearchResultsPanel`` over whatever is on screen —
     /// so "the query emptied it" is not one of the states this can be in.
-    private var emptyState: some View {
+    private func emptyState(_ view: SavedView) -> some View {
         EmptyStateView.savedView(view, metrics: .desk)
     }
 }

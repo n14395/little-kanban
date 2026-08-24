@@ -10,8 +10,8 @@ import Testing
 /// cannot wait past the thirtieth day, and it should not take three taps through
 /// a preferences sheet to reach it.
 ///
-/// So it has three doors — the bin at the foot of the source list on macOS and
-/// on iPad, and the board menu on the phone — all of which raise the one flag,
+/// So it has three doors — the Trash row under Manage in the source list on macOS
+/// and on iPad, and the board menu on the phone — all of which raise the one flag,
 /// `BoardStore.isShowingTrash`. That flag is the seam these tests are written
 /// against: a store can be asked whether the doors set it, and the source can be
 /// read for whether each surface has one. What a popover *looks* like is

@@ -98,6 +98,43 @@ final class ColumnChipMenuTests: XCTestCase {
         XCTAssertTrue(item("Move Right", in: app).isEnabled, "Move Right is dead on a middle column")
     }
 
+    /// **The two moves that would be refused are greyed rather than live.**
+    ///
+    /// The Done column is the board's last and that is what makes it the column
+    /// a tick sends cards to, so it does not move and nothing moves past it.
+    /// `moveColumn` refuses the first and clamps the second — the menu says so
+    /// in advance, because an item that can be pressed and does nothing is
+    /// indistinguishable from a bug.
+    ///
+    /// Read on the two columns where it shows: **In Progress**, the last column
+    /// before Done, whose Right is dead while its Left is live; and **Done**,
+    /// where both are. The seeded board is Backlog / Up Next / In Progress /
+    /// Done, so the middle case is `testALongPressOnAChipOffers…` above.
+    func testTheMovesThatWouldBeRefusedAreGreyedOut() throws {
+        let app = try launched()
+
+        let beforeDone = chip("In Progress", in: app)
+        XCTAssertTrue(beforeDone.waitForExistence(timeout: 15), "no In Progress chip in the strip")
+        longPress(beforeDone)
+        XCTAssertTrue(item("Move Right", in: app).waitForExistence(timeout: 5), "the menu never opened")
+        XCTAssertTrue(item("Move Left", in: app).isEnabled,
+                      "Move Left is dead on the column before Done")
+        XCTAssertFalse(item("Move Right", in: app).isEnabled,
+                       "the column before Done can still be moved past it")
+
+        // Out of the menu without pressing anything in it, so the board is
+        // untouched for the second half — a tap on the chrome behind it, which
+        // is what a person does.
+        app.tap()
+
+        let done = chip("Done", in: app)
+        XCTAssertTrue(done.waitForExistence(timeout: 5), "no Done chip in the strip")
+        longPress(done)
+        XCTAssertTrue(item("Move Left", in: app).waitForExistence(timeout: 5), "the menu never opened")
+        XCTAssertFalse(item("Move Left", in: app).isEnabled, "the Done column can be moved left")
+        XCTAssertFalse(item("Move Right", in: app).isEnabled, "the Done column can be moved right")
+    }
+
     func testEditColumnOpensTheEditorOnThatColumn() throws {
         let app = try launched()
 

@@ -36,11 +36,23 @@ struct BoardSnapshot: Codable, Sendable {
     /// Kept in the file rather than worked out from the board, because it is
     /// precisely the things that are *not* on the board any more.
     var trash: [TrashedItem] = []
+    /// The colours every picker in the app offers — see ``PaletteSwatch``.
+    /// Since v10, and defaulted to the six the app ships with: a file written
+    /// before there was a palette was written by a build whose pickers offered
+    /// exactly those.
+    var palette: [PaletteSwatch] = PaletteSwatch.seed
 
-    static let currentVersion = 9
+    /// The saved views, in sidebar order.
+    ///
+    /// Since v11, when the seven stopped being an enum and became editable rows
+    /// — see ``SavedView``. Defaulted to the seeded seven, which is what a file
+    /// written before them means: a build whose sidebar offered exactly those.
+    var views: [SavedView] = SavedView.seededAll
+
+    static let currentVersion = 11
 
     enum CodingKeys: String, CodingKey {
-        case version, tasks, boards, labels, nextSerial, accentTheme, activeBoardID, trash
+        case version, tasks, boards, labels, nextSerial, accentTheme, activeBoardID, trash, palette, views
     }
 
     /// Written out rather than synthesised, for one field.
@@ -70,6 +82,18 @@ struct BoardSnapshot: Codable, Sendable {
         accentTheme = try container.decode(AccentTheme.self, forKey: .accentTheme)
         activeBoardID = try container.decodeIfPresent(Board.ID.self, forKey: .activeBoardID)
         trash = try container.decodeIfPresent([TrashedItem].self, forKey: .trash) ?? []
+        // Lenient for `trash`'s reason, and one of its own: a palette decoded
+        // as empty is a picker with nothing in it, so the absence of the key
+        // has to mean the six rather than none.
+        palette = try container.decodeIfPresent([PaletteSwatch].self, forKey: .palette) ?? PaletteSwatch.seed
+        // Lenient again, and the *absent* case is the seven rather than none:
+        // every file written before v11 had them, and reading their absence as
+        // an empty sidebar would take Today away from everyone who upgraded.
+        //
+        // An empty array that is genuinely *there* is respected — that is
+        // somebody who deleted all seven, and handing them back would make the
+        // deletion un-stick on every launch.
+        views = try container.decodeIfPresent([SavedView].self, forKey: .views) ?? SavedView.seededAll
     }
 
     init(
@@ -80,7 +104,9 @@ struct BoardSnapshot: Codable, Sendable {
         nextSerial: Int,
         accentTheme: AccentTheme,
         activeBoardID: Board.ID? = nil,
-        trash: [TrashedItem] = []
+        trash: [TrashedItem] = [],
+        views: [SavedView] = SavedView.seededAll,
+        palette: [PaletteSwatch] = PaletteSwatch.seed
     ) {
         self.version = version
         self.tasks = tasks
@@ -90,6 +116,8 @@ struct BoardSnapshot: Codable, Sendable {
         self.accentTheme = accentTheme
         self.activeBoardID = activeBoardID
         self.trash = trash
+        self.views = views
+        self.palette = palette
     }
 
     /// The serial a fresh board starts minting from.
@@ -267,10 +295,15 @@ struct BoardFile: Sendable {
     static func decode(_ data: Data) throws -> (snapshot: BoardSnapshot, migratedFrom: Int?) {
         let (snapshot, migratedFrom) = try decodeToV8(data)
         guard let migratedFrom else { return (snapshot, nil) }
-        // The last step, applied once at the end of whichever chain ran, because
+        // The v8 step is applied once at the end of whichever chain ran, because
         // it is the only one that needs something the *bytes* still have and the
         // decoded value no longer does — see `migrate(v8:legacyDoneColumns:)`.
-        return (BoardSnapshot.migrate(v8: snapshot, legacyDoneColumns: legacyDoneColumns(in: data)), migratedFrom)
+        // A v9 file is already past it and must not be walked through it again.
+        let atV9 = migratedFrom < 9
+            ? BoardSnapshot.migrate(v8: snapshot, legacyDoneColumns: legacyDoneColumns(in: data))
+            : snapshot
+        let atV10 = migratedFrom < 10 ? BoardSnapshot.migrate(v9: atV9) : atV9
+        return (BoardSnapshot.migrate(v10: atV10), migratedFrom)
     }
 
     /// Every version up to and including v8, decoded and walked forward to the
@@ -280,6 +313,23 @@ struct BoardFile: Sendable {
         switch try version(of: data) {
         case BoardSnapshot.currentVersion:
             return (try decoder.decode(BoardSnapshot.self, from: data), nil)
+        case 10:
+            // v10 and v11 are the same shape: v11 only *adds* the saved views,
+            // and the field is defaulted, so the current decoder reads a v10
+            // file whole and gets the seeded seven — which is exactly the seven
+            // a v10 build's sidebar drew, because they were an enum in the
+            // source rather than rows in the file. The bump is for the other
+            // direction: a v10 build handed a v11 file drops every view the user
+            // made and writes the loss straight back.
+            return (try decoder.decode(BoardSnapshot.self, from: data), 10)
+        case 9:
+            // v9 and v10 are the same shape: v10 only *adds* the palette, and
+            // the field is defaulted, so the current decoder reads a v9 file
+            // whole and gets the six colours it was offering anyway. The bump is
+            // for what a *v9* build does with a v10 file — it would drop the
+            // palette on the way in and write the loss back out, taking every
+            // colour the user had mixed with it.
+            return (try decoder.decode(BoardSnapshot.self, from: data), 9)
         case 8:
             // v8 and v9 are the same shape: v9 *removes* `ColumnRole` from each
             // column, and an unknown key is not a decoding failure, so the

@@ -273,8 +273,18 @@ extension EmptyStateView {
                comment: "Empty state body copy for the Inbox")
     }
 
+    /// **Only for a view still doing what it was seeded to do.** These sentences
+    /// were written one per view, and a hand-written one beats anything
+    /// generated from a rule — but "Nothing due today" under a view somebody has
+    /// re-ruled to gather next month is a sentence about a view that no longer
+    /// exists. `isUnchangedPreset` is the gate; everything else gets the generic
+    /// pair below, which says the one thing that is true of every empty view.
     private static func headline(for view: SavedView) -> String {
-        switch view {
+        guard view.isUnchangedPreset, let preset = view.preset else {
+            return String(localized: "Nothing matches this view",
+                          comment: "Empty state headline for a view the user built")
+        }
+        return switch preset {
         case .inbox:
             Self.inboxHeadline
         case .today:
@@ -293,7 +303,11 @@ extension EmptyStateView {
     }
 
     private static func message(for view: SavedView) -> String {
-        switch view {
+        guard view.isUnchangedPreset, let preset = view.preset else {
+            return String(localized: "No task on the board meets every criterion this view asks for.",
+                          comment: "Empty state body copy for a view the user built")
+        }
+        return switch preset {
         case .inbox:
             Self.inboxMessage
         case .today:

@@ -668,7 +668,7 @@ private func registrations(_ undo: RecordingUndoManager, _ body: () -> Void) -> 
     /// back up rather than open a field on a surface that cannot draw one.
     @Test func newTaskFromASavedViewReturnsToTheBoard() {
         let store = TestBoard.store()
-        store.selectSurface(.view(.today))
+        store.selectSurface(.view(SavedView.today.id))
         store.beginAddingWhereVisible()
         #expect(store.surface == .board)
         #expect(store.addingColumnID == store.activeBoard?.landingColumn?.id)

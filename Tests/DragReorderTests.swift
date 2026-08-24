@@ -360,7 +360,7 @@ import Testing
         #expect(store.allowsCardDrag == false, "a sorted board still allows a drag")
         store.sortOrder = .manual
 
-        store.selectSurface(.view(.upcoming))
+        store.selectSurface(.view(SavedView.upcoming.id))
         #expect(store.allowsCardDrag == false, "a saved view still allows a drag")
         store.selectSurface(.board)
         #expect(store.allowsCardDrag)

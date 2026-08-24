@@ -33,7 +33,7 @@ import Testing
         let store = TestBoard.store()
         #expect(store.showsInboxToggle)
 
-        store.selectSurface(.view(.today))
+        store.selectSurface(.view(SavedView.today.id))
         #expect(store.showsInboxToggle == false)
         #expect(store.isInboxShowing == false)
 
@@ -48,7 +48,7 @@ import Testing
         let store = TestBoard.store()
         store.toggleInbox()
 
-        store.selectSurface(.view(.today))
+        store.selectSurface(.view(SavedView.today.id))
         #expect(store.isInboxShowing == false, "the panel is beside a board that is not there")
         #expect(store.isInboxOpen, "picking a view switched the Inbox off rather than hiding it")
 
@@ -61,7 +61,7 @@ import Testing
     /// come back too.
     @Test func showingTheInboxPutsTheBoardBackUnderIt() {
         let store = TestBoard.store()
-        store.selectSurface(.view(.archive))
+        store.selectSurface(.view(SavedView.archive.id))
 
         store.showInbox()
         #expect(store.surface == .board)

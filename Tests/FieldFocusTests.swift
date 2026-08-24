@@ -32,9 +32,8 @@ import Testing
     /// is the moment somebody would otherwise write `onAppear` again.
     private static let fields = [
         "Shared/BoardTaskComposer.swift",   // a column's + , and the Inbox panel's
-        "Shared/BoardSidebar.swift",        // New board, and renaming one
         "Shared/BoardToolbar.swift",        // the board’s name, and the search field the bar folds into a button
-        "Shared/BoardColumnView.swift",     // Add column, and the column editor
+        "Shared/BoardColumnView.swift",     // the column editor in the header popover
         "Shared/LabelEditor.swift",         // the new-label field in the popover
         "Mac/MenuBarQuickAdd.swift",        // ⌃⌘N, where the field is the window
         "Shared/BoardSettingsView.swift",   // the board's name, when the sheet was opened to rename

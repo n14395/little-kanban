@@ -38,7 +38,10 @@ import Testing
     /// added without this test being read: the composer's and the add-column
     /// tile's are the ones that are not about focus at all.
     private static let surfaces = [
-        "Shared/BoardScrollView.swift": 5,
+        // Four, not five: the fifth brought the strip's trailing add-column
+        // tile into view as its composer opened, and the tile has gone — a
+        // board's columns are managed in `BoardSettingsView` now.
+        "Shared/BoardScrollView.swift": 4,
         "Shared/BoardColumnView.swift": 3,
         "Shared/InboxPanel.swift": 2,
     ]

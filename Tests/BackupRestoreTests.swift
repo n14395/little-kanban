@@ -115,7 +115,7 @@ import Testing
 
         step(undo) { store.deleteTask(TestBoard.sync) }
         let damaged = BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0,
-                      boards: store.boards, trash: store.trash)
+                      boards: store.boards, trash: store.trash, views: store.views, savedColors: store.savedColors)
 
         var restoreError: (any Error)?
         step(undo) {
@@ -127,7 +127,7 @@ import Testing
 
         undo.undo()
         let after = BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0,
-                      boards: store.boards, trash: store.trash)
+                      boards: store.boards, trash: store.trash, views: store.views, savedColors: store.savedColors)
         #expect(after == damaged, "⌘Z after a restore did not put the board back the way it was")
     }
 
@@ -160,12 +160,12 @@ import Testing
         let broken = temp.file.backupsDirectory.appending(path: "board-20250101T000000Z.json")
         try Data("{ not a board".utf8).write(to: broken)
         let before = BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0,
-                      boards: store.boards, trash: store.trash)
+                      boards: store.boards, trash: store.trash, views: store.views, savedColors: store.savedColors)
 
         #expect(throws: BoardFileError.unreadable) { try store.restore(fromBackup: broken) }
 
         let after = BoardMutation(tasks: store.tasks, labels: store.labels, nextSerial: 0,
-                      boards: store.boards, trash: store.trash)
+                      boards: store.boards, trash: store.trash, views: store.views, savedColors: store.savedColors)
         #expect(after == before)
         #expect(undo.canUndo == false, "a restore that failed still filed a ⌘Z")
     }

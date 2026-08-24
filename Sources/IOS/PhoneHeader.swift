@@ -472,19 +472,25 @@ struct PhoneHeader: View {
         // strip and the board pages sideways, so this is the direction the user
         // is looking at. `PhoneBoardEditor`'s own pair says up and down because
         // there the columns are a vertical list.
+        //
+        // Both dead on the Done column, and Right dead on the one in front of
+        // it: Done is the board's last column and that is what makes it Done, so
+        // it does not move and nothing moves past it. `BoardColumnView`'s menu
+        // greys the same two cases, and `moveColumn` refuses and clamps them.
         Button {
             store.moveColumn(fromOffsets: IndexSet(integer: index), toOffset: index - 1)
         } label: {
             Label("Move Left", systemImage: "arrow.left")
         }
-        .disabled(index == 0)
+        .disabled(index == 0 || store.isDone(column: column.id))
 
         Button {
             store.moveColumn(fromOffsets: IndexSet(integer: index), toOffset: index + 2)
         } label: {
             Label("Move Right", systemImage: "arrow.right")
         }
-        .disabled(index == store.pagerColumns.count - 1)
+        // `count - 2` for `BoardColumnView`'s reason: the last column is Done.
+        .disabled(index >= store.pagerColumns.count - 2)
 
         Divider()
 

@@ -36,6 +36,11 @@ struct BoardTaskCard: View {
         /// card's reach meets the next one's exactly in the middle and a
         /// pointer between two cards is always over one of them.
         var dropReach: CGFloat
+        /// The checklist line along the card's foot. Thin on purpose: it is the
+        /// only thing on a card that costs no line at all, and it says the same
+        /// as the fraction beside it in a form that can be read across a whole
+        /// column without stopping at any one card.
+        var progressHeight: CGFloat
 
         /// How far the toggle's hit square overhangs the box it draws, which is
         /// what the overlay is pulled back by so the circle lands on the
@@ -47,7 +52,7 @@ struct BoardTaskCard: View {
             topPadding: 11, bottomPadding: 10, titleSize: 13.5, noteSize: 11.5, restoreHit: 0,
             selectionRing: Ring(cornerRadius: 12, lineWidth: 2, inset: 0),
             focusRing: Ring(cornerRadius: 9, lineWidth: 1.5, inset: 3),
-            dropReach: 4
+            dropReach: 4, progressHeight: 4.5
         )
         /// A card under a finger. The tick claims 44, so the gutter and the
         /// card's own margins grow with it rather than letting the circle sit
@@ -57,7 +62,7 @@ struct BoardTaskCard: View {
             topPadding: 13, bottomPadding: 12, titleSize: 15, noteSize: 12.5, restoreHit: 44,
             selectionRing: Ring(cornerRadius: 14, lineWidth: 2, inset: 0),
             focusRing: Ring(cornerRadius: 11, lineWidth: 1.5, inset: 3),
-            dropReach: 5
+            dropReach: 5, progressHeight: 5
         )
     }
 
@@ -470,6 +475,27 @@ struct BoardTaskCard: View {
         }
     }
 
+    /// The checklist's progress, along the foot of the card.
+    ///
+    /// **Drawn whatever the density is**, unlike the fraction beside it. Compact
+    /// exists to buy back vertical space — it drops the note, the priority dot
+    /// and the count — and this is the one thing on a card that costs none: it
+    /// sits in the corner radius the card already has. A column read at a glance
+    /// keeps its answer to "how far along is any of this" in the mode chosen for
+    /// reading many cards at once.
+    ///
+    /// Decoration, and hidden from a reader: ``SubtaskCountBadge`` says the same
+    /// thing in words and is what the card's combined label carries.
+    @ViewBuilder private var progressLine: some View {
+        if task.hasSubtasks {
+            ProgressMeter(
+                fraction: task.subtaskFraction,
+                height: metrics.progressHeight,
+                isFlush: true
+            )
+        }
+    }
+
     @ViewBuilder
     private func ring(_ ring: Ring, isDrawn: Bool) -> some View {
         if isDrawn {
@@ -527,10 +553,18 @@ struct BoardTaskCard: View {
                     if let due = task.due {
                         DueChip(due: due, today: dayClock.today, isDone: store.isDone(task))
                     }
+                    Spacer(minLength: 0)
+                    // **The far end of the row**, with the line under it that
+                    // says the same thing. It used to sit third from the left,
+                    // where the two things that answer *when* — the priority dot
+                    // and the due chip — pushed it a different distance in on
+                    // every card, so a column of cards had their counts down a
+                    // ragged diagonal. Against the trailing edge they line up,
+                    // and the pair reads as one: the fraction and the bar
+                    // directly beneath it.
                     if task.hasSubtasks, density.showsDetail {
                         SubtaskCountBadge(text: task.subtaskProgressText)
                     }
-                    Spacer(minLength: 0)
                 }
                 .padding(.top, 1)
             }
@@ -539,13 +573,21 @@ struct BoardTaskCard: View {
         .padding(.top, metrics.topPadding)
         .padding(.bottom, metrics.bottomPadding)
         .background {
-            RoundedRectangle(cornerRadius: metrics.cornerRadius)
-                .fill(palette.card)
-                .shadow(
-                    color: palette.shadow(isHovering ? 0.13 : 0.06),
-                    radius: isHovering ? 7 : 1,
-                    y: isHovering ? 4 : 1
-                )
+            // **The checklist line is part of the card's ground, not something
+            // laid on top of it.** Drawn inside the same rounded rectangle and
+            // clipped by it, so its ends follow the card's corners instead of
+            // squaring them off — and so the shadow below is the shadow of the
+            // card rather than of a bar hanging off its foot.
+            ZStack(alignment: .bottom) {
+                RoundedRectangle(cornerRadius: metrics.cornerRadius).fill(palette.card)
+                progressLine
+            }
+            .clipShape(RoundedRectangle(cornerRadius: metrics.cornerRadius))
+            .shadow(
+                color: palette.shadow(isHovering ? 0.13 : 0.06),
+                radius: isHovering ? 7 : 1,
+                y: isHovering ? 4 : 1
+            )
         }
         .overlay {
             RoundedRectangle(cornerRadius: metrics.cornerRadius)

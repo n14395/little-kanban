@@ -194,19 +194,38 @@ import UIKit
     }
 }
 
-/// The iPad's flat lists are the board's own card at the board's own sizes, and
-/// the preset that says so lives on the type rather than inside `PadRootView` —
-/// where nothing outside the view could name it.
+/// The iPad's flat surfaces are the board's own card at the board's own sizes,
+/// and since the saved views became columns that is meant literally: the same
+/// width, the same gap between cards, the same gutter between columns.
+///
+/// `TaskListMetrics.pad` used to say the softer version of this — a capped,
+/// centred *row* — and went when its last caller did. What replaced it is
+/// `TaskColumnMetrics.pad`, and the claim worth pinning is not its numbers but
+/// where they come from: a preset that copied 320 and 10 out of
+/// `BoardColumnView` would be right the day it was written and wrong the day
+/// the board's column changed.
+///
+/// `@MainActor` because these presets are — `BoardScrollView` is a `View`, so
+/// its `gutter` is isolated along with it. A nonisolated suite calling one
+/// crashes the test host rather than failing to compile.
+@MainActor
 @Suite struct PadListMetricTests {
-    @Test func theIPadsListPresetIsNamedBesideItsSiblings() {
-        let pad = TaskListMetrics.pad
-        // Room under the last card, but not the phone's 130pt: that is space
-        // left for a floating tab bar, and the iPad has none.
-        #expect(pad.bottomInset < TaskListMetrics.sheet.bottomInset)
-        #expect(pad.bottomInset > 0)
-        // A row is capped and centred rather than stretched across 13 inches,
-        // which is the desk's rule at the iPad's width.
-        #expect(pad.maxRowWidth > TaskListMetrics.desk.maxRowWidth)
-        #expect(pad.maxRowWidth < .infinity)
+    @Test func theFlatSurfacesTakeTheBoardsOwnColumn() {
+        #expect(TaskColumnMetrics.pad.columnWidth == BoardColumnView.Metrics.pad.width)
+        #expect(TaskColumnMetrics.pad.cardSpacing == BoardColumnView.Metrics.pad.cardSpacing)
+        #expect(TaskColumnMetrics.desk.columnWidth == BoardColumnView.Metrics.desk.width)
+        #expect(TaskColumnMetrics.desk.cardSpacing == BoardColumnView.Metrics.desk.cardSpacing)
+        // And the gap between two of them is the strip's, so a view and the
+        // board it was gathered from are the same grid rather than two grids
+        // that happen to agree.
+        #expect(TaskColumnMetrics.pad.columnSpacing == BoardScrollView.gutter)
+        #expect(TaskColumnMetrics.desk.columnSpacing == BoardScrollView.gutter)
+    }
+
+    /// Room under the last card, but not the phone's 130pt: that is space left
+    /// for a floating tab bar, and the iPad has none.
+    @Test func theIPadLeavesNoRoomForABarItDoesNotHave() {
+        #expect(TaskColumnMetrics.pad.bottomInset < TaskListMetrics.sheet.bottomInset)
+        #expect(TaskColumnMetrics.pad.bottomInset > 0)
     }
 }

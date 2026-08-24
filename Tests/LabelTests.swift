@@ -122,15 +122,15 @@ import Testing
     @Test func recolouringTouchesTheDefinitionAndNothingElse() {
         let store = TestBoard.store()
         let tasksBefore = store.tasks
-        store.recolorLabel("design", to: LabelDef.palette[1])
-        #expect(store.label(forKey: "design")?.light == LabelDef.palette[1].light)
-        #expect(store.label(forKey: "design")?.dark == LabelDef.palette[1].dark)
+        store.recolorLabel("design", to: .hex(0x783CA0))
+        #expect(store.label(forKey: "design")?.light == LabelTone.pair(from: 0x783CA0).light)
+        #expect(store.label(forKey: "design")?.dark == LabelTone.pair(from: 0x783CA0).dark)
         #expect(store.label(forKey: "design")?.name == "Design")
         #expect(store.tasks == tasksBefore)
 
         // The same colours again is not a change.
         let labelsBefore = store.labels
-        store.recolorLabel("design", to: LabelDef.palette[1])
+        store.recolorLabel("design", to: .hex(0x783CA0))
         #expect(store.labels == labelsBefore)
     }
 

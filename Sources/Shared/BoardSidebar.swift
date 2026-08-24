@@ -10,8 +10,9 @@ import SwiftUI
 /// Every row is a real destination. The Inbox leads them, above the boards
 /// rather than inside them, because it is global — a card is in it by being on
 /// no board at all — and the rows under "Boards" are `store.boards`, each with
-/// its own count, renamed, recoloured, reordered and deleted from its context
-/// menu. A card can be dragged onto any of them.
+/// its own count, reordered from its context menu and renamed, recoloured and
+/// deleted through the Board Settings that menu opens. A card can be dragged
+/// onto any of them.
 struct BoardSidebar: View {
     /// The list at a pointer and the list under a finger. The design's 232pt
     /// column and its 34pt rows are pointer sizes; the split view sizes its own
@@ -34,26 +35,32 @@ struct BoardSidebar: View {
         /// What a row that has become a text field claims — see ``FieldHitArea``.
         var fieldHit: CGFloat
         var sectionSpacing: CGFloat
-        var dots: DotPicker.Metrics
         var labelManager: LabelManagerView.Metrics
-        /// The Trash, which hangs off the bin at the foot of the list in a
-        /// popover — so the iPad's copy is at `.sheet`'s touch sizes even
-        /// though it is not a sheet.
+        /// The Trash, which hangs off its row under Views in a popover — so the
+        /// iPad's copy is at `.sheet`'s touch sizes even though it is not a
+        /// sheet.
         var trash: TrashView.Metrics
-        /// The disc the bin is drawn in. It is smaller than the capture button
-        /// beside it on purpose: one is what this surface is *for* and the other
-        /// is a door to somewhere the user goes rarely.
-        var footerButton: CGFloat
+        /// Which side of the Trash row that popover hangs off, or `nil` to let
+        /// the system place it — ``BoardColumnView/ColumnEditorMetrics/arrowEdge``
+        /// exactly, and for the same measured reason.
+        ///
+        /// The desk names the trailing edge, which is where the board is. The
+        /// iPad names none: asked for `.trailing` there, UIKit put the box
+        /// *over* the source list and hard against the left edge of the screen
+        /// — 380pt starting at x = 10 on a 1032pt window, with no arrow in
+        /// sight. Left to choose, it hangs off the row's trailing edge pointing
+        /// back at it, which is what was asked for in the first place.
+        var trashArrowEdge: Edge?
 
         static let desk = Metrics(
             width: 232, trafficLightInset: 16, rowFont: 13, rowVerticalPadding: 7,
             rowRadius: 9, rowHit: 0, rowGlyph: 14, fieldHit: 0, sectionSpacing: 22,
-            dots: .desk, labelManager: .desk, trash: .desk, footerButton: 30
+            labelManager: .desk, trash: .desk, trashArrowEdge: .trailing
         )
         static let pad = Metrics(
             width: nil, trafficLightInset: 0, rowFont: 15, rowVerticalPadding: 10,
             rowRadius: 11, rowHit: 44, rowGlyph: 17, fieldHit: 44, sectionSpacing: 24,
-            dots: .sheet, labelManager: .sheet, trash: .sheet, footerButton: 36
+            labelManager: .sheet, trash: .sheet, trashArrowEdge: nil
         )
     }
 
@@ -74,15 +81,11 @@ struct BoardSidebar: View {
     var isManagingLabels: Binding<Bool>?
 
     @State private var ownManagingLabels = false
-    /// Which board's swatches are open. One at a time, so this is which board
-    /// rather than a flag per row.
-    @State private var recoloringBoardID: Board.ID?
-    /// Which row has become a text field, and what it says so far. The store
-    /// refuses an empty name, so a field bound straight through it would snap
-    /// the old name back under the cursor on the last backspace.
-    @State private var editing: BoardField?
-    @State private var draft = ""
-    @FocusState private var isFieldFocused: Bool
+    /// The view the editor is open on, if any. A box rather than the id alone
+    /// because `sheet(item:)` wants something `Identifiable`, and tracking the
+    /// view rather than a flag beside it is what lets the sheet close itself
+    /// when the view stops existing — `capture`'s arrangement, for its reason.
+    @State private var editing: SavedViewDraft?
     /// The row a card is being dragged over. Local rather than the store's
     /// `dropTargetColumnID`: neither of these is a column.
     @State private var dropTarget: DropTarget?
@@ -97,11 +100,6 @@ struct BoardSidebar: View {
     /// lower than the board's columns: the source list takes its width off the
     /// board rather than off a scroller.
     private var chrome = ChromeScale()
-
-    private enum BoardField: Hashable {
-        case rename(Board.ID)
-        case newBoard
-    }
 
     private enum DropTarget: Hashable {
         case board(Board.ID)
@@ -132,20 +130,28 @@ struct BoardSidebar: View {
 
             sectionHeader("Views", topPadding: metrics.sectionSpacing)
             VStack(spacing: 2) {
-                ForEach(SavedView.filters) { viewRow($0) }
-                // The Archive is reached from the same list but is a place
-                // things go rather than a filter over the board, so it sits a
-                // little apart from the five that are.
-                viewRow(.archive)
-                    .padding(.top, 6)
+                // The board's own list rather than a fixed seven: since v11 a
+                // view is a row in the file, so the order here is the user's and
+                // the last row is the way to add another.
+                ForEach(store.views) { viewRow($0) }
+                newViewRow
             }
             .padding(.horizontal, 8)
 
-            sectionHeader("Labels", topPadding: metrics.sectionSpacing)
-            manageLabelsRow
-                .padding(.horizontal, 8)
-            settingsRow
-                .padding(.horizontal, 8)
+            // **Manage**, not Labels, because the section is no longer one row
+            // about one thing. What it holds is the app's own furniture — the
+            // board's labels, the Trash, and on iPad the settings — rather than
+            // anywhere a card is filed. The Trash was the last row under
+            // **Views** and is the reason the heading had to change: a place
+            // things are thrown away to is not a view of the board, and it read
+            // as one sitting under five filters.
+            sectionHeader("Manage", topPadding: metrics.sectionSpacing)
+            VStack(spacing: 2) {
+                labelsRow
+                trashRow
+                settingsRow
+            }
+            .padding(.horizontal, 8)
 
             // The rows sit at the top of the column; the footer sits at the
             // foot of it, under everything it is not one of.
@@ -158,16 +164,22 @@ struct BoardSidebar: View {
         .background(palette.sidebar)
         .hairline(.trailing, color: palette.ink(0.07))
         .labelManagerSheet(isPresented: managingLabels, metrics: metrics.labelManager)
-        // File ▸ New Board. A board is named as it is made, and the field that
-        // names it is this list's own row — so the menu asks for the row rather
-        // than making a board called something the user did not choose.
+        .sheet(item: $editing) { draft in
+            SavedViewEditor(viewID: draft.id)
+                .environment(store)
+                .environment(\.palette, palette)
+        }
+        // File ▸ New Board, which does exactly what this list's own row does —
+        // makes the board and opens its settings on the empty name field. The
+        // menu asks the row rather than calling the store itself so there is one
+        // answer to "what does making a board do".
         //
         // `task(id:)` rather than `onChange` because the menu can ask while the
         // sidebar is hidden: showing it again runs this on the way in.
         .task(id: isNamingNewBoard?.wrappedValue ?? false) {
             guard isNamingNewBoard?.wrappedValue == true else { return }
             isNamingNewBoard?.wrappedValue = false
-            beginEditing(.newBoard, text: "")
+            createBoard()
         }
     }
 
@@ -175,48 +187,23 @@ struct BoardSidebar: View {
 
     private func boardRow(_ board: Board, index: Int) -> some View {
         let isActive = store.surface == .board && store.activeBoardID == board.id
-        let isRenaming = editing == .rename(board.id)
 
-        return Group {
-            if isRenaming {
-                destinationRow(
-                    dot: board.dot, count: store.taskCount(for: board.id), isActive: isActive
-                ) {
-                    rowField(.rename(board.id), placeholder: "Board name")
-                }
-            } else {
-                Button { store.selectBoard(board.id) } label: {
-                    destinationRow(
-                        dot: board.dot, count: store.taskCount(for: board.id),
-                        isActive: isActive, isDropTarget: isDropTarget(.board(board.id))
-                    ) {
-                        rowName(board.name, isActive: isActive)
-                    }
-                }
-                .buttonStyle(.bare)
-                // Name and count stated separately — see `BoardToolbar`. Stated
-                // rather than substituted, because the row's context menu is
-                // the only route rename, recolour and delete have to a reader.
-                .accessibilityLabel(board.name)
-                .accessibilityValue(Text(verbatim: "\(store.taskCount(for: board.id))"))
-                .accessibilityAddTraits(isActive ? [.isSelected] : [])
+        return Button { store.selectBoard(board.id) } label: {
+            destinationRow(
+                dot: board.dot, count: store.taskCount(for: board.id),
+                isActive: isActive, isDropTarget: isDropTarget(.board(board.id))
+            ) {
+                rowName(board.name, isActive: isActive)
             }
         }
+        .buttonStyle(.bare)
+        // Name and count stated separately — see `BoardToolbar`. Stated rather
+        // than substituted, because the row's context menu is the only route
+        // Board Settings has to a reader.
+        .accessibilityLabel(board.name)
+        .accessibilityValue(Text(verbatim: "\(store.taskCount(for: board.id))"))
+        .accessibilityAddTraits(isActive ? [.isSelected] : [])
         .contextMenu { boardMenu(board, index: index) }
-        .popover(
-            isPresented: Binding(
-                get: { recoloringBoardID == board.id },
-                set: { if !$0 { recoloringBoardID = nil } }
-            ),
-            arrowEdge: .trailing
-        ) {
-            DotPicker(current: board.dot, metrics: metrics.dots) { swatch in
-                store.recolorBoard(board.id, to: swatch)
-                recoloringBoardID = nil
-            }
-            .padding(10)
-            .environment(\.palette, palette)
-        }
         .dropDestination(for: TaskTransfer.self) { items, _ in
             guard store.allowsCardDrag, let dropped = items.first, store[dropped.id] != nil
             else { return false }
@@ -227,9 +214,23 @@ struct BoardSidebar: View {
         }
     }
 
-    /// Rename, recolour, reorder, delete. Reordering is two menu items rather
-    /// than a drag: the list is short, the rows are already carrying a drop
-    /// destination for cards, and the two gestures would fight.
+    /// Settings, and where the board sits in the list. Reordering is two menu
+    /// items rather than a drag: the list is short, the rows are already
+    /// carrying a drop destination for cards, and the two gestures would fight.
+    ///
+    /// **Rename, Board Colour and Trash Board used to be here**, and left the
+    /// way the phone's **Rename Board…** went: the sheet holds the name, the
+    /// colour, every column and the delete, so an item here is a second door to
+    /// a room the first item already opens. What is left is the two the sheet
+    /// does *not* hold — a board's place among the others is a fact about the
+    /// list rather than about the board, and there is nothing in a board's own
+    /// settings for it to be a field of.
+    ///
+    /// Renaming still has a fast path where a board's name is actually on
+    /// screen — the title in `BoardToolbar` is editable in place. Deleting
+    /// deliberately has none: it is the one act here that takes a board away
+    /// from under the pointer, and the sheet's version says what becomes of the
+    /// cards, which a menu item cannot.
     @ViewBuilder
     private func boardMenu(_ board: Board, index: Int) -> some View {
         // **Everything a board is**, which is more than this menu can hold: its
@@ -239,18 +240,6 @@ struct BoardSidebar: View {
         // ``BoardSettingsView``.
         Button { store.boardSettings = BoardSettingsRequest(board: board.id) } label: {
             Label("Board Settings…", systemImage: "slider.horizontal.3")
-        }
-        Divider()
-        // The two the sheet also holds, kept as the fast paths they are: a
-        // rename in the row itself is one click and one field, and the swatches
-        // are one click and one colour. Neither is a *destination* the sheet
-        // draws better — which is the test the phone's board menu applies to its
-        // own items.
-        Button { beginEditing(.rename(board.id), text: board.name) } label: {
-            Label("Rename Board", systemImage: "pencil")
-        }
-        Button { recoloringBoardID = board.id } label: {
-            Label("Board Colour…", systemImage: "paintpalette")
         }
         Divider()
         Button {
@@ -265,26 +254,23 @@ struct BoardSidebar: View {
             Label("Move Down", systemImage: "arrow.down")
         }
         .disabled(index == store.boards.count - 1)
-        Divider()
-        // No confirmation, the way deleting a task and deleting a label have
-        // none: the cards go to the Inbox rather than anywhere final, and ⌘Z is
-        // the way back.
-        Button(role: .destructive) {
-            if editing == .rename(board.id) { cancelField() }
-            store.trashBoard(board.id)
-        } label: {
-            Label("Trash Board", systemImage: "trash")
-        }
     }
 
-    @ViewBuilder
+    /// **It makes the board and opens its settings**, rather than turning into
+    /// a text field where it stands.
+    ///
+    /// A name was all the row could ask for, and a name is the least of what a
+    /// new board needs: it arrives holding its Done column and nothing else, so
+    /// the next thing to do is always say what its columns are — which is the
+    /// sheet, not this row. Opening it there puts the name field and the column
+    /// composer on one surface, in the order they are wanted, and the board on
+    /// screen behind is already the new one.
+    ///
+    /// The field arrives focused and empty even though the board is called
+    /// ``Board/defaultName`` by then; see ``BoardSettingsRequest/namesNewBoard``.
     private var newBoardRow: some View {
-        if editing == .newBoard {
-            destinationRow(dot: .accent, count: nil, isActive: false) {
-                rowField(.newBoard, placeholder: "Board name")
-            }
-        } else {
-            Button { beginEditing(.newBoard, text: "") } label: {
+        Group {
+            Button(action: createBoard) {
                 HStack(spacing: 9) {
                     Image(systemName: "plus")
                         .font(SimpleKanbanFont.ui(9, .bold, relativeTo: .caption2))
@@ -306,10 +292,15 @@ struct BoardSidebar: View {
             .accessibilityRepresentation {
                 Button(String(localized: "New board",
                               comment: "Accessibility name of the sidebar row that starts a new board")) {
-                    beginEditing(.newBoard, text: "")
+                    createBoard()
                 }
             }
         }
+    }
+
+    private func createBoard() {
+        guard let id = store.createBoard(named: Board.defaultName) else { return }
+        store.boardSettings = BoardSettingsRequest(board: id, namesNewBoard: true)
     }
 
     /// Every row selects its view, and selecting the active one again comes
@@ -327,11 +318,11 @@ struct BoardSidebar: View {
     /// mark says *which* board and is the user's to change, while a view's says
     /// what the view is for and is the same on every install.
     private func viewRow(_ view: SavedView) -> some View {
-        let isActive = store.activeView == view
+        let isActive = store.activeView?.id == view.id
         let count = store.count(of: view, today: dayClock.today)
 
         return Button {
-            store.selectSurface(isActive ? .board : .view(view))
+            store.selectSurface(isActive ? .board : .view(view.id))
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: view.symbol)
@@ -363,17 +354,88 @@ struct BoardSidebar: View {
         // The name, the count as the value and the trait are all as they were.
         .accessibilityRepresentation {
             Button(view.label) {
-                store.selectSurface(isActive ? .board : .view(view))
+                store.selectSurface(isActive ? .board : .view(view.id))
             }
                 .accessibilityValue(Text(verbatim: "\(count)"))
                 .accessibilityAddTraits(isActive ? [.isSelected] : [])
+        }
+        .contextMenu { viewMenu(view) }
+    }
+
+    /// What can be done to a view without opening it. The board rows have had
+    /// the same menu since boards became data, and a view is data now too.
+    ///
+    /// **Delete asks nothing**, unlike a board's. A board holds work and a view
+    /// holds a rule, so the worst a mistaken delete costs is the rule — which is
+    /// one ⌘Z away, and for a seeded view is also one press of **Restore
+    /// Built-in Views** away.
+    @ViewBuilder private func viewMenu(_ view: SavedView) -> some View {
+        Button { editing = SavedViewDraft(view) } label: {
+            Label("Edit View…", systemImage: "slider.horizontal.3")
+        }
+        Button { editing = store.duplicateView(view.id).map(SavedViewDraft.init) } label: {
+            Label("Duplicate View", systemImage: "plus.square.on.square")
+        }
+        Divider()
+        Button(role: .destructive) { store.deleteView(view.id) } label: {
+            Label("Delete View", systemImage: "trash")
+        }
+        // Only where something is actually missing, so the menu does not carry
+        // a permanently dead row on the installs that never deleted anything.
+        if store.isMissingSeededViews {
+            Divider()
+            Button { store.restoreSeededViews() } label: {
+                Label("Restore Built-in Views", systemImage: "arrow.uturn.backward")
+            }
+        }
+    }
+
+    /// The way to make one, under the list it joins — where **New board** sits
+    /// under the boards, and for the same reason: the row that adds to a list
+    /// belongs at the end of it rather than in a toolbar the list has not got.
+    ///
+    /// It opens the editor on a view that already exists rather than on a draft
+    /// of one. A view made and then abandoned is a row the user can delete; a
+    /// draft that has to be committed is a second kind of thing, and the
+    /// editor would need a cancel that means *undo the creation* on one path
+    /// and *undo the edits* on the other.
+    private var newViewRow: some View {
+        Button { editing = SavedViewDraft(store.addView()) } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "plus")
+                    .imageScale(.small)
+                    .foregroundStyle(palette.inkText(0.45))
+                    .frame(width: metrics.rowGlyph)
+                    .accessibilityHidden(true)
+                Text("New view")
+                    .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                    .foregroundStyle(palette.inkText(0.55))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.vertical, metrics.rowVerticalPadding)
+            .padding(.horizontal, 10)
+            .frame(minHeight: metrics.rowHit)
+            .hoverBackground(palette.ink(0.05), radius: metrics.rowRadius)
+        }
+        .buttonStyle(.bare)
+        .accessibilityRepresentation {
+            Button(String(localized: "New view",
+                          comment: "Accessibility name of the sidebar row that creates a saved view")) {
+                editing = SavedViewDraft(store.addView())
+            }
         }
     }
 
     /// Renaming, recolouring and deleting a label are board-wide edits, so they
     /// hang off the board's own list rather than off any one task's chips.
     /// Settings ▸ Labels opens the same view from its own row.
-    private var manageLabelsRow: some View {
+    ///
+    /// **Named for what it is rather than for what pressing it does**, like
+    /// every other row in this list: the boards are not "Open board" and the
+    /// Archive is not "Show archive". It said *Manage labels* while it stood
+    /// under a heading that said Labels, which spent the word twice and the
+    /// heading now spends on something else.
+    private var labelsRow: some View {
         Button { managingLabels.wrappedValue = true } label: {
             HStack(spacing: 8) {
                 Image(systemName: "tag")
@@ -381,7 +443,7 @@ struct BoardSidebar: View {
                     .foregroundStyle(palette.inkText(0.5))
                     .frame(width: metrics.rowGlyph)
                     .accessibilityHidden(true)
-                Text("Manage labels")
+                Text("Labels")
                     .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
                     .foregroundStyle(palette.ink(0.66))
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -398,7 +460,7 @@ struct BoardSidebar: View {
         // element of its own whatever else is asked of it, `accessibilityHidden`
         // included. The count is the row's value either way.
         .accessibilityRepresentation {
-            Button(String(localized: "Manage labels",
+            Button(String(localized: "Labels",
                           comment: "Accessibility name of the sidebar row that opens the label manager")) {
                 managingLabels.wrappedValue = true
             }
@@ -442,76 +504,105 @@ struct BoardSidebar: View {
 
     // MARK: The foot of the list
 
-    /// The bottom row: capture on the left, the Trash on the right.
+    /// The bottom of the column: quick capture, and nothing else.
     ///
-    /// Two things that are not rows and do not belong in the list, put where a
-    /// window's own furniture goes. Capture is the desk's alone — the iPad's
-    /// toolbar carries a `+` of its own — so on that platform this row is the
-    /// bin and the space it sits at the end of, which is still the right place
-    /// for it: the far corner, away from everything that is a destination.
-    private var footer: some View {
+    /// The one thing here that is not a row and does not belong in the list, put
+    /// where a window's own furniture goes. Capture is the desk's alone — the
+    /// iPad's toolbar carries a `+` of its own — so on that platform there is
+    /// nothing left to put at the foot and the whole strip goes with it. The bin
+    /// that used to stand at the other end is a row under **Manage** now; see
+    /// ``trashRow``.
+    @ViewBuilder private var footer: some View {
+        #if os(macOS)
         HStack(spacing: 8) {
             captureButton
             Spacer(minLength: 0)
-            trashButton
         }
         .padding(.horizontal, 16)
         .padding(.top, 14)
+        #endif
     }
 
-    /// The way into the Trash on both pointer surfaces.
+    // MARK: The Trash
+
+    /// The way into the Trash on both pointer surfaces: a row under **Manage**,
+    /// beneath the labels.
     ///
-    /// **A bin rather than a row.** It was a tab of Settings, which is the
-    /// wrong shelf — see ``BoardStore/isShowingTrash`` — but it is also not a
-    /// destination: the list above is places the board's work *is*, and this is
-    /// where work goes when it stops being work. A glyph in the corner is the
-    /// shape the Finder, Mail and Photos all give it.
+    /// **A row rather than the bin it was.** The bin was a glyph in the corner —
+    /// the shape the Finder, Mail and Photos give it — and the corner is where a
+    /// thing goes when there is nowhere in the list it belongs.
     ///
-    /// **It says whether there is anything in it before it is opened.** The
-    /// glyph takes the accent while the trash holds something and the ink's
-    /// quiet grey while it does not, and the count is the button's accessibility
-    /// value. Without that the only way to learn the trash is empty is to open
-    /// it, and the one thing this button is for is the day something is in there.
+    /// It spent a while under **Views**, beneath the Archive, on the reading
+    /// that work leaves the board two ways — filed or thrown away — and the two
+    /// rows that reach them belong together. The Archive holds cards and answers
+    /// to the same predicates the filters above it do; the Trash holds columns
+    /// and whole boards as well, and nothing in it is *on* the board at all. So
+    /// it sits with the app's own furniture instead, and took the heading with
+    /// it.
     ///
-    /// The popover hangs off the trailing edge for the capture button's reason:
-    /// the button is at the bottom of the window and above it is the list.
-    private var trashButton: some View {
+    /// **It still says whether there is anything in it before it is opened**, and
+    /// says it the way every row in this list does — a count in the pill, where
+    /// the Archive's is. The glyph fills while the trash holds something, which
+    /// is the one thing the bin said that a count does not.
+    ///
+    /// Not a ``SavedView``, and it cannot be one: the views are predicates over
+    /// the board's cards, and the Trash holds columns and whole boards as well —
+    /// see ``TrashedItem/Contents``. So the row is built here rather than by
+    /// ``viewRow(_:)``, in the shape its neighbours share.
+    ///
+    /// The popover hangs off the trailing edge, where the board is — but only
+    /// on the desk, which is the one platform that has to be told; see
+    /// ``Metrics/trashArrowEdge``.
+    private var trashRow: some View {
         @Bindable var store = store
-        let hasItems = store.trashCount > 0
+        let count = store.trashCount
+        let isOpen = store.isShowingTrash
+
         return Button { store.isShowingTrash = true } label: {
-            Image(systemName: hasItems ? "trash.fill" : "trash")
-                .symbolSize(metrics.rowFont, weight: .semibold, relativeTo: .subheadline)
-                .foregroundStyle(hasItems ? palette.accent : palette.inkText(0.45))
-                .frame(width: chrome(metrics.footerButton), height: chrome(metrics.footerButton))
-                .background(palette.ink(0.06), in: .circle)
-                // Touch needs its 44 on the iPad; the disc stays the size it is
-                // drawn and the target grows around it, the trade the phone's
-                // header makes for its own discs.
-                .frame(minWidth: metrics.rowHit, minHeight: metrics.rowHit)
-                .contentShape(.rect)
+            HStack(spacing: 8) {
+                Image(systemName: count > 0 ? "trash.fill" : "trash")
+                    .imageScale(.small)
+                    .foregroundStyle(isOpen ? palette.accent : palette.inkText(0.5))
+                    .frame(width: metrics.rowGlyph)
+                    .accessibilityHidden(true)
+                Text("Trash")
+                    .font(SimpleKanbanFont.ui(metrics.rowFont, isOpen ? .bold : .semibold, relativeTo: .subheadline))
+                    .foregroundStyle(isOpen ? palette.accent : palette.ink(0.66))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                CountPill(count: count)
+            }
+            .padding(.vertical, metrics.rowVerticalPadding)
+            .padding(.horizontal, 10)
+            .frame(minHeight: metrics.rowHit)
+            .background(isOpen ? palette.accentSoft : .clear, in: .rect(cornerRadius: metrics.rowRadius))
+            .hoverBackground(isOpen ? .clear : palette.ink(0.05), radius: metrics.rowRadius)
         }
         .buttonStyle(.bare)
         .help("Show the Trash")
-        // Substituted rather than named: an `Image` inside a button's label is
-        // published as an element of its own whatever else is asked of it, and
-        // the row would read "Trash" and then "trash.fill" from Apple's
-        // catalogue — `manageLabelsRow`'s problem and its remedy.
+        // Substituted rather than named, for `viewRow`'s reason: an `Image`
+        // among siblings inside a button's label is published as an element of
+        // its own whatever else is asked of it, `accessibilityHidden` included,
+        // and the row would read "Trash" and then "trash.fill" from Apple's
+        // catalogue.
         .accessibilityRepresentation {
             Button(String(localized: "Trash",
-                          comment: "Accessibility name of the button that opens the Trash")) {
+                          comment: "Accessibility name of the sidebar row that opens the Trash")) {
                 store.isShowingTrash = true
             }
-                .accessibilityValue(Text(verbatim: "\(store.trashCount)"))
+                .accessibilityValue(Text(verbatim: "\(count)"))
+                .accessibilityAddTraits(isOpen ? [.isSelected] : [])
         }
         .accessibilityIdentifier(Self.trashButtonID)
-        .popover(isPresented: $store.isShowingTrash, arrowEdge: .trailing) {
+        .popover(isPresented: $store.isShowingTrash, arrowEdge: metrics.trashArrowEdge) {
             trashPopover
         }
     }
 
-    /// The identifier `UITests/TrashSurfaceTests` finds the bin by, shared
-    /// through the source rather than by both spelling the same string — the
-    /// arrangement `BoardToolbar.inboxToggleID` and `SettingsTab.chipID` have.
+    /// The identifier the Trash row carries, spelled once here rather than in
+    /// this source and a test's string literal both — the arrangement
+    /// ``BoardToolbar/inboxToggleID`` and `SettingsTab.chipID` have.
+    /// `UITests/TrashSurfaceTests` drives the phone's door, which is a menu item
+    /// rather than this.
     static let trashButtonID = "Sidebar.trash"
 
     /// The Trash itself, at a width of its own.
@@ -622,8 +713,8 @@ struct BoardSidebar: View {
     // MARK: Row furniture
 
     /// The shape every destination shares: a dot, a name, a count, and the
-    /// active row's ground. The name is a view rather than a string so a row
-    /// being renamed can put its field exactly where its name was.
+    /// active row's ground. The name is a view rather than a string so the row
+    /// that names a new board can put its field exactly where a name will be.
     private func destinationRow(
         dot: SwatchColor, count: Int?, isActive: Bool, isDropTarget: Bool = false,
         @ViewBuilder name: () -> some View
@@ -659,59 +750,6 @@ struct BoardSidebar: View {
             .font(SimpleKanbanFont.ui(metrics.rowFont, isActive ? .bold : .semibold, relativeTo: .subheadline))
             .lineLimit(1)
             .truncationMode(.tail)
-    }
-
-    /// The name lands when the field gives up focus, so a name typed a letter
-    /// at a time is one store mutation and one ⌘Z — the bargain the label
-    /// manager and the task fields both make.
-    private func rowField(_ field: BoardField, placeholder: String) -> some View {
-        TextField(placeholder, text: $draft)
-            .textFieldStyle(.plain)
-            .font(SimpleKanbanFont.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
-            .foregroundStyle(palette.ink)
-            .focused($isFieldFocused)
-            .fieldHitArea(minHeight: metrics.fieldHit) { isFieldFocused = true }
-            .onSubmit { isFieldFocused = false }
-            .onKeyPress(.escape) {
-                cancelField()
-                return .handled
-            }
-            .focusWhenReady($isFieldFocused)
-            // Only while this is still the row being edited. Opening a field on
-            // another row files this one first, and this one's parting focus
-            // change would otherwise land its draft on the other row's name.
-            .onChange(of: isFieldFocused) { _, focused in
-                guard !focused, editing == field else { return }
-                commitField()
-            }
-            .accessibilityLabel(placeholder)
-    }
-
-    // MARK: Editing
-
-    private func beginEditing(_ field: BoardField, text: String) {
-        // A field already open somewhere else files its name first: its own
-        // focus change never fires, because the row it lives in is replaced.
-        commitField()
-        draft = text
-        editing = field
-    }
-
-    private func commitField() {
-        switch editing {
-        case .rename(let id):
-            store.renameBoard(id, to: draft)
-        case .newBoard:
-            store.createBoard(named: draft)
-        case nil:
-            return
-        }
-        cancelField()
-    }
-
-    private func cancelField() {
-        editing = nil
-        draft = ""
     }
 
     // MARK: Drops
