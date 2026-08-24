@@ -188,7 +188,7 @@ struct PhoneHeader: View {
                 Button { store.archiveCompleted() } label: {
                     Label("Archive Completed", systemImage: "archivebox")
                 }
-                .disabled(store.completedTasks.isEmpty)
+                .disabled(store.completedCount == 0)
 
                 Button { isManagingLabels = true } label: {
                     Label("Manage Labels", systemImage: "tag")
@@ -463,12 +463,15 @@ struct PhoneHeader: View {
         // to open the menu. `BoardColumnView` draws it under the same two
         // conditions, and `archiveCompleted` is defined over Done rather than
         // over this column, so the count says how many are about to go.
-        if store.isDone(column: column.id), !store.completedTasks.isEmpty {
+        // A count rather than the list — this builder runs with the header's
+        // body, not when the menu opens.
+        let completedCount = store.isDone(column: column.id) ? store.completedCount : 0
+        if completedCount > 0 {
             Button {
                 store.archiveCompleted()
             } label: {
                 Label(
-                    String(localized: "Archive \(store.completedTasks.count) Completed",
+                    String(localized: "Archive \(completedCount) Completed",
                            comment: "Menu item on a column that files every finished task away"),
                     systemImage: "archivebox"
                 )

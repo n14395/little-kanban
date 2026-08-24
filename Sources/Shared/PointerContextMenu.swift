@@ -30,11 +30,11 @@ extension View {
     /// always closed. Every surface that trades its menu for this must carry
     /// the same verbs as explicit accessibility actions; both cards do.
     @ViewBuilder
-    func pointerContextMenu<Items: View>(@ViewBuilder items: () -> Items) -> some View {
+    func pointerContextMenu<Items: View>(@ViewBuilder items: @escaping () -> Items) -> some View {
         #if os(macOS)
         contextMenu(menuItems: items)
         #else
-        modifier(PointerOnlyContextMenu(items: items()))
+        modifier(PointerOnlyContextMenu(items: items))
         #endif
     }
 }
@@ -65,12 +65,16 @@ extension View {
 struct PointerOnlyContextMenu<Items: View>: ViewModifier {
     @State private var gate = PointerGate()
 
-    let items: Items
+    /// A closure rather than a built value: taking `Items` meant every card
+    /// paid to construct its whole menu on every render whether or not a
+    /// pointer was anywhere near it. Behind the gate, a finger-driven render
+    /// builds nothing.
+    let items: () -> Items
 
     func body(content: Content) -> some View {
         content
             .contextMenu {
-                if gate.isOpen { items }
+                if gate.isOpen { items() }
             }
             .overlay { PointerSensor(gate: gate) }
             .onHover { entered in

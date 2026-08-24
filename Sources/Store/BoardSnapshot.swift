@@ -248,13 +248,18 @@ struct BoardFile: Sendable {
     ///
     /// Not private: `BoardStore.scheduleSave` asks it the same question about
     /// the two *other* pieces of machine-wide state the app owns — see there.
-    static var isRunningTests: Bool {
+    ///
+    /// Cached: the runner sets these variables when it spawns the process, so
+    /// the answer cannot change, and `ProcessInfo.environment` rebuilds the
+    /// whole dictionary on every read — too dear for a question `scheduleSave`
+    /// asks on every mutation.
+    static let isRunningTests: Bool = {
         let environment = ProcessInfo.processInfo.environment
         return environment["XCTestConfigurationFilePath"] != nil
             || environment["XCTestBundlePath"] != nil
             || environment["XCTestSessionIdentifier"] != nil
             || NSClassFromString("XCTestCase") != nil
-    }
+    }()
 
     // MARK: Loading
 

@@ -437,8 +437,11 @@ struct PhoneInboxSheet: View {
     /// above it does not go anywhere — and the drag indicator over that is the
     /// system's, drawn by `presentationDragIndicator`.
     private var list: some View {
-        PhoneCardStack(tasks: store.inboxTasks, metrics: .sheet) {
-            if store.inboxTasks.isEmpty {
+        // One filter-and-sort, not two: `inboxTasks` walks the whole board on
+        // every access.
+        let tasks = store.inboxTasks
+        return PhoneCardStack(tasks: tasks, metrics: .sheet) {
+            if tasks.isEmpty {
                 EmptyStateView.inbox(metrics: .sheet, add: add)
             } else {
                 // The empty state carries the same offer, so the dashed row

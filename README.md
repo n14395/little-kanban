@@ -5595,6 +5595,33 @@ the only place the 52ms is paid on the main thread, and if that ever matters the
 thing to move is quit-time saving, not the format. Reading the board back costs
 69.5ms once, at launch, against no deadline.
 
+**The keystroke path (second pass).** The measurements above cover the debounced
+write and stop there, and what grew up in front of the debounce is what made the
+app feel slow: `scheduleSave()` had accumulated four whole-board passes that ran
+*inline* on every mutation — the reminder rebuild, the Spotlight reconcile, and
+the record diff behind `pushToSync`, which fetched **every** `StoredTask` row
+out of SwiftData and ran `context.save()` on the main actor, per character
+typed. All three ride the debounced task now, `saveNow()` runs them before its
+synchronous write so quit loses nothing, and a diffed `applyTasks` fetches only
+the records it will touch. `aKeystrokeDoesNotWaitForTheRecordStore` pins the
+shape: a keystroke with the record store attached against one without, bound at
+3x, and the inline apply fails it by an order of magnitude.
+
+The render side had grown the same way, and the same sweep took back: the two
+`.fileExporter(document:)` calls built their documents — one a full Markdown
+render of the board — on every body pass of the window carrying them, and read
+`exportedSnapshot` there, which re-rendered the whole window per keystroke
+(documents now render in `fileWrapper`, at Save); `CalendarDay`'s `-` and
+`adding(days:)` cost three ICU round-trips each inside every per-task filter
+(now integer civil-calendar arithmetic); `board(ofColumn:)` scanned every
+board's columns once per task inside those same filters (now an owner map
+dropped by `boards`' `didSet`, the `labelsByKey` bargain); a saved-view row's
+count filtered *and sorted* the board twice per row per render (now counted,
+memoised per revision); `ColumnFlowLayout` measured every card twice per pass
+(the placement now reuses a fresh pack's measurements); and each activity row
+carried its own minute `TimelineView`, each tick allocating a fresh
+`RelativeDateTimeFormatter` (one timeline, one shared formatter).
+
 ## Debug launch hooks
 
 `DEBUG` builds read launch arguments so a surface can be opened directly,

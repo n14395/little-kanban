@@ -129,11 +129,18 @@ struct ActivityEntry: Identifiable, Hashable, Codable, Sendable {
             return String(localized: "just now",
                           comment: "Activity feed timestamp for something that happened moments ago")
         }
+        return Self.relative.localizedString(for: when, relativeTo: now)
+    }
+
+    /// Shared: the formatter is an ICU object dear enough to matter when a
+    /// feed of forty entries stamps every row on a minute tick. Configured
+    /// once, then only ever read — which `Formatter` documents as safe.
+    private nonisolated(unsafe) static let relative: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
         formatter.dateTimeStyle = .numeric
         formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: when, relativeTo: now)
-    }
+        return formatter
+    }()
 }
 
 struct TaskItem: Identifiable, Hashable, Codable, Sendable {

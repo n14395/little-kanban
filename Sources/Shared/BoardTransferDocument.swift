@@ -72,18 +72,24 @@ struct BoardMarkdownDocument: FileDocument {
     static var readableContentTypes: [UTType] { [] }
     static var writableContentTypes: [UTType] { [.plainText] }
 
-    var text: String
+    var snapshot: BoardSnapshot
+    var today: CalendarDay
 
-    init(_ text: String) {
-        self.text = text
+    init(_ snapshot: BoardSnapshot, today: CalendarDay) {
+        self.snapshot = snapshot
+        self.today = today
     }
 
     init(configuration: ReadConfiguration) throws {
         throw CocoaError(.fileReadUnsupportedScheme)
     }
 
+    /// The board is rendered here, when the panel's Save is pressed, and not in
+    /// the initialiser: `.fileExporter` evaluates its `document:` argument on
+    /// every body pass of the view carrying it, and rendering five hundred
+    /// cards to Markdown is not a price a keystroke should pay.
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        FileWrapper(regularFileWithContents: Data(text.utf8))
+        FileWrapper(regularFileWithContents: Data(BoardMarkdown.render(snapshot, today: today).utf8))
     }
 }
 
@@ -271,7 +277,13 @@ struct BoardTransfer: ViewModifier {
     var isExportingMarkdown: Binding<Bool> = .constant(false)
     @Binding var isImporting: Bool
 
-    let snapshot: BoardSnapshot
+    /// Read here rather than handed a snapshot: a `snapshot:` parameter made
+    /// every surface carrying this modifier read `store.exportedSnapshot` in
+    /// its own body — which is a dependency on `tasks`, which is a re-render of
+    /// the whole window per keystroke. Read inside this modifier, the keystroke
+    /// invalidates only these three panels, and the documents they build hold
+    /// their work until the panel's Save is pressed.
+    @Environment(BoardStore.self) private var store
     let today: CalendarDay
     let onImport: (URL) -> Void
     let onFailure: (String) -> Void
@@ -280,13 +292,13 @@ struct BoardTransfer: ViewModifier {
         content
             .fileExporter(
                 isPresented: $isExportingBoard,
-                document: BoardTransferDocument(snapshot),
+                document: BoardTransferDocument(store.exportedSnapshot),
                 contentType: .simpleKanbanBoard,
                 defaultFilename: BoardTransferDocument.filename(on: today)
             ) { report($0) }
             .fileExporter(
                 isPresented: isExportingMarkdown,
-                document: BoardMarkdownDocument(BoardMarkdown.render(snapshot, today: today)),
+                document: BoardMarkdownDocument(store.exportedSnapshot, today: today),
                 contentType: .markdown,
                 defaultFilename: BoardTransferDocument.filename(on: today)
             ) { report($0) }

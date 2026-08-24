@@ -353,6 +353,46 @@ enum Bench {
         #expect(growth < 12, "encoding grows \(growth)x for five times the board")
     }
 
+    /// A keystroke's synchronous cost with the record store attached, against
+    /// the same keystroke without one: the two must cost about the same,
+    /// because everything O(board) — the record diff with its fetch behind it,
+    /// the reminder rebuild, the Spotlight pass — rides the debounce now
+    /// rather than running inline in `scheduleSave`.
+    ///
+    /// This is the regression that made typing feel slow: each character typed
+    /// was diffing every task, then fetching every `StoredTask` row out of
+    /// SwiftData on the main actor, in front of the next frame. The reminder
+    /// and Spotlight halves cannot be measured here — they are test-disabled —
+    /// but they moved inside the same task, so the record store stands in for
+    /// the lot. The bound is 3x; the inline apply measured well past it.
+    @Test func aKeystrokeDoesNotWaitForTheRecordStore() throws {
+        let syncedTemp = TempBoard()
+        let bareTemp = TempBoard()
+        let synced = ScaleBoard.store(taskCount: 500, file: syncedTemp.file,
+                                      sync: try BoardSyncStore.inMemory())
+        let bare = ScaleBoard.store(taskCount: 500, file: bareTemp.file)
+        // The first apply writes every record (`previous == nil`); it happens
+        // here, outside the clock, the way a session's first save pays it.
+        synced.saveNow()
+        bare.saveNow()
+        let id = ScaleBoard.taskID(0)
+
+        var stroke = 0
+        let cost = Bench.ratio({
+            for _ in 0..<20 {
+                stroke += 1
+                synced.setText("typed \(stroke)", field: .title, on: id)
+            }
+        }, over: {
+            for _ in 0..<20 {
+                stroke += 1
+                bare.setText("typed \(stroke)", field: .title, on: id)
+            }
+        }, rounds: 5)
+
+        #expect(cost < 3, "a keystroke costs \(cost)x with the record store attached — the apply is inline again")
+    }
+
     /// A synchronous save of a 500-card board, end to end, against encoding it
     /// alone: the atomic write is not where the time goes, so a fix aimed at
     /// the filesystem would be aimed at the wrong half.

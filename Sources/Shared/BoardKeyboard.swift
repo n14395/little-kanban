@@ -206,6 +206,14 @@ enum BoardKeyboard {
     nonisolated static let flatCommands: [AppCommand] =
         boardCommands.filter { !columnCommands.contains($0) }
 
+    /// The key sets `onKeyPress` filters on, one per vocabulary — computed once
+    /// rather than per card per render, because every visible card carries a
+    /// `CardKeyboard` and the vocabularies never change.
+    nonisolated static let boardKeys: Set<KeyEquivalent> =
+        Set(boardCommands.flatMap { $0.shortcuts.map(\.key.keyEquivalent) })
+    nonisolated static let flatKeys: Set<KeyEquivalent> =
+        Set(flatCommands.flatMap { $0.shortcuts.map(\.key.keyEquivalent) })
+
     /// What a card asks of a key press: the command it means, out of the
     /// vocabulary that surface carries, less the keys the menu bar takes first.
     ///
@@ -519,8 +527,12 @@ private struct CardKeyboard: ViewModifier {
 
     /// Which key presses reach the handler at all. Modifier-blind, so ⌘⏎ still
     /// arrives and is turned away by the matcher rather than never offered.
+    /// The two vocabularies' sets are precomputed — see `boardKeys`.
     private var keys: Set<KeyEquivalent> {
-        Set(commands.flatMap { $0.shortcuts.map(\.key.keyEquivalent) })
+        switch surface {
+        case .board: BoardKeyboard.boardKeys
+        case .flat: BoardKeyboard.flatKeys
+        }
     }
 
     /// Rebuilt per press: the board changes under the keyboard, and a map held

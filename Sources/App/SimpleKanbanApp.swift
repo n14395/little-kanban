@@ -222,6 +222,11 @@ struct RootView: View {
     /// manager that really has gone away drops out on its own.
     private func adoptUndoManager() {
         guard let undoManager, store.undoManager !== undoManager else { return }
+        // Bounded because every step holds a snapshot of the whole board (see
+        // `BoardStore.undoable`) — snapshots share unchanged cards, but an
+        // unlimited stack still grows for as long as a session lasts. A
+        // hundred steps is more ⌘Z than anyone walks back, for megabytes less.
+        undoManager.levelsOfUndo = 100
         store.undoManager = undoManager
     }
 

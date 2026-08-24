@@ -63,31 +63,33 @@ struct ActivityFeed: View {
         // keeps "Due set to 20 Aug" from being written against yesterday.
         let today = dayClock.today
 
-        return VStack(alignment: .leading, spacing: metrics.rowSpacing) {
-            ForEach(entries) { entry in
-                row(entry, today: today)
+        // A minute at a time, so "just now" becomes "20 min ago" without a
+        // relaunch. **One** timeline around the feed rather than one per row:
+        // each row's schedule was anchored at the moment that row appeared, so
+        // a forty-entry history ticked forty times a minute at scattered
+        // offsets — one shared minute re-stamps the same rows in one pass.
+        return TimelineView(.periodic(from: .now, by: 60)) { context in
+            VStack(alignment: .leading, spacing: metrics.rowSpacing) {
+                ForEach(entries) { entry in
+                    row(entry, today: today, now: context.date)
+                }
             }
         }
     }
 
-    private func row(_ entry: ActivityEntry, today: CalendarDay) -> some View {
+    private func row(_ entry: ActivityEntry, today: CalendarDay, now: Date) -> some View {
         HStack(alignment: .top, spacing: metrics.dotSpacing) {
             Circle()
                 .fill(palette.ink(Self.dotInk))
                 .frame(width: metrics.dot, height: metrics.dot)
                 .padding(.top, metrics.dotTopPadding)
 
-            // A minute at a time, so "just now" becomes "20 min ago" without a
-            // relaunch. The timeline wraps one row rather than the feed: a tick
-            // then invalidates a line of text instead of the whole panel. It has
-            // to wrap the pair rather than the stamp alone because the stamp
-            // flows on after the sentence, wrapping with it, and only a
+            // The pair concatenated rather than the stamp wrapped alone: the
+            // stamp flows on after the sentence, wrapping with it, and only a
             // concatenated `Text` does that.
-            TimelineView(.periodic(from: .now, by: 60)) { context in
-                Text("\(text(entry, today: today)) \(stamp(entry, now: context.date))")
-                    .lineSpacing(metrics.lineSpacing)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            Text("\(text(entry, today: today)) \(stamp(entry, now: now))")
+                .lineSpacing(metrics.lineSpacing)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

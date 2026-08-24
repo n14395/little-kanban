@@ -141,7 +141,6 @@ struct MacRootView: View {
         .modifier(BoardTransfer(
             isExportingBoard: $store.isExportingBoard,
             isImporting: $store.isImportingBoard,
-            snapshot: store.exportedSnapshot,
             today: dayClock.today,
             onImport: { transferNotice = .importing($0, into: store) },
             onFailure: { transferNotice = SettingsNotice(
@@ -238,9 +237,14 @@ struct MacSavedViewList: View {
     /// something else forced a redraw.
     let viewID: SavedView.ID
 
+    /// `if let` rather than `guard`-and-`AnyView`: erasing the whole surface
+    /// hid its structure from SwiftUI's differ, so every invalidation replaced
+    /// the subtree — every card in it — instead of diffing into it.
+    @ViewBuilder
     var body: some View {
-        guard let view = store.view(id: viewID) else { return AnyView(EmptyView()) }
-        return AnyView(content(view))
+        if let view = store.view(id: viewID) {
+            content(view)
+        }
     }
 
     /// **No header over the list.** The view is named in the toolbar's title

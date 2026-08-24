@@ -214,13 +214,16 @@ struct BoardColumnView: View {
     /// the search has left visible — `archiveCompleted` is defined over Done,
     /// not over the query — so the count says how many are about to go.
     private var columnMenu: some View {
-        Menu {
-            if store.isDone(column: column.id), !store.completedTasks.isEmpty {
+        // Hoisted, and a count rather than the list: this builder runs with
+        // every render of the column header, not when the menu opens.
+        let completedCount = store.isDone(column: column.id) ? store.completedCount : 0
+        return Menu {
+            if completedCount > 0 {
                 Button {
                     store.archiveCompleted()
                 } label: {
                     Label(
-                        String(localized: "Archive \(store.completedTasks.count) Completed",
+                        String(localized: "Archive \(completedCount) Completed",
                                comment: "Menu item on the Done column header that files every finished task away"),
                         systemImage: "archivebox"
                     )

@@ -502,6 +502,9 @@ struct BoardToolbar: View {
     @ViewBuilder
     private var inboxToggle: some View {
         if store.showsInboxToggle {
+            // Hoisted: one pass over the tasks instead of the three the badge,
+            // the empty-check and the accessibility value used to make each.
+            let inboxCount = store.inboxCount
             Button { store.toggleInbox() } label: {
                 HStack(spacing: 6) {
                     // Open, the button's job is to shut the panel, and the panel
@@ -518,8 +521,8 @@ struct BoardToolbar: View {
                             .symbolSize(metrics.glyph + 1, weight: .medium, relativeTo: .subheadline)
                             .foregroundStyle(palette.inkText(0.45))
                         // Nothing in it is worth a badge saying nought.
-                        if store.inboxCount > 0 {
-                            CountPill(count: store.inboxCount)
+                        if inboxCount > 0 {
+                            CountPill(count: inboxCount)
                         }
                     }
                 }
@@ -550,7 +553,7 @@ struct BoardToolbar: View {
             // Still the count, even while the chevron has taken the badge's
             // place: what a reader needs from this control is how much is in
             // there, and the panel being open is the `.isSelected` below.
-            .accessibilityValue(Text(verbatim: "\(store.inboxCount)"))
+            .accessibilityValue(Text(verbatim: "\(inboxCount)"))
             .accessibilityAddTraits(store.isInboxOpen ? [.isSelected] : [])
             .dropDestination(for: TaskTransfer.self) { items, _ in
                 isInboxDropTarget = false

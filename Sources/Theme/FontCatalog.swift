@@ -62,7 +62,13 @@ enum FontCatalog {
     /// they have bought a face they should be able to set the app in it — and
     /// they come second because a theme built on one is a theme that will not
     /// travel: exported to another machine it falls back. See ``resolve(_:_:_:)``.
-    static var installedFamilies: [String] {
+    ///
+    /// A `let`, taken once per launch: the list sits inside the theme editor's
+    /// font menus, whose builders run with every render of the form — dragging
+    /// a colour slider was re-enumerating and re-sorting several hundred
+    /// installed families per frame. A font installed mid-session appears on
+    /// the next launch, which is when most apps notice one anyway.
+    static let installedFamilies: [String] = {
         #if os(macOS)
         let system = NSFontManager.shared.availableFontFamilies
         #else
@@ -70,7 +76,7 @@ enum FontCatalog {
         #endif
         let bundled = Set(bundledFamilies)
         return system.filter { !bundled.contains($0) && !$0.hasPrefix(".") }.sorted()
-    }
+    }()
 
     static func isBundled(_ family: String) -> Bool { bundledFamilies.contains(family) }
 

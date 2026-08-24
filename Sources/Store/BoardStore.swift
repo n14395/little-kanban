@@ -414,7 +414,7 @@ final class BoardStore {
     /// `store.tasks.removeAll()` would empty the board with `canUndo` still false.
     private(set) var tasks: [TaskItem]
     /// The boards, in sidebar order, each carrying its own columns.
-    private(set) var boards: [Board]
+    private(set) var boards: [Board] { didSet { columnOwners = nil } }
     /// The board being looked at. Persisted, unlike `surface` — which board you
     /// are on is where your work is. `nil` only on a board list emptied down to
     /// nothing; every other path keeps it naming a board that exists.
@@ -1074,35 +1074,17 @@ final class BoardStore {
     private func scheduleSave() {
         boardRevision &+= 1
         guard let file, !isSaveBlocked else { return }
-        // Reminders and the Spotlight index follow the board from here rather
-        // than from each mutation, because every mutation already comes through
-        // this one funnel — the bulk commands, a drag into Done, undo and redo
-        // included — and a per-call-site hook silently misses all of them. Both
-        // reconcile against what they last published, so a keystroke that
-        // changes no due date sends nothing.
-        //
-        // Below the guard on purpose: a store with no file is a preview, and a
-        // preview may not reach the machine's Notification Centre. `BoardFile`
-        // asks the second question for the same reason it steps `.default`
-        // aside — `xcodebuild test` launches this app as the test host under
-        // its real bundle identifier, so the suite's stores are file-backed and
-        // the Notification Centre and Spotlight index they would reach are the
-        // developer's own. A test that wants to drive the scheduler injects a
-        // fake `TaskNotificationCenter` instead of coming through here.
-        if !BoardFile.isRunningTests {
-            reconcileReminders()
-            TaskSpotlightIndex.shared.reconcile(tasks)
-        }
         let pending = snapshot
-        // The records first, and on this actor: SwiftData's main context is
-        // main-actor work, and `apply` only touches what changed, so the cost
-        // is one card's worth rather than the board's.
-        pushToSync(pending)
         let generation = file.nextWriteGeneration()
         saveTask?.cancel()
         saveTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled else { return }
+            // Everything O(board) rides the debounce, so a burst of keystrokes
+            // pays each cost once rather than per character. All of it used to
+            // run inline, and on a large board the reconciles plus the record
+            // diff were most of what a keystroke cost.
+            self?.reconcileSystemsAndSync(pending)
             // Off the main actor: encoding the board and writing it are the two
             // things in a keystroke's path that grow with the board's size.
             let outcome = await Task.detached(priority: .utility) { () -> SaveOutcome in
@@ -1118,6 +1100,34 @@ final class BoardStore {
         }
     }
 
+    /// The three followers every save carries: reminders, the Spotlight index,
+    /// and the records CloudKit syncs.
+    ///
+    /// Reminders and the Spotlight index follow the board from here rather
+    /// than from each mutation, because every mutation already comes through
+    /// the save funnel — the bulk commands, a drag into Done, undo and redo
+    /// included — and a per-call-site hook silently misses all of them. Both
+    /// reconcile against what they last published, so a keystroke that
+    /// changes no due date sends nothing.
+    ///
+    /// `BoardFile.isRunningTests` guards the first two for the same reason it
+    /// steps `.default` aside — `xcodebuild test` launches this app as the test
+    /// host under its real bundle identifier, so the suite's stores are
+    /// file-backed and the Notification Centre and Spotlight index they would
+    /// reach are the developer's own. A test that wants to drive the scheduler
+    /// injects a fake `TaskNotificationCenter` instead of coming through here.
+    ///
+    /// The records go last and on this actor: SwiftData's main context is
+    /// main-actor work, and `apply` only touches what changed, so the cost
+    /// is one card's worth rather than the board's.
+    private func reconcileSystemsAndSync(_ pending: BoardSnapshot) {
+        if !BoardFile.isRunningTests {
+            reconcileReminders()
+            TaskSpotlightIndex.shared.reconcile(tasks)
+        }
+        pushToSync(pending)
+    }
+
     /// Writes at once, for backgrounding and quit — points where the debounce
     /// would never get to fire and the last edit would be lost. Synchronous on
     /// purpose: at quit the ordering genuinely matters.
@@ -1125,7 +1135,10 @@ final class BoardStore {
         guard let file, !isSaveBlocked else { return }
         saveTask?.cancel()
         saveTask = nil
-        pushToSync()
+        // The cancelled task was carrying the followers as well as the write,
+        // so they run here — at quit, an edit's reminder must not be lost with
+        // the debounce.
+        reconcileSystemsAndSync(snapshot)
         do {
             let wrote = try file.write(snapshot, generation: file.nextWriteGeneration())
             recordSave(wrote ? .wrote : .superseded)
@@ -1963,9 +1976,33 @@ final class BoardStore {
 
     /// Which board a column belongs to. Column ids are unique across boards, so
     /// a move that names only a column still knows where it is going.
+    ///
+    /// Through the owner map rather than a scan: this is asked once per task
+    /// inside every filter that asks `isDone` — the saved views, the reminders,
+    /// `completedTasks` — and two or three times per card render, so a scan of
+    /// every board's columns here multiplied into most of what those cost.
     func board(ofColumn id: BoardColumn.ID) -> Board? {
-        boards.first { board in board.columns.contains { $0.id == id } }
+        board(id: columnOwnersMap()[id])
     }
+
+    /// `[column: board]`, dropped by `boards`' own `didSet` — the same bargain
+    /// `labelsByKey` makes, and safe for the same reason: nothing can change
+    /// which board holds a column without writing `boards`. `boards` is read
+    /// on both paths, so a caller that only ever hits the map still registers
+    /// its dependency on the board list.
+    private func columnOwnersMap() -> [BoardColumn.ID: Board.ID] {
+        if let columnOwners { return columnOwners }
+        var owners: [BoardColumn.ID: Board.ID] = [:]
+        for board in boards {
+            for column in board.columns where owners[column.id] == nil {
+                owners[column.id] = board.id
+            }
+        }
+        columnOwners = owners
+        return owners
+    }
+
+    @ObservationIgnored private var columnOwners: [BoardColumn.ID: Board.ID]?
 
     // MARK: - Columns
 
@@ -1977,10 +2014,10 @@ final class BoardStore {
     /// Resolves a column id against every board, not just the active one: a
     /// search result names its column whichever board it is on. `nil` for an id
     /// no column answers to, which is a real state — a deleted column outlives
-    /// itself in the activity feed.
+    /// itself in the activity feed. Through the owner map, like `board(ofColumn:)`.
     func column(id: BoardColumn.ID?) -> BoardColumn? {
         guard let id else { return nil }
-        return boards.lazy.compactMap { $0.column(id: id) }.first
+        return board(ofColumn: id)?.column(id: id)
     }
 
     func column(for task: TaskItem) -> BoardColumn? { column(id: task.columnID) }
@@ -2072,6 +2109,13 @@ final class BoardStore {
     /// completed" tidies the board the user is looking at, not every board.
     var completedTasks: [TaskItem] {
         tasks.filter { $0.boardID == activeBoardID && isDone($0) && !$0.isArchived }
+    }
+
+    /// `completedTasks.count` without building the list. The menus offering
+    /// "Archive Completed" ask on every render — `Menu`'s content builder runs
+    /// with the body it sits in, not when the menu opens.
+    var completedCount: Int {
+        tasks.count { $0.boardID == activeBoardID && isDone($0) && !$0.isArchived }
     }
 
     /// The label definitions for a task, skipping any key without a definition.
@@ -2561,9 +2605,50 @@ final class BoardStore {
     /// What the row's `CountPill` shows: how many tasks are *in* the view,
     /// unnarrowed. A badge that shrank as the user typed on another surface
     /// would be reporting the search rather than the view.
+    ///
+    /// A count rather than `members(of:)`: the sort and the prefix cannot
+    /// change how many there are, so neither is paid for a number. Memoised
+    /// the way `visibleTasksByColumn` is, because every sidebar and drawer row
+    /// asks on every render — twice, counting the accessibility value — and
+    /// the phone's drawer renders per frame while it is being dragged open.
+    /// The memo keeps the rule and the limit rather than trusting the id: the
+    /// editor asks about a *draft* that shares its id with the saved row. The
+    /// name and the symbol stay out of the key, because they cannot change the
+    /// answer and the name is edited a keystroke at a time.
     func count(of view: SavedView, today: CalendarDay) -> Int {
-        members(of: view, today: today).count
+        // Read unconditionally, so a memo hit still registers the caller's
+        // dependency on the board — the `position(of:)` bargain.
+        let tasks = self.tasks
+        let week = weekMeaning
+        if let memo = viewCounts[view.id],
+           memo.revision == boardRevision, memo.today == today, memo.week == week,
+           memo.rule == view.rule, memo.limit == view.limit {
+            return memo.count
+        }
+        let now = Date.now
+        let matched = tasks.count {
+            view.matches($0, today: today, isDone: isDone($0), week: week, now: now)
+        }
+        let count = view.limit.map { Swift.min(matched, $0) } ?? matched
+        viewCounts[view.id] = ViewCountMemo(
+            revision: boardRevision, today: today, week: week,
+            rule: view.rule, limit: view.limit, count: count
+        )
+        return count
     }
+
+    private struct ViewCountMemo {
+        var revision: Int
+        var today: CalendarDay
+        var week: WeekMeaning
+        var rule: ViewRule
+        var limit: Int?
+        var count: Int
+    }
+
+    /// One memo per view id; stale entries are overwritten on the next ask and
+    /// deleted rows simply stop being asked about, so the map stays row-sized.
+    @ObservationIgnored private var viewCounts: [SavedView.ID: ViewCountMemo] = [:]
 
     private func members(of view: SavedView, today: CalendarDay) -> [TaskItem] {
         // `now` is taken once for the whole pass rather than per task: the
@@ -3256,7 +3341,13 @@ final class BoardStore {
         return trash.filter { !$0.isExpired(at: now, days: days) }.sorted { $0.trashedAt > $1.trashedAt }
     }
 
-    var trashCount: Int { trashedItems.count }
+    /// A count, not `trashedItems.count`: the sort there orders a list this
+    /// throws away, and the badges ask on every render.
+    var trashCount: Int {
+        let now = Date.now
+        let days = trashRetention.days
+        return trash.count { !$0.isExpired(at: now, days: days) }
+    }
 
     /// How long the Trash keeps things. Held on the store rather than read from
     /// `Preferences` at each use so a test can set it without reaching into

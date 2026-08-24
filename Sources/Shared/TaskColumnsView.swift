@@ -262,11 +262,18 @@ struct ColumnFlowLayout: Layout {
         var height: CGFloat?
         var count: Int
         var columns: [[Int]]
+        /// What `pack` measured, so the `placeSubviews` that follows it does
+        /// not measure the same *n* cards a second time. Trusted only while
+        /// `isFreshlyPacked` — a placement running off a *skipped* pack is one
+        /// where a card may have changed its height without changing the count,
+        /// and it re-measures the way this layout always has.
+        var heights: [CGFloat]
+        var isFreshlyPacked: Bool
         var size: CGSize
     }
 
     func makeCache(subviews: Subviews) -> Cache {
-        Cache(height: nil, count: -1, columns: [], size: .zero)
+        Cache(height: nil, count: -1, columns: [], heights: [], isFreshlyPacked: false, size: .zero)
     }
 
     func updateCache(_ cache: inout Cache, subviews: Subviews) {
@@ -284,14 +291,21 @@ struct ColumnFlowLayout: Layout {
         in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache
     ) {
         pack(proposal: proposal, subviews: subviews, cache: &cache)
+        // Fresh from `pack`, the measurements are this pass's own and each card
+        // is placed from them without being measured a second time. Off a
+        // skipped pack they may predate an edit, so they are taken again.
+        let heights = cache.isFreshlyPacked
+            ? cache.heights
+            : subviews.indices.map {
+                subviews[$0].sizeThatFits(ProposedViewSize(width: columnWidth, height: nil)).height
+            }
+        cache.isFreshlyPacked = false
 
         var x = bounds.minX
         for column in cache.columns {
             var y = bounds.minY
             for index in column {
-                let height = subviews[index].sizeThatFits(
-                    ProposedViewSize(width: columnWidth, height: nil)
-                ).height
+                let height = heights[index]
                 subviews[index].place(
                     at: CGPoint(x: x, y: y),
                     proposal: ProposedViewSize(width: columnWidth, height: height)
@@ -321,6 +335,8 @@ struct ColumnFlowLayout: Layout {
         cache.height = available
         cache.count = subviews.count
         cache.columns = columns
+        cache.heights = heights
+        cache.isFreshlyPacked = true
         // The available height rather than the tallest column, so the run of
         // columns fills the scroll view it is in — a shorter answer lets the
         // last column float in the middle of the window with the ones beside it

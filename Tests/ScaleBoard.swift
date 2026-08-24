@@ -150,9 +150,9 @@ enum ScaleBoard {
     /// this take". The boards, columns and labels are unchanged, so the only
     /// thing moving between the two sizes is the array being scanned.
     @MainActor
-    static func store(taskCount: Int, file: BoardFile? = nil) -> BoardStore {
+    static func store(taskCount: Int, file: BoardFile? = nil, sync: BoardSyncStore? = nil) -> BoardStore {
         BoardStore(tasks: Array(tasks.prefix(taskCount)), boards: boards, activeBoardID: boards[0].id,
-                   labels: labels, nextSerial: 900 + taskCount, file: file)
+                   labels: labels, nextSerial: 900 + taskCount, file: file, sync: sync)
     }
 
     /// The board as it is written to disk — what the debounced save re-encodes.

@@ -462,6 +462,10 @@ struct PhoneNavDrawer: View {
     /// closes the drawer and changes nothing — see ``open(_:)``.
     private func viewRow(_ view: SavedView) -> some View {
         let isActive = store.activeView?.id == view.id
+        // Hoisted: the count walks every task, the row asks twice — the pill
+        // and the accessibility value — and the drawer redraws these rows on
+        // every frame of the pull that opens it.
+        let count = store.count(of: view, today: dayClock.today)
         return Button { open(view) } label: {
             HStack(spacing: 10) {
                 Image(systemName: view.symbol)
@@ -470,7 +474,7 @@ struct PhoneNavDrawer: View {
                 Text(view.label)
                     .font(palette.ui(15, isActive ? .bold : .semibold, relativeTo: .body))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                CountPill(count: store.count(of: view, today: dayClock.today), font: 12.5, horizontalPadding: 8)
+                CountPill(count: count, font: 12.5, horizontalPadding: 8)
             }
             .foregroundStyle(isActive ? palette.accent : palette.ink(0.66))
             .padding(12)
@@ -488,9 +492,7 @@ struct PhoneNavDrawer: View {
         // Higher" between the rows. Substituting the subtree is what removes them.
         .accessibilityRepresentation {
             Button(view.label) { open(view) }
-                .accessibilityValue(
-                    Text(verbatim: "\(store.count(of: view, today: dayClock.today))")
-                )
+                .accessibilityValue(Text(verbatim: "\(count)"))
                 .accessibilityAddTraits(isActive ? [.isSelected] : [])
         }
         .contextMenu { viewMenu(view) }

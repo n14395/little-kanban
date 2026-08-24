@@ -187,10 +187,13 @@ struct BoardSidebar: View {
 
     private func boardRow(_ board: Board, index: Int) -> some View {
         let isActive = store.surface == .board && store.activeBoardID == board.id
+        // Hoisted: the count is a pass over every task, and the row used to ask
+        // twice — once for the pill and once for the accessibility value.
+        let count = store.taskCount(for: board.id)
 
         return Button { store.selectBoard(board.id) } label: {
             destinationRow(
-                dot: board.dot, count: store.taskCount(for: board.id),
+                dot: board.dot, count: count,
                 isActive: isActive, isDropTarget: isDropTarget(.board(board.id))
             ) {
                 rowName(board.name, isActive: isActive)
@@ -201,7 +204,7 @@ struct BoardSidebar: View {
         // than substituted, because the row's context menu is the only route
         // Board Settings has to a reader.
         .accessibilityLabel(board.name)
-        .accessibilityValue(Text(verbatim: "\(store.taskCount(for: board.id))"))
+        .accessibilityValue(Text(verbatim: "\(count)"))
         .accessibilityAddTraits(isActive ? [.isSelected] : [])
         .contextMenu { boardMenu(board, index: index) }
         .dropDestination(for: TaskTransfer.self) { items, _ in

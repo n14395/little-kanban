@@ -243,7 +243,6 @@ struct SettingsView: View {
             isExportingBoard: $isExportingBoard,
             isExportingMarkdown: $isExportingMarkdown,
             isImporting: $isImporting,
-            snapshot: store.exportedSnapshot,
             today: dayClock.today,
             onImport: importBoard,
             onFailure: { notice = SettingsNotice(title: exportFailedTitle, message: $0) }

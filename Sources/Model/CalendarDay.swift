@@ -44,21 +44,50 @@ struct CalendarDay: Hashable, Comparable, Codable, Sendable {
         return CalendarDay.gregorian(calendar).date(from: components) ?? .now
     }
 
+    /// The `calendar` is accepted for the call sites that have one to offer and
+    /// ignored, because a day plus a day is calendar arithmetic only in name:
+    /// the components are Gregorian by this type's contract, so the sum is pure
+    /// integer work — see `ordinal`. Going through `Calendar` here used to cost
+    /// three ICU round-trips, and both this and `-` sit inside per-task loops:
+    /// every saved-view match, every reminder, every due chip.
     func adding(days: Int, in calendar: Calendar = .current) -> CalendarDay {
-        let calendar = CalendarDay.gregorian(calendar)
-        guard let shifted = calendar.date(byAdding: .day, value: days, to: date(in: calendar)) else {
-            return self
-        }
-        return CalendarDay(shifted, calendar: calendar)
+        _ = calendar
+        return CalendarDay(ordinal: ordinal + days)
     }
 
     /// Whole days between two days. Time-zone independent: both sides are
-    /// resolved in the same fixed calendar.
+    /// Gregorian components already, so the distance is a subtraction.
     static func - (lhs: CalendarDay, rhs: CalendarDay) -> Int {
-        let calendar = utc
-        return calendar.dateComponents(
-            [.day], from: rhs.date(in: calendar), to: lhs.date(in: calendar)
-        ).day ?? 0
+        lhs.ordinal - rhs.ordinal
+    }
+
+    /// Days since 1970-01-01 in the proleptic Gregorian calendar — Howard
+    /// Hinnant's `days_from_civil`, exact for every representable day. The one
+    /// divergence from Foundation's hybrid calendar is dates before the 1582
+    /// changeover, which no date picker in this app can produce.
+    private var ordinal: Int {
+        let shiftedYear = year - (month <= 2 ? 1 : 0)
+        let era = (shiftedYear >= 0 ? shiftedYear : shiftedYear - 399) / 400
+        let yearOfEra = shiftedYear - era * 400
+        let marchMonth = (month + 9) % 12
+        let dayOfYear = (153 * marchMonth + 2) / 5 + day - 1
+        let dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear
+        return era * 146097 + dayOfEra - 719468
+    }
+
+    /// `civil_from_days` — the inverse of `ordinal`, bypassing `resolve`
+    /// because the components it computes always name a real day.
+    private init(ordinal: Int) {
+        let shifted = ordinal + 719468
+        let era = (shifted >= 0 ? shifted : shifted - 146096) / 146097
+        let dayOfEra = shifted - era * 146097
+        let yearOfEra = (dayOfEra - dayOfEra / 1460 + dayOfEra / 36524 - dayOfEra / 146096) / 365
+        let shiftedYear = yearOfEra + era * 400
+        let dayOfYear = dayOfEra - (365 * yearOfEra + yearOfEra / 4 - yearOfEra / 100)
+        let marchMonth = (5 * dayOfYear + 2) / 153
+        day = dayOfYear - (153 * marchMonth + 2) / 5 + 1
+        month = marchMonth < 10 ? marchMonth + 3 : marchMonth - 9
+        year = shiftedYear + (month <= 2 ? 1 : 0)
     }
 
     static func < (lhs: CalendarDay, rhs: CalendarDay) -> Bool {

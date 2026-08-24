@@ -318,9 +318,22 @@ final class BoardSyncStore {
         let removed = Set(before.keys).subtracting(snapshot.tasks.map(\.id))
         guard !changed.isEmpty || !removed.isEmpty || previous == nil else { return }
 
+        // Only the records this apply will touch are fetched. A diffed apply
+        // can trust that: an id it did not write is one the last write left
+        // alone, and the paths that make that untrue — a first write, a remote
+        // merge — arrive with no `previous` and take the whole table below,
+        // which is also the pass that reconciles strays.
+        let fetched: [StoredTask]
+        if previous == nil {
+            fetched = try context.fetch(FetchDescriptor<StoredTask>())
+        } else {
+            let wanted = Set(changed.map(\.id)).union(removed)
+            fetched = try context.fetch(FetchDescriptor<StoredTask>(
+                predicate: #Predicate { wanted.contains($0.id) }
+            ))
+        }
         var existing = Dictionary(
-            Self.deduplicated(try context.fetch(FetchDescriptor<StoredTask>()), by: \.id,
-                              newest: \.updatedAt).map { ($0.id, $0) },
+            Self.deduplicated(fetched, by: \.id, newest: \.updatedAt).map { ($0.id, $0) },
             uniquingKeysWith: { first, _ in first }
         )
         // A first write, or one after a remote merge, has no diff to trust.

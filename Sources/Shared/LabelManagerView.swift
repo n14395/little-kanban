@@ -201,7 +201,7 @@ struct LabelManagerView: View {
     }
 
     private func usageCount(of label: LabelDef) -> Int {
-        store.tasks.filter { $0.labelKeys.contains(label.key) }.count
+        store.tasks.count { $0.labelKeys.contains(label.key) }
     }
 
     /// The stored name is looked up rather than read off `label`: the binding the
