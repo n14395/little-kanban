@@ -86,6 +86,8 @@ final class StoredTask {
     /// The task's place in the board's manual order. SwiftData and CloudKit do
     /// not preserve relationship-array order, so a drag must write it explicitly.
     var position: Int?
+    /// Inbox completion is separate from a board's Done-column placement.
+    var inboxCompletedAt: Date?
     var archivedAt: Date?
 
     /// Owned children, so a deleted card takes its checklist and its history

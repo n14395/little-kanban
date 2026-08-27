@@ -25,9 +25,8 @@ struct PhoneCardStack<Trailing: View>: View {
     let tasks: [TaskItem]
     var metrics: TaskListMetrics = .sheet
     /// The card on its way into this list and where it would land, or `nil`
-    /// when none is — see ``DropPreview``. Supplied by ``PhoneColumnPage``,
-    /// which is the surface a card is dragged *between*; the Inbox sheet draws
-    /// the same stack without one.
+    /// when none is — see ``DropPreview``. Supplied by the board page and the
+    /// Inbox sheet, which draw the same insertion feedback.
     var preview: DropPreview?
     /// Rows after the cards — an empty state, a dashed "add task to…" row. The
     /// surfaces build their own, because the wording is theirs.

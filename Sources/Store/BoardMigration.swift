@@ -675,8 +675,16 @@ extension BoardSnapshot {
     /// quarantines a board it could have opened.
     static func migrate(v11: BoardSnapshot, accent: UInt32? = nil) -> BoardSnapshot {
         var snapshot = v11
-        snapshot.version = BoardSnapshot.currentVersion
+        snapshot.version = 12
         snapshot.themes = themes(carrying: accent)
+        return snapshot
+    }
+
+    /// v13 lets a global Inbox task be completed without filing it onto a board.
+    /// The optional timestamp defaults to `nil`, so there is no data to reshape.
+    static func migrate(v12: BoardSnapshot) -> BoardSnapshot {
+        var snapshot = v12
+        snapshot.version = BoardSnapshot.currentVersion
         return snapshot
     }
 

@@ -2280,13 +2280,14 @@ final class BoardStore {
         return board(id: boardID)?.column(id: columnID) != nil
     }
 
-    /// Whether a task is complete: whether it is in its board's last column.
+    /// Whether a task is complete: in its board's last column, or completed in
+    /// the global Inbox without being filed onto a board.
     ///
     /// The one funnel for the question, which is why removing `ColumnRole` cost
-    /// its callers nothing — they all came through here. A card in the Inbox is
-    /// on no board and so is never done, which is the harmless answer and the
-    /// same one the roles gave.
+    /// its callers nothing — they all came through here. Inbox completion is its
+    /// own persisted fact because the Inbox deliberately has no Done column.
     func isDone(_ task: TaskItem) -> Bool {
+        if task.isInboxCompleted { return true }
         guard let columnID = task.columnID else { return false }
         return isDone(column: columnID)
     }
@@ -2349,6 +2350,12 @@ final class BoardStore {
         tasks.filter { $0.boardID == activeBoardID && isDone($0) && !$0.isArchived }
     }
 
+    /// Completed Inbox cards, unfiltered. Unlike `completedTasks`, this has no
+    /// active-board scope because the Inbox itself is global.
+    var inboxCompletedTasks: [TaskItem] {
+        tasks.filter { $0.isInboxCompleted && !$0.isArchived }
+    }
+
     /// `completedTasks.count` without building the list. The menus offering
     /// "Archive Completed" ask on every render — `Menu`'s content builder runs
     /// with the body it sits in, not when the menu opens.
@@ -2356,6 +2363,8 @@ final class BoardStore {
         guard let activeBoardID else { return 0 }
         return counts().completedPerBoard[activeBoardID] ?? 0
     }
+
+    var inboxCompletedCount: Int { counts().inboxCompleted }
 
     /// The label definitions for a task, skipping any key without a definition.
     func labels(for task: TaskItem) -> [LabelDef] {
@@ -2457,7 +2466,10 @@ final class BoardStore {
            memo.count == tasks.count, memo.order == order {
             return memo.members
         }
-        let members = sorted(tasks.filter { !$0.isArchived && $0.isUnfiled })
+        let ordered = sorted(tasks.filter { !$0.isArchived && $0.isUnfiled })
+        // Completion does not move an Inbox task, but completed cards always
+        // settle after open work whatever ordering preference is selected.
+        let members = ordered.filter { !$0.isInboxCompleted } + ordered.filter(\.isInboxCompleted)
         inboxMemo = (boardRevision, tasks.count, order, members)
         return members
     }
@@ -2633,12 +2645,15 @@ final class BoardStore {
         if let memo = countsMemo, memo.revision == boardRevision, memo.count == tasks.count {
             return memo
         }
-        var total = 0, inbox = 0
+        var total = 0, inbox = 0, inboxCompleted = 0
         var perBoard: [Board.ID: Int] = [:]
         var completedPerBoard: [Board.ID: Int] = [:]
         for task in tasks where !task.isArchived {
             total += 1
-            if task.isUnfiled { inbox += 1 }
+            if task.isUnfiled {
+                inbox += 1
+                if task.isInboxCompleted { inboxCompleted += 1 }
+            }
             guard let boardID = task.boardID else { continue }
             perBoard[boardID, default: 0] += 1
             if let columnID = task.columnID, done.contains(columnID) {
@@ -2646,7 +2661,8 @@ final class BoardStore {
             }
         }
         let memo = CountsMemo(revision: boardRevision, count: tasks.count, total: total,
-                              inbox: inbox, perBoard: perBoard, completedPerBoard: completedPerBoard)
+                               inbox: inbox, inboxCompleted: inboxCompleted,
+                               perBoard: perBoard, completedPerBoard: completedPerBoard)
         countsMemo = memo
         return memo
     }
@@ -2656,6 +2672,7 @@ final class BoardStore {
         var count: Int
         var total: Int
         var inbox: Int
+        var inboxCompleted: Int
         var perBoard: [Board.ID: Int]
         var completedPerBoard: [Board.ID: Int]
     }
@@ -3218,11 +3235,9 @@ final class BoardStore {
     /// the outside. This is that rule, read back.
     ///
     /// `nil` where a release would move nothing — over the dragged card itself,
-    /// or over the ground of the column it already sits in, which the drop
-    /// treats as aimed at where the card already is. The column stays lit in
-    /// that last case: the highlight says which list the pointer is in, and the
-    /// caret says where the card would go, and there being nowhere for it to go
-    /// is a true thing to draw.
+    /// or over the ground of the column it already sits in. The Inbox is the one
+    /// exception: dropping a non-final Inbox card on its ground means moving it
+    /// to the foot, just as the final card's lower half does.
     var dropCaret: DropCaret? {
         guard allowsCardDrag else { return nil }
         if let caret = dropTargetCaret {
@@ -3235,10 +3250,12 @@ final class BoardStore {
         }
         // The pointer is on a list's own ground rather than on a gap it has
         // named, and a drop there lands at the foot — see ``groundCaret(in:)``.
-        guard let dragging = draggingID,
-              let destination = hoveredDropPlacement,
-              self[dragging]?.placement != destination
+        guard let dragging = draggingID, let destination = hoveredDropPlacement,
+              let task = self[dragging]
         else { return nil }
+        let inboxReorder = destination.isInbox && task.placement == destination
+            && tasks(in: destination).last?.id != dragging
+        guard task.placement != destination || inboxReorder else { return nil }
         return groundCaret(in: destination)
     }
 
@@ -3347,11 +3364,11 @@ final class BoardStore {
     /// where ``groundCaret(in:)`` promised the caret would.
     ///
     /// **It is `move(_:to:)` with one refusal in front of it**, rather than a
-    /// rule of its own: a drop on the ground of the list the card is already in
-    /// is aimed at where it already is, and `performMove` would return without
-    /// moving it — but only after `undoable` had opened a step for it. Refusing
-    /// up front is what keeps a ⌘Z from taking back a card that never went
-    /// anywhere, and `unfile` says the same about the Inbox.
+    /// rule of its own: a drop on the ground of a board column the card is
+    /// already in is aimed at where it already is, and `performMove` would
+    /// return without moving it — but only after `undoable` had opened a step.
+    /// The Inbox makes one useful exception: its non-final cards can be dropped
+    /// on the ground to move them to the foot.
     ///
     /// Kept as a name of its own rather than folded into that one call, because
     /// the four surfaces that take a drop on ground say which kind of drop it is
@@ -3359,7 +3376,12 @@ final class BoardStore {
     /// that a *ground* drop has not quietly become one that names a card.
     func drop(_ id: TaskItem.ID, onGroundOf placement: TaskPlacement) {
         guard isPlaceable(placement), let task = self[id] else { return }
-        guard task.placement != placement else { return endDrag() }
+        if task.placement == placement {
+            guard placement.isInbox, tasks(in: placement).last?.id != id else { return endDrag() }
+            return undoable(Self.moveName(for: placement)) {
+                performMove(id, to: placement, toTheEnd: true)
+            }
+        }
         move(id, to: placement)
     }
 
@@ -3519,6 +3541,9 @@ final class BoardStore {
         let wasElsewhere = moved.placement != placement
         moved.placement = placement
         if case .column(_, let columnID) = placement {
+            // Inbox completion belongs only to the Inbox. Filing a completed
+            // capture makes it active work on its destination board again.
+            moved.inboxCompletedAt = nil
             if isDone(column: columnID), wasElsewhere {
                 let outstanding = moved.subtasks.count { !$0.done }
                 if outstanding > 0 {
@@ -3556,17 +3581,22 @@ final class BoardStore {
 
     // MARK: - Completing
 
-    /// Sends a task to Done. The move logs where it went, and the entry under
-    /// it says where it was, which is what `reopen` reads.
+    /// Sends a board task to Done, or marks an Inbox task completed in place.
     ///
     /// An archived task refuses both this and `reopen`: in the Archive the verb
     /// is Restore and only Restore, and the refusal lives here so no surface can
     /// reintroduce a tick that silently picks the column a filed card would
     /// reappear in and closes its outstanding sub-tasks on the way.
-    /// Completing a card that is in the Inbox files it onto the board on
-    /// screen: being complete is a column's role, and the Inbox has no columns,
-    /// so there is nowhere else for a ticked card to be.
     func complete(_ id: TaskItem.ID) {
+        guard let task = self[id], !task.isArchived else { return }
+        if task.isUnfiled {
+            guard !task.isInboxCompleted else { return }
+            undoable(String(localized: "Complete Task", comment: "Undo action name for completing a task")) {
+                update(id) { $0.inboxCompletedAt = .now }
+                CompletionFeedback.shared.taskCompleted()
+            }
+            return
+        }
         guard let target = donePlacement(for: id) else { return }
         undoable(String(localized: "Complete Task", comment: "Undo action name for completing a task")) {
             performMove(id, to: target)
@@ -3581,13 +3611,21 @@ final class BoardStore {
     /// The one place the rule lives, so `canComplete` cannot answer a different
     /// question from the one `complete` acts on.
     private func donePlacement(for id: TaskItem.ID) -> TaskPlacement? {
-        guard let task = self[id], !task.isArchived, !isDone(task),
-              let done = doneColumnID(onBoard: task.boardID) else { return nil }
+        guard let task = self[id], !task.isArchived, !isDone(task) else { return nil }
+        if task.isUnfiled { return .inbox }
+        guard let done = doneColumnID(onBoard: task.boardID) else { return nil }
         return placement(forColumn: done)
     }
 
     /// Takes a task back out of Done, to wherever it was working before.
     func reopen(_ id: TaskItem.ID) {
+        guard let task = self[id], !task.isArchived else { return }
+        if task.isInboxCompleted {
+            undoable(String(localized: "Reopen Task", comment: "Undo action name for reopening a completed task")) {
+                update(id) { $0.inboxCompletedAt = nil }
+            }
+            return
+        }
         guard let target = reopenTarget(for: id) else { return }
         undoable(String(localized: "Reopen Task", comment: "Undo action name for reopening a completed task")) {
             performMove(id, to: target)
@@ -3609,7 +3647,9 @@ final class BoardStore {
         return target == task.placement ? nil : target
     }
 
-    func canReopen(_ id: TaskItem.ID) -> Bool { reopenTarget(for: id) != nil }
+    func canReopen(_ id: TaskItem.ID) -> Bool {
+        self[id]?.isInboxCompleted == true || reopenTarget(for: id) != nil
+    }
 
     /// Where a completed task goes back to: the newest column its own history
     /// names other than Done. A task that reached Done without ever being moved
@@ -3978,6 +4018,17 @@ final class BoardStore {
         // view's tie-break then keeps them in the order the board had them.
         let when = Date.now
         undoable(String(localized: "Archive Completed", comment: "Undo action name for archiving everything in the Done column")) {
+            for id in completed { performArchive(id, at: when) }
+        }
+    }
+
+    /// The Inbox's counterpart to `archiveCompleted()`: global and scoped only
+    /// to Inbox cards that were completed in place.
+    func archiveInboxCompleted() {
+        let completed = inboxCompletedTasks.map(\.id)
+        guard !completed.isEmpty else { return }
+        let when = Date.now
+        undoable(String(localized: "Archive Completed", comment: "Undo action name for archiving completed Inbox tasks")) {
             for id in completed { performArchive(id, at: when) }
         }
     }

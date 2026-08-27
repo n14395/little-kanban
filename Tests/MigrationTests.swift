@@ -178,6 +178,22 @@ import Testing
         #expect(try temp.text().contains("\"archivedAt\""))
     }
 
+    @Test func aV12BoardKeepsItsThemesWhenMigratedToV13() throws {
+        var v12 = BoardSnapshot(
+            tasks: TestBoard.tasks, labels: LabelDef.seed, nextSerial: 100, themes: TestBoard.otherThemes
+        )
+        v12.version = 12
+        let temp = TempBoard()
+        try temp.put(try encode(v12))
+
+        let result = temp.file.load()
+        let read = try #require(result.snapshot)
+        #expect(result.migratedFromVersion == 12)
+        #expect(read.version == BoardSnapshot.currentVersion)
+        #expect(read.themes == TestBoard.otherThemes)
+        #expect(read.tasks.allSatisfy { $0.inboxCompletedAt == nil })
+    }
+
     // MARK: The version after this one
 
     @Test func aFileFromTheVersionAfterThisOneIsRefusedAndPutSomewhereSafe() throws {

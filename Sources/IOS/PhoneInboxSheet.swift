@@ -446,7 +446,7 @@ struct PhoneInboxSheet: View {
         // One filter-and-sort, not two: `inboxTasks` walks the whole board on
         // every access.
         let tasks = store.inboxTasks
-        return PhoneCardStack(tasks: tasks, metrics: .sheet) {
+        return PhoneCardStack(tasks: tasks, metrics: .sheet, preview: preview) {
             if tasks.isEmpty {
                 EmptyStateView.inbox(metrics: .sheet, add: add)
             } else {
@@ -456,7 +456,12 @@ struct PhoneInboxSheet: View {
                 addRow
             }
         }
+        // The stand-in is the insertion point while a card is in the air, so
+        // the rows beside it do not draw a second edge caret.
+        .environment(\.drawsDropCaret, false)
     }
+
+    private var preview: DropPreview? { store.dropPreview(in: .inbox) }
 
     private var addRow: some View {
         Button(action: add) {

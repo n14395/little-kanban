@@ -26,8 +26,11 @@ import Testing
         // byte-identical to the v2 one it replaces.
         var filed = TestBoard.tasks[5]
         filed.archivedAt = TestBoard.at(90)
+        var completedInbox = TestBoard.tasks[0]
+        completedInbox.placement = .inbox
+        completedInbox.inboxCompletedAt = TestBoard.at(120)
         let written = BoardSnapshot(
-            tasks: [task] + TestBoard.tasks[2..<5] + [filed],
+            tasks: [completedInbox, task] + TestBoard.tasks[2..<5] + [filed],
             labels: LabelDef.seed,
             nextSerial: 137,
             themes: TestBoard.otherThemes
@@ -46,6 +49,7 @@ import Testing
         #expect(read.tasks[0].activity.map(\.kind) == TestBoard.everyActivityKind)
         #expect(read.tasks.last?.archivedAt == TestBoard.at(90))
         #expect(read.tasks.dropLast().allSatisfy { $0.archivedAt == nil })
+        #expect(read.tasks.first?.inboxCompletedAt == TestBoard.at(120))
     }
 
     @Test func aDueDateIsStoredAsAReadableDay() throws {

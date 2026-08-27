@@ -40,7 +40,9 @@ import Testing
 
     @Test func everyFieldSurvivesTheRoundTrip() throws {
         let sync = try store()
-        let written = snapshot()
+        var completedInbox = TaskItem(code: "IN-400", title: "Keep this in Inbox")
+        completedInbox.inboxCompletedAt = TestBoard.at(120)
+        let written = snapshot(tasks: [completedInbox] + Self.filed)
         try sync.apply(written)
 
         let read = try #require(try sync.load())

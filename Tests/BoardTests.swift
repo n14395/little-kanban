@@ -236,16 +236,26 @@ import Testing
         #expect(store[Self.onBeta]?.boardID == Self.betaID)
     }
 
-    /// Being complete is a column's role, and the Inbox has no columns — so a
-    /// ticked Inbox card files itself onto the board on screen.
-    @Test func completingAnInboxCardFilesItOntoTheBoardOnScreen() {
+    @Test func completingAnInboxCardKeepsItInTheInboxAndReopensInPlace() {
         let store = Self.store()
         store.selectBoard(Self.betaID)
+        store.unfile(Self.onAlpha)
         store.complete(Self.captured)
-        #expect(store[Self.captured]?.boardID == Self.betaID)
+        #expect(store[Self.captured]?.isUnfiled == true)
         #expect(store.isDone(store[Self.captured]!))
+        #expect(store.inboxTasks.map(\.id) == [Self.onAlpha, Self.captured])
         store.reopen(Self.captured)
-        #expect(store[Self.captured]?.columnID == Self.betaTodo.id)
+        #expect(store[Self.captured]?.isUnfiled == true)
+        #expect(store.isDone(store[Self.captured]!) == false)
+    }
+
+    @Test func filingACompletedInboxCardMakesItActiveOnItsBoard() {
+        let store = Self.store()
+        store.complete(Self.captured)
+        store.file(Self.captured, onto: Self.betaID, column: Self.betaTodo.id)
+
+        #expect(store[Self.captured]?.placement == .column(board: Self.betaID, column: Self.betaTodo.id))
+        #expect(store.isDone(store[Self.captured]!) == false)
     }
 
     // MARK: Following a card to where it went

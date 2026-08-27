@@ -52,7 +52,7 @@ struct BoardSnapshot: Codable, Sendable {
     /// written before them means: a build whose sidebar offered exactly those.
     var views: [SavedView] = SavedView.seededAll
 
-    static let currentVersion = 12
+    static let currentVersion = 13
 
     enum CodingKeys: String, CodingKey {
         case version, tasks, boards, labels, nextSerial, activeBoardID, trash, palette, views, themes
@@ -319,7 +319,10 @@ struct BoardFile: Sendable {
         let atV11 = migratedFrom < 11 ? BoardSnapshot.migrate(v10: atV10) : atV10
         // The accent comes out of the bytes for `legacyDoneColumns`' reason:
         // v12 removed the field, so the decoded value no longer has it.
-        return (BoardSnapshot.migrate(v11: atV11, accent: legacyAccent(in: data)), migratedFrom)
+        let atV12 = migratedFrom < 12
+            ? BoardSnapshot.migrate(v11: atV11, accent: legacyAccent(in: data))
+            : atV11
+        return (migratedFrom < 13 ? BoardSnapshot.migrate(v12: atV12) : atV12, migratedFrom)
     }
 
     /// Every version up to and including v8, decoded and walked forward to the
@@ -329,6 +332,10 @@ struct BoardFile: Sendable {
         switch try version(of: data) {
         case BoardSnapshot.currentVersion:
             return (try decoder.decode(BoardSnapshot.self, from: data), nil)
+        case 12:
+            // The new Inbox-completion timestamp is optional on `TaskItem`, so
+            // v12 bytes already decode as the v13 shape without inventing state.
+            return (try decoder.decode(BoardSnapshot.self, from: data), 12)
         case 11:
             // v11 and v12 are the same shape in the one direction that matters
             // here: v12 *removes* `accentTheme` and *adds* `themes`, both of

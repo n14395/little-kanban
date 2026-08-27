@@ -73,6 +73,34 @@ import Testing
         #expect(store.dropPreview(in: .inbox) == nil)
     }
 
+    @Test func theInboxPreviewShowsCardsArrivingFromABoard() throws {
+        let store = carrying(TestBoard.dragDrop, over: .above(TestBoard.widget))
+        let preview = try #require(store.dropPreview(in: .inbox))
+
+        #expect(preview.task.id == TestBoard.dragDrop)
+        #expect(preview.index == 0)
+        #expect(preview.caret == .above(TestBoard.widget))
+        #expect(preview.placement == .inbox)
+    }
+
+    @Test func theInboxPreviewFollowsBothDirectionsOfAReorder() throws {
+        let tail = TaskItem(id: TestBoard.taskID(90), code: "IN-190", title: "Inbox tail")
+
+        let upward = TestBoard.store(tasks: TestBoard.tasks + [tail])
+        upward.draggingID = tail.id
+        upward.dropTargetCaret = .above(TestBoard.widget)
+        #expect(try #require(upward.dropPreview(in: .inbox)).index == 0)
+        upward.drop(tail.id, at: .above(TestBoard.widget))
+        #expect(upward.inboxTasks.first?.id == tail.id)
+
+        let downward = TestBoard.store(tasks: TestBoard.tasks + [tail])
+        downward.draggingID = TestBoard.widget
+        downward.dropTargetCaret = .below(tail.id)
+        #expect(try #require(downward.dropPreview(in: .inbox)).index == 2)
+        downward.drop(TestBoard.widget, at: .below(tail.id))
+        #expect(downward.inboxTasks.last?.id == TestBoard.widget)
+    }
+
     @Test func nothingInTheAirMeansNoStandIn() {
         let store = TestBoard.store()
         store.dropTargetCaret = .above(TestBoard.cafe)
@@ -88,6 +116,25 @@ import Testing
 
         #expect(store.allowsCardDrag == false)
         #expect(store.dropPreview(in: place(store, backlog)) == nil)
+    }
+
+    @Test func bothInboxSurfacesDrawTheSharedPreviewInsteadOfAnEdgeCaret() {
+        guard SourceTree.isReachable else { return }
+        let expected = [
+            "Shared/InboxPanel.swift": ["store.dropPreview(in: .inbox)", "DropPreviewCard(",
+                                        ".environment(\\.drawsDropCaret, false)"],
+            "IOS/PhoneInboxSheet.swift": ["preview: preview", ".environment(\\.drawsDropCaret, false)"],
+        ]
+        var seen: Set<String> = []
+        for file in SourceTree.files() {
+            guard let snippets = expected[file.path] else { continue }
+            let code = String(file.code)
+            for snippet in snippets {
+                #expect(code.contains(snippet), "\(file.path) no longer draws Inbox preview feedback")
+            }
+            seen.insert(file.path)
+        }
+        #expect(seen == Set(expected.keys), "an Inbox preview surface moved: found \(seen)")
     }
 
     // MARK: It must not promise a move that will not happen

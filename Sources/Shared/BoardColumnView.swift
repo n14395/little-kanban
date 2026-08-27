@@ -161,6 +161,7 @@ struct BoardColumnView: View {
         } message: { refusal in
             if let suggestion = refusal.recoverySuggestion { Text(suggestion) }
         }
+        .contextMenu { columnMenuItems }
     }
 
     private var header: some View {
@@ -209,32 +210,40 @@ struct BoardColumnView: View {
     /// goes. See ``Board/doneColumn``.
     private var isDone: Bool { store.isDone(column: column.id) }
 
-    /// Everything that can be done to the column itself, plus — on a Done
-    /// column with something in it — the archive.
-    ///
-    /// The archive item is drawn only while there is something to file. A
-    /// control that is greyed out from the day it ships teaches people not to
-    /// open the menu, and the column's own empty state already says there is
-    /// nothing there. It archives what `completedTasks` holds rather than what
-    /// the search has left visible — `archiveCompleted` is defined over Done,
-    /// not over the query — so the count says how many are about to go.
     private var columnMenu: some View {
-        // Hoisted, and a count rather than the list: this builder runs with
-        // every render of the column header, not when the menu opens.
-        let completedCount = store.isDone(column: column.id) ? store.completedCount : 0
         return Menu {
-            if completedCount > 0 {
-                Button {
-                    store.archiveCompleted()
-                } label: {
-                    Label(
-                        String(localized: "Archive \(completedCount) Completed",
-                               comment: "Menu item on the Done column header that files every finished task away"),
-                        systemImage: "archivebox"
-                    )
-                }
-                Divider()
+            columnMenuItems
+        } label: {
+            Image(systemName: "ellipsis")
+                .imageScale(.small)
+                .foregroundStyle(palette.inkText(0.45))
+                .frame(minWidth: chrome(metrics.headerButton), minHeight: chrome(metrics.headerButton))
+                .contentShape(.rect)
+                // The menu is named below; left in the tree the glyph is a
+                // second element beside it, called "ellipsis" from Apple's
+                // catalogue. `TaskInspector`'s board menu hides its own.
+                .accessibilityHidden(true)
+        }
+        .modifier(BorderlessMenu())
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .hoverBackground(palette.ink(0.08), radius: metrics.headerButtonRadius)
+        .accessibilityLabel("\(column.name) column actions")
+    }
+
+    @ViewBuilder private var columnMenuItems: some View {
+        let completedCount = isDone ? store.completedCount : 0
+        if isDone {
+            Button { store.archiveCompleted() } label: {
+                Label(
+                    String(localized: "Archive \(completedCount) Completed",
+                           comment: "Menu item that files every finished task in the Done column away"),
+                    systemImage: "archivebox"
+                )
             }
+            .disabled(completedCount == 0)
+            Divider()
+        }
 
             Button { isEditing = true } label: {
                 Label("Edit Column…", systemImage: "pencil")
@@ -285,22 +294,6 @@ struct BoardColumnView: View {
             } label: {
                 Label("Trash Column", systemImage: "trash")
             }
-        } label: {
-            Image(systemName: "ellipsis")
-                .imageScale(.small)
-                .foregroundStyle(palette.inkText(0.45))
-                .frame(minWidth: chrome(metrics.headerButton), minHeight: chrome(metrics.headerButton))
-                .contentShape(.rect)
-                // The menu is named below; left in the tree the glyph is a
-                // second element beside it, called "ellipsis" from Apple's
-                // catalogue. `TaskInspector`'s board menu hides its own.
-                .accessibilityHidden(true)
-        }
-        .modifier(BorderlessMenu())
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .hoverBackground(palette.ink(0.08), radius: metrics.headerButtonRadius)
-        .accessibilityLabel("\(column.name) column actions")
     }
 
     private var cards: some View {
@@ -466,4 +459,3 @@ private struct BoardColumnEditor: View {
         store.renameColumn(column.id, to: name, short: short)
     }
 }
-

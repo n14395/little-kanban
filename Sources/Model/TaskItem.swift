@@ -170,6 +170,10 @@ struct TaskItem: Identifiable, Hashable, Codable, Sendable {
     var activity: [ActivityEntry] = []
     var createdAt: Date = .now
     var updatedAt: Date = .now
+    /// When an unfiled task was completed in the global Inbox. Board tasks are
+    /// complete by living in their board's Done column; Inbox tasks stay put.
+    /// Optional so files written before Inbox completion existed still decode.
+    var inboxCompletedAt: Date?
     /// When the task was filed away, or `nil` while it is still on the board.
     /// An archived task stays in the file and keeps its column — it is simply
     /// not part of the board any more. Optional rather than a `Bool` with a
@@ -193,6 +197,8 @@ struct TaskItem: Identifiable, Hashable, Codable, Sendable {
 
     /// In the global Inbox: captured, and not yet on a board.
     var isUnfiled: Bool { boardID == nil }
+
+    var isInboxCompleted: Bool { isUnfiled && inboxCompletedAt != nil }
 
     var isArchived: Bool { archivedAt != nil }
 
@@ -223,6 +229,7 @@ struct TaskItem: Identifiable, Hashable, Codable, Sendable {
             && priority == other.priority
             && subtasks == other.subtasks
             && placement == other.placement
+            && inboxCompletedAt == other.inboxCompletedAt
             && archivedAt == other.archivedAt
     }
 

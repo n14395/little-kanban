@@ -101,6 +101,7 @@ struct InboxPanel: View {
                 Rectangle().strokeBorder(palette.accent, lineWidth: 2)
             }
         }
+        .contextMenu { inboxMenuItems }
         // The way back for a card filed by mistake, and the obvious one now
         // that the Inbox is on screen: a panel you can see and cannot drop onto
         // reads as broken. The source list's row still takes drops too — that
@@ -139,21 +140,27 @@ struct InboxPanel: View {
     /// this was written, and it costs nothing at all since 6.4 — no card in the
     /// app swipes now, on any surface.
     private func cards(_ tasks: [TaskItem]) -> some View {
-        ScrollViewReader { proxy in
+        let preview = store.dropPreview(in: .inbox)
+        return ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: metrics.list.rowSpacing) {
-                    ForEach(tasks) { task in
+                    if let preview, preview.index == 0 { previewCard(preview) }
+                    ForEach(Array(tasks.enumerated()), id: \.element.id) { row, task in
                         // No column chip: it names where a card is, and inside
                         // the Inbox every card is in the Inbox. The flat
                         // surfaces earn the chip because their rows come from
                         // anywhere.
                         ListCard(task: task, showsColumn: false, metrics: metrics.card, focus: $focus)
                             .id(task.id)
+                        if let preview, preview.index == row + 1 { previewCard(preview) }
                     }
                 }
                 .padding(.horizontal, metrics.list.horizontalPadding)
                 .padding(.top, metrics.list.topInset)
                 .padding(.bottom, metrics.list.bottomInset)
+                // The stand-in is the insertion point while a card is in the
+                // air, so the cards beside it do not draw a second edge caret.
+                .environment(\.drawsDropCaret, false)
             }
             .scrollBounceBehavior(.basedOnSize)
             // The panel is as tall as the board, so a key landing on a card
@@ -172,6 +179,13 @@ struct InboxPanel: View {
         }
     }
 
+    private func previewCard(_ preview: DropPreview) -> some View {
+        DropPreviewCard(preview: preview, cornerRadius: metrics.card.cornerRadius) {
+            BoardTaskCard(task: preview.task, metrics: metrics.card, isStandIn: true)
+        }
+        .id("drop-preview")
+    }
+
     private func header(count: Int) -> some View {
         HStack(spacing: metrics.headerSpacing) {
             Image(systemName: "tray")
@@ -184,6 +198,8 @@ struct InboxPanel: View {
             CountPill(count: count)
 
             Spacer(minLength: 0)
+
+            inboxMenu
 
             Button { store.beginAdding(in: .inbox) } label: {
                 Image(systemName: "plus")
@@ -199,6 +215,35 @@ struct InboxPanel: View {
         .padding(.leading, leadingInset)
         .frame(minHeight: metrics.headerHeight)
         .hairline(.bottom, color: palette.ink(0.07))
+    }
+
+    private var inboxMenu: some View {
+        Menu {
+            inboxMenuItems
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(palette.ui(metrics.glyph, .medium, relativeTo: .footnote))
+                .foregroundStyle(palette.inkText(0.45))
+                .frame(minWidth: metrics.button, minHeight: metrics.button)
+                .contentShape(.rect)
+                .accessibilityHidden(true)
+        }
+        .modifier(BorderlessMenu())
+        .menuIndicator(.hidden)
+        .hoverBackground(palette.ink(0.08), radius: 8)
+        .accessibilityLabel("Inbox actions")
+    }
+
+    @ViewBuilder private var inboxMenuItems: some View {
+        let completedCount = store.inboxCompletedCount
+        Button { store.archiveInboxCompleted() } label: {
+            Label(
+                String(localized: "Archive \(completedCount) Completed",
+                       comment: "Menu item that files completed Inbox tasks away"),
+                systemImage: "archivebox"
+            )
+        }
+        .disabled(completedCount == 0)
     }
 
     private var emptyState: some View {

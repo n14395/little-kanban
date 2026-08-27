@@ -186,7 +186,11 @@ struct PhoneHeader: View {
                 }
 
                 Button { store.archiveCompleted() } label: {
-                    Label("Archive Completed", systemImage: "archivebox")
+                    Label(
+                        String(localized: "Archive \(store.completedCount) Completed",
+                               comment: "Menu item that files every finished task on the active board away"),
+                        systemImage: "archivebox"
+                    )
                 }
                 .disabled(store.completedCount == 0)
 
@@ -458,15 +462,8 @@ struct PhoneHeader: View {
     /// column already unfolded — see its `expandsColumn`. Not a sheet of its
     /// own: everything a column can be changed to is already in that row.
     @ViewBuilder private func columnMenu(_ column: BoardColumn, index: Int) -> some View {
-        // Only on a Done column, and only while there is something to file:
-        // a control that is greyed out from the day it ships teaches people not
-        // to open the menu. `BoardColumnView` draws it under the same two
-        // conditions, and `archiveCompleted` is defined over Done rather than
-        // over this column, so the count says how many are about to go.
-        // A count rather than the list — this builder runs with the header's
-        // body, not when the menu opens.
         let completedCount = store.isDone(column: column.id) ? store.completedCount : 0
-        if completedCount > 0 {
+        if store.isDone(column: column.id) {
             Button {
                 store.archiveCompleted()
             } label: {
@@ -476,6 +473,7 @@ struct PhoneHeader: View {
                     systemImage: "archivebox"
                 )
             }
+            .disabled(completedCount == 0)
             Divider()
         }
 

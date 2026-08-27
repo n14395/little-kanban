@@ -172,6 +172,21 @@ import Testing
         #expect(store.inboxTasks.map(\.id).last == second)
     }
 
+    @Test func anInboxCardsGroundDropPreviewsAndMovesItToTheFoot() throws {
+        let store = Self.deeper()
+        let first = try #require(store.inboxTasks.first?.id)
+        let last = try #require(store.inboxTasks.last?.id)
+        #expect(first != last, "the fixture needs an Inbox card to move")
+        store.draggingID = first
+        store.isInboxDropTarget = true
+
+        #expect(store.dropCaret == .below(last))
+        #expect(store.dropPreview(in: .inbox)?.index == store.inboxTasks.count)
+
+        store.drop(first, onGroundOf: .inbox)
+        #expect(store.inboxTasks.last?.id == first)
+    }
+
     /// The rule does not read the row the card is leaving, so the *last* card of
     /// a long list lands at the foot of a short one exactly as the first card of
     /// it does. Both directions, because "always the foot" is only a rule if the

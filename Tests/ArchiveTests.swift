@@ -147,6 +147,17 @@ import Testing
         #expect(store[TestBoard.cafe]?.columnID == BoardColumn.backlog.id)
     }
 
+    @Test func archivingCompletedInboxTasksLeavesOpenInboxTasks() throws {
+        let store = TestBoard.store()
+        let inbox = try #require(store.inboxTasks.first)
+        store.complete(inbox.id)
+        store.archiveInboxCompleted()
+
+        #expect(store[inbox.id]?.isArchived == true)
+        #expect(store.inboxCompletedCount == 0)
+        #expect(store.inboxTasks.contains { $0.id == inbox.id } == false)
+    }
+
     @Test func archivingAnEmptyDoneColumnRegistersNothing() {
         let (store, undo) = TestBoard.undoing(tasks: TestBoard.tasks(archiving: [TestBoard.palette: 300]))
         let before = board(store)

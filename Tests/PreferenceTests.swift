@@ -52,7 +52,7 @@ import UserNotifications
         let object = try encoded(snapshot)
         let taskKeys: Set<String> = [
             "id", "code", "boardID", "columnID", "title", "note", "labelKeys", "due",
-            "priority", "subtasks", "activity", "createdAt", "updatedAt", "archivedAt",
+            "priority", "subtasks", "activity", "createdAt", "updatedAt", "inboxCompletedAt", "archivedAt",
         ]
         let tasks = try #require(object["tasks"] as? [[String: Any]])
         let everyTaskKey = Set(tasks.flatMap(\.keys))

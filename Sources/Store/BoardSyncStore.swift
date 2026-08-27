@@ -414,6 +414,7 @@ final class BoardSyncStore {
         record.createdAt = task.createdAt
         record.updatedAt = task.updatedAt
         record.position = position
+        record.inboxCompletedAt = task.inboxCompletedAt
         record.archivedAt = task.archivedAt
 
         var subtasks = Dictionary(
@@ -469,6 +470,7 @@ final class BoardSyncStore {
         task.priority = Priority(rawValue: record.priorityKey) ?? .medium
         task.createdAt = record.createdAt
         task.updatedAt = record.updatedAt
+        task.inboxCompletedAt = record.inboxCompletedAt
         task.archivedAt = record.archivedAt
         task.subtasks = (record.subtasks ?? [])
             .sorted { $0.position < $1.position }
