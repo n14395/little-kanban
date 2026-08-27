@@ -57,6 +57,34 @@ import Testing
         }
     }
 
+    /// Task order is the order a manual drag writes. Unlike a Swift array,
+    /// SwiftData's fetch order has no ordering contract, so the record stores
+    /// it and the reader must use that position rather than fetch order.
+    @Test func taskOrderSurvivesTheRoundTrip() throws {
+        let sync = try store()
+        let written = snapshot(tasks: Array(Self.filed.reversed()))
+        try sync.apply(written)
+
+        let read = try #require(try sync.load())
+        #expect(read.tasks.map(\.id) == written.tasks.map(\.id))
+    }
+
+    @Test func unrankedTasksCanBeBackfilledWithoutChangingTheirContent() throws {
+        let sync = try store()
+        let written = snapshot(tasks: Array(Self.filed.reversed()))
+        try sync.apply(written)
+
+        let records = try sync.container.mainContext.fetch(FetchDescriptor<StoredTask>())
+        for record in records { record.position = nil }
+        try sync.container.mainContext.save()
+        #expect(try sync.hasStoredTaskOrder() == false)
+
+        try sync.backfillTaskPositions(from: written.tasks.map(\.id))
+        let read = try #require(try sync.load())
+        #expect(read.tasks.map(\.id) == written.tasks.map(\.id))
+        #expect(read.tasks.allSatisfy { task in written.tasks.contains(task) })
+    }
+
     /// The order a checklist is in is the user's, and CloudKit does not
     /// preserve array order — hence `StoredSubtask.position`.
     @Test func subTasksComeBackInTheOrderTheyWentIn() throws {
@@ -310,6 +338,27 @@ import Testing
 
         let store = BoardStore.restored(file: temp.file, sync: sync)
         #expect(store.tasks.first?.title == "What the records say")
+    }
+
+    @Test func anExistingSyncStoreTakesTaskOrderFromTheFile() throws {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.inMemory()
+        let tasks = Array(TestBoard.tasks(on: SeedData.defaultBoard).reversed())
+        let board = BoardSnapshot(
+            tasks: tasks, boards: SeedData.boards, labels: LabelDef.seed,
+            nextSerial: 100, activeBoardID: SeedData.defaultBoard.id
+        )
+        try temp.file.write(board, generation: temp.file.nextWriteGeneration())
+        try sync.apply(board)
+
+        for record in try sync.container.mainContext.fetch(FetchDescriptor<StoredTask>()) {
+            record.position = nil
+        }
+        try sync.container.mainContext.save()
+
+        let store = BoardStore.restored(file: temp.file, sync: sync)
+        #expect(store.tasks.map(\.id) == tasks.map(\.id))
+        #expect(try sync.hasStoredTaskOrder())
     }
 
     /// The upgrade path: a board that only exists as JSON is folded into the

@@ -181,7 +181,8 @@ final class BoardSyncStore {
         guard meta != nil || !boards.isEmpty || !tasks.isEmpty else { return nil }
 
         let snapshot = BoardSnapshot(
-            tasks: Self.deduplicated(tasks, by: \.id, newest: \.updatedAt).map(Self.value(of:)),
+            tasks: Self.ordered(Self.deduplicated(tasks, by: \.id, newest: \.updatedAt))
+                .map(Self.value(of:)),
             boards: Self.deduplicated(boards, by: \.id, newest: \.createdAt)
                 .sorted { $0.position < $1.position }
                 .map(Self.value(of:)),
@@ -196,6 +197,37 @@ final class BoardSyncStore {
         )
         lastWritten = snapshot
         return snapshot
+    }
+
+    /// Whether every task record already carries its manual board-order rank.
+    /// Records written before `StoredTask.position` was added are intentionally
+    /// distinguishable from the first row, whose valid position is zero.
+    func hasStoredTaskOrder() throws -> Bool {
+        let records = try context.fetch(FetchDescriptor<StoredTask>())
+        return Self.deduplicated(records, by: \.id, newest: \.updatedAt).allSatisfy { $0.position != nil }
+    }
+
+    /// Gives pre-position records the order from the local board file without
+    /// touching their content. A remote-only card follows the known rows.
+    func backfillTaskPositions(from taskIDs: [TaskItem.ID]) throws {
+        let records = Self.deduplicated(
+            try context.fetch(FetchDescriptor<StoredTask>()), by: \.id, newest: \.updatedAt
+        )
+        let positions = Dictionary(
+            taskIDs.enumerated().map { ($0.element, $0.offset) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        var next = taskIDs.count
+        for record in records {
+            if let position = positions[record.id] {
+                record.position = position
+            } else {
+                record.position = next
+                next += 1
+            }
+        }
+        if context.hasChanges { try context.save() }
+        lastWritten = nil
     }
 
     // MARK: Writing
@@ -315,8 +347,20 @@ final class BoardSyncStore {
             (previous?.tasks ?? []).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }
         )
         let changed = snapshot.tasks.filter { before[$0.id] != $0 }
+        let previousPositions = Dictionary(
+            (previous?.tasks ?? []).enumerated().map { ($0.element.id, $0.offset) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let repositioned = snapshot.tasks.enumerated().compactMap { offset, task in
+            previousPositions[task.id] == offset ? nil : task.id
+        }
+        let positions = Dictionary(
+            snapshot.tasks.enumerated().map { ($0.element.id, $0.offset) },
+            uniquingKeysWith: { first, _ in first }
+        )
         let removed = Set(before.keys).subtracting(snapshot.tasks.map(\.id))
-        guard !changed.isEmpty || !removed.isEmpty || previous == nil else { return }
+        let changedIDs = Set(changed.map(\.id)).union(repositioned)
+        guard !changedIDs.isEmpty || !removed.isEmpty || previous == nil else { return }
 
         // Only the records this apply will touch are fetched. A diffed apply
         // can trust that: an id it did not write is one the last write left
@@ -327,7 +371,7 @@ final class BoardSyncStore {
         if previous == nil {
             fetched = try context.fetch(FetchDescriptor<StoredTask>())
         } else {
-            let wanted = Set(changed.map(\.id)).union(removed)
+            let wanted = changedIDs.union(removed)
             fetched = try context.fetch(FetchDescriptor<StoredTask>(
                 predicate: #Predicate { wanted.contains($0.id) }
             ))
@@ -337,15 +381,16 @@ final class BoardSyncStore {
             uniquingKeysWith: { first, _ in first }
         )
         // A first write, or one after a remote merge, has no diff to trust.
-        let writing = previous == nil ? snapshot.tasks : changed
+        let writing = previous == nil ? snapshot.tasks : snapshot.tasks.filter { changedIDs.contains($0.id) }
         for task in writing {
+            guard let position = positions[task.id] else { continue }
             let record = existing[task.id] ?? {
                 let fresh = StoredTask(id: task.id)
                 context.insert(fresh)
                 existing[task.id] = fresh
                 return fresh
             }()
-            Self.write(task, into: record, context: context)
+            Self.write(task, at: position, into: record, context: context)
         }
         let live = Set(snapshot.tasks.map(\.id))
         for (id, record) in existing where !live.contains(id) {
@@ -355,7 +400,9 @@ final class BoardSyncStore {
 
     // MARK: Value ⇄ record
 
-    private static func write(_ task: TaskItem, into record: StoredTask, context: ModelContext) {
+    private static func write(
+        _ task: TaskItem, at position: Int, into record: StoredTask, context: ModelContext
+    ) {
         record.code = task.code
         record.boardID = task.boardID
         record.columnID = task.columnID
@@ -366,6 +413,7 @@ final class BoardSyncStore {
         record.priorityKey = task.priority.rawValue
         record.createdAt = task.createdAt
         record.updatedAt = task.updatedAt
+        record.position = position
         record.archivedAt = task.archivedAt
 
         var subtasks = Dictionary(
@@ -434,6 +482,24 @@ final class BoardSyncStore {
                 return ActivityEntry(id: row.id, kind, when: row.when)
             }
         return task
+    }
+
+    /// Fetch descriptors do not guarantee order. Rows with no rank are legacy
+    /// records waiting for `backfillTaskPositions(from:)`; their id is merely a
+    /// deterministic fallback until the local board file can supply the order.
+    private static func ordered(_ records: [StoredTask]) -> [StoredTask] {
+        records.sorted { lhs, rhs in
+            switch (lhs.position, rhs.position) {
+            case let (left?, right?) where left != right:
+                return left < right
+            case (nil, .some):
+                return false
+            case (.some, nil):
+                return true
+            default:
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+        }
     }
 
     /// The placement invariant, rebuilt on the way out. A record carrying one

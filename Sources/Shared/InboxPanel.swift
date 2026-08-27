@@ -116,7 +116,13 @@ struct InboxPanel: View {
             store.drop(dropped.id, onGroundOf: .inbox)
             return true
         } isTargeted: { targeted in
-            if store.allowsCardDrag { store.isInboxDropTarget = targeted }
+            guard store.allowsCardDrag else { return }
+            store.isInboxDropTarget = targeted
+            // The panel's own ground, which is what a *true* here means: a
+            // nested zone takes the hover from its parent, so one of the rows
+            // would have swallowed it. That retires whatever gap a row was
+            // naming — see `BoardStore.dropTargetCaret`.
+            if targeted { store.dropTargetCaret = nil }
         }
     }
 

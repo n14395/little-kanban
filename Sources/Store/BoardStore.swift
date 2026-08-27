@@ -378,6 +378,49 @@ enum DropCaret: Hashable, Sendable {
         case .above(let id), .below(let id): id
         }
     }
+
+    /// Which side of that card the gap is on, as an insertion offset: a gap
+    /// above the card on row *n* opens at *n*, and below it at *n + 1*.
+    ///
+    /// The two cases are the form an *edge* needs — a card draws a line on one
+    /// of its own sides and never has to know how far down the column it is. A
+    /// *row* needs the offset instead, because a list opening a gap is counting
+    /// its own rows. See ``BoardStore/dropPreview(in:)``.
+    var isAbove: Bool {
+        switch self {
+        case .above: true
+        case .below: false
+        }
+    }
+}
+
+
+/// The card in flight, and which row of a list it is about to become.
+///
+/// **A row rather than an edge**, which is the whole difference between this and
+/// ``DropCaret``. A caret is a line drawn *by* a card on one of its own sides,
+/// so it needs a card to hang off and it costs no space. A preview is a card
+/// drawn *between* them: it needs an index, and it pushes its new neighbours
+/// apart by exactly what the real card is about to take.
+///
+/// It carries the task rather than its id so the stand-in can show *which* card
+/// is landing. A hand carrying one card across a board of forty should not have
+/// to remember which one it picked up.
+struct DropPreview: Hashable, Sendable {
+    /// The card being carried.
+    var task: TaskItem
+    /// Where it goes among the rows **as they are drawn** — the card in the air
+    /// is still one of them, dimmed, until the drop lands.
+    var index: Int
+    /// The gap it stands in, or `nil` where it stands on a list's bare ground
+    /// and the drop is `drop(_:onGroundOf:)`'s. This is what the stand-in
+    /// re-claims to hold the gap open under the pointer; see ``DropZone``.
+    var caret: DropCaret?
+    /// The list it is standing in, carried so the stand-in can keep that list
+    /// lit while the pointer is on the gap rather than on one of its cards —
+    /// and so the two views that draw one are handed a single value rather than
+    /// a value and the place it came from.
+    var placement: TaskPlacement
 }
 
 /// Which edge of which column a dragged one would land against — ``DropCaret``
@@ -560,6 +603,25 @@ final class BoardStore {
     /// always the same one: a drop aimed at a column's ground is drawn against
     /// whichever of its cards holds the rank the dragged one is leaving, which
     /// is a card the pointer never touched. See ``dropCaret``.
+    ///
+    /// **Set by a zone the pointer enters, and never cleared by one it
+    /// leaves.** A half of a card that reports the pointer gone says nothing
+    /// about where it went, and the gap it was naming has by then had a
+    /// ``DropPreviewCard`` opened in it — a card-shaped row that moves the card
+    /// underneath it *down*, so the pointer that was in that card's upper half
+    /// is now over the new row instead. Clearing on exit made that a loop: the
+    /// gap shut, the cards sprang back, the pointer landed on the half again,
+    /// the gap re-opened, and the stand-in flickered for as long as the drag
+    /// went on. It is a loop no ordering rule can win, because the zone being
+    /// entered is *created by* the claim the zone being left is about to undo.
+    ///
+    /// So a caret is retired by something that knows where the pointer actually
+    /// went, and there are only three such facts: another zone claiming it, a
+    /// list's own **ground** reporting the pointer on it — which is what
+    /// `isTargeted` on a column, page or panel means, since a nested zone takes
+    /// the hover from its parent — and the drag ending. The ground's report is
+    /// the one that matters here: it is exactly "not in any gap any more", and
+    /// it is the state whose caret is `groundCaret(in:)`'s anyway.
     var dropTargetCaret: DropCaret? {
         get {
             access(keyPath: \.dropTargetCaret)
@@ -847,7 +909,16 @@ final class BoardStore {
     /// and when SwiftData cannot be opened at all, which is the failure the
     /// quarantine machinery exists for and must not look like an empty board.
     static func restored(file: BoardFile = .default, sync: BoardSyncStore? = nil) -> BoardStore {
-        if let sync, let synced = try? sync.load() {
+        if let sync, var synced = try? sync.load() {
+            // `position` was added after task records had already shipped. The
+            // JSON board is the local source that still knows their manual
+            // order; use it only to fill ranks, never to overwrite synced task
+            // content that may be newer on another device.
+            if (try? sync.hasStoredTaskOrder()) == false,
+               let local = file.load().snapshot {
+                try? sync.backfillTaskPositions(from: local.tasks.map(\.id))
+                if let positioned = try? sync.load() { synced = positioned }
+            }
             let store = BoardStore(
                 tasks: synced.tasks, boards: synced.boards, activeBoardID: synced.activeBoardID,
                 labels: synced.labels, themes: synced.themes,
@@ -3156,6 +3227,50 @@ final class BoardStore {
     /// whole of the feedback there, and the drop still lands.
     private func groundCaret(in destination: TaskPlacement) -> DropCaret? {
         tasks(in: destination).last.map { .below($0.id) }
+    }
+
+    /// Where the card in flight would sit in `placement`'s rows if it were let
+    /// go now — the same question ``dropCaret`` answers, in the form a list
+    /// needs to open a gap rather than the form a card needs to draw an edge.
+    ///
+    /// `nil` when the drop would not land in this list, or when nothing is in
+    /// the air at all. Every list on screen asks this of itself; at most one of
+    /// them gets an answer.
+    ///
+    /// **Stricter than the caret, in one case on purpose.** A line against the
+    /// gap a card already occupies claims very little, and the caret draws it. A
+    /// card-shaped hole opening beside the very card that would fill it is a
+    /// promise that the board is about to change — and `drop(_:at:)` refuses
+    /// exactly that drop as a no-op that would cost a ⌘Z. The mark must not
+    /// promise a move the drop will not make, so this asks the same `isAlready`
+    /// the drop does.
+    ///
+    /// **An empty column gets one, where the caret could not.** ``dropCaret``
+    /// goes quiet over a list with nothing in it, and has to: a line needs a
+    /// card to hang off and there is no card. That left the column highlight as
+    /// the whole of the feedback for a drop into an empty column — which is
+    /// precisely the drop with least else on screen to explain it. A row needs
+    /// no anchor, so the empty column shows the card about to become its first.
+    func dropPreview(in placement: TaskPlacement) -> DropPreview? {
+        guard let dragging = draggingID, let task = self[dragging] else { return nil }
+        let rows = tasks(in: placement)
+        if let caret = dropCaret {
+            guard let anchor = rows.firstIndex(where: { $0.id == caret.card }),
+                  !isAlready(dragging, at: caret)
+            else { return nil }
+            return DropPreview(
+                task: task, index: caret.isAbove ? anchor : anchor + 1,
+                caret: caret, placement: placement
+            )
+        }
+        // The empty-column case above. `dropCaret` is nil here for want of an
+        // anchor, not because the drop would go nowhere — so the rest of what
+        // it would have checked is asked again: the board is in its own order,
+        // the pointer is over *this* list, and the card is not already in it.
+        guard allowsCardDrag, rows.isEmpty,
+              hoveredDropPlacement == placement, task.placement != placement
+        else { return nil }
+        return DropPreview(task: task, index: 0, caret: nil, placement: placement)
     }
 
     /// Puts the dragged card exactly where the caret says, which is the one

@@ -262,6 +262,12 @@ import Testing
             // See `DropCaretTests`.
             "Shared/BoardTaskCard.swift": "store.drop(dropped.id, at: caret)",
             "IOS/PhoneTaskCard.swift": "store.drop(dropped.id, at: caret)",
+            // The stand-in drawn *in* the gap, which by the time it is on
+            // screen is what the pointer is over — it opened the gap under it.
+            // It lands in the caret it has been drawing all along, so it is the
+            // one drop closure that must not resolve anything at all. See
+            // ``DropPreviewCard``.
+            "Shared/DropPreviewCard.swift": "store.drop(dropped.id, at: caret)",
             // A column — the desk's strip and the phone's page are both one —
             // and the Inbox, as a panel beside the board and as a sheet over it,
             // take the drops that landed on a list's *ground* rather than in a
@@ -282,7 +288,7 @@ import Testing
         let guardedInside: Set<String> = [
             "Shared/BoardTaskCard.swift", "Shared/BoardColumnView.swift",
             "IOS/PhoneColumnPage.swift", "Shared/InboxPanel.swift",
-            "IOS/PhoneInboxSheet.swift",
+            "IOS/PhoneInboxSheet.swift", "Shared/DropPreviewCard.swift",
         ]
         var seen: Set<String> = []
         for file in SourceTree.files() {

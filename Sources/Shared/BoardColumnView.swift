@@ -143,6 +143,11 @@ struct BoardColumnView: View {
         } isTargeted: { targeted in
             if targeted, store.allowsCardDrag {
                 store.dropTargetColumnID = column.id
+                // On the column's *own ground* — a nested zone takes the hover
+                // from its parent, so this firing at all means the pointer is
+                // in no gap between two cards. That is the fact that retires a
+                // caret; see `BoardStore.dropTargetCaret`.
+                store.dropTargetCaret = nil
             } else if store.dropTargetColumnID == column.id {
                 store.dropTargetColumnID = nil
             }
@@ -303,23 +308,30 @@ struct BoardColumnView: View {
             ScrollView {
                 LazyVStack(spacing: metrics.cardSpacing) {
                     if isComposing {
-                        BoardTaskComposer(
-                            placement: store.placement(forColumn: column.id),
-                            metrics: metrics.composer
-                        )
-                        .id(Self.composerID)
+                        BoardTaskComposer(placement: placement, metrics: metrics.composer)
+                            .id(Self.composerID)
                     }
-                    ForEach(tasks) { task in
+                    if preview?.index == 0 { previewCard }
+                    ForEach(Array(tasks.enumerated()), id: \.element.id) { row, task in
                         BoardCard(task: task, metrics: metrics.card, focus: $focus)
                             .id(task.id)
+                        // After this card, which is the gap the stand-in opens
+                        // when it is the row *following* this one.
+                        if preview?.index == row + 1 { previewCard }
                     }
-                    if tasks.isEmpty, !isComposing {
+                    // A column with a card on the way into it is not empty, and
+                    // the offer to add one is the wrong thing to be reading in
+                    // the half-second before a drop lands.
+                    if tasks.isEmpty, !isComposing, preview == nil {
                         emptyState
                             .padding(.top, 6)
                     }
                 }
                 .padding(.horizontal, 2)
                 .padding(.bottom, 2)
+                // The stand-in *is* the insertion point here, so the cards
+                // beside it draw no line of their own — see `drawsDropCaret`.
+                .environment(\.drawsDropCaret, false)
             }
             .scrollBounceBehavior(.basedOnSize)
             .frame(minHeight: 40)
@@ -343,11 +355,32 @@ struct BoardColumnView: View {
         }
     }
 
+    /// Where in this column a dragged card would land, or `nil` when none is
+    /// on the way here. ``BoardStore/dropPreview(in:)`` is where the answer is
+    /// worked out; the column only makes room for it.
+    private var preview: DropPreview? { store.dropPreview(in: placement) }
+
+    /// The stand-in itself, built once for the two places it can be drawn.
+    @ViewBuilder private var previewCard: some View {
+        if let preview {
+            DropPreviewCard(preview: preview, cornerRadius: metrics.card.cornerRadius) {
+                BoardTaskCard(task: preview.task, metrics: metrics.card, isStandIn: true)
+            }
+            .id(Self.previewID)
+        }
+    }
+
+    /// This column as a place a card can be put.
+    private var placement: TaskPlacement { store.placement(forColumn: column.id) }
+
     /// Flattened, for the reason ``BoardScrollView`` gives.
     private var reveal: BoardReveal? { relay?.reveal ?? nil }
 
     /// The composer's row, which has no task to be identified by.
     private static let composerID = "composer"
+    /// The stand-in's, which has no task of its own either — the card it stands
+    /// for is still in the column it is leaving.
+    private static let previewID = "drop-preview"
 
     /// A column that renders as bare space says nothing about why. There is
     /// only one emptiness left to describe: the search does not empty a column

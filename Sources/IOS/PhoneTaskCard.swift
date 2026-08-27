@@ -209,6 +209,8 @@ struct PhoneTaskCard: View {
 struct ReorderableCard: ViewModifier {
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
+    /// False in the lists that draw a ``DropPreviewCard`` in the gap instead.
+    @Environment(\.drawsDropCaret) private var drawsDropCaret
 
     let task: TaskItem
 
@@ -259,11 +261,11 @@ struct ReorderableCard: ViewModifier {
                 jolts += 1
                 return true
             } isTargeted: { targeted in
-                if targeted {
-                    store.dropTargetCaret = caret
-                } else if store.dropTargetCaret == caret {
-                    store.dropTargetCaret = nil
-                }
+                // Claimed on the way in and not given up on the way out, for
+                // the reason `BoardStore.dropTargetCaret` gives — the stand-in
+                // that opens in this gap takes the finger off this half, and a
+                // clear here would shut the gap that moved it.
+                if targeted { store.dropTargetCaret = caret }
             }
     }
 
@@ -276,7 +278,7 @@ struct ReorderableCard: ViewModifier {
     }
 
     @ViewBuilder private var dropCaret: some View {
-        if dropCaretEdge != nil {
+        if drawsDropCaret, dropCaretEdge != nil {
             Capsule()
                 .fill(palette.accent)
                 .frame(height: 3)

@@ -90,6 +90,10 @@ struct BoardTaskCard: View {
     /// card gives the note the room instead — the reader who needs the big type
     /// is the one who can least afford to open the detail to read a summary.
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// False in the lists that draw a ``DropPreviewCard`` in the gap instead,
+    /// which is every list a card can be dropped into — see the environment
+    /// value for why one insertion point must not be stated twice.
+    @Environment(\.drawsDropCaret) private var drawsDropCaret
 
     let task: TaskItem
     var metrics: Metrics = .desk
@@ -111,6 +115,9 @@ struct BoardTaskCard: View {
     /// well as the selection. `nil` only where nothing has a keyboard to give:
     /// a preview, or the phone's own card.
     var focus: FocusState<TaskItem.ID?>.Binding?
+    /// Draw the card as the faint copy that stands in the gap a drop would land
+    /// in, rather than as a card anyone can touch. See ``standIn``.
+    var isStandIn: Bool = false
 
     @State private var isHovering = false
 
@@ -219,15 +226,13 @@ struct BoardTaskCard: View {
                 // panel goes dark the moment the pointer crosses one of its own
                 // cards.
                 if task.isUnfiled { store.isInboxDropTarget = targeted }
-                // Cleared only by the half that set it: leaving one for the
-                // next fires this one's `false` after the other's `true`, and
-                // an unguarded clear would take the new target down with it —
-                // the order `ChecklistView` guards against between its rows.
-                if targeted {
-                    store.dropTargetCaret = caret
-                } else if store.dropTargetCaret == caret {
-                    store.dropTargetCaret = nil
-                }
+                // Claimed on the way in and **not** given up on the way out —
+                // see `BoardStore.dropTargetCaret` for why leaving a half says
+                // nothing worth acting on, and which three facts do retire a
+                // caret. The short version: by the time this half is left, the
+                // stand-in it asked for has opened in the gap and taken the
+                // pointer, and clearing here would shut the gap that moved it.
+                if targeted { store.dropTargetCaret = caret }
             }
     }
 
@@ -240,7 +245,7 @@ struct BoardTaskCard: View {
     /// the card it names cannot be read as belonging to the one on the other
     /// side of the gap.
     @ViewBuilder private var dropCaret: some View {
-        if dropCaretEdge != nil {
+        if drawsDropCaret, dropCaretEdge != nil {
             Capsule()
                 .fill(palette.accent)
                 .frame(height: 3)
@@ -253,6 +258,34 @@ struct BoardTaskCard: View {
     }
 
     var body: some View {
+        if isStandIn { standIn } else { interactive }
+    }
+
+    /// The card as a **stand-in**: everything it draws, none of what it does.
+    ///
+    /// Drawn in the gap a dragged card would land in — see ``DropPreviewCard``,
+    /// which is the only thing that asks for one. It is this view rather than a
+    /// shape the size of a card because the question a stand-in answers is *is
+    /// this the card I am carrying, and will it fit here*, and an outline
+    /// answers neither: the chips, the note, the due date and the checklist bar
+    /// are what identify a card at a glance, and they are also what make it the
+    /// height it is going to be.
+    ///
+    /// **Stripped of every interaction**, and it has to be. Left whole it would
+    /// bring its own ``dropZones`` with it — two more destinations, claiming
+    /// the gaps either side of a card that is *in the air*, which `dropCaret`
+    /// reads as no caret at all — and a second `.draggable` for a card already
+    /// being dragged. The tick and the ring come along because they are part of
+    /// what the card looks like; the click, the drag, the drops, the menu and
+    /// the rotor actions do not.
+    private var standIn: some View {
+        content
+            .overlay(alignment: .topTrailing) { completionToggle }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    private var interactive: some View {
         Button {
             click()
         } label: {

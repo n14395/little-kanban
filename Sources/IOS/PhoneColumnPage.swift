@@ -65,6 +65,11 @@ struct PhoneColumnPage<Trailing: View>: View {
         } isTargeted: { targeted in
             if targeted, store.allowsCardDrag {
                 store.dropTargetColumnID = column.id
+                // The page's own ground, which is what this firing means — a
+                // nested zone takes the hover from its parent. See
+                // `BoardStore.dropTargetCaret` for why that is what retires a
+                // caret and leaving a row is not.
+                store.dropTargetCaret = nil
             } else if store.dropTargetColumnID == column.id {
                 store.dropTargetColumnID = nil
             }
@@ -78,7 +83,19 @@ struct PhoneColumnPage<Trailing: View>: View {
     /// inside the page's own frame rather than behind something that would
     /// swallow it.
     private var cards: some View {
-        PhoneCardStack(tasks: tasks, metrics: metrics, trailing: trailing)
+        PhoneCardStack(tasks: tasks, metrics: metrics, preview: preview, trailing: trailing)
+            // The stand-in *is* the insertion point on a page a card can be
+            // dropped into, so the rows beside it draw no line of their own —
+            // see `drawsDropCaret`. Set here rather than in the stack because
+            // the Inbox sheet draws the same stack and keeps its line.
+            .environment(\.drawsDropCaret, false)
+    }
+
+    /// Where in this column a dragged card would land, or `nil` when none is on
+    /// the way here. ``BoardStore/dropPreview(in:)`` works it out; the page only
+    /// makes room for it.
+    private var preview: DropPreview? {
+        store.dropPreview(in: store.placement(forColumn: column.id))
     }
 
     /// Which column this page is, drawn only when more than one is on screen.

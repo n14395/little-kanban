@@ -24,6 +24,11 @@ import SwiftUI
 struct PhoneCardStack<Trailing: View>: View {
     let tasks: [TaskItem]
     var metrics: TaskListMetrics = .sheet
+    /// The card on its way into this list and where it would land, or `nil`
+    /// when none is — see ``DropPreview``. Supplied by ``PhoneColumnPage``,
+    /// which is the surface a card is dragged *between*; the Inbox sheet draws
+    /// the same stack without one.
+    var preview: DropPreview?
     /// Rows after the cards — an empty state, a dashed "add task to…" row. The
     /// surfaces build their own, because the wording is theirs.
     @ViewBuilder let trailing: () -> Trailing
@@ -31,7 +36,8 @@ struct PhoneCardStack<Trailing: View>: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: metrics.rowSpacing) {
-                ForEach(tasks) { task in
+                if preview?.index == 0 { previewCard }
+                ForEach(Array(tasks.enumerated()), id: \.element.id) { row, task in
                     // No column chip on either surface that draws this, and for
                     // the same argument from opposite ends (4.8): a column page
                     // *is* the column it would name, and every card in the Inbox
@@ -39,6 +45,7 @@ struct PhoneCardStack<Trailing: View>: View {
                     // gathers cards from anywhere, which is what the flat
                     // surfaces are.
                     PlatformTaskCard(task: task, showsColumn: false)
+                    if preview?.index == row + 1 { previewCard }
                 }
                 // The dashed "add task to…" row and the empty state's offer are
                 // buttons, and they sit over the surface's drop destination —
@@ -58,6 +65,18 @@ struct PhoneCardStack<Trailing: View>: View {
         // still under a finger that is about to drop a card on it.
         .scrollBounceBehavior(.basedOnSize)
         .scrollDismissesKeyboard(.interactively)
+    }
+
+    /// The gap a dragged card would drop into, drawn as the card that would
+    /// fill it. A finger hides more of a phone than a pointer hides of a
+    /// window, so if anything this surface needs it more.
+    @ViewBuilder private var previewCard: some View {
+        if let preview {
+            DropPreviewCard(preview: preview, cornerRadius: 16) {
+                PhoneTaskCard(task: preview.task, showsColumn: false)
+            }
+            .id("drop-preview")
+        }
     }
 }
 
