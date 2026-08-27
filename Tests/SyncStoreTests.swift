@@ -361,6 +361,64 @@ import Testing
         #expect(try sync.hasStoredTaskOrder())
     }
 
+    /// CloudKit can import task records before the columns they name. That is a
+    /// temporary incomplete snapshot, not a deliberate move to the Inbox; if it
+    /// were adopted, the next save would make the temporary state permanent on
+    /// every device.
+    @Test func anIncompleteSyncImportDoesNotUnfileTasks() throws {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.inMemory()
+        let tasks = TestBoard.tasks(on: SeedData.defaultBoard)
+        let board = BoardSnapshot(
+            tasks: tasks, boards: SeedData.boards, labels: LabelDef.seed,
+            nextSerial: 100, activeBoardID: SeedData.defaultBoard.id
+        )
+        try temp.file.write(board, generation: temp.file.nextWriteGeneration())
+        try sync.apply(board)
+
+        let task = try #require(tasks.first { $0.columnID != nil })
+        let column = try #require(
+            sync.container.mainContext.fetch(FetchDescriptor<StoredColumn>()).first {
+                $0.id == task.columnID
+            }
+        )
+        sync.container.mainContext.delete(column)
+        try sync.container.mainContext.save()
+
+        let store = BoardStore.restored(file: temp.file, sync: sync)
+        #expect(store[task.id]?.placement == task.placement)
+        let stored = try #require(
+            sync.container.mainContext.fetch(FetchDescriptor<StoredTask>()).first { $0.id == task.id }
+        )
+        #expect(stored.boardID == task.boardID)
+        #expect(stored.columnID == task.columnID)
+    }
+
+    @Test func anIncompleteRemoteUpdateDoesNotUnfileTasks() throws {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.inMemory()
+        let tasks = TestBoard.tasks(on: SeedData.defaultBoard)
+        let board = BoardSnapshot(
+            tasks: tasks, boards: SeedData.boards, labels: LabelDef.seed,
+            nextSerial: 100, activeBoardID: SeedData.defaultBoard.id
+        )
+        try temp.file.write(board, generation: temp.file.nextWriteGeneration())
+        try sync.apply(board)
+        let store = BoardStore.restored(file: temp.file, sync: sync)
+
+        let task = try #require(tasks.first { $0.columnID != nil })
+        let column = try #require(
+            sync.container.mainContext.fetch(FetchDescriptor<StoredColumn>()).first {
+                $0.id == task.columnID
+            }
+        )
+        sync.container.mainContext.delete(column)
+        try sync.container.mainContext.save()
+
+        store.mergeRemoteChanges()
+        #expect(store[task.id]?.placement == task.placement)
+    }
+
     /// The upgrade path: a board that only exists as JSON is folded into the
     /// records on the launch that first has them, rather than being lost or
     /// duplicated.

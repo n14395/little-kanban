@@ -894,6 +894,11 @@ final class BoardStore {
     /// off, when the entitlement is missing, and in every test.
     var isSyncing: Bool { sync?.isSyncing ?? false }
 
+    /// A newly installed device can receive task records before the boards and
+    /// columns they name. Until that import is complete, writing the temporary
+    /// snapshot back would turn every unresolved task into an Inbox task.
+    @ObservationIgnored private var isAwaitingCompleteSync = false
+
     @ObservationIgnored private var remoteChangeObserver: (any NSObjectProtocol)?
 
     /// Bumped by every mutation. `scheduleSave()` is the one call the mutation
@@ -909,7 +914,28 @@ final class BoardStore {
     /// and when SwiftData cannot be opened at all, which is the failure the
     /// quarantine machinery exists for and must not look like an empty board.
     static func restored(file: BoardFile = .default, sync: BoardSyncStore? = nil) -> BoardStore {
-        if let sync, var synced = try? sync.load() {
+        if let sync, let loaded = try? sync.load() {
+            // CloudKit applies records and relationships independently. A task
+            // whose column has not arrived yet is not an Inbox task, so keep a
+            // local snapshot visible, if one exists, and wait for the next
+            // remote change rather than normalising and re-uploading it.
+            if Self.hasUnresolvedTaskPlacements(in: loaded) {
+                let local = file.load().snapshot
+                let store = BoardStore(
+                    tasks: local?.tasks ?? [], boards: local?.boards ?? [],
+                    activeBoardID: local?.activeBoardID, labels: local?.labels ?? loaded.labels,
+                    themes: local?.themes ?? loaded.themes,
+                    nextSerial: local?.nextSerial ?? loaded.nextSerial,
+                    trash: local?.trash ?? [], views: local?.views ?? SavedView.seededAll,
+                    savedColors: local?.palette ?? PaletteSwatch.seed,
+                    file: file, sync: sync
+                )
+                store.isAwaitingCompleteSync = true
+                store.applyStoredPreferences()
+                return store
+            }
+
+            var synced = loaded
             // `position` was added after task records had already shipped. The
             // JSON board is the local source that still knows their manual
             // order; use it only to fill ranks, never to overwrite synced task
@@ -1152,6 +1178,17 @@ final class BoardStore {
         }
     }
 
+    /// A sync snapshot is incomplete while any task names a column that has not
+    /// arrived. This is distinct from an Inbox task, which names no column at
+    /// all, and from a real board deletion, whose task records are unfiled in
+    /// the same remote update.
+    private static func hasUnresolvedTaskPlacements(in snapshot: BoardSnapshot) -> Bool {
+        let columns = Set(snapshot.boards.flatMap(\.columns).map(\.id))
+        return snapshot.tasks.contains { task in
+            task.columnID.map { !columns.contains($0) } ?? false
+        }
+    }
+
     // MARK: - Persistence
 
     private var snapshot: BoardSnapshot {
@@ -1287,7 +1324,7 @@ final class BoardStore {
     /// device either way. It is reported so the surface can say the board is
     /// not reaching the user's other devices, which is a different sentence.
     private func pushToSync(_ board: BoardSnapshot? = nil) {
-        guard let sync else { return }
+        guard let sync, !isAwaitingCompleteSync else { return }
         do {
             try sync.apply(board ?? snapshot)
             if case .sync = lastError { lastError = nil }
@@ -1320,6 +1357,8 @@ final class BoardStore {
         guard let sync else { return }
         pushToSync()
         guard let incoming = try? sync.load() else { return }
+        guard !Self.hasUnresolvedTaskPlacements(in: incoming) else { return }
+        isAwaitingCompleteSync = false
         adoptContent(incoming)
         lastSyncedAt = .now
     }
