@@ -44,7 +44,10 @@ import Testing
             ("CompletionToggle.sheetPanel.hitSize", CompletionToggle.Metrics.sheetPanel.hitSize),
             ("CompletionToggle.sheetHeader.hitSize", CompletionToggle.Metrics.sheetHeader.hitSize),
             ("TaskInspector.pad.tick.hitSize", TaskInspector.Metrics.pad.tick.hitSize),
-            ("LabelManagerView.sheet.swatchHit", LabelManagerView.Metrics.sheet.swatchHit),
+            // The colour control on the manager's row is a `ColorWell`, whose
+            // sheet height is the 44 this list wants — named here through the
+            // metrics the row actually passes it.
+            ("LabelManagerView.sheet.colorWell.height", LabelManagerView.Metrics.sheet.colorWell.height),
             ("LabelManagerView.sheet.glyphHit", LabelManagerView.Metrics.sheet.glyphHit),
             ("LabelManagerView.sheet.rowMinHeight", LabelManagerView.Metrics.sheet.rowMinHeight),
             ("ThemeBrowserView.sheet.hit", ThemeBrowserView.Metrics.sheet.hit),

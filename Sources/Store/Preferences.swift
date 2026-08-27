@@ -199,6 +199,35 @@ enum CardDensity: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+// MARK: - What finishing sounds like
+
+/// The chime a card makes on its way into Done.
+///
+/// Five bundled sounds rather than the system's: the system has no
+/// cross-platform "completion" sound to name, and a bundled file is the same
+/// chime on the Mac and the phone. Each case names a file in the bundle's
+/// `Sounds/` folder — `PackagingTests` holds the two lists together.
+enum CompletionSound: String, CaseIterable, Identifiable, Sendable {
+    case chime, ding, pop, wood, glass
+
+    var id: String { rawValue }
+    static let storageKey = "SimpleKanbanCompletionSound"
+    static let fallback = CompletionSound.chime
+
+    /// `completion-chime`, under `Sounds/` with a `.caf` extension.
+    var resourceName: String { "completion-\(rawValue)" }
+
+    var label: String {
+        switch self {
+        case .chime: String(localized: "Chime", comment: "Completion sound: two soft rising notes")
+        case .ding: String(localized: "Ding", comment: "Completion sound: a single bell")
+        case .pop: String(localized: "Pop", comment: "Completion sound: a short low pluck")
+        case .wood: String(localized: "Wood", comment: "Completion sound: a soft marimba knock")
+        case .glass: String(localized: "Glass", comment: "Completion sound: three delicate high notes")
+        }
+    }
+}
+
 // MARK: - What "this week" means
 
 /// What the app means by a week.
@@ -301,6 +330,10 @@ extension Preferences {
     /// ⌘↩, and the tick beside the title in the detail panel, which is drawn
     /// whatever this says.
     static let cardTickKey = "SimpleKanbanShowsCardTick"
+    /// Play the completion chime when a card reaches Done. On by default: the
+    /// sound is the point of the feature, and the switch is for the person it
+    /// grates on — see ``CompletionSound`` for which chime.
+    static let completionSoundKey = "SimpleKanbanPlaysCompletionSound"
     /// Keep the ⌃⌘N status item in the menu bar. On by default, because it is
     /// the app's one route in from another app.
     static let menuBarExtraKey = "SimpleKanbanShowsMenuBarExtra"
@@ -373,6 +406,9 @@ extension Preferences {
     static var weekMeaning: WeekMeaning {
         choice(WeekMeaning.self, key: WeekMeaning.storageKey, fallback: .fallback)
     }
+    static var completionSound: CompletionSound {
+        choice(CompletionSound.self, key: CompletionSound.storageKey, fallback: .fallback)
+    }
 
     /// Writes down the view on screen, for ``resumesLastPlace`` to read at the
     /// next launch. Written whatever the setting says: turning it on should
@@ -389,6 +425,7 @@ extension Preferences {
     static var resumesLastPlace: Bool { flag(resumeKey) }
     static var opensInboxAtLaunch: Bool { flag(inboxAtLaunchKey) }
     static var showsCardTick: Bool { flag(cardTickKey, fallback: true) }
+    static var playsCompletionSound: Bool { flag(completionSoundKey, fallback: true) }
     static var showsMenuBarExtra: Bool { flag(menuBarExtraKey, fallback: true) }
     static var launchesAtLogin: Bool { flag(launchAtLoginKey) }
 }

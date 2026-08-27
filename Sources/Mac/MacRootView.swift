@@ -89,12 +89,14 @@ struct MacRootView: View {
                             // Dropping it reflowed the whole board out from
                             // under a ⌘⌥I that had done exactly what it says,
                             // which read as a broken toggle.
+                            //
+                            // A child view rather than `store.selectedTask`
+                            // read here: the read reached `tasks`, so every
+                            // keystroke into any field re-ran — and re-diffed —
+                            // the whole window. The pane is where that
+                            // dependency now stops.
                             if store.isInspectorOpen {
-                                if let task = store.selectedTask {
-                                    TaskInspector(task: task)
-                                } else {
-                                    MacEmptyInspector()
-                                }
+                                MacInspectorPane()
                             }
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -124,8 +126,12 @@ struct MacRootView: View {
         // is measured against. The sidebar can go, so the floor goes with it.
         .frame(minWidth: Self.floor(sidebar: window.isSidebarVisible, inbox: store.isInboxShowing),
                minHeight: 620)
+        // No `value: store.selection` here any more: an animation keyed on the
+        // selection at the root put every click and every arrow key through a
+        // 0.16s diff-and-interpolate of the entire window. The pieces that
+        // actually move on selection animate themselves — the inspector pane
+        // on its own task, the card on its own ring.
         .motionAnimation(.easeOut(duration: 0.16), value: store.isInspectorOpen)
-        .motionAnimation(.easeOut(duration: 0.16), value: store.selection)
         .motionAnimation(.easeOut(duration: 0.16), value: store.surface)
         .motionAnimation(.easeOut(duration: 0.16), value: window.isSidebarVisible)
         .motionAnimation(.easeOut(duration: 0.16), value: store.isInboxShowing)
@@ -196,6 +202,28 @@ extension MacRootView {
         if sidebar { width += 232 }
         if inbox { width += InboxPanel.Metrics.desk.width }
         return width
+    }
+}
+
+/// The inspector column: the selected task's panel, or the empty one.
+///
+/// A view of its own so that `selectedTask` — a read that reaches both the
+/// selection and the whole `tasks` array — is observed *here* rather than by
+/// `MacRootView.body`. Any task edit re-renders this pane and nothing above
+/// it; the swap between panels keeps the fade the window-level animation used
+/// to give it, scoped to the one column that moves.
+private struct MacInspectorPane: View {
+    @Environment(BoardStore.self) private var store
+
+    var body: some View {
+        Group {
+            if let task = store.selectedTask {
+                TaskInspector(task: task)
+            } else {
+                MacEmptyInspector()
+            }
+        }
+        .motionAnimation(.easeOut(duration: 0.16), value: store.selectedID)
     }
 }
 

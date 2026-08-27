@@ -53,6 +53,74 @@ import Testing
         #expect(store.label(forKey: "infra-work")?.name == "Infra Work")     // the first name stands
     }
 
+    /// The manager's drag: the vocabulary reorders, every definition survives
+    /// unchanged, and no task is touched — order is presentation, not an
+    /// event. `dropOffset` is the same off-by-one the checklist and the
+    /// columns go through, so "drop on the row below" means landing below it.
+    @MainActor
+    @Test func reorderingLabelsMovesTheListAndNothingElse() throws {
+        let store = TestBoard.store()
+        let before = store.labels
+        try #require(before.count >= 3, "the seed list is too short to reorder meaningfully")
+        let tasksBefore = store.tasks
+
+        store.moveLabel(
+            fromOffsets: IndexSet(integer: 0),
+            toOffset: BoardStore.dropOffset(from: 0, to: 2)
+        )
+        let expected = [before[1].key, before[2].key, before[0].key] + before.dropFirst(3).map(\.key)
+        #expect(store.labels.map(\.key) == expected)
+        #expect(Set(store.labels) == Set(before), "a definition changed in the move")
+        #expect(store.tasks == tasksBefore, "a reorder reached a task")
+
+        // A drop back where it started is not an event.
+        let settled = store.labels
+        store.moveLabel(fromOffsets: IndexSet(integer: 1), toOffset: 1)
+        #expect(store.labels == settled)
+    }
+
+    /// The manager's create: the definition joins the vocabulary and lands on
+    /// no task; a name that slugs to an existing key makes nothing and hands
+    /// back the key of the row already on the list.
+    @MainActor
+    @Test func creatingFromTheManagerTouchesNoTask() {
+        let store = TestBoard.store()
+        let tasksBefore = store.tasks
+        let key = store.createLabel(named: "Quiet Work", color: SwatchColor.rgb(0x8058C8, opacity: 1))
+        #expect(key == "quiet-work")
+        #expect(store.label(forKey: "quiet-work")?.name == "Quiet Work")
+        #expect(store.tasks == tasksBefore, "a vocabulary edit reached a task")
+
+        #expect(store.createLabel(named: "Polish") == "polish")
+        #expect(store.labels.count == LabelDef.seed.count + 1, "an existing name made a second definition")
+        #expect(store.createLabel(named: "   ") == nil)
+    }
+
+    /// The compose form's path: a chosen colour is worn, and the rotation is
+    /// what a label made without one wears — the same answer `nextLabelColor`
+    /// shows the form before anything is picked.
+    @MainActor
+    @Test func aChosenColourIsWornAndTheRotationCoversTheRest() {
+        let store = TestBoard.store()
+        let picked = SwatchColor.rgb(0x8058C8, opacity: 1)
+
+        store.createLabel(named: "Deliberate", color: picked, on: TestBoard.cafe)
+        #expect(store.label(forKey: "deliberate")?.light == store.labelTones(for: picked).light)
+        #expect(store.label(forKey: "deliberate")?.dark == store.labelTones(for: picked).dark)
+
+        // Read after the create above: every label added moves the rotation on
+        // a place, and this is the answer the compose form's well would show.
+        let expectedDefault = store.nextLabelColor
+        store.createLabel(named: "Defaulted", on: TestBoard.cafe)
+        #expect(store.label(forKey: "defaulted")?.light == store.labelTones(for: expectedDefault).light)
+
+        // A colour handed in with a name that already names a label is not a
+        // recolour: "adding" an existing label must not repaint it.
+        let polish = store.label(forKey: "polish")
+        store.createLabel(named: "Polish", color: picked, on: TestBoard.dragDrop)
+        #expect(store.label(forKey: "polish") == polish)
+    }
+
     @MainActor
     @Test func applyingALabelATaskAlreadyHasIsNotAnEvent() {
         let store = TestBoard.store()

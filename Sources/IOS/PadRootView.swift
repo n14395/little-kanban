@@ -190,9 +190,11 @@ struct PadRootView: View {
         // nothing to say and the column has to hold its own edge.
         .clipped()
         .background(palette.windowFill)
+        // No `value: store.selection` here: keyed on the selection, every tap
+        // on a card put the whole detail column through a 0.16s diff. The
+        // inspector pane animates its own task swap, and the card its own ring.
         .motionAnimation(.easeOut(duration: 0.16), value: store.isInspectorOpen)
         .motionAnimation(.easeOut(duration: 0.16), value: store.isInboxShowing)
-        .motionAnimation(.easeOut(duration: 0.16), value: store.selection)
         .toolbar(.hidden, for: .navigationBar)
     }
 
@@ -329,18 +331,7 @@ struct PadRootView: View {
     /// does: dropping it would reflow the board out from under the toggle that
     /// had just done what it says.
     @ViewBuilder
-    private var inspector: some View {
-        Group {
-            if let task = store.selectedTask {
-                TaskInspector(task: task, metrics: .pad)
-            } else {
-                EmptyStateView.noSelection(metrics: .sheet)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(palette.panelOverlay)
-            }
-        }
-        .toolbar(.hidden, for: .navigationBar)
-    }
+    private var inspector: some View { PadInspectorPane() }
 
     // MARK: Which panel gives way
 
@@ -530,6 +521,32 @@ struct PadRootView: View {
     /// behind it, so a view the search emptied is not a state this can be in.
     private func savedViewEmptyState(_ view: SavedView) -> some View {
         EmptyStateView.savedView(view, metrics: .sheet)
+    }
+}
+
+/// The inspector column: the selected task's panel, or the empty state.
+///
+/// A view of its own for `MacInspectorPane`'s reason: `selectedTask` reads the
+/// selection *and* the whole `tasks` array, so read from `PadRootView.body`
+/// it re-ran the entire detail column on every task edit. The pane is where
+/// that dependency stops, and it keeps the fade the column-level
+/// `value: store.selection` animation used to give the panel swap.
+private struct PadInspectorPane: View {
+    @Environment(\.palette) private var palette
+    @Environment(BoardStore.self) private var store
+
+    var body: some View {
+        Group {
+            if let task = store.selectedTask {
+                TaskInspector(task: task, metrics: .pad)
+            } else {
+                EmptyStateView.noSelection(metrics: .sheet)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(palette.panelOverlay)
+            }
+        }
+        .motionAnimation(.easeOut(duration: 0.16), value: store.selectedID)
+        .toolbar(.hidden, for: .navigationBar)
     }
 }
 

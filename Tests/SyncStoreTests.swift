@@ -382,18 +382,43 @@ import Testing
         store.saveNow()
         undo.removeAllActions()
 
-        // Another device renames it, straight into the records.
+        // Another device renames it, straight into the records — through a
+        // *second* store over the same container, the way a CloudKit import
+        // arrives: this device's own diff base must not hear about it, or the
+        // merge's flush would treat the remote edit as something local to
+        // write back over.
         var theirs = try #require(try sync.load())
         theirs.tasks = theirs.tasks.map { task in
             var edited = task
             if edited.title == "Mine" { edited.title = "Theirs" }
             return edited
         }
-        try sync.apply(theirs)
+        try BoardSyncStore(container: sync.container, isSyncing: false).apply(theirs)
 
         store.mergeRemoteChanges()
         #expect(store.tasks.contains { $0.title == "Theirs" })
         #expect(store.tasks.contains { $0.title == "Mine" } == false)
         #expect(undo.canUndo == false, "a remote change put a step on the undo stack")
+    }
+
+    /// The race the debounce opened, which is what made a just-made board
+    /// flash into the sidebar and vanish: the push to the records rides the
+    /// save debounce, so a change notification processed inside that window
+    /// found records without the board and the merge adopted them. The merge
+    /// flushes what is pending before it reads, so the read returns the union.
+    @Test func aMergeKeepsAnEditTheDebounceHasNotPushedYet() throws {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.inMemory()
+        let store = BoardStore.restored(file: temp.file, sync: sync)
+        store.saveNow()
+
+        // The click: a board is made, its settings sheet is about to open, and
+        // its push is still riding the debounce when the notification lands.
+        let made = try #require(store.createBoard(named: "Fresh"))
+        store.mergeRemoteChanges()
+
+        #expect(store.boards.contains { $0.id == made }, "the merge swallowed the pending board")
+        #expect(try #require(try sync.load()).boards.contains { $0.id == made },
+                "the merge read the records without flushing the pending board into them")
     }
 }

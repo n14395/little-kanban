@@ -20,7 +20,16 @@ struct ThemePreviewTile: View {
     /// number to change and no second set of metrics to keep in agreement.
     var scale: CGFloat = 1
 
-    private var palette: Palette { Palette(theme: theme) }
+    /// Stored, not computed: the tile reads it dozens of times per body, and
+    /// as a computed property each read rebuilt the palette — and re-resolved
+    /// its fonts — from scratch.
+    private let palette: Palette
+
+    init(theme: Theme, scale: CGFloat = 1) {
+        self.theme = theme
+        self.scale = scale
+        self.palette = Palette(theme: theme)
+    }
 
     var body: some View {
         HStack(spacing: 0) {

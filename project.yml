@@ -30,6 +30,11 @@ targets:
       - path: Resources/Localizable.xcstrings
       - path: Resources/Fonts
         type: folder
+      # The completion chimes, as a folder for `FontCatalog`'s reason: the app
+      # asks the bundle for `Sounds/completion-<name>.caf`, so the folder name
+      # is part of the contract.
+      - path: Resources/Sounds
+        type: folder
       # Required-reason API declarations. A resource of the bundle rather than
       # a build setting: the App Store reads it out of the .app, and
       # notarization is happy either way.
@@ -66,6 +71,10 @@ targets:
               - public.data
           - UTTypeIdentifier: com.n14395.SimpleKanban.column
             UTTypeDescription: Simple Kanban Column
+            UTTypeConformsTo:
+              - public.data
+          - UTTypeIdentifier: com.n14395.SimpleKanban.label
+            UTTypeDescription: Simple Kanban Label
             UTTypeConformsTo:
               - public.data
           # The export/import document (6.2). JSON rather than opaque data, so

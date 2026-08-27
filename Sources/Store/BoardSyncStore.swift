@@ -388,19 +388,27 @@ final class BoardSyncStore {
             (record.activity ?? []).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }
         )
         for entry in task.activity {
-            let row = entries.removeValue(forKey: entry.id) ?? {
-                let fresh = StoredActivity(id: entry.id)
-                context.insert(fresh)
-                fresh.task = record
-                return fresh
-            }()
-            row.kind = (try? JSONEncoder().encode(entry.kind)) ?? Data()
-            row.when = entry.when
+            // An id names one immutable entry — they are made once and never
+            // edited — so an existing row is already right. Rewriting it
+            // re-encoded the kind and dirtied the context for every entry of
+            // every changed task, a cost that grew for the life of the card.
+            if entries.removeValue(forKey: entry.id) != nil { continue }
+            let fresh = StoredActivity(id: entry.id)
+            context.insert(fresh)
+            fresh.task = record
+            fresh.kind = (try? Self.kindEncoder.encode(entry.kind)) ?? Data()
+            fresh.when = entry.when
         }
         // Activity is append-only, so an entry the snapshot no longer carries
         // was undone rather than forgotten, and the record goes with it.
         for orphan in entries.values { context.delete(orphan) }
     }
+
+    /// One coder each way rather than one per activity row: a fresh
+    /// `JSONEncoder` per entry made loading a long-lived board allocate
+    /// thousands of them.
+    private static let kindEncoder = JSONEncoder()
+    private static let kindDecoder = JSONDecoder()
 
     private static func value(of record: StoredTask) -> TaskItem {
         var task = TaskItem(id: record.id, code: record.code, title: record.title)
@@ -421,7 +429,7 @@ final class BoardSyncStore {
         task.activity = (record.activity ?? [])
             .sorted { $0.when > $1.when }
             .compactMap { row in
-                guard let kind = try? JSONDecoder().decode(ActivityEntry.Kind.self, from: row.kind)
+                guard let kind = try? Self.kindDecoder.decode(ActivityEntry.Kind.self, from: row.kind)
                 else { return nil }
                 return ActivityEntry(id: row.id, kind, when: row.when)
             }

@@ -43,13 +43,17 @@ struct ColorWell: View {
     /// The colour the button wears, and the one the picker opens on.
     let selection: SwatchColor
     var metrics: Metrics = .desk
+    /// The words on the button. The default is the long form; a surface whose
+    /// row already says what the colour is for — the label manager's, where
+    /// the chip sits right beside it — hands in the shorter one.
+    var title: String = String(localized: "Select Colour", comment: "The colour button's label")
     let onSelect: (SwatchColor) -> Void
 
     @State private var isPicking = false
 
     var body: some View {
         Button { isPicking = true } label: {
-            Text("Select Colour")
+            Text(title)
                 .font(palette.ui(metrics.font, .bold, relativeTo: .subheadline))
                 .foregroundStyle(readableInk)
                 .frame(maxWidth: .infinity)
@@ -66,7 +70,7 @@ struct ColorWell: View {
                 .contentShape(.rect)
         }
         .buttonStyle(.bare)
-        .accessibilityLabel("Select Colour")
+        .accessibilityLabel(title)
         .accessibilityValue(name)
         .popover(isPresented: $isPicking, arrowEdge: .bottom) {
             ColorPickerPopover(selection: selection, metrics: metrics.picker) { picked in

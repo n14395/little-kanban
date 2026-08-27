@@ -197,6 +197,17 @@ struct BoardSettingsView: View {
             commitRename()
             commitColumnRename()
         }
+        // A sheet with no board under it is a header over nothing. The merge
+        // race used to leave exactly that on screen — a just-made board
+        // swallowed while its settings opened — and a board can also genuinely
+        // go while its settings are up, deleted on another device. Either way
+        // the sheet goes with its board rather than standing empty.
+        .onChange(of: board == nil) { _, isGone in
+            if isGone { store.boardSettings = nil }
+        }
+        .task {
+            if board == nil { store.boardSettings = nil }
+        }
         .alert(
             refusal?.errorDescription ?? "",
             isPresented: Binding(get: { refusal != nil }, set: { if !$0 { refusal = nil } }),
@@ -741,6 +752,14 @@ struct BoardSettingsView: View {
         .padding(12)
         .background(palette.ink(0.045), in: .rect(cornerRadius: metrics.radius))
         .id(Self.composerAnchor)
+        // The composer opens to be typed into, so its Name field takes the
+        // caret — on both routes in: the "+ Add column" row above, and a sheet
+        // that arrived with `addsColumn` already asked for. Hung on the
+        // composer rather than set where `isAddingColumn` flips, because the
+        // field is not in the tree yet at either of those moments — the
+        // assignment this app has watched fail three times over — see
+        // `focusWhenReady`.
+        .focusWhenReady($columnFocus, .new)
     }
 
     /// **Name, Short and Colour — the whole of what a column is**, in the one

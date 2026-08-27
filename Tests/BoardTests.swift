@@ -429,6 +429,31 @@ import Testing
         #expect(store.workingColumns.isEmpty)
     }
 
+    /// When the strip steps aside for the blank-board state, spelled out —
+    /// `BoardScrollView.showsBlankState`, the rule the phone has always
+    /// applied. The line that pins the bug: a column added to a blank board
+    /// used to stay invisible behind "This board is empty" until the first
+    /// card materialised it, because the old rule read the cards and never
+    /// the columns.
+    @Test func aBoardWithAWorkingColumnShowsItsColumnsHoweverEmpty() {
+        // The fix: structure on a cardless board is drawn, not announced away.
+        #expect(!BoardScrollView.showsBlankState(
+            hasWorkingColumns: true, hasAnyVisibleCard: false, isComposing: false
+        ), "a freshly added column hid behind the blank-board state")
+        // A board with only its Done column and nothing in it is blank.
+        #expect(BoardScrollView.showsBlankState(
+            hasWorkingColumns: false, hasAnyVisibleCard: false, isComposing: false
+        ))
+        // A card completed onto a Done-only board must stay reachable.
+        #expect(!BoardScrollView.showsBlankState(
+            hasWorkingColumns: false, hasAnyVisibleCard: true, isComposing: false
+        ))
+        // A column being composed is in the strip; the strip stays.
+        #expect(!BoardScrollView.showsBlankState(
+            hasWorkingColumns: false, hasAnyVisibleCard: false, isComposing: true
+        ))
+    }
+
     /// The other half of blank: a card added on the phone while a board has no
     /// columns goes to the Inbox rather than onto whichever board the pager was
     /// last pointed at.
@@ -573,17 +598,25 @@ import Testing
 
     @Test func theActiveBoardSurvivesARelaunchAndTheSurfaceDoesNot() throws {
         let temp = TempBoard()
-        let store = Self.store(file: temp.file)
-        store.selectBoard(Self.betaID)
-        store.selectSurface(.view(SavedView.today.id))
-        store.saveNow()
+        // A swapped-in suite, because both halves of this test otherwise reach
+        // the developer's real preferences: `selectSurface` *writes* the last
+        // surface there, and the relaunch *reads* "reopen the view I was on" —
+        // so the test failed on any machine whose owner had turned that on,
+        // and quietly edited their stored surface on every machine besides.
+        let suite = try #require(UserDefaults(suiteName: "SimpleKanbanTests-\(UUID().uuidString)"))
+        Preferences.reading(suite) {
+            let store = Self.store(file: temp.file)
+            store.selectBoard(Self.betaID)
+            store.selectSurface(.view(SavedView.today.id))
+            store.saveNow()
 
-        let relaunched = BoardStore.restored(file: temp.file)
-        #expect(relaunched.activeBoardID == Self.betaID)
-        #expect(relaunched.activeBoard?.name == "Beta")
-        // Where they were looking is not board data.
-        #expect(relaunched.surface == .board)
-        #expect(relaunched.activeView == nil)
+            let relaunched = BoardStore.restored(file: temp.file)
+            #expect(relaunched.activeBoardID == Self.betaID)
+            #expect(relaunched.activeBoard?.name == "Beta")
+            // Where they were looking is not board data.
+            #expect(relaunched.surface == .board)
+            #expect(relaunched.activeView == nil)
+        }
     }
 
     @Test func theBoardsAndTheInboxAreWrittenAndReadBack() throws {

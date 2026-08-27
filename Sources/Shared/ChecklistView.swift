@@ -117,12 +117,25 @@ struct ChecklistView: View {
             }
             .padding(-metrics.boxOverhang)
 
-            TextField("Sub-task", text: textBinding(for: subtask))
+            // The vertical axis wraps a long sub-task instead of clipping it
+            // mid-sentence; `updateSubtask` folds whitespace, so a newline
+            // cannot reach the row's text. Return on such a field never fires
+            // `.onSubmit`, so `.onKeyPress` ends the session in its place —
+            // the same trade the inspector's title field makes, spelled out
+            // there. The *draft* row below keeps its single axis on purpose:
+            // its Return commits and re-arms, a flow the software keyboard has
+            // to keep, and a draft scrolls while it is typed rather than
+            // truncating.
+            TextField("Sub-task", text: textBinding(for: subtask), axis: .vertical)
                 .textFieldStyle(.plain)
                 .font(palette.ui(metrics.font, .semibold, relativeTo: .footnote))
                 .foregroundStyle(subtask.done ? palette.inkText(0.4) : palette.ink(0.8))
                 .strikethrough(subtask.done, color: palette.ink(0.4))
                 .focused($focusedRow, equals: subtask.id)
+                .onKeyPress(.return) {
+                    focusedRow = nil
+                    return .handled
+                }
                 .onSubmit { focusedRow = nil }
                 .frame(maxWidth: .infinity, minHeight: metrics.fieldHit, alignment: .leading)
                 .contentShape(.accessibility, Rectangle())

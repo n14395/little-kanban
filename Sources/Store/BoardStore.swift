@@ -414,7 +414,7 @@ final class BoardStore {
     /// `store.tasks.removeAll()` would empty the board with `canUndo` still false.
     private(set) var tasks: [TaskItem]
     /// The boards, in sidebar order, each carrying its own columns.
-    private(set) var boards: [Board] { didSet { columnOwners = nil } }
+    private(set) var boards: [Board] { didSet { columnOwners = nil; boardIndices = nil; doneColumns = nil } }
     /// The board being looked at. Persisted, unlike `surface` — which board you
     /// are on is where your work is. `nil` only on a board list emptied down to
     /// nothing; every other path keeps it naming a board that exists.
@@ -512,8 +512,36 @@ final class BoardStore {
 
     // MARK: Board interaction
 
-    var draggingID: TaskItem.ID?
-    var dropTargetColumnID: BoardColumn.ID?
+    // The three drag-hover fields are computed over ignored storage so a
+    // write of the value already there notifies nobody. They are written from
+    // `isTargeted` callbacks that fire in bursts as the pointer crosses a
+    // card's halves — several per crossing saying the same thing — and every
+    // visible card reads them, so each redundant write was a full pass of
+    // card re-renders for a board that looked exactly the same.
+
+    var draggingID: TaskItem.ID? {
+        get {
+            access(keyPath: \.draggingID)
+            return _draggingID
+        }
+        set {
+            guard newValue != _draggingID else { return }
+            withMutation(keyPath: \.draggingID) { _draggingID = newValue }
+        }
+    }
+    @ObservationIgnored private var _draggingID: TaskItem.ID?
+
+    var dropTargetColumnID: BoardColumn.ID? {
+        get {
+            access(keyPath: \.dropTargetColumnID)
+            return _dropTargetColumnID
+        }
+        set {
+            guard newValue != _dropTargetColumnID else { return }
+            withMutation(keyPath: \.dropTargetColumnID) { _dropTargetColumnID = newValue }
+        }
+    }
+    @ObservationIgnored private var _dropTargetColumnID: BoardColumn.ID?
     /// Which insertion point the pointer is over, set by the half of the card
     /// it is in — `nil` when it is over a list's own ground rather than over a
     /// card at all.
@@ -532,7 +560,18 @@ final class BoardStore {
     /// always the same one: a drop aimed at a column's ground is drawn against
     /// whichever of its cards holds the rank the dragged one is leaving, which
     /// is a card the pointer never touched. See ``dropCaret``.
-    var dropTargetCaret: DropCaret?
+    var dropTargetCaret: DropCaret? {
+        get {
+            access(keyPath: \.dropTargetCaret)
+            return _dropTargetCaret
+        }
+        set {
+            guard newValue != _dropTargetCaret else { return }
+            withMutation(keyPath: \.dropTargetCaret) { _dropTargetCaret = newValue }
+        }
+    }
+    @ObservationIgnored private var _dropTargetCaret: DropCaret?
+
     var query: String = ""
     /// Where the inline "Task title, then ⏎" composer is open, or `nil` for
     /// none. A place rather than a column id, so the Inbox can have one too.
@@ -563,7 +602,17 @@ final class BoardStore {
     /// panel can set it too: a drop destination nested in another takes the
     /// hover from its parent, so without this the panel's highlight blinks off
     /// every time the pointer crosses a card in it.
-    var isInboxDropTarget: Bool = false
+    var isInboxDropTarget: Bool {
+        get {
+            access(keyPath: \.isInboxDropTarget)
+            return _isInboxDropTarget
+        }
+        set {
+            guard newValue != _isInboxDropTarget else { return }
+            withMutation(keyPath: \.isInboxDropTarget) { _isInboxDropTarget = newValue }
+        }
+    }
+    @ObservationIgnored private var _isInboxDropTarget: Bool = false
 
     /// Whether the Inbox panel is out, beside the board. Session state like the
     /// inspector, and closed to begin with unless the setting says otherwise:
@@ -1068,23 +1117,34 @@ final class BoardStore {
     /// Coalesces a burst of edits into a single write. Typing a title mutates
     /// the board on every keystroke, so this waits for the typing to stop.
     ///
-    /// The snapshot is taken *now* and the task holds it, the file and its
-    /// place in the file's write order rather than `self`: an edit made just
-    /// before the store goes away must still reach the disk.
+    /// The snapshot is taken when the debounce *fires*, not here. Taken here
+    /// and held across the wait, it kept a second reference on every one of
+    /// the board's arrays for the whole 500ms — so the next keystroke's
+    /// in-place write into `tasks` paid a full copy-on-write of the array,
+    /// per character typed, and the undo stack held a hundred distinct
+    /// buffers instead of a hundred views of a few. The task captures `self`
+    /// strongly instead, which costs no copy and keeps the old guarantee:
+    /// an edit made just before the store goes away still reaches the disk,
+    /// because the store cannot go away until its last debounce has fired —
+    /// at most half a second after the reference that kept it drops.
     private func scheduleSave() {
         boardRevision &+= 1
         guard let file, !isSaveBlocked else { return }
-        let pending = snapshot
+        // The generation is still claimed *now*: the write's place in the
+        // file's order is a fact about when the edit happened, and a restore
+        // racing this write from another store over the same path has to see
+        // it as the older one. Only the snapshot waits for the debounce.
         let generation = file.nextWriteGeneration()
         saveTask?.cancel()
-        saveTask = Task { [weak self] in
+        saveTask = Task {
             try? await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled else { return }
             // Everything O(board) rides the debounce, so a burst of keystrokes
             // pays each cost once rather than per character. All of it used to
             // run inline, and on a large board the reconciles plus the record
             // diff were most of what a keystroke cost.
-            self?.reconcileSystemsAndSync(pending)
+            let pending = self.snapshot
+            self.reconcileSystemsAndSync(pending)
             // Off the main actor: encoding the board and writing it are the two
             // things in a keystroke's path that grow with the board's size.
             let outcome = await Task.detached(priority: .utility) { () -> SaveOutcome in
@@ -1096,7 +1156,7 @@ final class BoardStore {
                     return .failed(error.localizedDescription)
                 }
             }.value
-            self?.recordSave(outcome)
+            self.recordSave(outcome)
         }
     }
 
@@ -1167,15 +1227,28 @@ final class BoardStore {
 
     /// Adopts what another device changed.
     ///
-    /// The records are authoritative here, not this device's copy: CloudKit has
-    /// already merged the two, so re-reading is how this side finds out what it
-    /// won and lost. The undo stack is deliberately left alone — a step that
-    /// reversed somebody else's edit on their behalf would be worse than no
-    /// step at all — and `invalidateDiff` tells the next write that what it
-    /// thinks is on disk is no longer what is.
+    /// The records are authoritative here — CloudKit has already merged the
+    /// two sides — but they are only authoritative about what they have been
+    /// *told*: the push rides the save debounce, so this device's newest edits
+    /// can still be in flight when the change notification lands, and reading
+    /// the records back without sending them first adopted a board from half a
+    /// second ago. A board made just before a merge vanished from the sidebar
+    /// with its settings sheet still open on it — that was this. So what is
+    /// pending goes in first; the read then returns the union, this device's
+    /// unsent edits winning the records they touched, which is the
+    /// last-writer-wins the schema already promises everywhere else.
+    ///
+    /// The undo stack is deliberately left alone — a step that reversed
+    /// somebody else's edit on their behalf would be worse than no step at
+    /// all. And the diff base is *not* invalidated any more: `load()` has just
+    /// set it to exactly what the records hold, which is the one thing a diff
+    /// base has to be. Nil-ing it made the next apply rewrite every record —
+    /// and now that a merge can write, that rewrite's own change notification
+    /// would arrive back here as another merge, around forever.
     func mergeRemoteChanges() {
-        guard let sync, let incoming = try? sync.load() else { return }
-        sync.invalidateDiff()
+        guard let sync else { return }
+        pushToSync()
+        guard let incoming = try? sync.load() else { return }
         adoptContent(incoming)
         lastSyncedAt = .now
     }
@@ -1848,7 +1921,26 @@ final class BoardStore {
     /// The selected tasks in board order. Every bulk command acts in this order
     /// rather than in the set's, so cards moved together arrive in the order
     /// they were in.
-    var selectedTasks: [TaskItem] { tasks.filter { selection.contains($0.id) } }
+    ///
+    /// Memoised because it is not only the commands that ask: every selected
+    /// card's ⌘C payload is built from it on every card re-render, so a
+    /// multi-selection paid a filter of the whole board per card per pass.
+    var selectedTasks: [TaskItem] {
+        // Read unconditionally, so a memo hit still registers the caller's
+        // dependency on the board — the `position(of:)` bargain.
+        let tasks = self.tasks
+        let selection = self.selection
+        if let memo = selectedTasksMemo, memo.revision == boardRevision,
+           memo.count == tasks.count, memo.selection == selection {
+            return memo.members
+        }
+        let members = tasks.filter { selection.contains($0.id) }
+        selectedTasksMemo = (boardRevision, tasks.count, selection, members)
+        return members
+    }
+
+    @ObservationIgnored private var selectedTasksMemo:
+        (revision: Int, count: Int, selection: Set<TaskItem.ID>, members: [TaskItem])?
 
     func isSelected(_ id: TaskItem.ID) -> Bool { selection.contains(id) }
 
@@ -1967,10 +2059,28 @@ final class BoardStore {
     /// still there, and so is the affordance to make another board.
     var activeBoard: Board? { boards.first { $0.id == activeBoardID } }
 
+    /// Through an index memo rather than a scan: this sits under `isDone`,
+    /// which every saved-view filter asks once per task, so the scan here
+    /// multiplied into every board-sized pass. The memo follows `position(of:)`:
+    /// a cached index is believed only while it still holds the board it was
+    /// recorded against, and `boards`' own `didSet` drops the map besides.
     func board(id: Board.ID?) -> Board? {
         guard let id else { return nil }
-        return boards.first { $0.id == id }
+        // Read unconditionally, so a memo hit still registers the caller's
+        // dependency on the board list — the `position(of:)` bargain.
+        let boards = self.boards
+        if let cached = boardIndices, let offset = cached[id] {
+            if offset < boards.count, boards[offset].id == id { return boards[offset] }
+        }
+        var byID = [Board.ID: Int](minimumCapacity: boards.count)
+        for (offset, board) in boards.enumerated() where byID[board.id] == nil {
+            byID[board.id] = offset
+        }
+        boardIndices = byID
+        return byID[id].map { boards[$0] }
     }
+
+    @ObservationIgnored private var boardIndices: [Board.ID: Int]?
 
     func board(for task: TaskItem) -> Board? { board(id: task.boardID) }
 
@@ -2077,8 +2187,26 @@ final class BoardStore {
     /// screen: a card opened out of a saved view can be on another board, and
     /// the answer has to be about the board it is actually on.
     func isDone(column id: BoardColumn.ID) -> Bool {
-        board(ofColumn: id)?.doneColumn?.id == id
+        doneColumnIDs().contains(id)
     }
+
+    /// Every board's Done column, as one set — `isDone` is asked once per task
+    /// inside every board-sized filter (the saved views, the counts, the
+    /// reminders), and resolving the owning board per ask made each of those
+    /// passes O(tasks × boards). Dropped by `boards`' own `didSet`, the
+    /// `columnOwners` bargain: nothing can change which column is last on a
+    /// board without writing `boards`.
+    private func doneColumnIDs() -> Set<BoardColumn.ID> {
+        // Read unconditionally, so a memo hit still registers the caller's
+        // dependency on the board list — the `position(of:)` bargain.
+        let boards = self.boards
+        if let doneColumns { return doneColumns }
+        let ids = Set(boards.compactMap { $0.doneColumn?.id })
+        doneColumns = ids
+        return ids
+    }
+
+    @ObservationIgnored private var doneColumns: Set<BoardColumn.ID>?
 
     /// Where `complete` sends a task, and what "Archive completed" clears.
     var doneColumnID: BoardColumn.ID? { doneColumnID(onBoard: activeBoardID) }
@@ -2115,7 +2243,8 @@ final class BoardStore {
     /// "Archive Completed" ask on every render — `Menu`'s content builder runs
     /// with the body it sits in, not when the menu opens.
     var completedCount: Int {
-        tasks.count { $0.boardID == activeBoardID && isDone($0) && !$0.isArchived }
+        guard let activeBoardID else { return 0 }
+        return counts().completedPerBoard[activeBoardID] ?? 0
     }
 
     /// The label definitions for a task, skipping any key without a definition.
@@ -2144,6 +2273,27 @@ final class BoardStore {
     /// something the search failed to find — it is somewhere else, and the
     /// Archive view is where it is looked for.
     var searchResults: [TaskItem] {
+        // Read unconditionally, so a memo hit still registers the caller's
+        // dependency on the board — the `position(of:)` bargain. Memoised
+        // because the panel asks on every toolbar render and the phone's
+        // Search tab is one of the surfaces that draws per frame while the
+        // drawer is dragged open; the fold per task was already cached, but
+        // the score and the sort were paid on every ask.
+        let tasks = self.tasks
+        let query = self.query
+        if let memo = searchMemo, memo.revision == boardRevision,
+           memo.count == tasks.count, memo.query == query {
+            return memo.results
+        }
+        let results = searchResults(of: tasks)
+        searchMemo = (boardRevision, tasks.count, query, results)
+        return results
+    }
+
+    @ObservationIgnored private var searchMemo:
+        (revision: Int, count: Int, query: String, results: [TaskItem])?
+
+    private func searchResults(of tasks: [TaskItem]) -> [TaskItem] {
         let tokens = searchTokens
         guard !tokens.isEmpty else { return tasks.filter { !$0.isArchived } }
         let hits = tasks.compactMap { task -> (task: TaskItem, score: Int)? in
@@ -2183,9 +2333,27 @@ final class BoardStore {
     }
 
     /// The global Inbox: everything on no board, in board order.
+    ///
+    /// Memoised because it is not only the panel that asks: `groundCaret`
+    /// resolves a drop aimed at the Inbox's own ground through here, per card,
+    /// per pointer move — a filter and a sort each time made a drag over the
+    /// Inbox quadratic in the board.
     var inboxTasks: [TaskItem] {
-        sorted(tasks.filter { !$0.isArchived && $0.isUnfiled })
+        // Read unconditionally, so a memo hit still registers the caller's
+        // dependency on the board — the `position(of:)` bargain.
+        let tasks = self.tasks
+        let order = sortOrder
+        if let memo = inboxMemo, memo.revision == boardRevision,
+           memo.count == tasks.count, memo.order == order {
+            return memo.members
+        }
+        let members = sorted(tasks.filter { !$0.isArchived && $0.isUnfiled })
+        inboxMemo = (boardRevision, tasks.count, order, members)
+        return members
     }
+
+    @ObservationIgnored private var inboxMemo:
+        (revision: Int, count: Int, order: BoardSortOrder, members: [TaskItem])?
 
     /// Drops the search query. Session state, so it registers no undo step and
     /// needs no save — both clear buttons and the filtered indicator call it.
@@ -2327,16 +2495,62 @@ final class BoardStore {
 
     // MARK: - Counts
 
-    var totalCount: Int { tasks.count { !$0.isArchived } }
+    var totalCount: Int { counts().total }
 
     /// What the Inbox row shows: cards on no board.
-    var inboxCount: Int { tasks.count { $0.isUnfiled && !$0.isArchived } }
+    var inboxCount: Int { counts().inbox }
 
     /// What a board row shows: that board's cards, archived ones excluded, the
     /// same way `totalCount` excludes them.
     func taskCount(for boardID: Board.ID) -> Int {
-        tasks.count { $0.boardID == boardID && !$0.isArchived }
+        counts().perBoard[boardID] ?? 0
     }
+
+    /// Every count the chrome shows, from one pass over the board.
+    ///
+    /// The sidebar asks for a count per board row, the toolbar for the Inbox's,
+    /// the status bar for the total, and the menus for the active board's
+    /// completed — each on every render, and the phone's drawer renders per
+    /// frame while it is dragged open. Un-memoised, that was a full scan of
+    /// `tasks` per row per render; here it is one scan per board revision,
+    /// keyed the way `visibleTasksByColumn` is.
+    private func counts() -> CountsMemo {
+        // Both read unconditionally, so a memo hit still registers the
+        // caller's dependency on the board — the `position(of:)` bargain.
+        // `doneColumnIDs()` is what reads `boards`.
+        let tasks = self.tasks
+        let done = doneColumnIDs()
+        if let memo = countsMemo, memo.revision == boardRevision, memo.count == tasks.count {
+            return memo
+        }
+        var total = 0, inbox = 0
+        var perBoard: [Board.ID: Int] = [:]
+        var completedPerBoard: [Board.ID: Int] = [:]
+        for task in tasks where !task.isArchived {
+            total += 1
+            if task.isUnfiled { inbox += 1 }
+            guard let boardID = task.boardID else { continue }
+            perBoard[boardID, default: 0] += 1
+            if let columnID = task.columnID, done.contains(columnID) {
+                completedPerBoard[boardID, default: 0] += 1
+            }
+        }
+        let memo = CountsMemo(revision: boardRevision, count: tasks.count, total: total,
+                              inbox: inbox, perBoard: perBoard, completedPerBoard: completedPerBoard)
+        countsMemo = memo
+        return memo
+    }
+
+    private struct CountsMemo {
+        var revision: Int
+        var count: Int
+        var total: Int
+        var inbox: Int
+        var perBoard: [Board.ID: Int]
+        var completedPerBoard: [Board.ID: Int]
+    }
+
+    @ObservationIgnored private var countsMemo: CountsMemo?
 
     /// How many tasks reached Done inside the seven days ending today — the
     /// number above the "This week" meter.
@@ -2650,19 +2864,53 @@ final class BoardStore {
     /// deleted rows simply stop being asked about, so the map stays row-sized.
     @ObservationIgnored private var viewCounts: [SavedView.ID: ViewCountMemo] = [:]
 
+    /// Memoised the way `count(of:)` is, and for the same caller: the surfaces
+    /// ask on every render, and the phone's root asks per frame while the
+    /// drawer is being dragged open — a filter and a sort of every task in the
+    /// app, per frame, was most of what that drag cost. The key carries the
+    /// rule, sort and limit for the count memo's reason: the editor asks about
+    /// a draft that shares its id with the saved row.
     private func members(of view: SavedView, today: CalendarDay) -> [TaskItem] {
+        // Read unconditionally, so a memo hit still registers the caller's
+        // dependency on the board — the `position(of:)` bargain.
+        let tasks = self.tasks
+        let week = weekMeaning
+        if let memo = viewMembers[view.id],
+           memo.revision == boardRevision, memo.count == tasks.count,
+           memo.today == today, memo.week == week,
+           memo.rule == view.rule, memo.sort == view.sort, memo.limit == view.limit {
+            return memo.members
+        }
         // `now` is taken once for the whole pass rather than per task: the
         // "updated within the last N days" criteria measure against it, and a
         // clock read per card would put two cards either side of a cutoff that
         // moved between them.
         let now = Date.now
         var members = tasks.filter {
-            view.matches($0, today: today, isDone: isDone($0), week: weekMeaning, now: now)
+            view.matches($0, today: today, isDone: isDone($0), week: week, now: now)
         }
         if let sort = view.sort.comparator { members = Self.stableSorted(members, by: sort) }
         if let limit = view.limit { members = Array(members.prefix(limit)) }
+        viewMembers[view.id] = ViewMembersMemo(
+            revision: boardRevision, count: tasks.count, today: today, week: week,
+            rule: view.rule, sort: view.sort, limit: view.limit, members: members
+        )
         return members
     }
+
+    private struct ViewMembersMemo {
+        var revision: Int
+        var count: Int
+        var today: CalendarDay
+        var week: WeekMeaning
+        var rule: ViewRule
+        var sort: ViewSort
+        var limit: Int?
+        var members: [TaskItem]
+    }
+
+    /// One memo per view id, row-sized for `viewCounts`' reason.
+    @ObservationIgnored private var viewMembers: [SavedView.ID: ViewMembersMemo] = [:]
 
     // MARK: - Saved views
 
@@ -3123,6 +3371,11 @@ final class BoardStore {
                     moved.subtasks = moved.subtasks.map { var s = $0; s.done = true; return s }
                     moved.activity.insert(ActivityEntry(.subtasksCompletedOnDone(count: outstanding)), at: 0)
                 }
+                // The one transition that means a card was finished, on every
+                // route — the tick, the menu, the keyboard, a drag onto the
+                // column. Undo and a sync merge never come through here, so
+                // neither can ring the bell for a board merely put back.
+                CompletionFeedback.shared.taskCompleted()
             }
             if wasElsewhere, let column = column(id: columnID) {
                 moved.activity.insert(
@@ -4132,8 +4385,12 @@ final class BoardStore {
         }
     }
 
+    /// Straight off the live board through `self[id]` rather than through a
+    /// captured `BoardMutation`: this is the getter behind every text binding,
+    /// which SwiftUI reads more than once per render pass, and the capture was
+    /// seven array retains plus a scan of every task — per read.
     private func value(_ field: TaskField, on id: TaskItem.ID, subtask: SubTask.ID? = nil) -> FieldValue {
-        value(field, on: id, subtask: subtask, in: mutation)
+        Self.value(field, of: self[id], subtask: subtask)
     }
 
     /// The same read against a captured board rather than the live one, so an
@@ -4141,7 +4398,10 @@ final class BoardStore {
     private func value(
         _ field: TaskField, on id: TaskItem.ID, subtask: SubTask.ID?, in state: BoardMutation
     ) -> FieldValue {
-        let task = state.tasks.first { $0.id == id }
+        Self.value(field, of: state.tasks.first { $0.id == id }, subtask: subtask)
+    }
+
+    private static func value(_ field: TaskField, of task: TaskItem?, subtask: SubTask.ID?) -> FieldValue {
         switch field {
         case .title: return .text(task?.title ?? "")
         case .note: return .text(task?.note ?? "")
@@ -4324,7 +4584,11 @@ final class BoardStore {
 
     /// Creates a label from the picker's text field and applies it to the task.
     /// A name that slugs to an existing key just applies that label.
-    func createLabel(named name: String, on taskID: TaskItem.ID) {
+    /// `color` is the compose dialog's choice; `nil` — every other caller —
+    /// takes the next colour off the rotation, see ``nextLabelColor``. Ignored
+    /// for a name that already names a label: recolouring is `recolorLabel`'s,
+    /// and "adding" an existing label must not repaint it as a side effect.
+    func createLabel(named name: String, color: SwatchColor? = nil, on taskID: TaskItem.ID) {
         let trimmed = Self.labelName(name)
         guard !trimmed.isEmpty else { return }
         let key = LabelDef.key(from: trimmed)
@@ -4334,14 +4598,9 @@ final class BoardStore {
             : String(localized: "Create Label", comment: "Undo action name for making a new label")
 
         undoable(action) {
-            if !exists {
-                // Round the *saved* palette rather than a list of its own, so a
-                // colour the user added is handed out to new labels like every
-                // other, and one they deleted stops being.
-                let swatch = savedColors[labels.count % savedColors.count].swatch
-                let tone = labelTones(for: swatch)
-                labels.append(LabelDef(key: key, name: trimmed, light: tone.light, dark: tone.dark))
-            }
+            // Folds into this step — a nested `undoable` runs its body bare —
+            // so the definition and its application stay one ⌘Z.
+            createLabel(named: name, color: color)
             if let index = position(of: taskID), !tasks[index].labelKeys.contains(key) {
                 tasks[index].labelKeys.append(key)
                 tasks[index].activity.insert(ActivityEntry(.labelAdded(key: key, name: trimmed)), at: 0)
@@ -4349,6 +4608,25 @@ final class BoardStore {
             }
             scheduleSave()
         }
+    }
+
+    /// The definition alone, applied to nothing — the label manager's create.
+    ///
+    /// A name that slugs to an existing key makes nothing and returns that
+    /// key: the row it names is already on the list the person is looking at.
+    /// The returned key is `nil` only for a name with nothing in it.
+    @discardableResult
+    func createLabel(named name: String, color: SwatchColor? = nil) -> String? {
+        let trimmed = Self.labelName(name)
+        guard !trimmed.isEmpty else { return nil }
+        let key = LabelDef.key(from: trimmed)
+        guard label(forKey: key) == nil else { return key }
+        undoable(String(localized: "Create Label", comment: "Undo action name for making a new label")) {
+            let tone = labelTones(for: color ?? nextLabelColor)
+            labels.append(LabelDef(key: key, name: trimmed, light: tone.light, dark: tone.dark))
+            scheduleSave()
+        }
+        return key
     }
 
     /// Renames a label everywhere it appears.
@@ -4411,6 +4689,21 @@ final class BoardStore {
     /// Removes a label from the board's vocabulary and from every task carrying
     /// it. Each of those tasks records the removal: a chip disappearing from a
     /// card should be explicable from that card's own history.
+    /// Reorders the vocabulary — the manager's drag, and its menu's Move
+    /// Up/Down, both through `dropOffset` so the two cannot disagree about
+    /// where a row lands. Order is presentation: no task changes, so nothing
+    /// is touched and no activity is written, but it is board data — the
+    /// picker draws the list in this order on every device.
+    func moveLabel(fromOffsets: IndexSet, toOffset: Int) {
+        var reordered = labels
+        reordered.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        guard reordered != labels else { return }
+        undoable(String(localized: "Reorder Labels", comment: "Undo action name for reordering the label list")) {
+            labels = reordered
+            scheduleSave()
+        }
+    }
+
     func deleteLabel(_ key: String) {
         guard let index = labels.firstIndex(where: { $0.key == key }) else { return }
         let name = labels[index].name
@@ -4434,11 +4727,21 @@ final class BoardStore {
 
     private static let labelNameLimit = 40
 
+    /// What the next label made without a colour choice will wear.
+    ///
+    /// Round the *saved* palette rather than a list of its own, so a colour
+    /// the user added is handed out to new labels like every other, and one
+    /// they deleted stops being. Public so the compose dialog can open its
+    /// colour well on the answer rather than on a guess.
+    var nextLabelColor: SwatchColor {
+        savedColors[labels.count % savedColors.count].swatch
+    }
+
     /// Creates the label one surface has typed and clears only that surface's
-    /// draft for that task.
-    func commitLabelDraft(for scope: DetailScope, task taskID: TaskItem.ID) {
+    /// draft for that task. `color` as ``createLabel(named:color:on:)`` takes it.
+    func commitLabelDraft(for scope: DetailScope, task taskID: TaskItem.ID, color: SwatchColor? = nil) {
         let key = DraftKey(scope: scope, task: taskID)
-        createLabel(named: labelDrafts[key] ?? "", on: taskID)
+        createLabel(named: labelDrafts[key] ?? "", color: color, on: taskID)
         labelDrafts[key] = ""
     }
 

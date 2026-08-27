@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// How close a due date is. This is what the due chip's colour encodes, and it
 /// is the native replacement for the design's string matching: the spec tinted
@@ -31,17 +32,24 @@ enum DueDate {
     /// The chip's text. Inside the surrounding fortnight this is relative
     /// ("Today", "Thu", "Next week"); beyond it, an absolute short date, because
     /// "in 3 weeks" stops being easier to read than the day itself.
+    ///
+    /// Memoised on the pair, both labels alike: every dated card builds both on
+    /// every render — the spoken one is assembled whether or not VoiceOver is
+    /// running — and each was a calendar conversion, an ICU format and a bundle
+    /// lookup for an answer that cannot change until the day does.
     static func label(_ day: CalendarDay, from today: CalendarDay) -> String {
-        let date = day.date()
-        switch daysAway(day, from: today) {
-        case ...(-14): return date.formatted(.dateTime.day().month(.abbreviated))
-        case (-13)...(-7): return String(localized: "Last week", comment: "Due chip, 1–2 weeks overdue")
-        case (-6)...(-2): return weekday(date)
-        case -1: return String(localized: "Yesterday", comment: "Due chip, one day overdue")
-        case 0: return String(localized: "Today", comment: "Due chip, due today")
-        case 1...6: return weekday(date)
-        case 7...13: return String(localized: "Next week", comment: "Due chip, due 1–2 weeks out")
-        default: return date.formatted(.dateTime.day().month(.abbreviated))
+        cached(day, today, in: labels) {
+            let date = day.date()
+            switch daysAway(day, from: today) {
+            case ...(-14): return date.formatted(.dateTime.day().month(.abbreviated))
+            case (-13)...(-7): return String(localized: "Last week", comment: "Due chip, 1–2 weeks overdue")
+            case (-6)...(-2): return weekday(date)
+            case -1: return String(localized: "Yesterday", comment: "Due chip, one day overdue")
+            case 0: return String(localized: "Today", comment: "Due chip, due today")
+            case 1...6: return weekday(date)
+            case 7...13: return String(localized: "Next week", comment: "Due chip, due 1–2 weeks out")
+            default: return date.formatted(.dateTime.day().month(.abbreviated))
+            }
         }
     }
 
@@ -49,15 +57,41 @@ enum DueDate {
     /// Monday depending on a colour VoiceOver cannot see — so the spoken form
     /// spells the day out and says which side of today it falls on.
     static func accessibilityLabel(_ day: CalendarDay, from today: CalendarDay) -> String {
-        let date = day.date().formatted(.dateTime.weekday(.wide).day().month(.wide))
-        switch urgency(day, from: today) {
-        case .overdue:
-            return String(localized: "Overdue, \(date)", comment: "VoiceOver label for a past due date")
-        case .today:
-            return String(localized: "Due today, \(date)", comment: "VoiceOver label for a due date today")
-        case .soon, .later:
-            return String(localized: "Due \(date)", comment: "VoiceOver label for a future due date")
+        cached(day, today, in: spoken) {
+            let date = day.date().formatted(.dateTime.weekday(.wide).day().month(.wide))
+            switch urgency(day, from: today) {
+            case .overdue:
+                return String(localized: "Overdue, \(date)", comment: "VoiceOver label for a past due date")
+            case .today:
+                return String(localized: "Due today, \(date)", comment: "VoiceOver label for a due date today")
+            case .soon, .later:
+                return String(localized: "Due \(date)", comment: "VoiceOver label for a future due date")
+            }
         }
+    }
+
+    private struct LabelKey: Hashable {
+        var day: CalendarDay
+        var today: CalendarDay
+    }
+
+    private static let labels = Mutex<[LabelKey: String]>([:])
+    private static let spoken = Mutex<[LabelKey: String]>([:])
+
+    private static func cached(
+        _ day: CalendarDay, _ today: CalendarDay,
+        in store: borrowing Mutex<[LabelKey: String]>, or make: () -> String
+    ) -> String {
+        let key = LabelKey(day: day, today: today)
+        if let hit = store.withLock({ $0[key] }) { return hit }
+        let made = make()
+        store.withLock {
+            // The keys change once a day; the cap only exists so a session
+            // left running for months cannot grow the map without bound.
+            if $0.count > 512 { $0.removeAll(keepingCapacity: true) }
+            $0[key] = made
+        }
+        return made
     }
 
     private static func weekday(_ date: Date) -> String {

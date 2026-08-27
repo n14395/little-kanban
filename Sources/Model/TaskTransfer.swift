@@ -74,6 +74,25 @@ extension ColumnTransfer {
     }
 }
 
+/// A label row in flight, dragged inside the manager to re-order the
+/// vocabulary. The key is the identity every task stores; the name is what a
+/// row dropped into a text editor leaves behind.
+struct LabelTransfer: Codable, Transferable, Sendable {
+    var key: String
+    var name: String
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .simpleKanbanLabel)
+        ProxyRepresentation(exporting: \.name)
+    }
+}
+
+extension LabelTransfer {
+    init(_ label: LabelDef) {
+        self.init(key: label.key, name: label.name)
+    }
+}
+
 extension UTType {
     /// Both state their conformance twice: here, and in the app's Info.plist
     /// (`project.yml` → `UTExportedTypeDeclarations`).
@@ -97,5 +116,8 @@ extension UTType {
     )
     static let simpleKanbanColumn = UTType(
         exportedAs: "com.n14395.SimpleKanban.column", conformingTo: .data
+    )
+    static let simpleKanbanLabel = UTType(
+        exportedAs: "com.n14395.SimpleKanban.label", conformingTo: .data
     )
 }

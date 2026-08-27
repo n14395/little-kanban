@@ -266,17 +266,30 @@ struct TaskInspector: View {
 
     // MARK: Editable text
 
-    /// A title is one line. On a vertical-axis field Return inserts a newline
-    /// and `.onSubmit` never fires, so a pasted paragraph became a title the
-    /// board card had no room to draw. Dropping the axis makes Return end the
-    /// session — one activity entry, and the field gives focus back.
+    /// A title is one line of *text* — `setText` folds every run of whitespace
+    /// to a space, so a newline cannot reach the board — but the field wraps:
+    /// without the vertical axis a long title was clipped mid-sentence at the
+    /// sidebar's width, and the only way to read your own words was to click
+    /// in and arrow through them.
+    ///
+    /// On a vertical-axis field Return inserts a newline and `.onSubmit` never
+    /// fires, which is why the axis was once dropped. `.onKeyPress(.return)`
+    /// is the other half of the trade: it takes the key before the field does,
+    /// so Return still ends the session — one activity entry, and the field
+    /// gives focus back. A Return that arrives some way a key press does not —
+    /// a software keyboard, a paste — becomes a space in the fold, which is
+    /// what it always became.
     private var titleField: some View {
-        TextField("Task title", text: binding(.title))
+        TextField("Task title", text: binding(.title), axis: .vertical)
             .textFieldStyle(.plain)
             .font(palette.display(metrics.titleSize))
             .lineSpacing(3)
             .foregroundStyle(palette.ink)
             .focused($focusedField, equals: .title)
+            .onKeyPress(.return) {
+                focusedField = nil
+                return .handled
+            }
             .onSubmit { focusedField = nil }
             .frame(maxWidth: .infinity, alignment: .leading)
             .fieldHitArea(minHeight: metrics.fieldHit) { focusedField = .title }

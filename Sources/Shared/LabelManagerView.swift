@@ -18,11 +18,11 @@ struct LabelManagerView: View {
         var rowMinHeight: CGFloat
         var listSpacing: CGFloat
         var panelPadding: CGFloat
+        /// The colour well shares the row, so its own height is the touch
+        /// answer — 44pt in the sheet metrics, see `ColorWell.Metrics.sheet`.
         var colorWell: ColorWell.Metrics
-        var swatchSpacing: CGFloat
-        /// The square a swatch claims. Six of them share one row, so on touch
-        /// the drawn circle is nowhere near the 44pt a finger needs.
-        var swatchHit: CGFloat
+        /// The create popover's form — the same one the task picker shows.
+        var compose: LabelComposeForm.Metrics
         var glyph: CGFloat
         var glyphHit: CGFloat
         /// The floor the rename field claims for itself. `rowMinHeight` is the
@@ -37,15 +37,13 @@ struct LabelManagerView: View {
             width: 396, maxHeight: 520, titleFont: 13, nameFont: 12.5, chipSize: .compact,
             rowSpacing: 8, rowPadding: 10, rowRadius: 12, rowMinHeight: 0,
             listSpacing: 8, panelPadding: 14,
-            colorWell: .desk, swatchSpacing: 4,
-            swatchHit: 26, glyph: 11, glyphHit: 26, fieldHit: 0
+            colorWell: .desk, compose: .desk, glyph: 11, glyphHit: 26, fieldHit: 0
         )
         static let sheet = Metrics(
             width: nil, maxHeight: nil, titleFont: 15, nameFont: 15, chipSize: .comfortable,
             rowSpacing: 10, rowPadding: 14, rowRadius: 14, rowMinHeight: 44,
             listSpacing: 10, panelPadding: 16,
-            colorWell: .sheet, swatchSpacing: 6,
-            swatchHit: 44, glyph: 15, glyphHit: 44, fieldHit: 44
+            colorWell: .sheet, compose: .sheet, glyph: 15, glyphHit: 44, fieldHit: 44
         )
     }
 
@@ -61,6 +59,17 @@ struct LabelManagerView: View {
     @FocusState private var focusedKey: String?
     @State private var draft: String = ""
     @State private var draftKey: String?
+
+    /// The create popover and what has been typed and picked into it. Local
+    /// state, not a store draft: the manager edits the vocabulary, not a task,
+    /// and dismissing the popover is when a half-made label should be dropped.
+    @State private var isComposing = false
+    @State private var composeName = ""
+    @State private var composeColor: SwatchColor?
+
+    /// The row a dragged label would land in front of — where the insertion
+    /// line is drawn.
+    @State private var dropTargetKey: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -102,68 +111,187 @@ struct LabelManagerView: View {
         .padding(.vertical, metrics.panelPadding * 0.7)
     }
 
-    @ViewBuilder
     private var content: some View {
-        if store.labels.isEmpty {
-            Text("No labels yet. Add one from a task's Labels field.")
-                .font(palette.ui(metrics.nameFont, .medium, relativeTo: .footnote))
-                .foregroundStyle(palette.inkText(0.45))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(metrics.panelPadding)
-        } else {
-            ScrollView {
-                VStack(alignment: .leading, spacing: metrics.listSpacing) {
+        ScrollView {
+            VStack(alignment: .leading, spacing: metrics.listSpacing) {
+                createRow
+                if store.labels.isEmpty {
+                    Text("No labels yet. Create one here, or from a task's Labels field.")
+                        .font(palette.ui(metrics.nameFont, .medium, relativeTo: .footnote))
+                        .foregroundStyle(palette.inkText(0.45))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
                     ForEach(store.labels) { label in
                         row(for: label)
                     }
                 }
-                .padding(metrics.panelPadding)
             }
-            .scrollBounceBehavior(.basedOnSize)
+            .padding(metrics.panelPadding)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+    }
+
+    /// Ahead of the rows, the way the picker leads with its **New Label** —
+    /// and it hangs the same form off itself. The difference is what a commit
+    /// means: here the definition joins the vocabulary and lands on no task.
+    private var createRow: some View {
+        Button { isComposing = true } label: {
+            HStack(spacing: metrics.rowSpacing) {
+                Image(systemName: "plus")
+                    .symbolSize(metrics.nameFont, weight: .heavy, relativeTo: .footnote)
+                    .foregroundStyle(palette.accent)
+                Text("Create new label")
+                    .font(palette.ui(metrics.nameFont, .bold, relativeTo: .footnote))
+                    .foregroundStyle(palette.accent)
+                Spacer(minLength: 0)
+            }
+            .frame(minHeight: metrics.rowMinHeight)
+            .padding(.horizontal, metrics.rowPadding)
+            .padding(.vertical, metrics.rowMinHeight > 0 ? 0 : metrics.rowPadding * 0.7)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.bare)
+        .hoverBackground(palette.ink(0.06), radius: metrics.rowRadius)
+        .popover(isPresented: $isComposing, arrowEdge: .bottom) {
+            LabelComposeForm(
+                name: $composeName,
+                chosenColor: $composeColor,
+                defaultColor: store.nextLabelColor,
+                metrics: metrics.compose,
+                onCancel: { endComposing() },
+                onCommit: {
+                    store.createLabel(named: composeName, color: composeColor ?? store.nextLabelColor)
+                    endComposing()
+                }
+            )
+            .padding(metrics.rowPadding)
+            .frame(width: 230)
+            .background(palette.card)
+            .presentationBackground(palette.card)
+            .presentationCompactAdaptation(.popover)
+            .environment(store)
+            .environment(\.palette, palette)
         }
     }
 
+    private func endComposing() {
+        composeName = ""
+        composeColor = nil
+        isComposing = false
+    }
+
     private func row(for label: LabelDef) -> some View {
-        VStack(alignment: .leading, spacing: metrics.rowSpacing) {
-            HStack(spacing: metrics.rowSpacing) {
-                LabelChip(label: label, size: metrics.chipSize)
+        HStack(spacing: metrics.rowSpacing) {
+            LabelChip(label: label, size: metrics.chipSize)
 
-                TextField("Label name", text: nameBinding(for: label))
-                    .textFieldStyle(.plain)
-                    .font(palette.ui(metrics.nameFont, .bold, relativeTo: .footnote))
-                    .foregroundStyle(palette.ink)
-                    .focused($focusedKey, equals: label.key)
-                    .onSubmit { focusedKey = nil }
-                    .onKeyPress(.escape) {
-                        cancelRename()
-                        focusedKey = nil
-                        return .handled
-                    }
-                    .frame(maxWidth: .infinity, minHeight: metrics.fieldHit, alignment: .leading)
-                    .contentShape(.accessibility, Rectangle())
-                    // A field holding text announces no placeholder, and this
-                    // one is the only control on the sheet VoiceOver would
-                    // otherwise reach unnamed.
-                    .accessibilityLabel("Label name")
+            TextField("Label name", text: nameBinding(for: label))
+                .textFieldStyle(.plain)
+                .font(palette.ui(metrics.nameFont, .bold, relativeTo: .footnote))
+                .foregroundStyle(palette.ink)
+                .focused($focusedKey, equals: label.key)
+                .onSubmit { focusedKey = nil }
+                .onKeyPress(.escape) {
+                    cancelRename()
+                    focusedKey = nil
+                    return .handled
+                }
+                .frame(maxWidth: .infinity, minHeight: metrics.fieldHit, alignment: .leading)
+                .contentShape(.accessibility, Rectangle())
+                // A field holding text announces no placeholder, and this
+                // one is the only control on the sheet VoiceOver would
+                // otherwise reach unnamed.
+                .accessibilityLabel("Label name")
 
-                CountPill(count: usageCount(of: label))
-                    .accessibilityLabel("On \(usageCount(of: label)) tasks")
+            CountPill(count: usageCount(of: label))
+                .accessibilityLabel("On \(usageCount(of: label)) tasks")
 
-                deleteButton(for: label)
+            // **The same colour control every other surface uses** — see
+            // `BoardStore.recolorLabel(_:to:)` and ``LabelTone/pair(from:)``:
+            // both draw the board's palette, and the four colours a chip
+            // actually wears are derived from the one this returns. On the
+            // row rather than on a line of its own, sized to its words rather
+            // than stretched — the chip beside it already says what the
+            // colour is for, which is also why the title is the short one.
+            ColorWell(selection: label.baseColor, metrics: metrics.colorWell,
+                      title: String(localized: "Colour", comment: "The label manager's colour button")) {
+                store.recolorLabel(label.key, to: $0)
             }
-            // The floor belongs to this line rather than to the row: the row is
-            // this line plus the swatches and clears 44pt whatever happens, and
-            // it is the name that has to be reachable by finger. The field's own
-            // hit area is the 22pt of text it draws, so the rest of the line
-            // hands focus over; the chip, the trash and the field keep theirs.
-            .frame(minHeight: metrics.rowMinHeight)
-            .contentShape(.rect)
-            .onTapGesture { focusedKey = label.key }
+            .fixedSize(horizontal: true, vertical: false)
 
-            swatches(for: label)
+            deleteButton(for: label)
         }
+        // The floor belongs to the line, and it is the name that has to be
+        // reachable by finger. The field's own hit area is the 22pt of text it
+        // draws, so the rest of the line hands focus over; the chip, the
+        // colour well, the trash and the field keep theirs.
+        .frame(minHeight: metrics.rowMinHeight)
+        .contentShape(.rect)
+        .onTapGesture { focusedKey = label.key }
         .padding(metrics.rowPadding)
         .background(palette.card, in: .rect(cornerRadius: metrics.rowRadius))
+        // The insertion line, drawn where the row would land.
+        .overlay(alignment: .top) {
+            if dropTargetKey == label.key {
+                Capsule().fill(palette.accent).frame(height: 2)
+            }
+        }
+        // The whole row is the grip, `ChecklistView`'s bargain: a drag begun
+        // inside the name field is the field's — that is how text selection
+        // works — so the chip, the count, the padding and the gutter are what
+        // start a reorder. The well and the trash sit in front and keep their
+        // own clicks.
+        .draggable(LabelTransfer(label))
+        .dropDestination(for: LabelTransfer.self) { items, _ in
+            drop(items.first, before: label)
+        } isTargeted: { isTargeted in
+            dropTargetKey = isTargeted ? label.key : (dropTargetKey == label.key ? nil : dropTargetKey)
+        }
+        // The drag's answer said in words, and the only route VoiceOver and
+        // Switch Control have to it — a long-press lift is unreachable to
+        // both. Through `moveLabel` and `dropOffset`, exactly as the drop is,
+        // so the menu and the drag cannot have two ideas of where a row lands.
+        .contextMenu {
+            reorderItems(for: label)
+        }
+    }
+
+    @ViewBuilder
+    private func reorderItems(for label: LabelDef) -> some View {
+        if let index = store.labels.firstIndex(where: { $0.key == label.key }) {
+            if index > 0 {
+                Button {
+                    move(from: index, to: index - 1)
+                } label: {
+                    Label("Move Up", systemImage: "arrow.up")
+                }
+            }
+            if index + 1 < store.labels.count {
+                Button {
+                    move(from: index, to: index + 1)
+                } label: {
+                    Label("Move Down", systemImage: "arrow.down")
+                }
+            }
+        }
+    }
+
+    private func move(from: Int, to: Int) {
+        store.moveLabel(
+            fromOffsets: IndexSet(integer: from),
+            toOffset: BoardStore.dropOffset(from: from, to: to)
+        )
+    }
+
+    /// Moves the dragged row to where `target` sits. A payload for a key the
+    /// board no longer has is refused rather than guessed at.
+    private func drop(_ payload: LabelTransfer?, before target: LabelDef) -> Bool {
+        guard let payload,
+              let from = store.labels.firstIndex(where: { $0.key == payload.key }),
+              let to = store.labels.firstIndex(where: { $0.key == target.key }),
+              from != to
+        else { return false }
+        move(from: from, to: to)
+        return true
     }
 
     private func deleteButton(for label: LabelDef) -> some View {
@@ -182,22 +310,6 @@ struct LabelManagerView: View {
         .buttonStyle(.bare)
         .hoverBackground(palette.ink(0.08), radius: 8)
         .accessibilityLabel("Delete label")
-    }
-
-    /// **The same colour control every other surface uses.** It was a row of
-    /// ten hand-tuned swatches of its own, which is why a colour saved while
-    /// recolouring a board could not be given to a label: the two lists had
-    /// nothing to do with each other. Now both draw the board's palette, and
-    /// the four colours a chip actually wears — a tinted ground and text on it,
-    /// in each scheme — are derived from the one this returns. See
-    /// `BoardStore.recolorLabel(_:to:)` and ``LabelTone/pair(from:)``.
-    private func swatches(for label: LabelDef) -> some View {
-        HStack(spacing: metrics.swatchSpacing) {
-            ColorWell(selection: label.baseColor, metrics: metrics.colorWell) {
-                store.recolorLabel(label.key, to: $0)
-            }
-            Spacer(minLength: 0)
-        }
     }
 
     private func usageCount(of label: LabelDef) -> Int {

@@ -208,19 +208,46 @@ extension MonthGrid {
     /// locales put the year first, which is why this is a template rather than
     /// a format string.
     static func monthTitle(_ day: CalendarDay, locale: Locale = .current) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.setLocalizedDateFormatFromTemplate("MMMM y")
-        return formatter.string(from: day.date())
+        guard locale == Locale.current else {
+            // A named locale is the tests' path; the app always asks for the
+            // reader's own, which is the formatter kept below.
+            let formatter = DateFormatter()
+            formatter.locale = locale
+            formatter.setLocalizedDateFormatFromTemplate("MMMM y")
+            return formatter.string(from: day.date())
+        }
+        return currentMonthTitle.string(from: day.date())
     }
 
     /// What a cell is worth out loud: the whole date, because the number on it
     /// is not one.
     static func spokenDay(_ day: CalendarDay, locale: Locale = .current) -> String {
+        guard locale == Locale.current else {
+            let formatter = DateFormatter()
+            formatter.locale = locale
+            formatter.dateStyle = .full
+            formatter.timeStyle = .none
+            return formatter.string(from: day.date())
+        }
+        return currentSpokenDay.string(from: day.date())
+    }
+
+    /// Shared, for ``TaskItem``'s reason: a `DateFormatter` is an ICU object
+    /// dear enough to matter when every render of the grid builds forty-two
+    /// spoken labels and a title. Configured once, then only ever read — which
+    /// `Formatter` documents as safe.
+    private nonisolated(unsafe) static let currentMonthTitle: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = locale
+        formatter.locale = .current
+        formatter.setLocalizedDateFormatFromTemplate("MMMM y")
+        return formatter
+    }()
+
+    private nonisolated(unsafe) static let currentSpokenDay: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = .current
         formatter.dateStyle = .full
         formatter.timeStyle = .none
-        return formatter.string(from: day.date())
-    }
+        return formatter
+    }()
 }

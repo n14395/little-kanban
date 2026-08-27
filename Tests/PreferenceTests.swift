@@ -108,7 +108,10 @@ import UserNotifications
     /// cards are drawn in.
     @MainActor
     @Test func settingEveryPreferenceLeavesTheBoardDocumentUntouched() throws {
-        let borrowed = BorrowedDefaults([AppAppearance.storageKey, BoardStore.sortOrderKey])
+        let borrowed = BorrowedDefaults([
+            AppAppearance.storageKey, BoardStore.sortOrderKey,
+            Preferences.completionSoundKey, CompletionSound.storageKey,
+        ])
         defer { borrowed.giveBack() }
 
         let temp = TempBoard()
@@ -120,6 +123,9 @@ import UserNotifications
         UserDefaults.standard.set(AppAppearance.dark.rawValue, forKey: AppAppearance.storageKey)
         // Board — how a column orders its cards.
         store.sortOrder = .dueDate
+        // Completion feedback — the switch and the chosen chime.
+        UserDefaults.standard.set(false, forKey: Preferences.completionSoundKey)
+        UserDefaults.standard.set(CompletionSound.glass.rawValue, forKey: CompletionSound.storageKey)
         // Notifications — on or off, and the time of day.
         let suite = try #require(UserDefaults(suiteName: "SimpleKanbanTests-\(UUID().uuidString)"))
         let scheduler = NotificationScheduler(center: nil, defaults: suite)

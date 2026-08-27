@@ -265,6 +265,11 @@ struct BoardTaskCard: View {
         .opacity(isDragging ? 0.4 : 1)
         .offset(y: isHovering && !reduceMotion ? -1 : 0)
         .motionAnimation(.easeOut(duration: 0.12), value: isHovering)
+        // The ring's fade is the card's own now. It used to ride a
+        // window-level `value: store.selection` animation, which made every
+        // click interpolate the entire window rather than the one card whose
+        // ring is moving.
+        .motionAnimation(.easeOut(duration: 0.16), value: isSelected)
         .onHover { isHovering = $0 }
         .modifier(DraggableWhenOrdered(
             isEnabled: store.allowsCardDrag, transfer: TaskTransfer(task)

@@ -187,7 +187,10 @@ struct RootView: View {
     }
 
     var body: some View {
-        platformRoot
+        // Taken once: `palette` is computed, and each read below re-resolved
+        // the theme and rebuilt the struct.
+        let palette = self.palette
+        return platformRoot
             .environment(\.palette, palette)
             .tint(palette.accent)
             .foregroundStyle(palette.ink)
@@ -298,7 +301,8 @@ private struct SettingsWindow: View {
     }
 
     var body: some View {
-        SettingsView(metrics: .desk)
+        let palette = self.palette
+        return SettingsView(metrics: .desk)
             .environment(\.palette, palette)
             .tint(palette.accent)
             .foregroundStyle(palette.ink)
@@ -326,7 +330,8 @@ private struct AboutWindow: View {
     }
 
     var body: some View {
-        AboutView(metrics: .desk, startsCheck: startsCheck)
+        let palette = self.palette
+        return AboutView(metrics: .desk, startsCheck: startsCheck)
             .environment(\.palette, palette)
             .tint(palette.accent)
             .foregroundStyle(palette.ink)
@@ -347,7 +352,8 @@ private struct ThemesWindow: View {
     }
 
     var body: some View {
-        ThemeBrowserView(metrics: .window)
+        let palette = self.palette
+        return ThemeBrowserView(metrics: .window)
             .environment(\.palette, palette)
             .tint(palette.accent)
             .foregroundStyle(palette.ink)

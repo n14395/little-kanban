@@ -30,6 +30,10 @@ import UniformTypeIdentifiers
         #expect(ColumnTransfer(BoardColumn.inProgress, on: TestBoard.boards[0].id).name == "In Progress")
     }
 
+    @Test func aDraggedLabelReadsAsItsName() {
+        #expect(LabelTransfer(LabelDef.seed[0]).name == LabelDef.seed[0].name)
+    }
+
     // MARK: The codable representation
 
     @Test func aCardPayloadSurvivesAJSONRoundTrip() throws {
@@ -62,6 +66,15 @@ import UniformTypeIdentifiers
         #expect(decoded.name == "Queue")
     }
 
+    @Test func aLabelPayloadKeepsItsKey() throws {
+        // The key, because it is the identity every task stores — a payload
+        // reduced to its display name could not find its own row after a rename.
+        let original = LabelTransfer(LabelDef.seed[0])
+        let decoded = try JSONDecoder().decode(LabelTransfer.self, from: JSONEncoder().encode(original))
+        #expect(decoded.key == LabelDef.seed[0].key)
+        #expect(decoded.name == LabelDef.seed[0].name)
+    }
+
     // MARK: The exported types
 
     @Test func theExportedTypesMatchWhatTheBundleDeclares() throws {
@@ -83,7 +96,8 @@ import UniformTypeIdentifiers
             }
         )
 
-        for type in [UTType.simpleKanbanTask, .simpleKanbanSubtask, .simpleKanbanColumn] {
+        for type in [UTType.simpleKanbanTask, .simpleKanbanSubtask, .simpleKanbanColumn,
+                     .simpleKanbanLabel] {
             let plist = try #require(
                 conformances[type.identifier],
                 "\(type.identifier) is used in code but not declared in project.yml"

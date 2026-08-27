@@ -13,7 +13,7 @@ import SwiftUI
 enum SimpleKanbanFont {
     /// The weights the app asks for, as CSS numbers so that they add to a
     /// theme's baseline without a table in between. See ``ThemeFont/weight``.
-    enum Weight: Int, Sendable {
+    enum Weight: Int, CaseIterable, Sendable {
         case regular = 400
         case medium = 500
         case semibold = 600
@@ -66,6 +66,65 @@ enum SimpleKanbanFont {
             design: FontCatalog.isSerif(face.family) ? .serif : .default
         )
         return face.isItalic ? system.italic() : system
+    }
+}
+
+/// A theme face resolved against this machine, once.
+///
+/// ``SimpleKanbanFont/font(_:size:step:relativeTo:)`` answers the same
+/// question, but it answers it through ``FontCatalog`` — a lock and a
+/// string-keyed hash — on **every** `.font(...)` in the app, on every body
+/// evaluation, which on a scrolling board is hundreds of round-trips per
+/// frame. A face can only be asked for at five weights, so the five names are
+/// resolved when the palette is built and every later ask is a plain array
+/// read. See ``Palette/ui(_:_:relativeTo:)``.
+struct ResolvedThemeFace: Equatable, Sendable {
+    private let face: ThemeFont
+    /// One slot per ``SimpleKanbanFont/Weight``, in `allCases` order; `nil`
+    /// where this machine has no such family and the system face stands in.
+    private let names: [String?]
+    /// The slant will be sheared onto an upright — the family has no italic.
+    private let shearsItalic: Bool
+    /// What the fallback is drawn in, decided from the family name once.
+    private let fallbackDesign: Font.Design
+
+    init(_ face: ThemeFont) {
+        self.face = face
+        self.names = SimpleKanbanFont.Weight.allCases.map { step in
+            FontCatalog.postScriptName(
+                family: face.family, weight: Self.clamped(face.weight, step: step),
+                italic: face.isItalic
+            )
+        }
+        self.shearsItalic = face.isItalic && !FontCatalog.hasItalic(face.family)
+        self.fallbackDesign = FontCatalog.isSerif(face.family) ? .serif : .default
+    }
+
+    func font(
+        _ size: CGFloat, _ step: SimpleKanbanFont.Weight = .regular,
+        relativeTo textStyle: Font.TextStyle = .body
+    ) -> Font {
+        let index = SimpleKanbanFont.Weight.allCases.firstIndex(of: step) ?? 0
+        guard let name = names[index] else { return fallback(size: size, step: step) }
+        let font = Font.custom(name, size: size, relativeTo: textStyle)
+        return shearsItalic ? font.italic() : font
+    }
+
+    /// ``SimpleKanbanFont/fallback(_:size:weight:)``, from the precomputed design.
+    private func fallback(size: CGFloat, step: SimpleKanbanFont.Weight) -> Font {
+        let weight = Self.clamped(face.weight, step: step)
+        let system = Font.system(
+            size: size,
+            weight: SimpleKanbanFont.Weight(rawValue: weight)?.systemEquivalent ?? .regular,
+            design: fallbackDesign
+        )
+        return face.isItalic ? system.italic() : system
+    }
+
+    /// The face's baseline plus the step, held to the axis — the same sum
+    /// ``SimpleKanbanFont/font(_:size:step:relativeTo:)`` makes.
+    private static func clamped(_ base: Int, step: SimpleKanbanFont.Weight) -> Int {
+        min(max(base + step.rawValue - SimpleKanbanFont.Weight.regular.rawValue, 100), 900)
     }
 }
 

@@ -168,7 +168,11 @@ extension EmptyStateView {
         )
     }
 
-    /// Every column empty at once — a new install, or one the user has cleared.
+    /// Not a card anywhere at all. The phone's Search tab is its one home now:
+    /// an unqueried Search lists the whole board, so an empty listing means
+    /// there is nothing yet, and the way out is a first card. The board strip
+    /// no longer draws this — a board with columns shows them however empty
+    /// they are, and a board without any shows ``noColumns(metrics:add:)``.
     static func board(metrics: Metrics = .desk, add: (() -> Void)? = nil) -> EmptyStateView {
         EmptyStateView(
             symbol: "square.stack.3d.up",

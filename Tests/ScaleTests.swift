@@ -244,10 +244,13 @@ enum Bench {
         let store = ScaleBoard.store()
         let columnIDs = ScaleBoard.allColumns.map(\.id)
 
+        // The yardstick is a literal pass over the board, written out here.
+        // It was `searchResults`, back when that *was* an honest pass — it is
+        // memoised now, and a baseline that costs nothing fails every subject.
         let cost = Bench.ratio({
             for id in columnIDs { scaleSink &+= store.visibleTasks(in: id).count }
         }, over: {
-            scaleSink &+= store.searchResults.count
+            scaleSink &+= store.tasks.count { !$0.isArchived }
         })
 
         #expect(cost < 6, "thirty columns cost \(cost)x a single pass — the grouping memo is gone")

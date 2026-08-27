@@ -18,16 +18,34 @@ struct BoardScrollView: View {
     /// surface showing the same card would have its own.
     @FocusState private var focus: TaskItem.ID?
 
-    /// A board with nothing on it anywhere takes one empty state rather than
-    /// four stacked ones. The per-column copy is for a column that is empty
-    /// while the others are not, which is a different thing to say.
+    /// Whether the strip steps aside for the blank-board state.
     ///
-    /// A board that is being composed into is not empty: the row being typed
-    /// into is in the strip, and swapping the strip out from under it would take
-    /// the field away mid-word.
+    /// Only for a board with no *structure* to draw: no working columns, and
+    /// nothing sitting in Done either — a card completed out of the Inbox onto
+    /// a fresh board must stay reachable. A board **with** a working column
+    /// shows its columns however empty they are, each carrying its own
+    /// "drag a card here" — the rule the phone has always applied, and the one
+    /// that broke here: a column added to a blank board stayed invisible
+    /// behind "This board is empty" until the first card materialised it.
+    ///
+    /// A board that is being composed into is never blank: the row being typed
+    /// into is in the strip, and swapping the strip out from under it would
+    /// take the field away mid-word.
+    ///
+    /// A static of three facts rather than a branch in the body, so the rule
+    /// can be held up to a test — `RootSurface.resolve`'s bargain.
+    static func showsBlankState(
+        hasWorkingColumns: Bool, hasAnyVisibleCard: Bool, isComposing: Bool
+    ) -> Bool {
+        !isComposing && !hasWorkingColumns && !hasAnyVisibleCard
+    }
+
     private var isEmpty: Bool {
-        store.addingColumnID == nil
-            && store.columns.allSatisfy { store.visibleTasks(in: $0.id).isEmpty }
+        Self.showsBlankState(
+            hasWorkingColumns: !store.workingColumns.isEmpty,
+            hasAnyVisibleCard: store.columns.contains { !store.visibleTasks(in: $0.id).isEmpty },
+            isComposing: store.addingColumnID != nil
+        )
     }
 
     var body: some View {
@@ -191,32 +209,22 @@ struct BoardScrollView: View {
     static var columnSpacing: CGFloat { gutter - revealInset * 2 }
     static var stripInset: CGFloat { stripPadding - revealInset }
 
-    /// The empty board carries the "add a column" way out as well as the "add a
-    /// task" one, and it is the **only** thing on the board that offers one: the
-    /// strip used to end in a dashed `AddColumnTile`, which spent 38pt of every
-    /// board for ever on a button most people press once. Columns are managed in
+    /// The blank board carries the "add a column" way out, and it is the
+    /// **only** thing on the board that offers one: the strip used to end in a
+    /// dashed `AddColumnTile`, which spent 38pt of every board for ever on a
+    /// button most people press once. Columns are managed in
     /// `BoardSettingsView` now — reachable from any column's header menu, from
     /// the sidebar's board menu, and from here — and a board with no columns at
     /// all would otherwise have no way forward.
     ///
-    /// **Two of them, and which one is on screen is a different question from
-    /// which one has cards.** A board with columns and nothing in them is empty
-    /// and says so; a board with no columns is *blank*, which is what a new one
-    /// is, and the card the first one offers to add would have nowhere to go.
-    /// The button under both is the same one, because the answer to a blank
-    /// board and the answer to an empty one are both a column.
+    /// One state now, not two: the strip only ever steps aside for a board
+    /// with no working columns — see ``showsBlankState`` — so the copy is
+    /// always the blank board's, and the way forward is always a column. A
+    /// board *with* columns and nothing in them draws the columns, each
+    /// carrying its own empty copy, because the structure somebody just built
+    /// in Board Settings has to be visible to be believed.
     private var emptyState: some View {
-        VStack(spacing: 4) {
-            // **Working** columns, not columns: every board holds its Done
-            // column from the moment it is made, so `columns.isEmpty` answers
-            // "no" for a board with its whole workflow still to say.
-            if store.workingColumns.isEmpty {
-                EmptyStateView.noColumns(metrics: metrics.emptyState, add: addColumn)
-            } else {
-                EmptyStateView.board(metrics: metrics.emptyState, add: addTask)
-                addColumnButton
-            }
-        }
+        EmptyStateView.noColumns(metrics: metrics.emptyState, add: addColumn)
     }
 
     /// Opens the board's settings with the add-column composer already open, so
@@ -225,24 +233,6 @@ struct BoardScrollView: View {
     private func addColumn() {
         guard let board = store.activeBoardID else { return }
         store.boardSettings = BoardSettingsRequest(board: board, addsColumn: true)
-    }
-
-    private var addTask: (() -> Void)? {
-        guard let column = store.activeBoard?.landingColumn else { return nil }
-        return { store.beginAdding(in: column.id) }
-    }
-
-    private var addColumnButton: some View {
-        Button(action: addColumn) {
-            Text("Add a column", comment: "Empty board button that starts a column")
-                .font(palette.ui(11.5, .bold, relativeTo: .subheadline))
-                .foregroundStyle(palette.inkText(0.45))
-                .padding(.horizontal, 11)
-                .padding(.vertical, 6)
-                .frame(minHeight: metrics.rowHit)
-        }
-        .buttonStyle(.bare)
-        .hoverBackground(palette.ink(0.06), radius: 9)
     }
 
     /// No boards at all, which deleting the last one is allowed to reach.

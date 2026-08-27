@@ -14,11 +14,40 @@ import SwiftUI
 /// taste, and a theme that could set them could produce an app that cannot be
 /// read.
 struct Palette: Equatable, Sendable {
-    var theme: Theme
+    /// Read-only from outside: everything below that ends in `…Resolved` is a
+    /// pure function of the theme, worked out once here, and a theme assigned
+    /// past the initialiser would leave the app drawing another theme's fonts.
+    private(set) var theme: Theme
+
+    // What the hot paths ask for on every body evaluation, resolved once per
+    // palette rather than once per ask. A palette is built when the theme, the
+    // appearance or the store's theme list changes — a handful of times a
+    // session — and read hundreds of times per frame.
+    private let uiFace: ResolvedThemeFace
+    private let displayFace: ResolvedThemeFace
+    private let windowGradient: Gradient
+    private let windowPoints: (start: UnitPoint, end: UnitPoint)
+    private let groundResolved: Color
+    private let panelSolidResolved: Color
+    private let cardSolidResolved: Color
 
     init(theme: Theme) {
         self.theme = theme
+        self.uiFace = ResolvedThemeFace(theme.uiFont)
+        self.displayFace = ResolvedThemeFace(theme.displayFont)
+        let background = theme.windowBackground
+        self.windowGradient = background.gradient
+        self.windowPoints = background.points
+        let representative = background.representative
+        self.groundResolved = representative.color
+        self.panelSolidResolved = theme.panelOverlay.composited(over: representative).color
+        self.cardSolidResolved = theme.card.fill.composited(over: representative).color
     }
+
+    /// The resolutions are functions of the theme, so the theme is the whole
+    /// of the identity — and the environment's own equality check on a write
+    /// stays one struct comparison rather than a walk of the font tables.
+    static func == (lhs: Palette, rhs: Palette) -> Bool { lhs.theme == rhs.theme }
 
     /// Which way round the app is, for the handful of things that ask the
     /// question rather than take a colour: the system's own chrome, the
@@ -30,11 +59,12 @@ struct Palette: Equatable, Sendable {
     // MARK: Type
 
     /// The UI face, `step` from its baseline. See ``ThemeFont/weight``.
+    /// Through the resolved face — no catalogue lookup on this path.
     func ui(
         _ size: CGFloat, _ step: SimpleKanbanFont.Weight = .regular,
         relativeTo textStyle: Font.TextStyle = .body
     ) -> Font {
-        SimpleKanbanFont.font(theme.uiFont, size: size, step: step, relativeTo: textStyle)
+        uiFace.font(size, step, relativeTo: textStyle)
     }
 
     /// The display face — board titles and the task title in the inspector, and
@@ -42,7 +72,7 @@ struct Palette: Equatable, Sendable {
     /// display face used for a fourth thing stops being the thing that marks the
     /// other three.
     func display(_ size: CGFloat, relativeTo textStyle: Font.TextStyle = .title) -> Font {
-        SimpleKanbanFont.font(theme.displayFont, size: size, relativeTo: textStyle)
+        displayFace.font(size, relativeTo: textStyle)
     }
 
     // MARK: Ink & shadow
@@ -73,9 +103,9 @@ struct Palette: Equatable, Sendable {
     /// either way and goes into `.background(_:)` unchanged.
     var windowFill: LinearGradient {
         LinearGradient(
-            gradient: theme.windowBackground.gradient,
-            startPoint: theme.windowBackground.startPoint,
-            endPoint: theme.windowBackground.endPoint
+            gradient: windowGradient,
+            startPoint: windowPoints.start,
+            endPoint: windowPoints.end
         )
     }
 
@@ -83,7 +113,7 @@ struct Palette: Equatable, Sendable {
     /// cannot go: a colour being interpolated towards transparent, a menu-bar
     /// popover with no window behind it, a thumbnail. See
     /// ``ThemeGradient/representative``.
-    var ground: Color { theme.windowBackground.representative.color }
+    var ground: Color { groundResolved }
 
     /// The wash a sidebar or an inspector lays over the window.
     ///
@@ -95,7 +125,7 @@ struct Palette: Equatable, Sendable {
 
     /// The same wash with the window's own colour already behind it, for a panel
     /// that has no window behind it to be washed over: the menu-bar popover.
-    var panelSolid: Color { theme.panelOverlay.composited(over: theme.windowBackground.representative).color }
+    var panelSolid: Color { panelSolidResolved }
 
     /// The window's ground with the panel wash already on it, as a view, for a
     /// panel that covers rather than sits beside: the iPhone's navigation
@@ -107,7 +137,7 @@ struct Palette: Equatable, Sendable {
     var card: Color { theme.card.fill.color }
     /// A card standing on its own — a popover, a sheet's backing — where the
     /// window is not behind it to show through.
-    var cardSolid: Color { theme.card.fill.composited(over: theme.windowBackground.representative).color }
+    var cardSolid: Color { cardSolidResolved }
     var cardBorder: Color { theme.card.border.color }
     var cardRadius: CGFloat { theme.card.radius }
 

@@ -100,8 +100,16 @@ struct ThemeGradient: Hashable, Codable, Sendable {
     /// fall. Exact on the axes, and within a few percent on the diagonals of
     /// anything close to square — which is what a window is, and the error on a
     /// long thin sidebar is a stop or two of a slow gradient.
-    var startPoint: UnitPoint { UnitPoint(x: 0.5 - vector.dx, y: 0.5 - vector.dy) }
-    var endPoint: UnitPoint { UnitPoint(x: 0.5 + vector.dx, y: 0.5 + vector.dy) }
+    var startPoint: UnitPoint { points.start }
+    var endPoint: UnitPoint { points.end }
+
+    /// Both ends from one trigonometric pass. `startPoint` and `endPoint` each
+    /// computed the vector on their own, so a caller reading the pair — every
+    /// `LinearGradient` built from a theme — paid the sines twice.
+    var points: (start: UnitPoint, end: UnitPoint) {
+        let (dx, dy) = vector
+        return (UnitPoint(x: 0.5 - dx, y: 0.5 - dy), UnitPoint(x: 0.5 + dx, y: 0.5 + dy))
+    }
 
     private var vector: (dx: Double, dy: Double) {
         let radians = angle * .pi / 180

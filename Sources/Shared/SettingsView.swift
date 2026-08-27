@@ -170,6 +170,8 @@ struct SettingsView: View {
     @AppStorage(DefaultDueDate.storageKey) private var defaultDue = DefaultDueDate.fallback
     @AppStorage(AutoArchive.storageKey) private var autoArchive = AutoArchive.fallback
     @AppStorage(WeekMeaning.storageKey) private var weekMeaning = WeekMeaning.fallback
+    @AppStorage(Preferences.completionSoundKey) private var playsCompletionSound = true
+    @AppStorage(CompletionSound.storageKey) private var completionSound = CompletionSound.fallback
     @AppStorage(TrashRetention.storageKey) private var trashRetention = TrashRetention.fallback
     @AppStorage(BackupsKept.storageKey) private var backupsKept = BackupsKept.fallback
     @AppStorage(Preferences.resumeKey) private var resumesLastPlace = false
@@ -620,6 +622,36 @@ struct SettingsView: View {
                                         comment: "Settings note under the week row")) {
                         ForEach(WeekMeaning.allCases) { option in
                             pick(option.label, isCurrent: option == weekMeaning) { weekMeaning = option }
+                        }
+                    }
+                }
+            }
+
+            group(String(localized: "Completing", comment: "Settings group heading over the completion feedback rows")) {
+                row {
+                    Toggle(isOn: $playsCompletionSound) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Play a sound")
+                                .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                            Text("A short chime when a card reaches Done, however it got there. The haptic tap stays either way, on hardware that has one.")
+                                .font(palette.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                                .foregroundStyle(palette.inkText(0.45))
+                        }
+                    }
+                }
+                rule
+                row {
+                    choice(String(localized: "Sound", comment: "Settings row: which completion chime plays"),
+                           value: completionSound.label,
+                           note: String(localized: "Picking one plays it.",
+                                        comment: "Settings note under the completion sound row")) {
+                        ForEach(CompletionSound.allCases) { option in
+                            pick(option.label, isCurrent: option == completionSound) {
+                                completionSound = option
+                                // The audition: hearing the choice is the only
+                                // way to make it.
+                                CompletionFeedback.shared.preview(option)
+                            }
                         }
                     }
                 }
