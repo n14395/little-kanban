@@ -830,6 +830,14 @@ struct SettingsView: View {
                 comment: "Settings note when sync is on but iCloud is unavailable"
             )
         }
+        // A standing condition, not an error to report once — see
+        // `BoardStore.isSyncReadBlocked` for what is being withheld and why.
+        if store.isSyncReadBlocked {
+            return String(
+                localized: "iCloud's copy of the board could not be read when the app opened, so changes are staying on this device for now. Reading is retried with every save — Sync Now retries it too.",
+                comment: "Settings note when the record store could not be read and pushes are withheld"
+            )
+        }
         guard let when = store.lastSyncedAt else {
             return String(
                 localized: "Changes go to iCloud as you make them, and arrive on your other devices signed in to the same account.",

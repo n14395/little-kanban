@@ -297,3 +297,77 @@ import Testing
         #expect(read.boards == written.boards)
     }
 }
+
+/// The eras only real bytes can speak for. Everything from v9 up used to be
+/// exercised against snapshots synthesized in memory, which proves the
+/// *migration functions* and nothing about the *files*: `version(of:)`'s
+/// routing, the current decoder's leniency about each era's missing keys, and
+/// `legacyAccent(in:)` — the one function that preserves a user's chosen
+/// colour across the v11 → v12 upgrade — all ran for the first time on a real
+/// file on some user's disk. These fixtures are those files:
+/// `board-v12`…`board-v9` are the current encoder's bytes with each era's
+/// keys stripped (which is what the decode chain claims those eras are), and
+/// `board-v7` is the v6 fixture plus the trash v7 introduced.
+/// `MigrationChainTests` above covers them wholesale the moment they land in
+/// the bundle; what is asserted here is each era's own furniture.
+@Suite struct EraFixtureTests {
+    private func snapshot(_ name: String) throws -> BoardSnapshot {
+        let temp = TempBoard()
+        try temp.put(try Fixture.data(name))
+        return try #require(temp.file.load().snapshot, "\(name) did not load")
+    }
+
+    @Test func theV7TrashComesForwardWholeAndOffTheBoard() throws {
+        let v7 = try snapshot("board-v7")
+        #expect(v7.trash.count == 1)
+        if case .task(let task) = v7.trash.first?.contents {
+            #expect(task.id == UUID(uuidString: "7E570000-0000-4000-8000-000000000006"))
+            #expect(v7.tasks.contains { $0.id == task.id } == false,
+                    "a trashed card must not also be on the board")
+        } else {
+            Issue.record("the v7 trash arrived holding something other than its card")
+        }
+    }
+
+    /// v9 predates the palette, the editable views and the themes, and chose
+    /// pine — the accent whose migration has to *build* themes rather than
+    /// fall back to the seed pair.
+    @Test func aV9FileArrivesWithDefaultsAndItsPineAccentKept() throws {
+        let v9 = try snapshot("board-v9")
+        #expect(v9.palette == PaletteSwatch.seed)
+        #expect(v9.views == SavedView.seededAll)
+        #expect(v9.themes != .seed, "the pine accent should have seeded migrated themes")
+    }
+
+    @Test func eachLaterEraKeepsItsOwnFurniture() throws {
+        let v10 = try snapshot("board-v10")
+        #expect(v10.palette.first?.name == "Fixture Rust")
+        #expect(v10.views == SavedView.seededAll)
+
+        let v11 = try snapshot("board-v11")
+        #expect(v11.views.first?.name == "Fixture Inbox")
+        #expect(v11.themes != .seed, "the v11 pine accent should have seeded migrated themes")
+
+        let v12 = try snapshot("board-v12")
+        #expect(v12.palette.first?.name == "Fixture Rust")
+        #expect(v12.views.first?.name == "Fixture Inbox")
+        #expect(v12.themes != .seed, "v12 themes are file content and must arrive as written")
+    }
+
+    /// `legacyAccent(in:)` had no test at all — and it is the whole of what
+    /// keeps a v11 user's chosen colour across the upgrade that removes the
+    /// field it lives in.
+    @Test func theLegacyAccentIsReadOutOfTheBytes() {
+        func bytes(_ accent: String?) -> Data {
+            guard let accent else { return Data(#"{"version": 11}"#.utf8) }
+            return Data(#"{"version": 11, "accentTheme": "\#(accent)"}"#.utf8)
+        }
+        #expect(BoardFile.legacyAccent(in: bytes("ember")) == 0xC2532F)
+        #expect(BoardFile.legacyAccent(in: bytes("pine")) == 0x1F6F63)
+        #expect(BoardFile.legacyAccent(in: bytes("indigo")) == 0x3B5BA9)
+        // `ink` was the theme's own text colour; no hex can mean it.
+        #expect(BoardFile.legacyAccent(in: bytes("ink")) == nil)
+        #expect(BoardFile.legacyAccent(in: bytes(nil)) == nil)
+        #expect(BoardFile.legacyAccent(in: Data("not json".utf8)) == nil)
+    }
+}

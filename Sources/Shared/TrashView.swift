@@ -170,11 +170,11 @@ struct TrashView: View {
     /// because it is the promise the trash makes.
     private func subtitle(_ item: TrashedItem) -> String {
         let days = item.daysLeft()
+        // The singular is the catalogue's, not a ternary's: "%lld days left"
+        // carries a plural variation, like every other count string.
         let left = days == 0
             ? String(localized: "deleted today", comment: "Trash row: the last day before something is thrown away for good")
-            : days == 1
-                ? String(localized: "1 day left", comment: "Trash row: how long is left before something is thrown away for good")
-                : String(localized: "\(days) days left", comment: "Trash row: how long is left before something is thrown away for good")
+            : String(localized: "\(days) days left", comment: "Trash row: how long is left before something is thrown away for good")
         if let code = item.code {
             return "\(item.kind.label) · \(code) · \(left)"
         }

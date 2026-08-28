@@ -43,21 +43,10 @@ struct PhoneTaskCard: View {
             // with the long press — a reader drives by touch, and to a finger
             // that menu is not there. Completion rides along tick or no tick:
             // the tick is a preference, and a control a preference can remove
-            // must not take the verb with it.
-            .accessibilityActions {
-                if task.isArchived {
-                    Button("Restore") { store.unarchive(task.id) }
-                } else {
-                    Button(isDone ? "Reopen" : "Complete") { store.toggleCompletion(of: task) }
-                    if !task.isUnfiled {
-                        Button("Move to Inbox") { store.unfile(task.id) }
-                    }
-                    Button("Archive") { store.archive(task.id) }
-                }
-                Button("Copy Link") { TaskLink.copyToPasteboard(task.id) }
-                Button("Trash") { store.trashTask(task.id) }
-            }
-            .modifier(MoveActions(task: task))
+            // must not take the verb with it. The list itself is
+            // ``TaskRotorActions``, shared with the desk's card; the phone has
+            // no multi-selection, which is the `false` here.
+            .modifier(TaskRotorActions(task: task, actsOnSelection: false))
             // **The tick, in the trailing corner.** It stood in the leading
             // gutter, in front of everything the card has to say: the chips and
             // the title both start there, and a tick's width of margin was

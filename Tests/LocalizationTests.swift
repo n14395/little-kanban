@@ -209,9 +209,9 @@ import Testing
     @Test func theStringsShownThroughViewHelpersAreInTheTable() throws {
         let table = try compiledTable()
         let throughAHelper = [
-            "Boards", "Views", "Manage", "Labels", "Reminders",  // sidebar and drawer section headings
+            "Boards", "Views", "Manage", "Labels",      // sidebar and drawer section headings
             "Name", "Short",                            // the column editors, both platforms
-            "Due", "Priority",                          // inspector field names, phone attribute cards
+            "Due", "Priority", "Status",                // inspector field names, phone attribute cards
             "Move Up", "Move Down",                     // the drawer's column stepper
             "No due date",                              // the due chip's spoken value
         ]
@@ -251,5 +251,63 @@ import Testing
         let priorities = Priority.allCases.map(\.displayName)
         #expect(priorities.allSatisfy { !$0.isEmpty })
         #expect(Set(priorities).count == Priority.allCases.count, "two priorities share a name")
+    }
+}
+
+/// The catalogue's own hygiene — the complement of the scans above, which
+/// prove nothing *escapes* the catalogue but not that the catalogue itself
+/// stays clean.
+@MainActor
+@Suite struct StringCatalogueTests {
+    private static func strings() -> [String: [String: Any]]? {
+        let url = SourceTree.checkout.appending(path: "Resources/Localizable.xcstrings")
+        guard let data = try? Data(contentsOf: url),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        return json["strings"] as? [String: [String: Any]]
+    }
+
+    /// A stale entry is a key the source no longer writes, kept in the file
+    /// forever: Xcode marks rather than deletes, thirty-one of them had
+    /// accumulated unnoticed, and every one is a line a translator would
+    /// translate for nothing. Delete the entry — the extraction puts it back,
+    /// unmarked, should the source ever say it again. The empty key rides the
+    /// same rule: it named no words and localized nothing.
+    ///
+    /// One trap, learned pruning those thirty-one: a key that reaches the
+    /// screen only through a `LocalizedStringKey`-typed view helper is
+    /// invisible to extraction, so Xcode marks it stale *while it is in use* —
+    /// "Status" was. The marking for that key is `"extractionState" :
+    /// "manual"`, which this rule deliberately lets stand, and
+    /// `theStringsShownThroughViewHelpersAreInTheTable` is what proves the
+    /// words still resolve.
+    @Test func nothingInTheCatalogueIsStale() throws {
+        guard SourceTree.isReachable else { return }
+        let strings = try #require(Self.strings(), "the catalogue did not parse")
+        let stale = strings.filter { ($0.value["extractionState"] as? String) == "stale" }
+        #expect(stale.isEmpty, "dead keys to delete from the catalogue: \(stale.keys.sorted())")
+        #expect(strings[""] == nil, "the catalogue holds an empty key that localizes nothing")
+    }
+
+    /// Every count a user can read at **one** carries its singular. The
+    /// catalogue is where English grows its plural rules — `TrashView` used to
+    /// hand-roll a ternary for the same job, which is the inconsistency that
+    /// made the missing variations visible ("1 tasks" in the status bar,
+    /// "1 cards are past their date." in a notification). A new count string
+    /// caught here wants a `plural` variation beside its neighbours', not a
+    /// ternary at the call site.
+    @Test func everyCountNounCarriesItsSingular() throws {
+        guard SourceTree.isReachable else { return }
+        let strings = try #require(Self.strings(), "the catalogue did not parse")
+        let counted = #"%lld (tasks?|cards?|boards?|columns?|days?|labels?|items?|sub-tasks?)\b"#
+        let missing = strings.filter { key, entry in
+            guard key.range(of: counted, options: [.regularExpression, .caseInsensitive]) != nil
+            else { return false }
+            let en = (entry["localizations"] as? [String: Any])?["en"] as? [String: Any]
+            let variations = en?["variations"] as? [String: Any]
+            return variations?["plural"] == nil
+        }
+        #expect(missing.isEmpty,
+                "count strings with no plural variation: \(missing.keys.sorted())")
     }
 }

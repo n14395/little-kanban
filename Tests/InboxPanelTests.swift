@@ -60,6 +60,16 @@ import Testing
         // because it was `.board` before and after.
         let other = try #require(TestBoard.boards.last?.id)
         store.selectBoard(other)
+        // The rest of the rule is a sentence about a panel beside the board.
+        // The phone's Inbox is a sheet *over* it, so the setting deliberately
+        // never raises one there — see `inboxOpensBesideTheBoard`, which is
+        // also why Settings does not offer the switch on the phone — and an
+        // arrival must change nothing.
+        guard BoardStore.inboxOpensBesideTheBoard else {
+            #expect(store.isInboxOpen == false,
+                    "an arrival covered the phone's board with the Inbox sheet")
+            return
+        }
         #expect(store.isInboxOpen, "picking another board left the Inbox shut")
 
         // So is coming back from a saved view.

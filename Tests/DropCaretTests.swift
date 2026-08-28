@@ -384,12 +384,29 @@ import Testing
         return low...high
     }
 
-    /// One board card, with the store put into the state that draws `caret`.
+    /// One card, with the store put into the state that draws `caret` — **the
+    /// card this platform's board draws**. Not only for fidelity: on iOS 26,
+    /// `ImageRenderer` paints its yellow "unsupported" placeholder over the
+    /// bounds of any `UIViewRepresentable` in the tree, and `BoardTaskCard`
+    /// carries one — `pointerContextMenu`'s whole-card `PointerSensor` — so
+    /// its raster comes out placeholder from edge to edge, caret and all.
+    /// `PhoneTaskCard` draws the same caret contract and carries no
+    /// representable (the phone's pointer menu is `PhoneTaskRowActions`, a
+    /// modifier the *list* applies), so the iOS run measures that card, and
+    /// `BoardTaskCard`'s shared caret logic stays pinned by the macOS run.
     @MainActor
     private static func render(caret: DropCaret?) -> Raster? {
         let store = TestBoard.store()
         store.dropTargetCaret = caret
-        let card = BoardTaskCard(task: store[TestBoard.cafe]!)
+        #if os(iOS)
+        // The caret is `ReorderableCard`'s to draw on the phone — the list
+        // applies it to the row, the card itself carries none.
+        let bare = AnyView(PhoneTaskCard(task: store[TestBoard.cafe]!)
+            .modifier(ReorderableCard(task: store[TestBoard.cafe]!)))
+        #else
+        let bare = AnyView(BoardTaskCard(task: store[TestBoard.cafe]!))
+        #endif
+        let card = bare
             .frame(width: 260)
             .environment(store)
             .environment(\.palette, Palette(theme: ThemePresets.fallback(for: .light)))

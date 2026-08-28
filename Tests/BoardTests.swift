@@ -617,15 +617,19 @@ import Testing
         Preferences.reading(suite) {
             let store = Self.store(file: temp.file)
             store.selectBoard(Self.betaID)
-            store.selectSurface(.view(SavedView.today.id))
+            // Not Today: the phone *lands* on Today — see `landingSurface` —
+            // so a session left there cannot tell "not resumed" from "landed".
+            store.selectSurface(.view(SavedView.upcoming.id))
             store.saveNow()
 
             let relaunched = BoardStore.restored(file: temp.file)
             #expect(relaunched.activeBoardID == Self.betaID)
             #expect(relaunched.activeBoard?.name == "Beta")
-            // Where they were looking is not board data.
-            #expect(relaunched.surface == .board)
-            #expect(relaunched.activeView == nil)
+            // Where they were looking is not board data: the relaunch lands
+            // wherever this platform lands — the board on the desk and the
+            // iPad, Today on the phone — never where the session left off.
+            #expect(relaunched.surface == BoardStore.landingSurface)
+            #expect(relaunched.activeView?.id != SavedView.upcoming.id)
         }
     }
 

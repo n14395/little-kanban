@@ -383,57 +383,12 @@ struct BoardTaskCard: View {
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         // The toggle is hidden from VoiceOver because the card combines its
-        // children; these put the same verbs back as rotor actions.
-        .accessibilityActions {
-            if !task.isArchived {
-                Button(isDone ? "Reopen task" : "Complete task") { toggleTargets() }
-            }
-            // A filed card is already off the board, so unfiling it is not a
-            // move the Archive can show — restoring it is the way back.
-            if !task.isUnfiled, !task.isArchived {
-                Button("Move to Inbox") { store.move(targets, to: .inbox) }
-            }
-            // The one menu verb the rotor did not already carry. It leant on
-            // the context menu, and on a touch screen that menu now answers
-            // only a pointer — see `pointerContextMenu` above — which to a
-            // reader driving by touch is a menu that is not there.
-            Button("Copy Link") { TaskLink.copyToPasteboard(task.id) }
-        }
-        .accessibilityAction(named: task.isArchived ? Text("Restore task") : Text("Archive task")) {
-            if task.isArchived {
-                // A card at a time: the store has no bulk restore, and one is
-                // the only way to keep this honest about which cards it takes.
-                for id in targets { store.unarchive(id) }
-            } else {
-                store.archive(targets)
-            }
-        }
-        .accessibilityAction(named: Text("Trash task")) {
-            store.trashTasks(targets)
-        }
-        .modifier(MoveActions(task: task))
+        // children; the shared modifier puts the same verbs back as rotor
+        // actions — see ``TaskRotorActions``, which both cards wear. The desk
+        // acts on the whole selection, which is the `true` here.
+        .modifier(TaskRotorActions(task: task, actsOnSelection: true))
     }
 
-    /// What a rotor action acts on: the whole selection when this card is part
-    /// of it, exactly as the keys and the menu bar do. A VoiceOver user who has
-    /// picked three cards and chooses "Move to Backlog" means three — the
-    /// actions used to move, complete and delete one while the identically
-    /// named menu item took the lot.
-    ///
-    /// The tick and the context menu stay singular on purpose: both are aimed
-    /// at one card with a pointer, and the card they are aimed at is the one
-    /// under it.
-    private var targets: Set<TaskItem.ID> { store.commandTargets(task.id) }
-
-    /// The rotor's complete, which follows the same rule Space does: one card
-    /// toggles, several complete.
-    private func toggleTargets() {
-        if targets.count == 1, isDone {
-            store.reopen(task.id)
-        } else {
-            store.complete(targets)
-        }
-    }
 
     /// A click, and what the modifier held with it means: ⌘ adds this card to
     /// the selection or takes it out again, ⇧ sweeps from the last card picked

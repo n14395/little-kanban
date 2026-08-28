@@ -119,13 +119,18 @@ import Testing
         }
     }
 
-    /// Who raises one, and which manner each is allowed. Two routes do: the
-    /// keyboard, both ways it moves focus, and the card's own click.
+    /// Who raises one, and which manner each is allowed. Three routes do: the
+    /// keyboard, both ways it moves focus; the card's own click; and the
+    /// composer's commit, whose new card is appended at the foot of its column
+    /// and would otherwise land off the bottom of a long one, unseen.
     @Test func theKeyboardCentresAndAClickOnlyReveals() {
         guard SourceTree.isReachable else { return }
         let writers = SourceTree.files().filter { $0.source.contains("reveal = ") }
         #expect(
-            writers.map(\.path).sorted() == ["Shared/BoardKeyboard.swift", "Shared/BoardTaskCard.swift"],
+            writers.map(\.path).sorted() == [
+                "Shared/BoardKeyboard.swift", "Shared/BoardTaskCard.swift",
+                "Shared/BoardTaskComposer.swift",
+            ],
             "the set of things that move the board has changed: \(writers.map(\.path).sorted())"
         )
 

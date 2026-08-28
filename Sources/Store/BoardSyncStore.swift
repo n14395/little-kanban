@@ -49,8 +49,26 @@ enum SyncPreference {
     }
 }
 
+/// What ``BoardStore`` asks of its record store, as a seam.
+///
+/// `BoardSyncStore` is the only conformer the app ships. The protocol exists
+/// because one of the store's failure modes cannot be produced on purpose with
+/// a real container — `load()` throwing — and the behaviour that failure must
+/// provoke (withholding every push until a read succeeds; see
+/// `BoardStore.isSyncReadBlocked`) is exactly the kind of never-executed
+/// fallback this project has learned not to trust. `SyncStoreTests` conforms
+/// a wrapper that fails on command.
 @MainActor
-final class BoardSyncStore {
+protocol SyncStoring: AnyObject {
+    var isSyncing: Bool { get }
+    func load() throws -> BoardSnapshot?
+    func hasStoredTaskOrder() throws -> Bool
+    func backfillTaskPositions(from taskIDs: [TaskItem.ID]) throws
+    func apply(_ snapshot: BoardSnapshot) throws
+}
+
+@MainActor
+final class BoardSyncStore: SyncStoring {
     private static let logger = Logger(subsystem: "com.n14395.SimpleKanban", category: "sync")
 
     let container: ModelContainer
@@ -59,6 +77,12 @@ final class BoardSyncStore {
     /// What the last write left in the store, so the next one can tell which
     /// records actually changed without reading them all back.
     private var lastWritten: BoardSnapshot?
+
+    /// Test hook: forces every JSON encode in this store to fail. The failure
+    /// paths are unreachable with the real coders and the values the app
+    /// writes, and a fallback that has never been executed is a comment —
+    /// see `SyncStoreTests`, which runs both of them through this.
+    var encodingFailsForTesting = false
 
     /// Whether this store is talking to iCloud. `false` for the in-memory
     /// container tests use, and for a store the user has turned sync off on.
@@ -268,7 +292,16 @@ final class BoardSyncStore {
             return fresh
         }()
         meta.nextSerial = snapshot.nextSerial
-        meta.themesJSON = try? JSONEncoder().encode(snapshot.themes)
+        // On an encode failure the previous value stands. `nil` is what a
+        // fresh install reads as "no themes yet" and decodes to `.seed`, so
+        // writing it on error would quietly reset another device's themes.
+        // Stale-until-the-themes-next-change is the accepted cost; the log
+        // line is what keeps it from being a silent one.
+        if let themes = encodedThemes(snapshot.themes) {
+            meta.themesJSON = themes
+        } else {
+            Self.logger.error("The themes failed to encode; the previously synced themes stand.")
+        }
         meta.activeBoardID = snapshot.activeBoardID
         meta.updatedAt = .now
     }
@@ -390,7 +423,8 @@ final class BoardSyncStore {
                 existing[task.id] = fresh
                 return fresh
             }()
-            Self.write(task, at: position, into: record, context: context)
+            Self.write(task, at: position, into: record, context: context,
+                       encodingFails: encodingFailsForTesting)
         }
         let live = Set(snapshot.tasks.map(\.id))
         for (id, record) in existing where !live.contains(id) {
@@ -401,7 +435,8 @@ final class BoardSyncStore {
     // MARK: Value ⇄ record
 
     private static func write(
-        _ task: TaskItem, at position: Int, into record: StoredTask, context: ModelContext
+        _ task: TaskItem, at position: Int, into record: StoredTask, context: ModelContext,
+        encodingFails: Bool = false
     ) {
         record.code = task.code
         record.boardID = task.boardID
@@ -442,15 +477,43 @@ final class BoardSyncStore {
             // re-encoded the kind and dirtied the context for every entry of
             // every changed task, a cost that grew for the life of the card.
             if entries.removeValue(forKey: entry.id) != nil { continue }
+            // A kind that will not encode is not inserted at all. An empty
+            // row would satisfy the skip above on every later pass and never
+            // be repaired, then be dropped by `value(of:)` on every other
+            // device — a silent, permanent loss. A missing row is written the
+            // next time the task changes, and logged so the wait is at least
+            // a visible one.
+            guard let kind = encodedKind(entry.kind, failing: encodingFails) else {
+                Self.logger.error("An activity entry's kind failed to encode; its record was not written.")
+                continue
+            }
             let fresh = StoredActivity(id: entry.id)
             context.insert(fresh)
             fresh.task = record
-            fresh.kind = (try? Self.kindEncoder.encode(entry.kind)) ?? Data()
+            fresh.kind = kind
             fresh.when = entry.when
         }
         // Activity is append-only, so an entry the snapshot no longer carries
-        // was undone rather than forgotten, and the record goes with it.
-        for orphan in entries.values { context.delete(orphan) }
+        // was undone rather than forgotten, and the record goes with it. Only
+        // rows this build can read are candidates: a row whose kind does not
+        // decode was never in the value — `value(of:)` leaves it out — so its
+        // absence from the snapshot is not an undo, and deleting it would take
+        // a newer build's entry with it.
+        for orphan in entries.values {
+            guard (try? Self.kindDecoder.decode(ActivityEntry.Kind.self, from: orphan.kind)) != nil
+            else { continue }
+            context.delete(orphan)
+        }
+    }
+
+    private static func encodedKind(_ kind: ActivityEntry.Kind, failing: Bool) -> Data? {
+        guard !failing else { return nil }
+        return try? kindEncoder.encode(kind)
+    }
+
+    private func encodedThemes(_ themes: ThemeSettings) -> Data? {
+        guard !encodingFailsForTesting else { return nil }
+        return try? JSONEncoder().encode(themes)
     }
 
     /// One coder each way rather than one per activity row: a fresh
@@ -480,7 +543,14 @@ final class BoardSyncStore {
             .sorted { $0.when > $1.when }
             .compactMap { row in
                 guard let kind = try? Self.kindDecoder.decode(ActivityEntry.Kind.self, from: row.kind)
-                else { return nil }
+                else {
+                    // Most likely a kind written by a newer build. Left out of
+                    // the value, kept in the store — see the orphan rule in
+                    // `applyTask` — so the build that understands it still has
+                    // it.
+                    Self.logger.notice("An activity entry's kind failed to decode and was left out.")
+                    return nil
+                }
                 return ActivityEntry(id: row.id, kind, when: row.when)
             }
         return task

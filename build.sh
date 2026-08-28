@@ -17,7 +17,6 @@ BUILD_DIR="$PWD/build"
 APP_PATH="$BUILD_DIR/$APP_NAME.app"
 DMG_PATH="$BUILD_DIR/$APP_NAME.dmg"
 BUNDLE_ID="com.n14395.SimpleKanban"
-ENTITLEMENTS=""
 
 # Exported from ~/.zshrc. The literal fallback keeps the script working when it is
 # run from a shell that never sourced it (cron, a GUI runner, `env -i`).
@@ -106,21 +105,17 @@ make_dmg() {
 # --force re-sign silently drops them, which would break sandboxing and TCC.
 sign_one() {
     local target="$1" ent="" args=()
-    if [[ "$target" == "$APP_PATH" && -n "$ENTITLEMENTS" && -f "$ENTITLEMENTS" ]]; then
-        args+=(--entitlements "$ENTITLEMENTS")
+    ent="$(mktemp "${TMPDIR:-/tmp}/entitlements.XXXXXX")"
+    if codesign -d --entitlements - --xml "$target" 2>/dev/null | grep -q '<plist'; then
+        codesign -d --entitlements - --xml "$target" 2>/dev/null >"$ent"
+        # get-task-allow is the debugger entitlement Xcode injects into
+        # development-signed builds. The notary service rejects any binary
+        # that still requests it, so drop it before re-signing.
+        /usr/libexec/PlistBuddy -c 'Delete :com.apple.security.get-task-allow' \
+            "$ent" >/dev/null 2>&1 || true
+        args+=(--entitlements "$ent")
     else
-        ent="$(mktemp "${TMPDIR:-/tmp}/entitlements.XXXXXX")"
-        if codesign -d --entitlements - --xml "$target" 2>/dev/null | grep -q '<plist'; then
-            codesign -d --entitlements - --xml "$target" 2>/dev/null >"$ent"
-            # get-task-allow is the debugger entitlement Xcode injects into
-            # development-signed builds. The notary service rejects any binary
-            # that still requests it, so drop it before re-signing.
-            /usr/libexec/PlistBuddy -c 'Delete :com.apple.security.get-task-allow' \
-                "$ent" >/dev/null 2>&1 || true
-            args+=(--entitlements "$ent")
-        else
-            rm -f "$ent"; ent=""
-        fi
+        rm -f "$ent"; ent=""
     fi
     codesign --force --options runtime --timestamp \
         ${args[@]+"${args[@]}"} --sign "$DEV_TEAM_IDENTITY" "$target"
@@ -263,7 +258,29 @@ build_app() {
     # PRODUCT_NAME in project.yml is "Simple Kanban" (with a space); the bundle
     # we ship is CamelCase, so this copy doubles as the rename.
     ditto "$derived/Build/Products/Release/Simple Kanban.app" "$APP_PATH"
+    refresh_icns
     echo "    $APP_PATH"
+}
+
+# actool writes a truncated AppIcon.icns — ic04/ic07/ic11/ic13, nothing over
+# 256px — measured on Xcode 27. Nothing on screen is soft: on macOS 26 the
+# icon the system draws comes from Assets.car, which carries the full set to
+# 1024. The .icns is what legacy consumers read, though, and shipping one that
+# stops at 256 is an anomaly waiting for a sharp-eyed tool — so it is rebuilt
+# from the catalogue's own PNGs, before signing, and the two say the same thing.
+refresh_icns() {
+    step "Rebuilding AppIcon.icns from the icon catalogue"
+    local appiconset="Resources/Assets.xcassets/AppIcon.appiconset"
+    local staging iconset size
+    staging="$(mktemp -d "${TMPDIR:-/tmp}/simple-kanban-icns.XXXXXX")"
+    iconset="$staging/AppIcon.iconset"
+    mkdir "$iconset"
+    for size in 16 32 128 256 512; do
+        cp "$appiconset/AppIcon-mac-${size}x${size}.png" "$iconset/icon_${size}x${size}.png"
+        cp "$appiconset/AppIcon-mac-${size}x${size}@2x.png" "$iconset/icon_${size}x${size}@2x.png"
+    done
+    iconutil -c icns "$iconset" -o "$APP_PATH/Contents/Resources/AppIcon.icns"
+    rm -rf "$staging"
 }
 
 mkdir -p "$BUILD_DIR"

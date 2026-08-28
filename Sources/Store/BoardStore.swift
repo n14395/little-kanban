@@ -482,6 +482,21 @@ enum ColumnCaret: Hashable, Sendable {
 /// This is a port of the `Component extends DCLogic` class in
 /// the design spec (see `simple-kanban design spec.zip`): same state fields,
 /// same transition rules.
+///
+/// **One file, on purpose — splitting it was tried and reverted.** The
+/// obvious move at this size is `extension BoardStore` files per section, and
+/// two things veto it. The memo caches (`positions`, `searchMemo`,
+/// `groupedCache`, `countsMemo`, `viewCounts`, `viewMembers`, `searchTexts`,
+/// `boardIndices`…) are stored properties declared beside the code whose
+/// invariants they carry, and an extension cannot hold stored state. And the
+/// sections that *look* stateless — themes, trash, labels, columns, palette,
+/// the phone's navigation — write `tasks`, `boards`, `trash`, `themes` and
+/// `savedColors` directly, whose setters are `private(set)` **because the
+/// mutation contract says only this type mutates them**: moving those
+/// sections out compiles only if the setters open to the whole module, at
+/// which point any view can write the board without an undo step or a save.
+/// The file's size is the cost of the compiler enforcing that contract, and
+/// it is the cheaper of the two.
 @MainActor
 @Observable
 final class BoardStore {
@@ -919,6 +934,22 @@ final class BoardStore {
     /// write is refused until they say otherwise.
     private(set) var isSaveBlocked: Bool = false
 
+    /// True when there is a record store but its read at launch failed. The
+    /// board on screen came from `board.json`; what the records hold has not
+    /// been seen — so every push is withheld until a read succeeds, because
+    /// `apply` with nothing to diff against rewrites every record, and
+    /// rewriting records that were never read is how this device would hand
+    /// another device's newer board a stale overwrite. Distinct from
+    /// `isSaveBlocked`: saving to the file carries on as normal, so nothing
+    /// is lost on this device either way. Every remote change, manual sync
+    /// and save while blocked retries the read — see
+    /// `recoverFromBlockedSync(_:)`.
+    private(set) var isSyncReadBlocked = false
+
+    /// When the block began, so recovery can tell a task this device made
+    /// while blocked (kept) from one the records say was deleted (let go).
+    @ObservationIgnored private var syncReadBlockedSince: Date?
+
     /// Where the board is saved. `nil` keeps the store purely in memory, which
     /// is what previews and tests want — they must never touch the real file.
     private let file: BoardFile?
@@ -931,7 +962,7 @@ final class BoardStore {
     /// merge two devices editing different cards, and `board.json` holds it as
     /// a document, which is what backups, export and the corrupt-file rescue
     /// are built on. The read order at launch is in `restored(file:sync:)`.
-    @ObservationIgnored private let sync: BoardSyncStore?
+    @ObservationIgnored private let sync: (any SyncStoring)?
 
     /// Whether the board is reaching iCloud right now. `false` when sync is
     /// off, when the entitlement is missing, and in every test.
@@ -956,8 +987,17 @@ final class BoardStore {
     /// after the upgrade, where the JSON board is migrated into the records —
     /// and when SwiftData cannot be opened at all, which is the failure the
     /// quarantine machinery exists for and must not look like an empty board.
-    static func restored(file: BoardFile = .default, sync: BoardSyncStore? = nil) -> BoardStore {
-        if let sync, let loaded = try? sync.load() {
+    static func restored(file: BoardFile = .default, sync: (any SyncStoring)? = nil) -> BoardStore {
+        // Read the records without `try?`, because `try?` makes "the store
+        // opened and held nothing" and "the read failed" the same `nil` — and
+        // the two must part ways at the bottom of this function, where only
+        // one of them is allowed to push. See `isSyncReadBlocked`.
+        var recordsUnread = false
+        let records: BoardSnapshot? = {
+            guard let sync else { return nil }
+            do { return try sync.load() } catch { recordsUnread = true; return nil }
+        }()
+        if let sync, let loaded = records {
             // CloudKit applies records and relationships independently. A task
             // whose column has not arrived yet is not an Inbox task, so keep a
             // local snapshot visible, if one exists, and wait for the next
@@ -1038,10 +1078,17 @@ final class BoardStore {
         // boundary.
         store.sweepTrash()
         store.sweepDone()
-        // Whatever the JSON said is now what the records should say: either
-        // this is the upgrade that first fills them, or SwiftData failed to
-        // read and is being given the board back.
-        store.pushToSync()
+        // Whatever the JSON said is now what the records should say — this is
+        // the upgrade, or the first launch, that fills them. Unless the read
+        // *failed*: an unread store is not an empty one, and pushing over it
+        // is the overwrite `isSyncReadBlocked` exists to prevent, so the push
+        // waits for a read to succeed instead — see `recoverFromBlockedSync`.
+        if recordsUnread {
+            store.isSyncReadBlocked = true
+            store.syncReadBlockedSince = .now
+        } else {
+            store.pushToSync()
+        }
         return store
     }
 
@@ -1137,7 +1184,7 @@ final class BoardStore {
         views: [SavedView] = SavedView.seededAll,
         savedColors: [PaletteSwatch] = PaletteSwatch.seed,
         file: BoardFile? = nil,
-        sync: BoardSyncStore? = nil
+        sync: (any SyncStoring)? = nil
     ) {
         self.sync = sync
         self.tasks = Self.placed(tasks, on: boards)
@@ -1291,12 +1338,21 @@ final class BoardStore {
     /// at most half a second after the reference that kept it drops.
     private func scheduleSave() {
         boardRevision &+= 1
-        guard let file, !isSaveBlocked else { return }
-        // The generation is still claimed *now*: the write's place in the
+        guard let file else { return }
+        // A blocked file is only a blocked *file*. The followers still ride
+        // the debounce — the records, and off the test host the reminders, the
+        // Spotlight index and the widgets — because none of them is the file
+        // being protected, and the session's edits are nowhere else: a blocked
+        // session used to accumulate work that reached nothing at all, ended
+        // by a quit that kept none of it. Only the write is withheld, by
+        // claiming no generation, which also means a block lifted
+        // mid-debounce writes nothing until the next edit asks it to.
+        //
+        // The generation is otherwise claimed *now*: the write's place in the
         // file's order is a fact about when the edit happened, and a restore
         // racing this write from another store over the same path has to see
         // it as the older one. Only the snapshot waits for the debounce.
-        let generation = file.nextWriteGeneration()
+        let generation = isSaveBlocked ? nil : file.nextWriteGeneration()
         saveTask?.cancel()
         saveTask = Task {
             try? await Task.sleep(for: .milliseconds(500))
@@ -1307,6 +1363,7 @@ final class BoardStore {
             // diff were most of what a keystroke cost.
             let pending = self.snapshot
             self.reconcileSystemsAndSync(pending)
+            guard let generation else { return }
             // Off the main actor: encoding the board and writing it are the two
             // things in a keystroke's path that grow with the board's size.
             let outcome = await Task.detached(priority: .utility) { () -> SaveOutcome in
@@ -1355,20 +1412,31 @@ final class BoardStore {
             // when the day rolls over under a board nobody is editing.
             WidgetPublisher.publish(self, today: .today())
         }
-        pushToSync(pending)
+        if isSyncReadBlocked, let sync {
+            // A save is also the retry cadence for a blocked read. Without
+            // it, a device whose read failed and that then receives no
+            // remote-change notification — sync local-only, or CloudKit
+            // quiet — would stay blocked for the whole session.
+            recoverFromBlockedSync(sync)
+        } else {
+            pushToSync(pending)
+        }
     }
 
     /// Writes at once, for backgrounding and quit — points where the debounce
     /// would never get to fire and the last edit would be lost. Synchronous on
     /// purpose: at quit the ordering genuinely matters.
     func saveNow() {
-        guard let file, !isSaveBlocked else { return }
+        guard let file else { return }
         saveTask?.cancel()
         saveTask = nil
         // The cancelled task was carrying the followers as well as the write,
         // so they run here — at quit, an edit's reminder must not be lost with
-        // the debounce.
+        // the debounce. They run while saving is blocked too, and at quit that
+        // is the moment it pays: the records are the only place a blocked
+        // session's last edits survive to.
         reconcileSystemsAndSync(snapshot)
+        guard !isSaveBlocked else { return }
         do {
             let wrote = try file.write(snapshot, generation: file.nextWriteGeneration())
             recordSave(wrote ? .wrote : .superseded)
@@ -1386,7 +1454,7 @@ final class BoardStore {
     /// device either way. It is reported so the surface can say the board is
     /// not reaching the user's other devices, which is a different sentence.
     private func pushToSync(_ board: BoardSnapshot? = nil) {
-        guard let sync, !isAwaitingCompleteSync else { return }
+        guard let sync, !isAwaitingCompleteSync, !isSyncReadBlocked else { return }
         do {
             try sync.apply(board ?? snapshot)
             if case .sync = lastError { lastError = nil }
@@ -1422,6 +1490,9 @@ final class BoardStore {
     @discardableResult
     func mergeRemoteChanges() -> Bool {
         guard let sync else { return false }
+        // While the records stand unread, the push-first order below is the
+        // hazard itself — see `recoverFromBlockedSync`, which reads first.
+        if isSyncReadBlocked { return recoverFromBlockedSync(sync) }
         pushToSync()
         guard let incoming = try? sync.load() else { return false }
         guard !Self.hasUnresolvedTaskPlacements(in: incoming) else { return false }
@@ -1454,6 +1525,92 @@ final class BoardStore {
             || incoming.views != views
             || incoming.palette != savedColors
             || incoming.nextSerial != nextSerial
+    }
+
+    /// The read the launch could not make, tried again.
+    ///
+    /// The normal merge order — push, then read back the union — is not
+    /// available while the records stand unread: the push's diff base is
+    /// empty, so it would rewrite every record from a board that never saw
+    /// what they hold. So the read comes first, and the two sides are merged
+    /// at the one granularity that carries a timestamp — per task, newer
+    /// `updatedAt` wins, the same last-writer-wins the schema settles
+    /// duplicate records with; see `merging(localTasks:intoRemote:...)` for
+    /// the tasks only one side has. Everything coarser — boards, labels,
+    /// views, the palette — has no timestamp to argue with, so the records
+    /// win, exactly as they do in `mergeRemoteChanges`.
+    ///
+    /// The push at the end is what sends the tasks the local side won, and it
+    /// is safe by then: `load()` has just set the diff base to exactly what
+    /// the records hold, so it writes those tasks and nothing else. A store
+    /// that reads back empty is not a failure — it is a store that has been
+    /// reset, and the board on this device is all there is, so the same push
+    /// seeds it the way a first launch would have.
+    ///
+    /// Returns what `mergeRemoteChanges` returns: whether anything was
+    /// adopted, which is the sentence `syncNow` shows.
+    @discardableResult
+    private func recoverFromBlockedSync(_ sync: any SyncStoring) -> Bool {
+        let incoming: BoardSnapshot?
+        do { incoming = try sync.load() } catch { return false }
+        var adopted = false
+        if let incoming {
+            guard !Self.hasUnresolvedTaskPlacements(in: incoming) else { return false }
+            var merged = incoming
+            merged.tasks = Self.merging(
+                localTasks: tasks, intoRemote: incoming.tasks,
+                keepingLocalOnlyTouchedSince: syncReadBlockedSince
+            )
+            isSyncReadBlocked = false
+            syncReadBlockedSince = nil
+            if brings(somethingNew: merged) {
+                adoptContent(merged)
+                lastSyncedAt = .now
+                adopted = true
+            }
+        } else {
+            isSyncReadBlocked = false
+            syncReadBlockedSince = nil
+        }
+        pushToSync()
+        return adopted
+    }
+
+    /// The per-task half of `recoverFromBlockedSync`'s merge — the one place
+    /// the app merges by hand, because CloudKit was never shown this device's
+    /// side. Value-in, value-out, for the tests.
+    ///
+    /// A task both sides hold goes to the newer `updatedAt`. A task only the
+    /// records hold arrived from another device and is adopted. A task only
+    /// this side holds is kept if it was touched while blocked — it was just
+    /// made or edited here, and the records never saw it — and otherwise let
+    /// go, because a task this device knows and the records no longer hold is
+    /// one another device deleted. With no `blockedSince` to ask, keeping it
+    /// is the answer: a resurrected card can be deleted again, a lost one is
+    /// gone.
+    ///
+    /// Order is the records': a board unseen since launch has no manual order
+    /// worth arguing for, and a kept local-only task lands at the end, which
+    /// the next drag can fix and a silent loss could not.
+    static func merging(
+        localTasks: [TaskItem], intoRemote remote: [TaskItem],
+        keepingLocalOnlyTouchedSince blockedSince: Date?
+    ) -> [TaskItem] {
+        let localByID = Dictionary(localTasks.map { ($0.id, $0) },
+                                   uniquingKeysWith: { first, _ in first })
+        let remoteIDs = Set(remote.map(\.id))
+        var merged = remote.map { theirs in
+            guard let ours = localByID[theirs.id], ours.updatedAt > theirs.updatedAt else {
+                return theirs
+            }
+            return ours
+        }
+        merged.append(contentsOf: localTasks.filter { mine in
+            guard !remoteIDs.contains(mine.id) else { return false }
+            guard let blockedSince else { return true }
+            return mine.updatedAt >= blockedSince
+        })
+        return merged
     }
 
     /// A pull past the top of a list of cards, which is how iPhone and iPad ask
@@ -2097,6 +2254,7 @@ final class BoardStore {
     }
     #endif
 
+
     // MARK: - Lookup
 
     subscript(id: TaskItem.ID?) -> TaskItem? {
@@ -2306,7 +2464,11 @@ final class BoardStore {
     /// The board on screen. `nil` only when there are no boards at all, which
     /// is a state the user can reach by deleting the last one — the Inbox is
     /// still there, and so is the affordance to make another board.
-    var activeBoard: Board? { boards.first { $0.id == activeBoardID } }
+    ///
+    /// Through `board(id:)` rather than a scan of its own: it is read by the
+    /// toolbar, the sidebar, `columns` and the phone header on every render,
+    /// and an exception to the index memo is a trap for whoever audits it.
+    var activeBoard: Board? { board(id: activeBoardID) }
 
     /// Through an index memo rather than a scan: this sits under `isDone`,
     /// which every saved-view filter asks once per task, so the scan here
@@ -4188,6 +4350,7 @@ final class BoardStore {
         }
     }
 
+
     // MARK: - Archiving
 
     /// Files a task away. It leaves the board, every board count and every
@@ -5490,6 +5653,7 @@ final class BoardStore {
     }
 
     private static let columnNameLimit = 40
+
 
     // MARK: - Board management
 

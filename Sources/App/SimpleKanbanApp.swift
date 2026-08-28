@@ -523,7 +523,7 @@ private struct SaveFailureBanner: ViewModifier {
                           comment: "iOS banner text for a failed write")
         }
         if store.isSaveBlocked {
-            return String(localized: "Saving is paused so the unreadable board file is not written over.",
+            return String(localized: "Saving is paused so the unreadable board file is not written over. Export keeps a copy of what you do meanwhile.",
                           comment: "iOS banner text while writes are held back")
         }
         return nil
@@ -545,6 +545,12 @@ private struct SaveFailureBanner: ViewModifier {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            // The one action that rescues a blocked session: everything made
+            // while saving is paused exists in memory and the records only,
+            // and an export is the copy the user can put somewhere they chose.
+            if store.isSaveBlocked {
+                BlockedSessionExportButton(palette: palette)
+            }
             Button { store.dismissError() } label: {
                 Image(systemName: "xmark")
                     .font(palette.ui(11, .bold, relativeTo: .caption2))
@@ -568,6 +574,46 @@ private struct SaveFailureBanner: ViewModifier {
         }
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isSummaryElement)
+    }
+}
+
+/// The banner's **Export…**, as its own view so the snapshot it exports is
+/// read in the smallest body there is — `BoardTransfer` says why reading
+/// `exportedSnapshot` any higher up costs a whole-window re-render per
+/// keystroke.
+private struct BlockedSessionExportButton: View {
+    @Environment(BoardStore.self) private var store
+    let palette: Palette
+    @State private var isExporting = false
+    @State private var failure: String?
+
+    var body: some View {
+        Button {
+            isExporting = true
+        } label: {
+            Text("Export…", comment: "Banner button that saves a copy of the board while saving is paused")
+                .font(palette.ui(13, .semibold, relativeTo: .footnote))
+                .foregroundStyle(palette.accent)
+                .frame(minHeight: 44)
+        }
+        .buttonStyle(.bare)
+        .fileExporter(
+            isPresented: $isExporting,
+            document: BoardTransferDocument(store.exportedSnapshot),
+            contentType: .simpleKanbanBoard,
+            defaultFilename: BoardTransferDocument.filename(on: .today())
+        ) { result in
+            if case .failure(let error) = result { failure = error.localizedDescription }
+        }
+        .alert(
+            String(localized: "The board could not be exported.",
+                   comment: "Alert title when the blocked-session export fails"),
+            isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })
+        ) {
+            Button("OK") { failure = nil }
+        } message: {
+            Text(failure ?? "")
+        }
     }
 }
 

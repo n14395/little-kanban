@@ -1,7 +1,17 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "" : {},
+    "Status" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status"
+          }
+        }
+      }
+    },
     "—" : {
       "localizations" : {
         "en" : {
@@ -119,9 +129,21 @@
     "%@ goes for good, now rather than in %lld days. ⌘Z takes it back, and nothing else does." : {
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ goes for good, now rather than in %2$lld days. ⌘Z takes it back, and nothing else does."
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ goes for good, now rather than in %lld day. ⌘Z takes it back, and nothing else does."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@ goes for good, now rather than in %2$lld days. ⌘Z takes it back, and nothing else does."
+                }
+              }
+            }
           }
         }
       }
@@ -217,9 +239,21 @@
       "comment" : "Import summary line",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld boards added"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld board added"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld boards added"
+                }
+              }
+            }
           }
         }
       }
@@ -228,9 +262,21 @@
       "comment" : "First-run picker: how many cards a template puts on the board",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld cards"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld card"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cards"
+                }
+              }
+            }
           }
         }
       }
@@ -239,9 +285,21 @@
       "comment" : "Body of the daily overdue notification; the placeholder is a count",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld cards are past their date."
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld card is past its date."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cards are past their date."
+                }
+              }
+            }
           }
         }
       }
@@ -250,9 +308,21 @@
       "comment" : "First-run picker: how many columns a template has",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld columns"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld column"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld columns"
+                }
+              }
+            }
           }
         }
       }
@@ -261,9 +331,21 @@
       "comment" : "Import summary line",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld columns added"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld column added"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld columns added"
+                }
+              }
+            }
           }
         }
       }
@@ -272,9 +354,21 @@
       "comment" : "Trash row: how long is left before something is thrown away for good",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld days left"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld day left"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld days left"
+                }
+              }
+            }
           }
         }
       }
@@ -294,9 +388,21 @@
       "comment" : "Import summary line",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld labels added"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld label added"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld labels added"
+                }
+              }
+            }
           }
         }
       }
@@ -316,9 +422,21 @@
       "comment" : "Activity feed: several sub-tasks ticked off by the move to Done",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld sub-tasks completed"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld sub-task completed"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld sub-tasks completed"
+                }
+              }
+            }
           }
         }
       }
@@ -326,9 +444,21 @@
     "%lld tasks" : {
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld tasks"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld task"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld tasks"
+                }
+              }
+            }
           }
         }
       }
@@ -337,9 +467,21 @@
       "comment" : "Import summary line",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld tasks added"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld task added"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld tasks added"
+                }
+              }
+            }
           }
         }
       }
@@ -348,9 +490,21 @@
       "comment" : "Import summary line",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld tasks already here, unchanged"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld task already here, unchanged"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld tasks already here, unchanged"
+                }
+              }
+            }
           }
         }
       }
@@ -382,9 +536,21 @@
       "comment" : "Import summary line for id collisions",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld tasks kept alongside ones already here"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld task kept alongside ones already here"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld tasks kept alongside ones already here"
+                }
+              }
+            }
           }
         }
       }
@@ -503,17 +669,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "A board needs at least one column that is not Done."
-          }
-        }
-      }
-    },
-    "A copy of the board as it stands is kept in the backups folder first, and ⌘Z takes the reset back." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A copy of the board as it stands is kept in the backups folder first, and ⌘Z takes the reset back."
           }
         }
       }
@@ -971,9 +1126,21 @@
     "All %lld items go for good, now rather than when their thirty days are up. ⌘Z takes them back, and nothing else does." : {
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "All %lld items go for good, now rather than when their thirty days are up. ⌘Z takes them back, and nothing else does."
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld item goes for good, now rather than when its thirty days are up. ⌘Z takes it back, and nothing else does."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "All %lld items go for good, now rather than when their thirty days are up. ⌘Z takes them back, and nothing else does."
+                }
+              }
+            }
           }
         }
       }
@@ -1136,9 +1303,21 @@
       "comment" : "Menu item that archives several selected tasks",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Archive %lld Tasks"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Archive %lld Task"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Archive %lld Tasks"
+                }
+              }
+            }
           }
         }
       }
@@ -1269,40 +1448,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "At most %lld"
-          }
-        }
-      }
-    },
-    "Back to board" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Back to board"
-          }
-        }
-      }
-    },
-    "Back to Board" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Back to Board"
-          }
-        }
-      }
-    },
-    "Back to the board" : {
-      "comment" : "Accessibility name of the button leaving the Inbox or a saved view",
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Back to the board"
           }
         }
       }
@@ -1912,34 +2057,12 @@
         }
       }
     },
-    "Clear Search" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clear Search"
-          }
-        }
-      }
-    },
     "Clear the search filter" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Clear the search filter"
-          }
-        }
-      }
-    },
-    "Clear the search to drag cards between columns" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clear the search to drag cards between columns"
           }
         }
       }
@@ -2108,9 +2231,21 @@
       "comment" : "Menu item that completes several selected tasks",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Complete %lld Tasks"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Complete %lld Task"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Complete %lld Tasks"
+                }
+              }
+            }
           }
         }
       }
@@ -2231,9 +2366,21 @@
       "comment" : "Menu item that copies several selected tasks",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copy %lld Tasks"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Copy %lld Task"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Copy %lld Tasks"
+                }
+              }
+            }
           }
         }
       }
@@ -2334,18 +2481,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Delete"
-          }
-        }
-      }
-    },
-    "Delete %lld Tasks" : {
-      "comment" : "Menu item that deletes several selected tasks",
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete %lld Tasks"
           }
         }
       }
@@ -2467,17 +2602,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Delete Sub-task"
-          }
-        }
-      }
-    },
-    "Delete task" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete task"
           }
         }
       }
@@ -2804,21 +2928,21 @@
       "comment" : "Title of the due-date sheet when it is aimed at several tasks",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Due date for %lld tasks"
-          }
-        }
-      }
-    },
-    "Due date reminders" : {
-      "comment" : "Accessibility name of the drawer row that opens reminder settings",
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Due date reminders"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Due date for %lld task"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Due date for %lld tasks"
+                }
+              }
+            }
           }
         }
       }
@@ -2929,17 +3053,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Edit a card and it will show up here."
-          }
-        }
-      }
-    },
-    "Edit Board…" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Edit Board…"
           }
         }
       }
@@ -4085,9 +4198,21 @@
       "comment" : "Alert body: how many cards a trashed column holds and which column they move to",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Its %1$lld cards move to “%2$@” — nothing on it is deleted."
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Its %lld card moves to “%@” — nothing on it is deleted."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Its %1$lld cards move to “%2$@” — nothing on it is deleted."
+                }
+              }
+            }
           }
         }
       }
@@ -4664,9 +4789,21 @@
       "comment" : "Confirmation shown after several tasks are thrown away at once",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Moved %lld tasks to the trash"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Moved %lld task to the trash"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Moved %lld tasks to the trash"
+                }
+              }
+            }
           }
         }
       }
@@ -4781,44 +4918,9 @@
         }
       }
     },
-    "New Dark Theme" : {
-      "comment" : "Menu item: starts a new theme for the dark slot",
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "New Dark Theme"
-          }
-        }
-      }
-    },
     "New Label" : {
       "comment" : "A button that creates a new label.",
       "isCommentAutoGenerated" : true
-    },
-    "New label, then ⏎" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "New label, then ⏎"
-          }
-        }
-      }
-    },
-    "New Light Theme" : {
-      "comment" : "Menu item: starts a new theme for the light slot",
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "New Light Theme"
-          }
-        }
-      }
     },
     "New task" : {
       "comment" : "Widget button: capture a task into the Inbox",
@@ -5032,17 +5134,6 @@
       "comment" : "A message displayed when a search for a label yields",
       "isCommentAutoGenerated" : true
     },
-    "No labels yet. Add one from a task's Labels field." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No labels yet. Add one from a task's Labels field."
-          }
-        }
-      }
-    },
     "No labels yet. Create one here, or from a task's Labels field." : {
       "comment" : "A message displayed when a label list is empty.",
       "isCommentAutoGenerated" : true
@@ -5109,18 +5200,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No tasks match “%@”"
-          }
-        }
-      }
-    },
-    "Not allowed" : {
-      "comment" : "Drawer row value when notification permission was refused",
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not allowed"
           }
         }
       }
@@ -5242,18 +5321,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nothing here is sent anywhere. The board is a file on this device, and Settings can replace it at any time."
-          }
-        }
-      }
-    },
-    "Nothing here is sent anywhere. The board is a file on this device, and Settings can replace it with the sample at any time." : {
-      "comment" : "First-run picker footnote",
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nothing here is sent anywhere. The board is a file on this device, and Settings can replace it with the sample at any time."
           }
         }
       }
@@ -5389,18 +5456,6 @@
         }
       }
     },
-    "Off" : {
-      "comment" : "Drawer row value when due date reminders are switched off",
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Off"
-          }
-        }
-      }
-    },
     "Offline queue for edits" : {
       "comment" : "Seed board: task title",
       "localizations" : {
@@ -5426,9 +5481,21 @@
     "On %lld tasks" : {
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "On %lld tasks"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "On %lld task"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "On %lld tasks"
+                }
+              }
+            }
           }
         }
       }
@@ -5505,17 +5572,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open Board"
-          }
-        }
-      }
-    },
-    "Open Settings" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open Settings"
           }
         }
       }
@@ -6075,18 +6131,6 @@
         }
       }
     },
-    "Red" : {
-      "comment" : "Label colour",
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Red"
-          }
-        }
-      }
-    },
     "Redo" : {
       "comment" : "Edit menu item, provided by the system",
       "localizations" : {
@@ -6115,17 +6159,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Remind me on the due date"
-          }
-        }
-      }
-    },
-    "Reminders" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reminders"
           }
         }
       }
@@ -6190,17 +6223,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rename Board"
-          }
-        }
-      }
-    },
-    "Rename Board…" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rename Board…"
           }
         }
       }
@@ -6381,29 +6403,6 @@
         }
       }
     },
-    "Replace the board with the sample data?" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Replace the board with the sample data?"
-          }
-        }
-      }
-    },
-    "Replaces everything with the cards this app ships with." : {
-      "comment" : "Settings note under the reset row",
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Replaces everything with the cards this app ships with."
-          }
-        }
-      }
-    },
     "Replay + retry" : {
       "comment" : "Seed board: sub-task",
       "localizations" : {
@@ -6433,41 +6432,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reported twice this week. Reproduces after about an hour idle."
-          }
-        }
-      }
-    },
-    "Reset" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reset"
-          }
-        }
-      }
-    },
-    "Reset Board" : {
-      "comment" : "Undo action name for replacing the board with the sample data",
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reset Board"
-          }
-        }
-      }
-    },
-    "Reset to the sample board…" : {
-      "comment" : "Settings row that throws the board away",
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reset to the sample board…"
           }
         }
       }
@@ -7050,17 +7014,6 @@
         }
       }
     },
-    "shipped" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "shipped"
-          }
-        }
-      }
-    },
     "Short" : {
       "localizations" : {
         "en" : {
@@ -7412,17 +7365,6 @@
         }
       }
     },
-    "Status" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Status"
-          }
-        }
-      }
-    },
     "Status hues" : {
       "comment" : "Theme editor section heading, from the design document",
       "localizations" : {
@@ -7521,35 +7463,12 @@
         }
       }
     },
-    "Switch Board…" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Switch Board…"
-          }
-        }
-      }
-    },
     "Symbol" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Symbol"
-          }
-        }
-      }
-    },
-    "Sync" : {
-      "comment" : "Settings section heading",
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sync"
           }
         }
       }
@@ -8467,9 +8386,21 @@
       "comment" : "Menu item that puts several selected tasks in the trash",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Trash %lld Tasks"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Trash %lld Task"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Trash %lld Tasks"
+                }
+              }
+            }
           }
         }
       }
@@ -8712,18 +8643,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Views"
-          }
-        }
-      }
-    },
-    "Violet" : {
-      "comment" : "Label colour",
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Violet"
           }
         }
       }

@@ -4663,8 +4663,20 @@ is untouched by it. If sync ever matters, this is the layer to replace.
   until the launch alert is acknowledged — the only copy of the user's work is
   still sitting at `board.json`, and a write would land on top of it. A file
   that is simply absent is not a failure and leaves nothing behind.
+
+  A blocked *file* is only a blocked file. The save funnel's followers — the
+  record store, and outside the test host the reminders, the Spotlight index
+  and the widgets — still run on every save, because none of them is the file
+  being protected and a blocked session's edits exist nowhere else: they used
+  to accumulate in memory reaching nothing at all, and a quit kept none of
+  them. The one thing withheld is the write itself. The iOS banner that states
+  the condition now carries **Export…** — the copy of the session's work the
+  user can put somewhere they chose — and on the desk File ▸ Export Board…
+  has always been there. `PersistenceTests/aBlockedSaveStillReachesTheRecords`
+  pins the arrangement, reaching the blocked state the honest way: a corrupt
+  board in a directory nothing can write into.
 - **Older files are migrated, not guessed at.** `BoardSnapshot.currentVersion`
-  is 9. The version is read out of the raw JSON *before* anything is decoded,
+  is 13. The version is read out of the raw JSON *before* anything is decoded,
   because synthesised `Codable` throws `keyNotFound` for a key the older shape
   never wrote — a property default does not make a field backward-compatible.
   Only an `Optional` tolerates absence, which is why `archivedAt` is one.
@@ -5744,6 +5756,49 @@ board is folded into them once — and when the store cannot be opened at all,
 which is the failure the quarantine machinery exists for and must never look
 like an empty board.
 
+### A store that opened and then failed to read is not an empty one
+
+Three things can come back from that first ask, and the third used to be
+dressed as the first: the records, nothing, or an **error**. `restored` read
+them through `try?`, which makes "held nothing" and "the read failed" the same
+`nil` — and the file path both answers ends in a push that, with nothing to
+diff against, rewrites **every** record. So a transient read failure — the
+container mid-migration, a CloudKit schema push in flight, disk pressure —
+handed another device's newer board a stale overwrite, silently.
+
+Now a failed read sets `BoardStore.isSyncReadBlocked`: the file still puts a
+board on screen and every save still reaches `board.json`, but **no push
+leaves this device until a read succeeds**, because a push over records that
+were never read is the overwrite above. Settings ▸ Sync states the condition —
+it is a standing one, not an error to report once. The read is retried by
+every save, every remote-change notification and every manual sync, and the
+first one that succeeds runs the one merge in the app that is done by hand —
+`recoverFromBlockedSync` — since the normal order (push, then read back the
+union) is exactly what is forbidden here. The merge works at the one
+granularity that carries a timestamp: per task, newer `updatedAt` wins, the
+same last-writer-wins the schema settles duplicate records with; a task only
+the records hold arrived and is adopted; one only this side holds is kept if
+it was touched while blocked and otherwise let go, because a task the records
+no longer hold is one another device deleted. Everything coarser — boards,
+labels, views, the palette — has no timestamp to argue with, so the records
+win, as they do in every other merge. A store that reads back *empty* is one
+that has been reset, and is seeded from this device the way a first launch
+would have. `SyncReadFailureTests` drives all of it through `SyncStoring`, the
+seam that exists because a real container cannot be made to fail on command.
+
+The same family of silent losses had two smaller members in the store itself,
+both fixed and both pinned by `SyncEncodingFailureTests`: an activity entry
+whose kind failed to encode was written as an **empty row** — which satisfied
+the already-written skip on every later pass, was never repaired, and was
+dropped by `value(of:)` on every other device — and now is not written at all
+until the task next changes, with a log line for the wait; and themes that
+failed to encode wrote `nil` over the synced value, which the next device read
+as `.seed` — the previous value now stands instead. The complement got its
+guard too: a row whose kind this build cannot *decode* — a newer build's entry
+— is left out of the value, and the orphan sweep no longer deletes it for
+being absent, which is the round-trip promise `StoredActivity.kind`'s comment
+was already making.
+
 ### Pull to sync
 
 The desk has a window in front of you and the touch platforms have a list in your
@@ -5883,7 +5938,11 @@ the account; the App ID could go, the container cannot.
 
 What is left is the CloudKit dashboard: the development schema initialises itself
 on first run, and **promoting it to production is a separate, one-way step** to
-take before shipping. After that the schema is additive only — see above.
+take before shipping. After that the schema is additive only — see above. The
+step before *that* is the one the suite cannot take: a real two-device merge,
+which `Tools/sync-merge-checklist.md` scripts scenario by scenario — run it,
+record the result here, then promote (the dashboard steps are at the end of the
+checklist).
 
 **To put it back**, point the macOS `CODE_SIGN_ENTITLEMENTS` line at the plain
 `Resources/SimpleKanban.entitlements` and comment the condition out. Nothing else

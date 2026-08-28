@@ -273,6 +273,38 @@ import Testing
         #expect(store.lastError == nil)
     }
 
+    /// The other arm: when the unreadable file cannot even be moved aside —
+    /// here, a directory nothing can write into — writing stops to protect it,
+    /// and **only** writing. The record store is not the file being protected,
+    /// and a blocked session's edits exist nowhere else, so the sync follower
+    /// keeps running; off the test host the reminders, the Spotlight index and
+    /// the widgets ride the same funnel. The old behaviour returned before all
+    /// of them, and a blocked session's work died with the quit.
+    @MainActor
+    @Test func aBlockedSaveStillReachesTheRecords() throws {
+        let temp = TempBoard()
+        try temp.put("{ this is not a board")
+        let manager = FileManager.default
+        let directory = temp.file.url.deletingLastPathComponent().path(percentEncoded: false)
+        try manager.setAttributes([.posixPermissions: 0o555], ofItemAtPath: directory)
+        defer { try? manager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: directory) }
+
+        let sync = try BoardSyncStore.inMemory()
+        let store = BoardStore.restored(file: temp.file, sync: sync)
+        #expect(store.isSaveBlocked,
+                "the read-only directory should have kept the quarantine from moving the file aside")
+
+        store.addTask(to: .inbox, title: "Made while saving is paused")
+        store.saveNow()
+
+        #expect(store.isSaveBlocked, "a blocked save must stay blocked until the user acknowledges")
+        let records = try #require(try sync.load())
+        #expect(records.tasks.contains { $0.title == "Made while saving is paused" },
+                "a blocked file write must not block the record store")
+        // The protected file holds exactly the bytes it was being protected for.
+        #expect(try String(contentsOf: temp.file.url, encoding: .utf8) == "{ this is not a board")
+    }
+
     @MainActor
     @Test func serialsKeepClimbingAcrossSessions() throws {
         let temp = TempBoard()

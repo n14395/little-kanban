@@ -531,3 +531,285 @@ import Testing
                 "the merge read the records without flushing the pending board into them")
     }
 }
+
+/// A record store that fails to read on command, wrapping a real one — the
+/// launch-time failure `BoardSyncStore` cannot be made to produce on purpose,
+/// and the seam `SyncStoring` exists for. Writes are counted so a test can
+/// state "nothing was pushed" rather than inferring it.
+@MainActor
+private final class FlakySyncStore: SyncStoring {
+    let wrapped: BoardSyncStore
+    var loadFails = false
+    private(set) var applyCount = 0
+
+    init(wrapping wrapped: BoardSyncStore) { self.wrapped = wrapped }
+
+    var isSyncing: Bool { wrapped.isSyncing }
+    func load() throws -> BoardSnapshot? {
+        if loadFails { throw CocoaError(.fileReadUnknown) }
+        return try wrapped.load()
+    }
+    func hasStoredTaskOrder() throws -> Bool { try wrapped.hasStoredTaskOrder() }
+    func backfillTaskPositions(from taskIDs: [TaskItem.ID]) throws {
+        try wrapped.backfillTaskPositions(from: taskIDs)
+    }
+    func apply(_ snapshot: BoardSnapshot) throws {
+        applyCount += 1
+        try wrapped.apply(snapshot)
+    }
+}
+
+/// What a read failure at launch must and must not do.
+///
+/// The hazard these pin: `restored` used to read the records through `try?`,
+/// which makes "the store held nothing" and "the read failed" the same `nil` —
+/// and the file path below both ends in a push that rewrites every record. A
+/// transient failure therefore handed another device's newer board a stale
+/// overwrite. Now the failure blocks every push until a read succeeds, and the
+/// first successful read merges the two sides task by task.
+@MainActor
+@Suite struct SyncReadFailureTests {
+    /// The board both sides start from, filed onto the seed board so the
+    /// placements are legal — see `SyncStoreTests.filed`.
+    private static let filed = TestBoard.tasks(on: SeedData.defaultBoard)
+
+    private func snapshot(tasks: [TaskItem]) -> BoardSnapshot {
+        BoardSnapshot(tasks: tasks, boards: SeedData.boards, labels: LabelDef.seed,
+                      nextSerial: 100, activeBoardID: SeedData.defaultBoard.id)
+    }
+
+    @Test func aFailedReadFallsBackToTheFileWithoutPushingOverTheRecords() throws {
+        let temp = TempBoard()
+        let real = try BoardSyncStore.inMemory()
+        var theirs = Self.filed[0]
+        theirs.title = "What the records say"
+        try real.apply(snapshot(tasks: [theirs]))
+
+        var mine = theirs
+        mine.title = "What the file says"
+        try temp.file.write(snapshot(tasks: [mine]), generation: temp.file.nextWriteGeneration())
+
+        let flaky = FlakySyncStore(wrapping: real)
+        flaky.loadFails = true
+        let store = BoardStore.restored(file: temp.file, sync: flaky)
+
+        #expect(store.tasks.first?.title == "What the file says",
+                "the file is still what puts a board on screen")
+        #expect(store.isSyncReadBlocked)
+        #expect(flaky.applyCount == 0, "a failed read pushed the file over the records")
+        #expect(try #require(try real.load()).tasks.first?.title == "What the records say")
+    }
+
+    @Test func aBlockedStoreStillSavesTheFileAndPushesNothing() throws {
+        let temp = TempBoard()
+        let real = try BoardSyncStore.inMemory()
+        try real.apply(snapshot(tasks: [Self.filed[0]]))
+        try temp.file.write(snapshot(tasks: [Self.filed[0]]),
+                            generation: temp.file.nextWriteGeneration())
+
+        let flaky = FlakySyncStore(wrapping: real)
+        flaky.loadFails = true
+        let store = BoardStore.restored(file: temp.file, sync: flaky)
+
+        store.addTask(to: .inbox, title: "Made while blocked")
+        store.saveNow()
+
+        #expect(store.isSyncReadBlocked, "a save must not unblock a read that is still failing")
+        #expect(flaky.applyCount == 0)
+        let onDisk = try #require(temp.file.load().snapshot)
+        #expect(onDisk.tasks.contains { $0.title == "Made while blocked" },
+                "blocking the records must not block the file")
+    }
+
+    @Test func theFirstSuccessfulReadMergesBothSidesAndUnblocks() throws {
+        let temp = TempBoard()
+        let real = try BoardSyncStore.inMemory()
+        let old = Date(timeIntervalSinceNow: -7200)
+        let newer = Date(timeIntervalSinceNow: -3600)
+
+        // The records hold a later edit of a shared task, and a task this
+        // device has never seen.
+        var theirs = Self.filed[0]
+        theirs.title = "Theirs, newer"
+        theirs.updatedAt = newer
+        var arrived = Self.filed[2]
+        arrived.title = "Arrived remotely"
+        arrived.updatedAt = newer
+        try real.apply(snapshot(tasks: [theirs, arrived]))
+
+        // The file holds the stale edit of the shared task, and a task the
+        // records used to hold and no longer do — deleted on another device.
+        var mine = theirs
+        mine.title = "Mine, stale"
+        mine.updatedAt = old
+        var deletedRemotely = Self.filed[1]
+        deletedRemotely.updatedAt = old
+        try temp.file.write(snapshot(tasks: [mine, deletedRemotely]),
+                            generation: temp.file.nextWriteGeneration())
+
+        let flaky = FlakySyncStore(wrapping: real)
+        flaky.loadFails = true
+        let store = BoardStore.restored(file: temp.file, sync: flaky)
+        store.addTask(to: .inbox, title: "Made while blocked")
+
+        flaky.loadFails = false
+        #expect(store.mergeRemoteChanges(), "the recovery read adopted nothing")
+
+        #expect(store.isSyncReadBlocked == false)
+        #expect(store[theirs.id]?.title == "Theirs, newer", "the stale side won a shared task")
+        #expect(store.tasks.contains { $0.title == "Arrived remotely" })
+        #expect(store.tasks.contains { $0.title == "Made while blocked" },
+                "recovery dropped a task made while blocked")
+        #expect(store[deletedRemotely.id] == nil, "recovery resurrected a remotely deleted task")
+
+        let records = try #require(try real.load())
+        #expect(records.tasks.contains { $0.title == "Made while blocked" },
+                "recovery did not push the task the records never saw")
+        #expect(records.tasks.first { $0.id == theirs.id }?.title == "Theirs, newer")
+    }
+
+    @Test func aStoreThatReadsBackEmptyIsSeededRatherThanStayingBlocked() throws {
+        let temp = TempBoard()
+        let real = try BoardSyncStore.inMemory()
+        try temp.file.write(snapshot(tasks: [Self.filed[0]]),
+                            generation: temp.file.nextWriteGeneration())
+
+        let flaky = FlakySyncStore(wrapping: real)
+        flaky.loadFails = true
+        let store = BoardStore.restored(file: temp.file, sync: flaky)
+        #expect(store.isSyncReadBlocked)
+
+        flaky.loadFails = false
+        #expect(store.mergeRemoteChanges() == false, "an empty store is not something arriving")
+        #expect(store.isSyncReadBlocked == false)
+        #expect(try #require(try real.load()).tasks.map(\.id) == [Self.filed[0].id],
+                "an empty readable store should have been seeded from this device")
+    }
+
+    @Test func theMergeRuleKeepsTheNewerSideOfEachTask() {
+        let old = Date(timeIntervalSinceNow: -7200)
+        let blockedSince = Date(timeIntervalSinceNow: -3600)
+        let newer = Date(timeIntervalSinceNow: -60)
+
+        var localWins = Self.filed[0]
+        localWins.title = "Local, newer"
+        localWins.updatedAt = newer
+        var localWinsRemote = localWins
+        localWinsRemote.title = "Remote, older"
+        localWinsRemote.updatedAt = old
+
+        var remoteWins = Self.filed[1]
+        remoteWins.title = "Local, older"
+        remoteWins.updatedAt = old
+        var remoteWinsRemote = remoteWins
+        remoteWinsRemote.title = "Remote, newer"
+        remoteWinsRemote.updatedAt = newer
+
+        var staleLocalOnly = Self.filed[2]
+        staleLocalOnly.updatedAt = old
+        var freshLocalOnly = Self.filed[3]
+        freshLocalOnly.updatedAt = newer
+
+        let merged = BoardStore.merging(
+            localTasks: [localWins, remoteWins, staleLocalOnly, freshLocalOnly],
+            intoRemote: [localWinsRemote, remoteWinsRemote],
+            keepingLocalOnlyTouchedSince: blockedSince
+        )
+        #expect(merged.map(\.title) == ["Local, newer", "Remote, newer", freshLocalOnly.title],
+                "order is the records', with kept local-only tasks at the end")
+
+        // With no moment to compare against, keeping is the answer: a
+        // resurrected card can be deleted again, a lost one is gone.
+        let keptAnyway = BoardStore.merging(
+            localTasks: [staleLocalOnly], intoRemote: [],
+            keepingLocalOnlyTouchedSince: nil
+        )
+        #expect(keptAnyway.map(\.id) == [staleLocalOnly.id])
+    }
+}
+
+/// The encode and decode failure paths in `BoardSyncStore` — unreachable with
+/// the real coders and the values the app writes, so the encode side runs
+/// through `encodingFailsForTesting` and the decode side through a
+/// hand-corrupted record. What they pin: a value that will not encode must
+/// never poison the store or reset another device, and a record this build
+/// cannot read must never be deleted by it.
+@MainActor
+@Suite struct SyncEncodingFailureTests {
+    private static let filed = TestBoard.tasks(on: SeedData.defaultBoard)
+
+    private func snapshot(tasks: [TaskItem], themes: ThemeSettings = .seed) -> BoardSnapshot {
+        BoardSnapshot(tasks: tasks, boards: SeedData.boards, labels: LabelDef.seed,
+                      nextSerial: 100, activeBoardID: SeedData.defaultBoard.id, themes: themes)
+    }
+
+    /// The old behaviour wrote `Data()` instead — a row that satisfied the
+    /// already-written skip on every later pass, was never repaired, and was
+    /// silently dropped by `value(of:)` on every other device.
+    @Test func aKindThatWillNotEncodeIsSkippedAndWrittenOnceItCan() throws {
+        let sync = try BoardSyncStore.inMemory()
+        var task = Self.filed[0]
+        task.activity = [ActivityEntry(.created, when: Date(timeIntervalSinceNow: -60)),
+                         ActivityEntry(.archived)]
+
+        sync.encodingFailsForTesting = true
+        try sync.apply(snapshot(tasks: [task]))
+        #expect(try sync.container.mainContext.fetch(FetchDescriptor<StoredActivity>()).isEmpty,
+                "an unencodable kind reached the store anyway")
+
+        // The rows are written the next time the task changes.
+        sync.encodingFailsForTesting = false
+        task.title = "Edited"
+        task.updatedAt = .now
+        try sync.apply(snapshot(tasks: [task]))
+        #expect(try #require(try sync.load()).tasks.first?.activity.count == 2)
+    }
+
+    @Test func themesThatWillNotEncodeLeaveThePreviousThemesStanding() throws {
+        let sync = try BoardSyncStore.inMemory()
+        try sync.apply(snapshot(tasks: [Self.filed[0]], themes: TestBoard.otherThemes))
+
+        sync.encodingFailsForTesting = true
+        try sync.apply(snapshot(tasks: [Self.filed[0]], themes: .seed))
+
+        // Read through a second store over the same container: the first one's
+        // diff base believes the write landed, which is the staleness the
+        // comment in `applyMeta` accepts. What may not happen is `nil` landing
+        // in the record — the next device would read it as `.seed`.
+        let other = BoardSyncStore(container: sync.container, isSyncing: false)
+        #expect(try #require(try other.load()).themes == TestBoard.otherThemes)
+    }
+
+    /// `StoredActivity.kind` keeps the encoded form precisely so a case this
+    /// build does not know survives a round trip through a device that does —
+    /// which the orphan rule in `applyTask` used to defeat by deleting any row
+    /// the value did not carry.
+    @Test func aRowThisBuildCannotReadIsLeftOutOfTheValueButKeptInTheStore() throws {
+        let sync = try BoardSyncStore.inMemory()
+        var task = Self.filed[0]
+        task.activity = [ActivityEntry(.created)]
+        try sync.apply(snapshot(tasks: [task]))
+
+        // A newer build's entry: a kind this build's decoder has never heard of.
+        let record = try #require(
+            sync.container.mainContext.fetch(FetchDescriptor<StoredTask>()).first { $0.id == task.id }
+        )
+        let foreign = StoredActivity(id: UUID())
+        foreign.kind = Data(#"{"sentToMars":{}}"#.utf8)
+        foreign.when = .now
+        sync.container.mainContext.insert(foreign)
+        foreign.task = record
+        try sync.container.mainContext.save()
+
+        // Left out of the value…
+        let other = BoardSyncStore(container: sync.container, isSyncing: false)
+        #expect(try #require(try other.load()).tasks.first?.activity.count == 1)
+
+        // …and not deleted as an orphan when the task next changes.
+        task.title = "Edited"
+        task.updatedAt = .now
+        try other.apply(snapshot(tasks: [task]))
+        let rows = try sync.container.mainContext.fetch(FetchDescriptor<StoredActivity>())
+        #expect(rows.count == 2, "the apply deleted a newer build's activity record")
+    }
+}
