@@ -168,7 +168,8 @@ struct InboxPanel: View {
                 // air, so the cards beside it do not draw a second edge caret.
                 .environment(\.drawsDropCaret, false)
             }
-            .scrollBounceBehavior(.basedOnSize)
+            // The panel is a column and pulls like one — see ``PullToSync``.
+            .pullToSync(bounce: .basedOnSize)
             // The panel is as tall as the board, so a key landing on a card
             // near the bottom has to bring the card with it — the same reason
             // `BoardColumnView` carries this, and the same reason a click is

@@ -178,15 +178,14 @@ struct PhoneTabBar: View {
     /// back to. It keeps its accent either way: it is the one button on this bar
     /// that makes something rather than going somewhere.
     ///
-    /// The mark is ``CaptureGlyph``, the tray with a `+` over it that the desk
-    /// and the iPad's capture buttons draw. It says where the card is going,
-    /// which a bare `+` did not: this one lands in the Inbox
-    /// (``BoardStore/quickCapture()``), and the `+` on a column adds there.
+    /// It lands in the Inbox (``BoardStore/quickCapture()``), where the `+` on
+    /// a column adds to that column.
     private var quickCaptureButton: some View {
         Button {
             store.quickCapture()
         } label: {
-            CaptureGlyph(size: isHeader ? 20 : 24, weight: .regular, relativeTo: .title3)
+            Image(systemName: "plus")
+                .symbolSize(isHeader ? 20 : 24, weight: .regular, relativeTo: .title3)
                 .foregroundStyle(palette.onAccent)
                 .frame(minWidth: isHeader ? 44 : 52, minHeight: isHeader ? 44 : 52)
         }

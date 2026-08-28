@@ -218,15 +218,15 @@ import Testing
         let title = try #require(store[TestBoard.cafe]?.displayTitle)
 
         store.trashTask(TestBoard.cafe)
-        #expect(store.trashAnnouncement?.text == "Moved \(title) to the trash")
+        #expect(store.announcement?.text == "Moved \(title) to the trash")
 
         store.trashColumn(Self.upNext)
-        #expect(store.trashAnnouncement?.text == "Moved \(BoardColumn.upNext.name) to the trash")
+        #expect(store.announcement?.text == "Moved \(BoardColumn.upNext.name) to the trash")
 
         let boardID = try #require(store.activeBoardID)
         let name = try #require(store.board(id: boardID)?.name)
         store.trashBoard(boardID)
-        #expect(store.trashAnnouncement?.text == "Moved \(name) to the trash")
+        #expect(store.announcement?.text == "Moved \(name) to the trash")
     }
 
     /// One card for a selection, not one per task: four in a row would each
@@ -235,11 +235,11 @@ import Testing
     @Test func aSelectionGetsOneCardCountingThemRatherThanFour() {
         let store = store()
         store.trashTasks([TestBoard.cafe, TestBoard.dragDrop, TestBoard.offline])
-        #expect(store.trashAnnouncement?.text == "Moved 3 tasks to the trash")
+        #expect(store.announcement?.text == "Moved 3 tasks to the trash")
 
         // A selection of one is still a name, because there is a name to give.
         store.trashTasks([TestBoard.sync])
-        #expect(store.trashAnnouncement?.text == "Moved Sync engine to the trash")
+        #expect(store.announcement?.text == "Moved Sync engine to the trash")
     }
 
     /// Two cards with one title, one after the other. The ids differ, which is
@@ -248,9 +248,9 @@ import Testing
     @Test func twoTrashesRunningReadTheSameAndAreNotTheSameAnnouncement() throws {
         let store = store()
         store.trashTask(TestBoard.cafe)
-        let first = try #require(store.trashAnnouncement)
+        let first = try #require(store.announcement)
         store.trashTask(TestBoard.dragDrop)
-        let second = try #require(store.trashAnnouncement)
+        let second = try #require(store.announcement)
         #expect(first.id != second.id)
         #expect(first != second)
     }
@@ -260,7 +260,7 @@ import Testing
         let store = TestBoard.store(boards: [SeedData.defaultBoard])
         let done = BoardColumn.done.id
         #expect(store.trashColumn(done) == .doneColumn)
-        #expect(store.trashAnnouncement == nil)
+        #expect(store.announcement == nil)
     }
 
     /// ⌘Z takes the sentence away with the act it describes. A card still
@@ -269,10 +269,10 @@ import Testing
     @Test func undoingTakesTheCardAwayWithTheAct() {
         let (store, undo) = TestBoard.undoing()
         step(undo) { store.trashTask(TestBoard.cafe) }
-        #expect(store.trashAnnouncement != nil)
+        #expect(store.announcement != nil)
 
         undo.undo()
-        #expect(store.trashAnnouncement == nil)
+        #expect(store.announcement == nil)
     }
 
     // MARK: Deleting for good

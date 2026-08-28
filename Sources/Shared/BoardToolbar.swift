@@ -834,17 +834,15 @@ struct BoardToolbar: View {
     static let searchToggleID = "SearchToggle"
     static let searchFieldID = "SearchField"
 
-    /// ``CaptureGlyph`` in a filled circle, and nothing else — the same control
-    /// the phone floats over its tab bar (``PhoneTabBar/quickCaptureButton``),
-    /// at the size the rest of this row is.
+    /// A `+` in a filled circle, and nothing else — the same control the phone
+    /// floats over its tab bar (``PhoneTabBar/quickCaptureButton``), at the
+    /// size the rest of this row is.
     ///
     /// **No word beside it.** The label was 73pt of a row that has only the
-    /// board's name to give, and the mark in the accent says the whole of it: a
-    /// tray with a `+` over it is *this goes in the Inbox*, which is what the
-    /// three ever-present capture buttons do and what the bare `+` on a column
-    /// heading does not. What the word carried is carried by the accessibility
-    /// label besides, which is what a reader gets either way: a button whose
-    /// label is its glyph publishes nothing without one.
+    /// board's name to give, and the glyph in the accent says the whole of it.
+    /// What the word carried is carried by the accessibility label besides,
+    /// which is what a reader gets either way: a button whose label is its
+    /// glyph publishes nothing without one.
     ///
     /// **It captures to the Inbox, never to the board behind it.** This is the
     /// iPad's copy of the control the desk keeps at the foot of its source list
@@ -858,10 +856,11 @@ struct BoardToolbar: View {
             Button {
                 store.beginCapturingInInbox()
             } label: {
-                CaptureGlyph(size: diameter * 0.45, weight: .medium, relativeTo: .title3)
+                Image(systemName: "plus")
                     // Off the circle rather than off the bar's glyph size, so
                     // the two keep their proportion if the circle ever changes:
                     // the phone draws 24 in 52, which is this.
+                    .symbolSize(diameter * 0.45, weight: .medium, relativeTo: .title3)
                     .foregroundStyle(palette.onAccent)
                     .frame(minWidth: chrome(diameter), minHeight: chrome(diameter))
                     .background(palette.accent, in: .circle)

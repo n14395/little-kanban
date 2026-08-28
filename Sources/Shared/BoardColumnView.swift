@@ -354,7 +354,12 @@ struct BoardColumnView: View {
                 // beside it draw no line of their own — see `drawsDropCaret`.
                 .environment(\.drawsDropCaret, false)
             }
-            .scrollBounceBehavior(.basedOnSize)
+            // Pull a column past its top and the board checks iCloud — and
+            // the bounce a column has always asked for, handed to the same
+            // modifier because a list that does not rubber-band cannot be
+            // pulled past a top it is already at. See ``PullToSync``: a no-op
+            // on the desk, and a no-op wherever sync is off.
+            .pullToSync(bounce: .basedOnSize)
             .frame(minHeight: 40)
             // A column is taller than the window as often as not, so a key
             // landing on a card near the bottom has to bring the card with it.

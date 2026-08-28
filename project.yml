@@ -21,6 +21,13 @@ targets:
     supportedDestinations: [macOS, iOS]
     sources:
       - path: Sources
+        # The widget extension's own code. It sits under `Sources/` so that the
+        # suite's source-tree rules — no unlocalised prose, no `Text(verbatim:)`
+        # carrying words — apply to it like everything else, and it is excluded
+        # here because it is compiled into `SimpleKanbanWidgets` below. What the
+        # two targets *share* is `Sources/Widgets/`, which stays in both.
+        excludes:
+          - "WidgetExtension"
       - path: Resources/Assets.xcassets
       # The String Catalog every `String(localized:)` and `Text(_:comment:)` in
       # the app extracts into. `SWIFT_EMIT_LOC_STRINGS` above writes the
@@ -216,10 +223,86 @@ targets:
         # no iCloud account was signed in on that device — sign one in and the
         # entitlement check is what is left to fail.
         SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]: $(inherited) SIMPLE_KANBAN_CLOUDKIT
+    dependencies:
+      # Embedded into the app, which is the only way a widget extension ships:
+      # the system finds it inside the bundle that owns it, and the App Group
+      # they share is what lets it read anything. XcodeGen copies it into
+      # `PlugIns/` on both platforms.
+      - target: SimpleKanbanWidgets
     scheme:
       testTargets:
         - SimpleKanbanTests
       gatherCoverageData: false
+
+  # The widgets (macOS and iPadOS; the phone gets them too, because a widget
+  # extension that supports iOS supports every iOS device and refusing to draw
+  # on one would be a worse answer than drawing).
+  #
+  # **It shares source with the app rather than a framework.** The theme layer
+  # is a dozen pure value types with no state and no dependencies, and compiling
+  # them twice costs a second of build time; extracting them into a framework
+  # would cost a dynamic library in the bundle, an embed phase, and an `import`
+  # at the top of two hundred files. `Sources/Widgets/` is the shared vocabulary
+  # written for this — the digest, the App Group, and the URL scheme — and it is
+  # in both targets deliberately.
+  #
+  # `Resources/Fonts` is here for the same reason it is in the app: `FontCatalog`
+  # registers what it finds in `Bundle.main`, which inside an extension is the
+  # extension. Without them a widget wearing Spectral draws in the system serif,
+  # which is the one difference a person would notice at a glance.
+  SimpleKanbanWidgets:
+    type: app-extension
+    supportedDestinations: [macOS, iOS]
+    sources:
+      - path: Sources/WidgetExtension
+      - path: Sources/Widgets
+      - path: Sources/Theme
+      # The four model types the theme layer asks about: a priority has a dot
+      # colour, a due date has a chip, and a label has a chip rule. Nothing else
+      # from the model crosses — the extension is handed answers, not a board.
+      - path: Sources/Model/CalendarDay.swift
+      - path: Sources/Model/DueDate.swift
+      - path: Sources/Model/Priority.swift
+      - path: Sources/Model/TaskLabel.swift
+      # `String(localized:)` resolves against `Bundle.main`, which in here is
+      # this bundle. A catalogue in the app's target only would leave every
+      # string in every widget showing its own key.
+      - path: Resources/Localizable.xcstrings
+      - path: Resources/Fonts
+        type: folder
+    info:
+      path: Resources/WidgetsInfo.plist
+      properties:
+        CFBundleDisplayName: Simple Kanban
+        # From the build settings for the app's reason, and they must *match*
+        # the app's: a bundle whose embedded extension disagrees about either is
+        # rejected at submission and refuses to install from a .dmg.
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSHumanReadableCopyright: "Copyright © 2026 Nicholas Fay. All rights reserved."
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_NAME: SimpleKanbanWidgets
+        PRODUCT_BUNDLE_IDENTIFIER: com.n14395.SimpleKanban.Widgets
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        # An embedded extension is copied into the app rather than installed
+        # beside it; without this the archive carries a second, loose copy.
+        SKIP_INSTALL: YES
+        SUPPORTS_MACCATALYST: NO
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: P52946XHRJ
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
+        # The App Group, and on macOS the sandbox that makes granting it
+        # possible. There is no iCloud container here and no network client: the
+        # extension reads one file the app wrote. See `Sources/Widgets/WidgetShare.swift`.
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Resources/SimpleKanbanWidgets.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: Resources/SimpleKanbanWidgets-iOS.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Resources/SimpleKanbanWidgets-iOS.entitlements
 
   # A target of its own, and a scheme of its own, deliberately. Drag and drop
   # is the one interaction in this app that no unit test can reach: the store

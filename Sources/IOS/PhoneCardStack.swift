@@ -28,6 +28,17 @@ struct PhoneCardStack<Trailing: View>: View {
     /// when none is — see ``DropPreview``. Supplied by the board page and the
     /// Inbox sheet, which draw the same insertion feedback.
     var preview: DropPreview?
+    /// Whether a pull past the top checks iCloud — see ``PullToSync``.
+    ///
+    /// **The board's columns do and the phone's Inbox does not.** The Inbox here
+    /// is a sheet dragged up from the foot of the screen, and its own dismissal
+    /// is a downward drag: the two gestures start the same way and the sheet
+    /// wins the ones that begin near its top, so what a pull actually did there
+    /// depended on where a thumb landed. A gesture with two meanings a few
+    /// points apart is worse than one meaning, and the Inbox is the surface that
+    /// already had the other one. The iPad's Inbox is a panel standing in the
+    /// window with nothing to dismiss, and keeps the pull.
+    var pullsToSync: Bool = true
     /// Rows after the cards — an empty state, a dashed "add task to…" row. The
     /// surfaces build their own, because the wording is theirs.
     @ViewBuilder let trailing: () -> Trailing
@@ -59,10 +70,16 @@ struct PhoneCardStack<Trailing: View>: View {
             .padding(.top, metrics.topInset)
             .padding(.bottom, metrics.bottomInset)
         }
-        // A list shorter than the space it is given does not bounce — the desk's
+        // Pull a column past its top and the board checks iCloud — see
+        // ``PullToSync``, and `pullsToSync` for why the Inbox sheet this also
+        // draws asks for nothing here.
+        //
+        // The bounce goes with it, and only while the pull is live. A list
+        // shorter than the space it is given does not bounce — the desk's
         // columns ask for the same thing, and here it also keeps the ground
-        // still under a finger that is about to drop a card on it.
-        .scrollBounceBehavior(.basedOnSize)
+        // still under a finger that is about to drop a card on it — but a column
+        // that cannot be pulled past its top cannot be pulled to refresh.
+        .pullToSync(bounce: .basedOnSize, enabled: pullsToSync)
         .scrollDismissesKeyboard(.interactively)
     }
 

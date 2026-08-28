@@ -212,6 +212,11 @@ struct RootView: View {
             // here — the same expression `palette` is built from. Inside
             // `RootView.body` for `systemEntryPoints`' reason.
             .keepsTheAppIconInStep()
+            // Beside the icon keeper because it is the same kind of thing: a
+            // fact about the app that is kept in step with the board from the
+            // one place that can see the store, the clock and the appearance at
+            // once. See ``WidgetKeeper``.
+            .keepsTheWidgetsInStep()
             .modifier(LoadFailureAlert())
             .modifier(FlushOnTerminate())
             .onAppear { adoptUndoManager() }

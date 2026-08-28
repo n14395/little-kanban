@@ -5,41 +5,6 @@ import UniformTypeIdentifiers
 import AppKit
 #endif
 
-/// Light, dark, or whatever the system says.
-///
-/// This is the spec's `state.dark`, the one state field deliberately dropped
-/// during the port because the design only ever followed the system appearance.
-/// It comes back as a *preference*, which is why it is in `@AppStorage` and not
-/// in `BoardSnapshot`: it belongs to this machine and this person, not to the
-/// board — copy the board to another Mac and the override should not travel
-/// with it. See **Settings** in the README for why the accent, which *is* in the
-/// snapshot, was left there rather than moved half-way.
-enum AppAppearance: String, CaseIterable, Identifiable, Sendable {
-    case system, light, dark
-
-    var id: String { rawValue }
-
-    static let storageKey = "SimpleKanbanAppearance"
-
-    var label: String {
-        switch self {
-        case .system: String(localized: "System", comment: "Appearance setting: follow the system")
-        case .light: String(localized: "Light", comment: "Appearance setting: always light")
-        case .dark: String(localized: "Dark", comment: "Appearance setting: always dark")
-        }
-    }
-
-    /// `nil` means "do not override", which is what `preferredColorScheme`
-    /// wants and what `RootView` falls back on.
-    var colorScheme: ColorScheme? {
-        switch self {
-        case .system: nil
-        case .light: .light
-        case .dark: .dark
-        }
-    }
-}
-
 /// The subjects Settings is divided into, in the order they are shown.
 ///
 /// One list, read by both platforms, so that a subject cannot exist on one and

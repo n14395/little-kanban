@@ -29,5 +29,14 @@
 	     app is launched. -->
 	<key>aps-environment</key>
 	<string>development</string>
+	<!-- The one piece of disk the app and its widget extension both hold. The
+	     widgets are drawn from a digest written here — see WidgetShare — and a
+	     bundle without this joins no group, finds no container, and publishes
+	     nothing. macOS insists the identifier begins with the team id;
+	     iOS insists it does not, which is why the two files disagree. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>P52946XHRJ.group.com.n14395.SimpleKanban</string>
+	</array>
 </dict>
 </plist>

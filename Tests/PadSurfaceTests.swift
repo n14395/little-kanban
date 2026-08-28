@@ -364,7 +364,7 @@ import UIKit
                 // and the one that carries the source list not at all.
                 #expect(code.components(separatedBy: bleed).count - 1 == 1,
                         "the editor pane's empty state stops at the home indicator")
-                #expect(code.contains("padding(.bottom, -proxy.safeAreaInsets.bottom)"),
+                #expect(code.contains("underTheHomeIndicator()"),
                         "the source list's rows stop short of the home indicator again")
                 #expect(code.contains(".clipped()") == false,
                         "the detail column's clip closed at the foot again")
@@ -373,10 +373,38 @@ import UIKit
             case "Shared/InboxPanel.swift", "Shared/TaskInspector.swift":
                 #expect(code.contains(bleed), "\(file.path) stops at the home indicator")
                 seen.insert(file.path)
+            // The two surfaces the *board* can be. Both were laid out inside
+            // the strip and both took the same fix — see the next test for the
+            // arithmetic that made it visible.
+            case "Shared/BoardScrollView.swift", "Shared/TaskColumnsView.swift":
+                #expect(code.contains("underTheHomeIndicator()"),
+                        "\(file.path) stops short of the bottom of an iPad again")
+                seen.insert(file.path)
+            // The one place the trick is written down, so a sixth surface
+            // wanting it copies a modifier rather than a negative padding.
+            case "Shared/UnderTheHomeIndicator.swift":
+                #expect(code.contains("padding(.bottom, -proxy.safeAreaInsets.bottom)"))
+                seen.insert(file.path)
             default:
                 break
             }
         }
-        #expect(seen.count == 3, "a panel moved file: found \(seen)")
+        #expect(seen.count == 6, "a panel moved file: found \(seen)")
+    }
+
+    /// **The foot mirrors the head.** The strip an iPad keeps for the home
+    /// indicator is not a margin anybody chose, and while the board was laid out
+    /// inside it the columns cleared the toolbar by 16 and the bottom of the
+    /// window by 36. A saved view was worse: a 28pt foot against a 12pt head,
+    /// and then the strip under that.
+    ///
+    /// The insets are what a test can hold; that the strip itself is taken back
+    /// is `everyPanelsFillReachesUnderTheHomeIndicator`'s claim, next door.
+    @Test func theTopAndBottomMarginsMatch() {
+        #expect(TaskColumnMetrics.pad.topInset == TaskColumnMetrics.pad.bottomInset,
+                "a saved view sits further off the foot of an iPad than the head")
+        // The board's strip spends one number on both edges by construction —
+        // `.padding(.vertical,)` — so what is asserted is that it still does.
+        #expect(BoardScrollView.stripPadding > 0)
     }
 }

@@ -97,6 +97,11 @@ struct TaskListView<Card: View, Trailing: View>: View {
             }
         }
         .listStyle(.plain)
+        // A saved view, the Search tab and the Inbox tab, all three of which
+        // are a flat read of the board — so a pull past the top asks iCloud
+        // whether the board has moved. See ``PullToSync``; nothing is attached
+        // on the desk or where sync is off.
+        .pullToSync()
         .scrollContentBackground(.hidden)
         .environment(\.defaultMinListRowHeight, 0)
         .contentMargins(.top, metrics.topInset, for: .scrollContent)

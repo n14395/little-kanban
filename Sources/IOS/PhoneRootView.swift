@@ -127,7 +127,7 @@ struct PhoneRootView: View {
         // `.phone` clears a tab bar along the foot; on its side there is none
         // there to clear, and the card sits where every other touch surface
         // puts it.
-        .trashToast(metrics: isShort ? .sheet : .phone)
+        .boardToast(metrics: isShort ? .sheet : .phone)
         .background {
             palette.windowFill
                 .ignoresSafeArea()

@@ -216,33 +216,68 @@ enum ColumnRefusal: LocalizedError, Equatable, Sendable {
     }
 }
 
-/// The card that says something has just been thrown away.
+/// The card that says what the app has just done — something thrown away, or a
+/// check with iCloud finished.
 ///
 /// **Session state, and firmly not board state**: it is not in `BoardSnapshot`,
 /// not in `BoardMutation`, and a relaunch does not bring it back. What happened
-/// is already recorded — the thing is in the trash — and this is only the app
-/// saying so out loud for a few seconds.
+/// is already recorded — the thing is in the trash, the board is up to date —
+/// and this is only the app saying so out loud for a few seconds.
+///
+/// **One announcement, two authors**, because there is one strip of screen for
+/// it and a second parallel message would have to decide which of them wins
+/// while both were up. The glyph is carried rather than assumed for the same
+/// reason: the trash's little bin over "Up to date" would be the app saying two
+/// different things at once.
 ///
 /// The `id` is what makes a *repeat* land. Trashing two cards with the same
 /// title in a row produces two announcements reading the same words, and a view
 /// keyed on the text alone would treat the second as "no change" and leave the
 /// first one's dismissal timer running — so the second card would vanish early
-/// or not appear at all.
-struct TrashAnnouncement: Identifiable, Equatable, Sendable {
+/// or not appear at all. Two pulls that both find nothing are the same case.
+struct Announcement: Identifiable, Equatable, Sendable {
     let id = UUID()
     let text: String
+    /// The SF Symbol drawn beside the words.
+    let symbol: String
 
     /// One thing, by name. The name is the card's title, the column's or the
     /// board's — see ``TrashedItem/name``.
     init(name: String) {
         text = String(localized: "Moved \(name) to the trash",
                       comment: "Confirmation shown after something is thrown away")
+        symbol = "trash"
     }
 
     /// Several cards at once, which have no one name between them.
     init(taskCount: Int) {
         text = String(localized: "Moved \(taskCount) tasks to the trash",
                       comment: "Confirmation shown after several tasks are thrown away at once")
+        symbol = "trash"
+    }
+
+    private init(text: String, symbol: String) {
+        self.text = text
+        self.symbol = symbol
+    }
+
+    /// A check the user asked for, finished — the pull on iPhone and iPad, the
+    /// desk's button. **The two answers are different sentences**: a pull that
+    /// brought a card down and a pull that found nothing both end with the
+    /// spinner going away, and "nothing arrived" is the answer people are
+    /// actually waiting for confirmation of.
+    static func synced(adopted: Bool) -> Announcement {
+        adopted
+            ? Announcement(
+                text: String(localized: "Board updated",
+                             comment: "Toast after a sync the user asked for brought another device's changes in"),
+                symbol: "arrow.triangle.2.circlepath"
+            )
+            : Announcement(
+                text: String(localized: "Up to date",
+                             comment: "Toast after a sync the user asked for found nothing new"),
+                symbol: "checkmark"
+            )
     }
 }
 
@@ -476,15 +511,16 @@ final class BoardStore {
     /// even when the board itself came from the records.
     private(set) var trash: [TrashedItem] = []
 
-    /// The card on screen saying what has just been thrown away, or `nil`.
+    /// The card on screen saying what the app has just done, or `nil`.
     ///
-    /// Written by the three trash verbs and cleared by whichever surface drew
-    /// it once its few seconds are up — the timer is the view's, because how
-    /// long a message stays on screen is a fact about the screen. Also cleared
-    /// by `apply`, so a ⌘Z takes the sentence away with the act it describes;
-    /// a card still reading "Moved Ship the thing to the trash" over a board
-    /// that has Ship the thing back on it is the app contradicting itself.
-    var trashAnnouncement: TrashAnnouncement?
+    /// Written by the three trash verbs and by a sync the user asked for, and
+    /// cleared by whichever surface drew it once its few seconds are up — the
+    /// timer is the view's, because how long a message stays on screen is a fact
+    /// about the screen. Also cleared by `apply`, so a ⌘Z takes the sentence
+    /// away with the act it describes; a card still reading "Moved Ship the
+    /// thing to the trash" over a board that has Ship the thing back on it is
+    /// the app contradicting itself.
+    var announcement: Announcement?
     /// Ordered — the label picker lists them in creation order, and new labels
     /// take their colour from the palette by current count.
     private(set) var labels: [LabelDef] { didSet { labelsByKey = nil } }
@@ -1310,6 +1346,14 @@ final class BoardStore {
         if !BoardFile.isRunningTests {
             reconcileReminders()
             TaskSpotlightIndex.shared.reconcile(tasks)
+            // The fourth follower, and here for the same three reasons: every
+            // mutation comes through this funnel, it is O(board) and belongs on
+            // the debounce, and it reconciles against what it last published so
+            // a keystroke that changes no widget writes nothing. The day is read
+            // off the clock here rather than passed down — a save is not a
+            // moment anything knows the date at — and `RootView` publishes again
+            // when the day rolls over under a board nobody is editing.
+            WidgetPublisher.publish(self, today: .today())
         }
         pushToSync(pending)
     }
@@ -1364,6 +1408,10 @@ final class BoardStore {
     /// unsent edits winning the records they touched, which is the
     /// last-writer-wins the schema already promises everywhere else.
     ///
+    /// What is already here is not adopted again — see `brings(somethingNew:)`
+    /// for why the difference matters even though writing the same values twice
+    /// would not show.
+    ///
     /// The undo stack is deliberately left alone — a step that reversed
     /// somebody else's edit on their behalf would be worse than no step at
     /// all. And the diff base is *not* invalidated any more: `load()` has just
@@ -1371,14 +1419,76 @@ final class BoardStore {
     /// base has to be. Nil-ing it made the next apply rewrite every record —
     /// and now that a merge can write, that rewrite's own change notification
     /// would arrive back here as another merge, around forever.
-    func mergeRemoteChanges() {
-        guard let sync else { return }
+    @discardableResult
+    func mergeRemoteChanges() -> Bool {
+        guard let sync else { return false }
         pushToSync()
-        guard let incoming = try? sync.load() else { return }
-        guard !Self.hasUnresolvedTaskPlacements(in: incoming) else { return }
+        guard let incoming = try? sync.load() else { return false }
+        guard !Self.hasUnresolvedTaskPlacements(in: incoming) else { return false }
         isAwaitingCompleteSync = false
+        guard brings(somethingNew: incoming) else { return false }
         adoptContent(incoming)
         lastSyncedAt = .now
+        return true
+    }
+
+    /// Whether the records hold anything this board does not already have.
+    ///
+    /// A read is not news. The notification fires for this device's own push
+    /// coming back as well as for another device's, and a user on a touch
+    /// platform can now ask for a read by hand, at whatever moment they like —
+    /// see
+    /// ``syncNow(settling:)``. Adopting what is already here is invisible in the
+    /// board, because the mutation writes the same values over the same values;
+    /// the *stamp* beside it is not, and `lastSyncedAt` is the sentence Settings
+    /// prints as "last change from another device". A board with nothing to say
+    /// would have been saying it in the present tense, once per pull.
+    ///
+    /// Compared against exactly what `adoptContent` takes and nothing else: the
+    /// trash, the themes and the active board stay this device's own across a
+    /// merge, so a difference in one of them is not something arriving.
+    private func brings(somethingNew incoming: BoardSnapshot) -> Bool {
+        Self.placed(incoming.tasks, on: incoming.boards) != tasks
+            || incoming.boards != boards
+            || incoming.labels != labels
+            || incoming.views != views
+            || incoming.palette != savedColors
+            || incoming.nextSerial != nextSerial
+    }
+
+    /// A pull past the top of a list of cards, which is how iPhone and iPad ask
+    /// for a sync. See ``PullToSync``.
+    ///
+    /// **It is not a fetch, because there is nothing to call.** The mirroring
+    /// container schedules its own trips to CloudKit and takes no instruction
+    /// about when one happens; what a pull can do is the half that belongs to
+    /// this device, and it does both parts of it. Whatever has not been pushed
+    /// goes now — the push rides the save debounce, so a card ticked a moment
+    /// ago may still be sitting here — and whatever has already come down is
+    /// adopted.
+    ///
+    /// Then it holds the spinner a beat, which is not decoration. The board is
+    /// mirrored asynchronously, so a change provoked by that push lands through
+    /// `mergeRemoteChanges` shortly after this returns; the beat is the
+    /// difference between the other device's card appearing under the spinner
+    /// and appearing a moment after the user has decided the pull did nothing.
+    /// Zero for tests, which have no spinner and no patience.
+    ///
+    /// Returns whether the read brought anything — for the suite; nothing on
+    /// screen asks, because "up to date" and "here is what arrived" are the
+    /// same gesture from the user's end and the list says which it was.
+    @discardableResult
+    func syncNow(settling: Duration = .milliseconds(800)) async -> Bool {
+        guard sync != nil else { return false }
+        let arrived = mergeRemoteChanges()
+        try? await Task.sleep(for: settling)
+        // Raised *after* the wait, so the sentence lands as the spinner leaves
+        // rather than under it — and only for a check somebody asked for. A
+        // merge arriving on its own says what it has to say by changing the
+        // board; a card announcing every push another device made would be a
+        // notification nobody asked for, several times an hour.
+        announcement = .synced(adopted: arrived)
+        return arrived
     }
 
     /// Starts listening for another device's changes. Called by `RootView`;
@@ -1823,9 +1933,10 @@ final class BoardStore {
         trash = state.trash
         views = state.views
         savedColors = state.savedColors
-        // See `trashAnnouncement`: the message describes an act this is
-        // reversing, so it goes with it.
-        trashAnnouncement = nil
+        // See `announcement`: the message describes an act this is reversing,
+        // so it goes with it. A sync's message is not reversed by anything, but
+        // an undo landing on top of one is a good moment to take it down too.
+        announcement = nil
         // The restore may have taken away the board being looked at — undoing
         // the creation of one, say — and a surface reading `activeBoard` must
         // never be shown nothing while there is still a board to show.
@@ -3898,7 +4009,7 @@ final class BoardStore {
             removed = deleteTask(id)
             if let removed { keep(.task(removed)) }
         }
-        if let removed { announce(TrashAnnouncement(name: removed.displayTitle)) }
+        if let removed { announce(Announcement(name: removed.displayTitle)) }
         return removed
     }
 
@@ -3925,8 +4036,8 @@ final class BoardStore {
         // read, and the last one would name a card at random.
         guard let first = removed.first else { return }
         announce(removed.count == 1
-                 ? TrashAnnouncement(name: first.displayTitle)
-                 : TrashAnnouncement(taskCount: removed.count))
+                 ? Announcement(name: first.displayTitle)
+                 : Announcement(taskCount: removed.count))
     }
 
     /// Throws a column away. Its cards are not thrown away with it — they move
@@ -3950,7 +4061,7 @@ final class BoardStore {
         }
         // A refusal changed nothing, so there is nothing to say about it — the
         // caller shows the reason instead.
-        if refusal == nil { announce(TrashAnnouncement(name: column.name)) }
+        if refusal == nil { announce(Announcement(name: column.name)) }
         return refusal
     }
 
@@ -3964,15 +4075,15 @@ final class BoardStore {
             removed = deleteBoard(id)
             if let removed { keep(.board(removed, position: position)) }
         }
-        if let removed { announce(TrashAnnouncement(name: removed.name)) }
+        if let removed { announce(Announcement(name: removed.name)) }
         return removed
     }
 
     /// Raises the card. Outside the undo step on purpose: it is not part of what
     /// ⌘Z reverses, and a step that captured it would put the message back on
     /// screen on redo.
-    private func announce(_ announcement: TrashAnnouncement) {
-        trashAnnouncement = announcement
+    private func announce(_ announcement: Announcement) {
+        self.announcement = announcement
     }
 
     /// Files one thing in the trash. Called from inside an open step, which is

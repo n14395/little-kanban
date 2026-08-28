@@ -101,7 +101,7 @@ struct PadRootView: View {
         // own horizontal scroll view, which is exactly what `leadingEdgeSwipe`
         // is built to outrank.
         .leadingEdgeSwipe(perform: revealSidebar)
-        .trashToast(metrics: .sheet)
+        .boardToast(metrics: .sheet)
         .environment(focusRelay)
         .background(palette.windowFill.ignoresSafeArea())
         .motionAnimation(.easeOut(duration: 0.16), value: store.surface)
@@ -115,35 +115,23 @@ struct PadRootView: View {
     /// once every row claims its 44pt, and a source list that cannot reach its
     /// last row is worse than one that scrolls.
     private var sidebar: some View {
-        // **The whole pane, down to the glass**, and the inset is measured
-        // rather than named: an iPad keeps 20pt at the foot of the screen for
-        // the home indicator, but that is a number the device decides.
+        // **The whole pane, down to the glass.** Bleeding the fill alone got the
+        // colour to the bottom and left the *list* where it was, so a sidebar
+        // scrolled to its last row still showed a band of empty panel under it —
+        // the fill was right and the rows still stopped short. ``HomeIndicatorFoot``
+        // is what answers that, and carries the measurements: an
+        // `ignoresSafeArea` on the scroll view will not do it, because inside a
+        // split view column the inset is a margin UIKit has already applied.
         //
-        // **Why a negative padding and not `ignoresSafeArea`.** Bleeding the
-        // fill alone got the colour to the bottom and left the *list* where it
-        // was, so a sidebar scrolled to its last row still showed a band of
-        // empty panel under it — the fill was right and the rows still stopped
-        // short. `ignoresSafeArea` on the scroll view itself does not answer
-        // that: inside a `NavigationSplitView` column the inset is a layout
-        // margin UIKit has already applied, so a colour can be drawn over it —
-        // measured — and the scroll view's own frame will not reclaim it. A
-        // negative padding is plain layout and owes the safe area nothing: the
-        // scroll view is handed 20pt more than its slot, hangs into the strip,
-        // and its fill and its rows arrive together.
-        //
-        // Safe here, and only here, because the home indicator is a short pill
-        // centred on the *screen* — nowhere near a 300pt column against the
-        // leading edge, so a row that reaches the bottom of this list is under
-        // nothing. The board and the two panels beside it keep their inset and
-        // bleed only their fills; see `detail`.
-        GeometryReader { proxy in
-            ScrollView {
-                BoardSidebar(metrics: .pad)
-            }
-            .scrollBounceBehavior(.basedOnSize)
-            .background(palette.panelOverlay)
-            .padding(.bottom, -proxy.safeAreaInsets.bottom)
+        // The board's strip and a saved view take the same strip back. What
+        // still stops at the inset is the Inbox panel's rows and the task
+        // editor's fields, which bleed only their fills; see `detail`.
+        ScrollView {
+            BoardSidebar(metrics: .pad)
         }
+        .scrollBounceBehavior(.basedOnSize)
+        .background(palette.panelOverlay)
+        .underTheHomeIndicator()
         .navigationSplitViewColumnWidth(
             min: chrome(260, cap: 1.4), ideal: chrome(Self.sidebarIdeal, cap: 1.4),
             max: chrome(360, cap: 1.4)

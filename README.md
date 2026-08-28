@@ -22,7 +22,12 @@ open SimpleKanban.xcodeproj
 ```
 
 `SimpleKanban.xcodeproj` is generated and git-ignored; `project.yml` is the source of
-truth. One multiplatform app target builds both destinations.
+truth. One multiplatform app target builds both destinations, with the widget
+extension — `SimpleKanbanWidgets`, also multiplatform — embedded in it.
+
+**New files need `xcodegen generate` before they compile.** The project has no
+file-system-synchronized groups, so a file written and not regenerated into is a
+file in no target.
 
 From the command line:
 
@@ -65,7 +70,10 @@ Sources/
   App/                 SimpleKanbanApp scene, RootView's size-class switch and undo-manager
                        handover; BoardCommands — the macOS menu bar, and MacWindowState;
                        FirstRunView — the starter picker a first launch comes up on;
-                       AboutView and UpdateChecker — the macOS About window's panel
+                       AboutView and UpdateChecker — the macOS About window's panel;
+                       AppIconInstaller and WidgetKeeper — the two facts about the app
+                       that are kept in step from the one place that can see the store,
+                       the clock and the appearance at once
   Model/               TaskItem, TaskPlacement, Board, BoardColumn, ActivityEntry,
                        CalendarDay, DayClock, LabelDef, Priority, DueDate, SavedView,
                        TaskTransfer, AppCommand — the shortcut vocabulary, SeedData;
@@ -76,8 +84,19 @@ Sources/
                        records, and the CloudKit mirroring on top of them;
                        CloudKitEntitlement — whether this build may ask for a container
                        at all, which is a crash rather than an error to get wrong;
-                       NotificationScheduler — due-date reminders
-  Theme/               Palette (design tokens), Typography, SwatchColor
+                       NotificationScheduler — due-date reminders; WidgetPublisher —
+                       the fourth follower a save carries, which writes the widgets' digest
+  Theme/               Palette (design tokens), Typography, SwatchColor, AppAppearance —
+                       the light/dark override, here rather than beside its settings row
+                       because the widgets read it too
+  Widgets/             What the app and its widget extension both compile: WidgetDigest —
+                       the flat, capped rendering of what the widgets draw; WidgetShare —
+                       the App Group and the widget kinds; WidgetDigestFile — the one
+                       file that crosses the fence; AppLink — every URL that names a
+                       place inside the app
+  WidgetExtension/     The four widgets and nothing else — excluded from the app's target
+                       in project.yml, and under Sources/ so the suite's source rules
+                       still apply to it
   Mac/                 What only a window has: the root layout, the status strip, the
                        shortcuts sheet, the due-date sheet and the menu bar extra
   IOS/                 PhoneRootView — header, pager, cards, tab bar, drawer, Inbox, detail
@@ -105,7 +124,8 @@ Tests/                 Swift Testing suites — model, store, boards, columns an
                        and the bulk commands, the shortcut vocabulary, board focus,
                        export/import, backups, notifications, deep links, App Intents,
                        preferences, the first-run templates, the built bundle, the
-                       localisation rules, five hundred cards, and the joins between all
+                       localisation rules, the widgets' digest and the links they are
+                       wired with, five hundred cards, and the joins between all
                        of those and the app
   Fixtures/            board-v1*.json … board-v5.json — real older boards, kept to migrate against
 UITests/               XCUITest, iOS simulator only, on a scheme of its own — the drag
@@ -133,8 +153,10 @@ Resources/
                        the colour UILaunchScreen names, in both schemes
   Localizable.xcstrings  the String Catalog every user-facing string extracts into
   PrivacyInfo.xcprivacy  the required-reason API declarations a submission is read for
-  SimpleKanban.entitlements  sandbox, user-selected files, and the network client the
-                       update check needs
+  SimpleKanban.entitlements  sandbox, user-selected files, the network client the
+                       update check needs, and the App Group the widgets read through —
+                       spelled with the team id on macOS and without it on iOS, which is
+                       why there are five of these files and not one
 ```
 
 `BoardStore` is a direct port of the spec's `Component extends DCLogic` class —
@@ -491,12 +513,9 @@ same thing in words.
 SF Symbols went with them. `.font(.system(size:))` pins a glyph, so at an
 accessibility size the word beside it doubled and the icon did not; `symbolSize(_:weight:relativeTo:)`
 is the replacement, and fourteen call sites now use it. C3 asks this of new code;
-that sweep is what the old code needed. `CaptureGlyph` — the tray-with-a-`+` on
-the three capture buttons, and the app's only drawn mark — is a path rather than
-a symbol and so cannot be handed a font at all, so it and `symbolSize` both take
-their point size from `ScaledGlyph`: one statement of the arithmetic, cap
-included, and a drawn mark that grows with the reader like every glyph beside
-it.
+that sweep is what the old code needed. It caps like `ChromeScale` does, and for
+the same reason: past a point the glyph is growing inside a button that has
+stopped.
 
 **Reduce Motion is honoured everywhere there is motion.** `.animation(_:value:)`
 became `motionAnimation(_:value:)` — the same thing, with the animation dropped
@@ -2087,9 +2106,10 @@ Everywhere else the act happens and undo is the net; here there is no net, so
 Delete asks first and names what it is about to destroy. It is the only
 confirmation in the app that is not about throwing away the entire board.
 
-**A card says what went.** `TrashToast` floats a line along the bottom of the
+**A card says what went.** `BoardToast` floats a line along the bottom of the
 board reading "Moved *X* to the trash" and takes itself away after three and a
-half seconds. Trashing has no confirmation and never had one, so until this the
+half seconds. It is the app's one strip for saying what it has just done, and a
+sync the user asked for ends there too — see **Pull to sync**. Trashing has no confirmation and never had one, so until this the
 only sign that a board had gone was that it was no longer there — fine for a card
 clicked in a column, thin for a board deleted out of a menu, and the only place
 in the app where something sizeable could leave without the screen saying so. It
@@ -2102,7 +2122,7 @@ three seconds and then is not is a worse promise than a keystroke that is always
 there. It is not hit-testable, so it can never take a click meant for the card
 still under it. A selection of four gets **one** card counting them rather than
 four replacing each other too quickly to read; a refusal gets none, because
-nothing happened. `TrashAnnouncement` carries an `id` so that trashing two cards
+nothing happened. `Announcement` carries an `id` so that trashing two cards
 with the same title in a row reads as two announcements — keyed on the text
 alone, the second would look like no change and inherit the first's dismissal
 timer. It is session state: not in `BoardSnapshot`, not in `BoardMutation`, and
@@ -3590,7 +3610,7 @@ list's foot on the desk (`captureToInbox()`), this one
 all land a card in the Inbox, because a capture is what you write down before
 you know where it goes. A column's own `+` adds to that column of that board,
 where the destination is the part that is already settled. But
-it is **a circle with a mark in it now, and no word** — the same control the
+it is **a circle with a `+` in it now, and no word** — the same control the
 phone floats over its tab bar, at the 44pt square every other control in this
 row claims. The label was 117pt of a row whose only compressible piece is the board's
 name; the glyph is 44. That is 73 points back to the name and a fold line 73
@@ -3600,21 +3620,6 @@ is what a reader was getting either way.
 `BoardToolbar.Metrics.capture` is how the two presets differ — a diameter on the
 iPad and `nil` on the desk, in the shape `ColumnEditorMetrics.arrowEdge` uses,
 rather than an `#if os()` in a shared body (C1).
-
-**The mark on all three is `CaptureGlyph`, and it is drawn rather than named.**
-A bare `plus` was the wrong word for these buttons: every column heading and the
-Inbox panel draw one too, and theirs mean *add here* while these three mean *put
-it in the Inbox* — the same glyph for two different sentences. There is no
-symbol to name for the second (`tray.and.arrow.down` is a download, `tray` is
-where the panel's own toggle points, and there is no `tray.badge.plus`), so
-`CaptureGlyph.Mark` is a `Shape` holding the strokes of `add-to-inbox.svg` in
-that file's own 24-unit grid, line for line, so the two can be read against each
-other. `weight:` becomes stroke width — 2 units is the file as drawn and is
-`.regular` by definition — because a path can only get thicker where a symbol
-would be redrawn, which is most of what that difference is at 20 points. The
-size each button already passed is unchanged and did not need to be: an SF
-Symbol at 19pt inks about 16 points tall and this grid inks 20.5 of its 24, so
-the swap moved no button by a quarter of a point.
 
 There are two more scenes beside it. `Settings { }` is a root of its own and
 inherits nothing from the window, so the palette, the tint and the appearance
@@ -3720,6 +3725,38 @@ Where there is not room for both the board and the *inspector*, the inspector go
 margins would still fit beside it; below that it is a trailing overlay. An iPad
 mini in portrait with the source list out leaves 166pt of detail beside a 348pt
 panel, and 166pt is half a column.
+
+### The home indicator's strip is not a margin
+
+iPadOS keeps about 20pt along the bottom of the screen for the home indicator,
+and every pane laid out inside that inset stops short of the glass by that much.
+It reads as a gap somebody chose rather than as a system margin, and it is not
+symmetric with anything: the board's strip of columns clears the toolbar by
+`stripPadding` at the head and the bottom of the window by `stripPadding` **plus
+20** at the foot — 16 and 36 — and a saved view was worse still, a 28pt foot
+against a 12pt head with the strip under that as well.
+
+`HomeIndicatorFoot` — `.underTheHomeIndicator()` — is the one place the answer is
+written down: a `GeometryReader` reads the inset off the proxy, because how much
+room the indicator wants is the device's answer rather than a number to type, and
+a **negative bottom padding** hands the pane that much more than its slot.
+`ignoresSafeArea(.container, edges: .bottom)` does not do it and was measured not
+doing it: inside a `NavigationSplitView` the inset is a layout margin UIKit has
+already applied to the column, so a colour in a `background` can be *drawn* over
+it — which is what the Inbox panel and the task editor do — while a frame cannot
+reclaim it. A negative padding is plain layout and owes the safe area nothing.
+
+Four panes take the strip: the source list, the board's column strip, a saved
+view, and — through the same modifier — nothing else. It is safe for them because
+the indicator is a short pill in the middle of the bottom edge that takes no
+touches; only an upward swipe from the very edge belongs to the system. It is
+**not** for a control that has to be pressed down there, which would sit under
+the pill and read as unfinished, and the `TaskColumnMetrics.pad` foot was
+brought back to the head's 12 at the same time so the two edges read as one
+margin.
+
+Measured on a 13" simulator: the columns' fill ends 32px — 16pt at 2× — above the
+glass, which is exactly the 16pt above them.
 
 ### The header folds when its column runs out of width
 
@@ -4141,6 +4178,14 @@ chips would be a second answer to a question already answered — in the dimensi
 a phone in landscape has least of. `columnChips` is behind `!isShort` in
 `PhoneHeader`. The paging swipe is untouched in both shapes, and so is every
 route through the header.
+
+**A pull past the top of a list of cards checks iCloud.** Every surface that
+holds cards and scrolls downward carries it — a board column, the Inbox, a saved
+view, Search — and it is the system's own `refreshable` with the system's own
+spinner, because a pull is what a finger already does when it wants a list to be
+right. What the pull does, what it deliberately does not promise, and the one
+surface that has no top to pull past are under **Pull to sync** in the Sync
+section.
 
 **Reorder within a column is a long press and a drag**, the same
 `.draggable`/`.dropDestination` pair and the same `move(_:to:before:)` the desk
@@ -5383,6 +5428,189 @@ comment *to*, which means after sync. So: no `Comment` type, no UI, and if it is
 ever revisited it starts as its own array on `TaskItem` with its own snapshot
 version bump — never as a case on `ActivityEntry.Kind`.
 
+## Widgets
+
+Four widgets, on **macOS and iPadOS** — and on the phone too, because a widget
+extension that supports iOS supports every iOS device and refusing to draw on
+one would be a worse answer than drawing. They are a target of their own,
+`SimpleKanbanWidgets`, embedded in the app.
+
+| Widget | Sizes | Shows | Configured with |
+| --- | --- | --- | --- |
+| **Inbox** | small, medium, large | small: the `+` and how much is waiting. medium: the `+` beside the first four. large: the list, with the `+` in the corner | nothing — there is one Inbox |
+| **Saved view** | medium, large | medium: the view's name and glyph on the left, the top four as bullets beside it. large: the list, with due chips | which saved view |
+| **Column** | medium, large | the cards in one column, under the board's name — the top four, or the top seven | which column |
+| **Board overview** | medium | every column *before* Done, its name and its count | which board |
+
+Every row is a link to its card, every heading opens the list it names, and the
+`+` opens a fresh Inbox capture with its title field waiting.
+
+Where a widget has more than one size it is **the same widget with more room**
+rather than a different one: the Inbox and Column widgets keep their heading and
+gain rows as they grow, because somebody who resizes one should get more of what
+they had. The saved-view widget is the exception, and deliberately — its medium
+tile is a glance (*is there anything I should know about*) and its large tile is
+the list itself (*what am I doing today*), which are different questions. A
+column widget keeps its due chips at both sizes: a column is where a date means
+something, and the bullet treatment would drop the half of a card it is read
+for.
+
+**The board overview leaves Done off**, and reads it off position rather than
+off the word — `WidgetBoard.workingColumns`, which is `Board.workingColumns`
+again, so a Done column renamed to *Published* is still the one that goes. It is
+the one column that only grows, so on any board older than a fortnight it is the
+largest number on the tile and the least interesting: a glance at a board is a
+glance at what is *left*. The heading's count is the working columns' too, so
+the tiles add up to the number above them, and anybody who does want to watch
+Done can point a column widget at it — which is why the filtering is at that one
+point of use and not in the digest. A board holding nothing but its Done column
+says so rather than drawing an empty row.
+
+### The widgets are handed answers, not the board
+
+`Sources/Widgets/WidgetDigest.swift` is the whole of the contract between the two
+targets: a flat, capped rendering of exactly what the widgets draw — the rows,
+already filtered, already sorted, already cut to eight — beside the counts the
+app computed for the badges.
+
+**The extension evaluates nothing.** A saved view is a rule tree over every task
+in the file, a column's contents depend on the board's sort order and on which
+cards are archived, and *is this card done* is a question about the board's last
+column rather than a field on the card. All of that already exists, once, in
+`BoardStore`. A second implementation living in an extension would be a second
+implementation *diverging* in an extension — where nobody would see it, because a
+widget that quietly disagrees with the app looks exactly like a widget that has
+not refreshed yet.
+
+Two things that are not answers cross as well. `themes` is the app's own
+`ThemeSettings` verbatim, so a widget wears the theme that was chosen — a custom
+one included — rather than an approximation of it; and `today` is the day the
+lists were evaluated against, so a due chip in a widget says what the same chip
+says on the board. A widget reading the clock itself would draw yesterday's list
+against today's date for one refresh.
+
+It is **not** `board.json`. That file is versioned, migrated on the way in, and
+the only copy of the user's work — three good reasons not to hand a read of it to
+a process that runs on the system's schedule rather than the user's. It also
+decides what happens when the two sides disagree about a format: a digest whose
+`version` is not this build's is *refused*, never migrated, because the app
+rewrites it within half a second of the next edit and the cost of refusing is a
+widget drawing its sample for that half-second. The cost of reading one written
+by a build that meant something else by these fields is a widget quietly showing
+the wrong numbers.
+
+The one number that is deliberately not `tasks.count`: a saved view's pill is the
+view's own count, capped by the view's own `limit`. *Recently updated* stops at
+twenty and the digest carries eight of them, and those two caps mean different
+things.
+
+### What writes it
+
+`WidgetPublisher` is the **fourth follower a save carries**, beside the reminders,
+the Spotlight index and the synced records — see `BoardStore.reconcileSystemsAndSync`.
+It rides the same debounce for the same reason: it is O(board), and a burst of
+keystrokes should pay it once. `BoardFile.isRunningTests` gates it exactly as it
+gates the other two, and for the same reason — a suite run would otherwise publish
+its fixtures to the developer's own widgets.
+
+It reconciles against what it last wrote before waking anything. A board is saved
+on every keystroke of a title and on every drag of a card, and most of those
+change no count, no order and no row inside the first eight; `reloadAllTimelines`
+on each of them would be the app asking the system to re-render four widgets a
+character. The stamp is set aside for that comparison, being the one field that
+differs on every pass by construction.
+
+Two moments are not saves, and `WidgetKeeper` covers them from `RootView` —
+where the store, the clock and the appearance override can all be read at once,
+which is the same reason `AppIconKeeper` is a view modifier:
+
+- **A launch**, because nothing has been saved yet and a machine rebooted with a
+  widget on the desktop would draw the digest from before the last quit.
+- **Midnight**, because *Today* and *Due this week* are answers about a day and
+  the day rolls over under a board nobody is editing. `DayClock` is what knows.
+
+The widgets' own timelines reload just after midnight too, so the chips roll over
+on a machine where the app is not running at all.
+
+### The App Group
+
+`WidgetShare.appGroup`, and it is **spelled differently on each platform**: a
+sandboxed macOS app may only join a group whose identifier begins with its team
+identifier, and iOS rejects that spelling in provisioning. Five entitlement files
+carry it — the app's three and the extension's two — and `WidgetShareTests` reads
+them off disk and holds them to the constant the code calls `containerURL(for:)`
+with. There is no runtime value that could state this: the extension is another
+process, and the app's own entitlements say nothing about it.
+
+A build that is **not** entitled to the group is not a crash. `WidgetShare.container`
+is `nil`, the app publishes nothing, and the widgets draw `WidgetDigest.sample` —
+which is also what the gallery shows before a widget has been placed, and what a
+fresh install shows before the app has been opened.
+
+### Links
+
+`AppLink` is the vocabulary: `simplekanban://` plus a task, a board, a column, a
+view, the Inbox, or a new capture. The app has answered the first since links
+existed — `TaskLink` now delegates to it — and the other five are what a widget
+taps into. They are one type rather than five call sites building strings because
+the extension *writes* these URLs and the app reads them, from different targets:
+a shape that drifted would be a widget whose taps do nothing.
+
+A column link carries the column's id and not its board's, so a column moved to
+another board keeps working and lands on the board it is on *now*. A host with
+anything after it — `simplekanban://inbox/…` — is refused rather than read as the
+bare host, so a destination a later version might mean by it cannot be silently
+swallowed.
+
+Each of the four things a widget can be configured with is deletable while the
+widget goes on naming it, so each has its **own** sentence when it has gone:
+"That view no longer exists" tells somebody which widget to fix, where a shared
+"something went wrong" does not.
+
+**Widgets link; they do not act.** WidgetKit will run an `AppIntent` in the
+background from a button, and for *add a task* that is exactly the wrong thing —
+a task added with no title and no way to type one is litter the user then has to
+find and delete. The `+` opens the app on a fresh Inbox capture instead, which is
+what the app's own `+` does.
+
+### Drawing them
+
+The extension compiles `Sources/Theme/` and four model types — `CalendarDay`,
+`DueDate`, `Priority` and `TaskLabel` — so a widget's colours come out of the
+same `Palette` the board's do, through the same `ThemeGradient`, `dueTone` and
+`priorityColor`. Which of the two theme slots is *not* the widget's decision
+alone: the system hands the extension a colour scheme, and that is the answer
+whenever Settings ▸ Appearance is on **System** — but somebody who has pinned the
+app to Dark has pinned the app, and a widget that went light at sunrise would be
+the only part of it that did. `AppAppearance.slot(under:)` reconciles the two and
+is the same expression `RootView` builds its palette from; the enum moved out of
+`SettingsView.swift` into `Theme/` so both targets can see it.
+
+`Resources/Fonts` is in the extension's target as well as the app's, because
+`FontCatalog` registers what it finds in `Bundle.main` and inside an extension
+that is the extension. Without them a widget wearing Spectral draws in the system
+serif, which is the one difference a person notices at a glance.
+
+The board overview's tiles carry the column's **full name over two lines**
+rather than `BoardColumn.short` on one. That abbreviation exists for the "move
+to" control, where the room is a segment of a segmented control and there is
+exactly one line of it; there is more room than that here, and "In Progress"
+wrapped over two lines beats "Doing". `lineLimit(2, reservesSpace: true)` is
+what keeps the row even — without it a tile whose name fits on one line is
+shorter than its neighbours, and the height would change when a column is
+renamed.
+
+Row counts are **fixed** per family — four on medium, seven on large — rather
+than measured with `ViewThatFits`. Measuring sounds better and is not: the answer
+then changes with the type size, so the same widget shows five rows on one machine
+and seven on another, and the list a person reads every morning is a different
+length each time they change a setting somewhere else.
+
+The extension's own code lives under `Sources/WidgetExtension/` and is excluded
+from the app's target in `project.yml`. It is under `Sources/` rather than beside
+it so that the suite's source-tree rules — no unlocalised prose, no
+`Text(verbatim:)` carrying words — apply to it like everything else.
+
 ## First run
 
 A first launch is three questions, all answered before any window is drawn: no
@@ -5470,6 +5698,98 @@ they are the ones another device can have written since this one last looked;
 board is folded into them once — and when the store cannot be opened at all,
 which is the failure the quarantine machinery exists for and must never look
 like an empty board.
+
+### Pull to sync
+
+The desk has a window in front of you and the touch platforms have a list in your
+hand, so **iPhone and iPad ask for a sync by pulling a list of cards past its
+top** — `PullToSync`, applied to the board's columns, the Inbox, a saved view and
+Search. It is `refreshable`, so the gesture and the spinner are the system's own.
+
+**It is not a fetch, because there is nothing to call.**
+`NSPersistentCloudKitContainer` schedules its own trips and takes no instruction
+about when one happens. What a pull can do is the half that belongs to this
+device, and
+`syncNow(settling:)` does both parts of it: whatever has not been pushed goes now
+— the push rides the save debounce, so a card ticked a moment ago may still be
+sitting here — and whatever has already come down is adopted, through the same
+`mergeRemoteChanges` a change notification arrives on. Then the spinner is held a
+beat, which is not decoration: the board is mirrored asynchronously, so a change
+that push provokes lands shortly after, and the beat is the difference between
+the other device's card appearing under the spinner and appearing a moment after
+the user has decided the pull did nothing.
+
+**Nothing is attached where there is nothing to ask.** A spinner is a promise
+that something is being checked, and a device with sync switched off, no iCloud
+account, or a build carrying no entitlement has no such thing to offer: the list
+simply bounces. That is also why the gesture cannot be driven on a simulator,
+where `SIMPLE_KANBAN_CLOUDKIT` is off by construction — see
+**`iphoneos*`, not `iphone*`**.
+
+**The bounce comes with it.** Every card surface asks for
+`.scrollBounceBehavior(.basedOnSize)`, so a column whose cards do not fill it does
+not rubber-band — and a list that cannot be pulled past a top it is already at
+cannot be pulled to refresh either. The half-empty column is precisely where
+somebody waiting on another device will pull, so the modifier sets `.always` on
+the vertical axis for as long as the refresh is live, from closer to the scroll
+view than the call site's own line.
+
+**A read is not news.** `mergeRemoteChanges` now compares what the records hold
+against what the board holds before adopting it, and reports whether anything
+arrived. Adopting the same values over the same values is invisible, but the
+stamp beside it is not: `lastSyncedAt` is the sentence Settings prints as *last
+change from another device*, and a pull is the user asking at a moment of their
+own choosing — so a board with nothing to say would have been saying it in the
+present tense, once per pull. The comparison is against exactly what the merge
+adopts and nothing else, since the trash, the themes and the active board stay
+this device's own across one.
+
+**The phone's Inbox is the one surface that gives the gesture back.** It is a
+sheet dragged up from the foot of the screen and its own dismissal is a downward
+drag, so a pull past the top of its cards was one thumb asking for two things a
+few points apart — which of them you got depended on where it landed.
+`PhoneCardStack` takes a `pullsToSync` and the sheet passes `false`. The iPad's
+Inbox is a panel standing in the window with nothing to dismiss, and keeps the
+pull; so do the board's columns on both.
+
+**A finished check says so.** A pull that found nothing looks exactly like a pull
+that did not happen — the spinner leaves either way — and "nothing was waiting"
+is usually the answer somebody pulling is after. So `syncNow` ends by raising an
+`Announcement` on the same strip the trash uses: **Up to date** when the records
+held nothing new, **Board updated** when they did, with the glyph carried by the
+announcement rather than assumed by the card. It is raised *after* the settle, so
+it lands as the spinner leaves rather than under it, and only for a check
+somebody asked for — a merge arriving on its own says what it has to say by
+changing the board, and a card per push would be several an hour on a board two
+people are working.
+
+**The desk asks with a button.** A window that is already in front of you has
+no pull to borrow, so `MacStatusBar` ends with **Sync Now** — after the sentence
+about the last save, in the strip that already reports what the board managed to
+do with itself. It runs the same `syncNow(settling:)`, and spins its glyph for
+the same beat. Where the touch platforms attach no gesture, the button is greyed
+rather than gone, and its tooltip says which of the two reasons applies: sync
+switched off, or iCloud unavailable this launch. A build with no entitlement
+draws no button at all — that state can never be fixed from here, and Settings is
+where it is explained.
+
+**Measured where it could be measured, and one surface could not be.** Whether
+a pull fires a refresh is a claim about a gesture, so it was driven on a
+simulator against a temporary marker inside `syncNow`: a board column on a phone
+fires it, and so does one on an iPad. The flat surfaces are a `List`, whose
+refresh is UIKit's own control rather than SwiftUI's, and no synthesised drag
+would fire it — three gestures, from the top of the list, with and without the
+content margins, on a build where the pull was forced on. That is as likely to be
+XCUITest's limit as SwiftUI's: `List` with `refreshable` is the canonical
+pairing, and the modifier is the same one the columns carry. It is left in place
+and left unproven, which is the one claim in this section nothing here backs.
+
+**One surface has no top to pull past.** A saved view on an iPad is
+`TaskColumnsView`'s down-then-across flow, which wraps its cards into columns and
+scrolls **sideways** — see **The views wrap into columns**. There is no vertical
+pull to hang a refresh on there, and a horizontal scroll view will not take one.
+The iPad's board columns and its Inbox pull normally; so does a saved view on a
+phone, which scrolls downward in both orientations.
 
 ### What CloudKit will not do for you
 
@@ -5720,6 +6040,10 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `PreferenceTests` | the line between the board and the person looking at it — the exact key set the board document is allowed to carry, at the top level and on a task and a board; every preference the settings surface offers set at once and the file not moving a byte, read back after a relaunch; the accent being the one setting on that screen that *is* board data, so the probe cannot pass by the store having stopped saving; session state changing nothing while the active board does; an in-memory store leaving no preference behind on the machine it ran on; and an imported file unable to reach across and change this machine's |
 | `IntentTests` | `AddTaskIntent` and `ShowTodayIntent` through `TaskIntentBridge` — no destination landing in the Inbox under an `IN-` code, a named column and a named board each landing where they say and minting from that board's prefix, a due date reaching the card, a column no board has refused rather than guessed at, and the entity queries offering what the board actually has, each column named with its board. All of it on the one store the app is holding, because a second store would be a board of its own written over the real one |
 | `SystemWiringTests` | the handovers every other Phase F suite passes without: the scheduler reconciled from the board, `.systemEntryPoints()` attached to a view, a store adopted into the intent bridge — **from the app's `init()`**, not a view's `.onAppear`, because an intent can perform before any scene exists — both detail surfaces publishing their task for Handoff, the settings surface reachable, and exactly one store over the real file. Read out of the source the way `MenuDeclarationTests` reads the menu: a scene has nothing to enumerate at runtime, and a modifier commented out of a `body` is invisible to everything else. This is `UndoHandoverTests`' question asked of the other joins. The three that were open at the end of Phase F were wrapped in `withKnownIssue` rather than deleted or left red — Swift Testing fails a block that *stops* failing, so wiring one up told the next agent to take the wrapper off in the same run, which is what happened |
+| `WidgetDigestTests` | the whole of the contract between the app and its widget extension, because the extension evaluates nothing and there is no second place a mistake could be corrected: the Inbox carrying what is *waiting* — a ticked-off capture and a filed-away one both out, which is also what makes the list exactly the seeded Inbox view's membership; every board's columns crossing under their own short names; a column's rows being the ones the board draws, in the board's own order, with the *count* the whole column and the rows the first eight; every view's rows and its pill, where the pill is the view's own limit and not the digest's cap — *Recently updated* says twenty and carries eight; Done being the board's answer rather than a field on the card; the theme and the light/dark override travelling so a widget wears what was chosen; the day the lists were built against travelling with them, so a due chip in a widget says what the same chip says on the board; Today recognisable from the extension, which has no `SavedView` enum; and the file — a round trip, the same board twice encoding to the same bytes (which is what stops every keystroke waking every widget), and a digest from another version refused rather than migrated |
+| `AppLinkTests` | the six URLs the widgets are wired with, written by one target and read by another: every destination round-tripping, no two sharing a URL, the scheme and host matched without regard to case, and seven strangers naming nothing — including a host with something after it, so a shape a later version might mean cannot be silently swallowed |
+| `WidgetLinkRoutingTests` | what happens when one arrives: a board link switching boards, a column link landing on the board that column is on *now*, a view link opening it, an Inbox link putting the board back *and* the panel out, and the `+` making a capture in the Inbox with its title field asked for. Then the four deletable things each getting their own sentence when they have gone — "that view no longer exists" tells somebody which widget to fix — and the two that cannot go away never failing |
+| `WidgetShareTests` | that the two bundles can actually reach each other, which every probe above would pass without: the five entitlement files read off disk, each naming the App Group its platform's code calls `containerURL(for:)` with — team-prefixed on macOS, not on iOS. There is no runtime value that could state this: the extension is another process and the app's own entitlements say nothing about it. Plus the four widget kinds being distinct, since the system stores them against every widget somebody has placed and renaming one orphans it silently |
 | `DragReorderTests` | the card-to-card drop as a property rather than as an example, which is what the iPad needs: for **every** ordered pair of cards sharing a place — each column of each board, and the Inbox — the drop `BoardTaskCard` and `PhoneTaskCard` make must leave the card in that place, not change its completion, and not touch its sub-tasks, with the place holding the same set of cards afterwards. Then that it genuinely reorders — the card lands immediately ahead of the one it was dropped on, in every pair — so the first claim cannot be satisfied by a `move` that does nothing. Then the contrast, over every pair of *different* places, including a card into Done still being ticked; the column's own drop closure resolving to that column for every card on the board and staying a no-op on the column a card is already in; a drag refused under a query, under a sort and inside a saved view; and an archived card unreachable by either closure |
 | `DropCaretTests` | where a dragged card says it will land, and whether it is telling the truth. A caret names a *gap*: the head of another list — the one thing the old direction-of-travel rule could not express at all — the foot of one, the two names for one gap meaning one place, and a card coming from below landing where it was pointed rather than on the other side. A drop into the gap the card is already in moving nothing *and registering no step*. A list's own ground landing the card at the foot — in a column and in the Inbox, and from the top row of the list it left as readily as from the bottom, because "always the foot" is only a rule if the row the card came from cannot change the answer — with no caret at all over an empty one, which still takes the card; the pointer inside a card beating the ground, because a named gap is not a default; `move(_:to:)` landing a card in the same place a drag does, since a ground drop is now that call; the column a card is already in offering none, because that drop moves nothing and registers no step; and none at all with nothing in the air or with a query narrowing the board. Then the caret drawn without a drag session to name the card, which is the iPad's case. Then the half that is a claim about pixels: the card rendered and the accent-coloured row found in it — looked for rather than diffed against a plain card, because in a full parallel run the same card came out 83pt where it is 110pt alone and a third of it differed for reasons that had nothing to do with a caret — against a raster whose row order is itself measured rather than assumed |
 | `DragLiftTests` | when a card stops looking as though it is being carried, which the reported flash was a hundred milliseconds late for. `BoardStore.endDrag()` taking the lift off the card *and* the highlight off both places one can be — the column and the Inbox panel — and a move, including the drop that lands where the card already is, going through it. Then the half no unit test can drive, read off the source the way `DragReorderTests` reads the drop closures: nothing in the session handler ends a lift by hand, a drop carrying a card falls through the `ended` arm untouched, and the arm that ends the lift is `dataTransferCompleted` |

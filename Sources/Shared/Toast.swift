@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The small card that says what has just gone in the trash.
+/// The small card that says what the app has just done.
 ///
 /// **Why anything says it at all.** Trashing has no confirmation and never had
 /// one — the act happens and ⌘Z is behind it — so until now the only sign that
@@ -8,6 +8,14 @@ import SwiftUI
 /// clicked in a column and thin for a board deleted out of a menu, and it is
 /// the only place in the app where something sizeable can leave without the
 /// screen saying so. It also, quietly, teaches the trash exists.
+///
+/// **A sync the user asked for ends here too**, and for a closely related
+/// reason: a pull that finds nothing looks exactly like a pull that did not
+/// happen, and "nothing was waiting" is the answer somebody pulling is usually
+/// after. See ``Announcement/synced(adopted:)`` for the two sentences and
+/// ``BoardStore/syncNow(settling:)`` for when they are raised. One strip, one
+/// message, whichever author: two toasts stacking over each other would be the
+/// app talking over itself.
 ///
 /// **It is a message rather than a control.** No Undo button: ⌘Z is the undo, it
 /// is on the Edit menu naming the exact step, and a button that appears for
@@ -17,7 +25,7 @@ import SwiftUI
 ///
 /// The timer lives here rather than in the store, because how long a sentence
 /// stays on a screen is a fact about the screen.
-struct TrashToast: View {
+struct BoardToast: View {
     struct Metrics {
         var font: CGFloat
         var glyph: CGFloat
@@ -56,8 +64,8 @@ struct TrashToast: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            if let announcement = store.trashAnnouncement {
-                card(announcement.text)
+            if let announcement = store.announcement {
+                card(announcement.text, symbol: announcement.symbol)
                     .padding(.bottom, metrics.bottomInset)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -66,12 +74,13 @@ struct TrashToast: View {
         // A message, not a target: it must never take a click aimed at the card
         // that is still under it.
         .allowsHitTesting(false)
-        .motionAnimation(.easeOut(duration: 0.18), value: store.trashAnnouncement)
+        .motionAnimation(.easeOut(duration: 0.18), value: store.announcement)
         // Keyed on the id rather than on the text, so trashing two cards with
         // the same title in a row restarts the clock instead of letting the
-        // first one's timer dismiss the second — see `TrashAnnouncement.id`.
-        .task(id: store.trashAnnouncement?.id) {
-            guard let announcement = store.trashAnnouncement else { return }
+        // first one's timer dismiss the second — see `Announcement.id`. Two
+        // pulls that both find nothing are the same case.
+        .task(id: store.announcement?.id) {
+            guard let announcement = store.announcement else { return }
             // Nothing draws a sentence for VoiceOver: the card is out of the
             // tree below, because an element that appears for three seconds and
             // then is not there is worse to meet than one that was never there.
@@ -80,13 +89,13 @@ struct TrashToast: View {
             AccessibilityNotification.Announcement(announcement.text).post()
             try? await Task.sleep(for: Self.duration)
             guard !Task.isCancelled else { return }
-            store.trashAnnouncement = nil
+            store.announcement = nil
         }
     }
 
-    private func card(_ text: String) -> some View {
+    private func card(_ text: String, symbol: String) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: "trash")
+            Image(systemName: symbol)
                 .symbolSize(metrics.glyph, weight: .semibold, relativeTo: .caption)
                 .foregroundStyle(palette.inkText(0.5))
             Text(text)
@@ -113,8 +122,8 @@ struct TrashToast: View {
 }
 
 extension View {
-    /// Floats the trash card over this surface, along its bottom edge.
-    func trashToast(metrics: TrashToast.Metrics = .desk) -> some View {
-        overlay { TrashToast(metrics: metrics) }
+    /// Floats the announcement card over this surface, along its bottom edge.
+    func boardToast(metrics: BoardToast.Metrics = .desk) -> some View {
+        overlay { BoardToast(metrics: metrics) }
     }
 }

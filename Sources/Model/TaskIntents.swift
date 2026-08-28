@@ -19,7 +19,12 @@ import UIKit
 /// of the pair a user retypes; the id is the key, which is the whole reason
 /// item 3.7 moved ids to UUIDs before anything could link to one.
 enum TaskLink {
-    static let scheme = "simplekanban"
+    /// The vocabulary itself lives in ``AppLink``, which the widget extension
+    /// shares: a task link is one of six shapes now, and the process that
+    /// *writes* four of them is not this one. These two are kept because the
+    /// Spotlight index names a domain with the second and a good deal of the
+    /// app names the first.
+    static let scheme = AppLink.scheme
     static let host = "task"
 
     /// The activity type Handoff and Spotlight both carry. Declared in
@@ -30,10 +35,7 @@ enum TaskLink {
     /// pasted URL, a tapped notification, a Handoff, a Spotlight result.
     @MainActor static let router = DeepLinkRouter()
 
-    static func url(for id: TaskItem.ID) -> URL {
-        URL(string: "\(scheme)://\(host)/\(id.uuidString.lowercased())")
-            ?? URL(filePath: "/")
-    }
+    static func url(for id: TaskItem.ID) -> URL { AppLink.url(.task(id)) }
 
     /// Puts a task's link on the pasteboard, which is the only thing the app
     /// can do with a `simplekanban://` URL that helps: the link is for pasting
@@ -54,10 +56,8 @@ enum TaskLink {
     /// to open. Deliberately strict about the shape: a link that is not one of
     /// ours is not silently treated as a task that has gone away.
     static func taskID(in url: URL) -> TaskItem.ID? {
-        guard url.scheme?.caseInsensitiveCompare(scheme) == .orderedSame,
-              url.host()?.caseInsensitiveCompare(host) == .orderedSame
-        else { return nil }
-        return UUID(uuidString: url.lastPathComponent)
+        guard case .task(let id)? = AppLink.destination(of: url) else { return nil }
+        return id
     }
 }
 
@@ -118,25 +118,108 @@ final class DeepLinkRouter {
             importFile(at: url, in: store)
             return
         }
-        guard let id = TaskLink.taskID(in: url) else {
+        guard let destination = AppLink.destination(of: url) else {
             failure = DeepLinkFailure(
-                title: String(localized: "That link is not a Simple Kanban task.",
+                title: String(localized: "Simple Kanban cannot open that link.",
                               comment: "Alert title for a URL the app cannot interpret"),
-                message: String(localized: "Task links look like simplekanban://task/ followed by the task's identifier.",
-                                comment: "Alert body explaining the shape of a task link")
+                message: String(localized: "Its links name a task, a board, a column, a view or the Inbox — a task link looks like simplekanban://task/ followed by the task's identifier.",
+                                comment: "Alert body explaining the shapes of link the app understands")
             )
             return
         }
-        guard let task = store[id] else {
-            failure = DeepLinkFailure(
-                title: String(localized: "That task no longer exists.",
-                              comment: "Alert title for a link to a task that has been deleted"),
-                message: String(localized: "It may have been deleted, or it may be on a copy of the board this device does not have.",
-                                comment: "Alert body for a link to a task that has been deleted")
-            )
-            return
+        open(destination, in: store)
+    }
+
+    /// One arm per shape of link. Each either puts something on screen or says
+    /// why it cannot — there is no third answer, for ``DeepLinkFailure``'s
+    /// reason: a link that silently does nothing is indistinguishable from an
+    /// app that failed to launch.
+    ///
+    /// The four that a widget writes name things the user can rename, move and
+    /// delete while the widget goes on naming them, so each has its own "that
+    /// is gone" sentence rather than a shared one. "That view no longer exists"
+    /// tells somebody which widget to fix; "something went wrong" does not.
+    private func open(_ destination: AppLink.Destination, in store: BoardStore) {
+        switch destination {
+        case .task(let id):
+            guard let task = store[id] else {
+                failure = DeepLinkFailure(
+                    title: String(localized: "That task no longer exists.",
+                                  comment: "Alert title for a link to a task that has been deleted"),
+                    message: String(localized: "It may have been deleted, or it may be on a copy of the board this device does not have.",
+                                    comment: "Alert body for a link to a task that has been deleted")
+                )
+                return
+            }
+            store.reveal(task.id)
+
+        case .board(let id):
+            guard store.board(id: id) != nil else {
+                failure = DeepLinkFailure(
+                    title: String(localized: "That board no longer exists.",
+                                  comment: "Alert title for a link to a board that has been deleted"),
+                    message: String(localized: "It may have been deleted, or it may be on a copy of the board file this device does not have.",
+                                    comment: "Alert body for a link to a board that has been deleted")
+                )
+                return
+            }
+            store.clearQuery()
+            store.selectBoard(id)
+
+        case .column(let id):
+            // Resolved to its board rather than taken on trust, because a
+            // column is what a widget was configured with and a column can be
+            // moved to another board after the fact. Landing on the board it is
+            // on *now* is the answer that stays right.
+            guard let owner = store.board(ofColumn: id) else {
+                failure = DeepLinkFailure(
+                    title: String(localized: "That column no longer exists.",
+                                  comment: "Alert title for a link to a column that has been deleted"),
+                    message: String(localized: "It may have been deleted, or the board it was on may have been.",
+                                    comment: "Alert body for a link to a column that has been deleted")
+                )
+                return
+            }
+            store.clearQuery()
+            store.selectBoard(owner.id)
+
+        case .view(let id):
+            guard store.views.contains(where: { $0.id == id }) else {
+                failure = DeepLinkFailure(
+                    title: String(localized: "That view no longer exists.",
+                                  comment: "Alert title for a link to a saved view that has been deleted"),
+                    message: String(localized: "Saved views can be deleted, and a widget goes on naming the one it was set up with.",
+                                    comment: "Alert body for a link to a saved view that has been deleted")
+                )
+                return
+            }
+            store.clearQuery()
+            store.surface = .view(id)
+            #if os(iOS)
+            store.isNavDrawerOpen = false
+            #endif
+
+        case .inbox:
+            store.clearQuery()
+            store.showInbox()
+            #if os(iOS)
+            store.isNavDrawerOpen = false
+            #endif
+
+        case .newTask:
+            // The Inbox goes out first so that the card is made somewhere the
+            // user can see it being made. `reveal` afterwards is what puts the
+            // right detail surface up on each platform — the inspector on the
+            // desk and the iPad, the sheet on the phone — which is more than
+            // `addTask` alone does, and this card is arriving with an empty
+            // title that somebody has to be able to type into.
+            store.clearQuery()
+            store.showInbox()
+            #if os(iOS)
+            store.isNavDrawerOpen = false
+            #endif
+            store.reveal(store.addTask(to: .inbox, title: "", log: .captured))
         }
-        store.reveal(task.id)
     }
 
     /// Merges an opened board file, which is the same act as Settings ▸ Import

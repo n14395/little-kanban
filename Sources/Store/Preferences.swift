@@ -412,6 +412,14 @@ extension Preferences {
     static var launchesAtLogin: Bool { flag(launchAtLoginKey) }
     static var appIconFollowsTheme: Bool { flag(appIconFollowsThemeKey) }
 
+    /// The light/dark override. Read here as well as through `@AppStorage`
+    /// because the widgets need it and a widget cannot see the app's
+    /// environment: it travels to them inside ``WidgetDigest``, and what puts
+    /// it there is a plain read rather than a view.
+    static var appearance: AppAppearance {
+        choice(AppAppearance.self, key: AppAppearance.storageKey, fallback: .system)
+    }
+
     /// The stored ground, or the one the app ships wearing. Not ``choice(_:key:fallback:)``
     /// — the ten are data rather than an enum, so the lookup is
     /// ``AppIcon/gradient(_:)`` and an id this build has never heard of falls

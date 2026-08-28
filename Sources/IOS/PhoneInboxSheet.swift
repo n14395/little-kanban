@@ -446,7 +446,10 @@ struct PhoneInboxSheet: View {
         // One filter-and-sort, not two: `inboxTasks` walks the whole board on
         // every access.
         let tasks = store.inboxTasks
-        return PhoneCardStack(tasks: tasks, metrics: .sheet, preview: preview) {
+        // `pullsToSync: false` — the sheet's own dismissal is a downward drag,
+        // and a pull past the top of its cards would be the same finger asking
+        // for two different things. The board's columns keep the gesture.
+        return PhoneCardStack(tasks: tasks, metrics: .sheet, preview: preview, pullsToSync: false) {
             if tasks.isEmpty {
                 EmptyStateView.inbox(metrics: .sheet, add: add)
             } else {

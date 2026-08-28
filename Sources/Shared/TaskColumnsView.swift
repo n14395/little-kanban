@@ -38,13 +38,18 @@ struct TaskColumnMetrics {
         bottomInset: 16
     )
 
+    /// **The insets match**, and did not: the foot asked for 28 against the
+    /// head's 12, and then the home indicator's 20 was added underneath it — so
+    /// a view sat four times as far off the bottom of the window as the top.
+    /// The strip is taken back by ``HomeIndicatorFoot`` and the number is the
+    /// head's, which is what makes the two edges read as one margin.
     @MainActor static let pad = TaskColumnMetrics(
         columnWidth: BoardColumnView.Metrics.pad.width,
         columnSpacing: BoardScrollView.gutter,
         cardSpacing: BoardColumnView.Metrics.pad.cardSpacing,
         horizontalPadding: 20,
         topInset: 12,
-        bottomInset: 28
+        bottomInset: 12
     )
 
     /// The phone on its side. 250 is not a new number: it is what a page of the
@@ -171,6 +176,11 @@ struct TaskColumnsView<Card: View>: View {
                 .padding(.bottom, metrics.bottomInset)
             }
             .scrollBounceBehavior(.basedOnSize)
+            // The board's strip does the same, for the same reason: an iPad
+            // keeps 20pt at the foot for the home indicator, and a surface laid
+            // out inside it ends up twice as far off the bottom of the window as
+            // the top. See ``HomeIndicatorFoot``.
+            .underTheHomeIndicator()
             .onChange(of: reveal) { _, reveal in
                 scroll(proxy, to: reveal)
             }
@@ -207,7 +217,12 @@ struct TaskColumnsView<Card: View>: View {
                 .padding(.top, metrics.topInset)
                 .padding(.bottom, metrics.bottomInset)
             }
-            .scrollBounceBehavior(.basedOnSize)
+            // The one flow with a top to pull past. Across-then-down is the
+            // phone on its side, and a saved view there scrolls the way a
+            // column does — so it syncs the way a column does. Down-then-across
+            // above scrolls *sideways*, and has nowhere to hang the gesture:
+            // see ``PullToSync``.
+            .pullToSync(bounce: .basedOnSize)
             .onChange(of: reveal) { _, reveal in
                 scroll(proxy, to: reveal)
             }

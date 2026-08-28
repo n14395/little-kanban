@@ -79,6 +79,12 @@ struct BoardScrollView: View {
             }
             .scrollBounceBehavior(.basedOnSize)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // The strip's margin is `stripPadding` at the head and the foot, and
+            // on an iPad the foot's was landing on top of the home indicator's
+            // 20pt — 16 above the columns and 36 below them, which reads as a
+            // gap somebody chose. See ``HomeIndicatorFoot``; a no-op on the desk
+            // and anywhere there is no such strip.
+            .underTheHomeIndicator()
             // The board scrolls sideways and the composer is drawn inside a
             // column, so ⌘N on a board scrolled right used to take the focus to
             // a text field several hundred points off the edge of the window —
