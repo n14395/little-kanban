@@ -180,7 +180,10 @@ struct InboxPanel: View {
     }
 
     private func previewCard(_ preview: DropPreview) -> some View {
-        DropPreviewCard(preview: preview, cornerRadius: metrics.card.cornerRadius) {
+        DropPreviewCard(
+            preview: preview, cornerRadius: metrics.card.cornerRadius,
+            reach: metrics.card.dropReach
+        ) {
             BoardTaskCard(task: preview.task, metrics: metrics.card, isStandIn: true)
         }
         .id("drop-preview")

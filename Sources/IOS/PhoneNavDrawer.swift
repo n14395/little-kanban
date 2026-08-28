@@ -186,11 +186,15 @@ struct PhoneNavDrawer: View {
 
     private var lists: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Above the boards rather than inside one of them: the Inbox is
-            // global, and a card is in it by being on no board at all.
-            inboxRow.padding(.horizontal, 12)
-
-            sectionHeader("Boards", topPadding: 22)
+            // The Inbox was the row above this one, and it went for the
+            // reason it went from the desk's source list — see
+            // `BoardSidebar`'s body. It is not a place instead of the board:
+            // it is a sheet over whatever is on screen, raised and lowered by
+            // ``PhoneTabBar``'s middle slot, which is on screen at all times
+            // and is where a thumb already is. A row here was a second switch
+            // for the same panel, in a drawer that has to be opened first —
+            // and it was the one row in this list that did not go anywhere.
+            sectionHeader("Boards", topPadding: 0)
             VStack(spacing: 2) {
                 ForEach(store.boards) { boardRow($0) }
                 newBoardRow
@@ -199,12 +203,15 @@ struct PhoneNavDrawer: View {
 
             sectionHeader("Views", topPadding: 24)
             VStack(spacing: 2) {
-                // The seeded Inbox is dropped rather than the whole list being a
-                // fixed seven: the Inbox is the row above the boards on this
-                // surface, and listing it again here would be two ways to the
-                // same place a thumb's width apart. A view the *user* built that
-                // happens to gather the Inbox is theirs and is drawn.
-                ForEach(store.views.filter { $0.preset != .inbox }) { viewRow($0) }
+                // `store.views`, whole and unfiltered — the same rows in
+                // the same order as the desk's source list and the menu bar's
+                // submenu, because they are the same rows: the board file's
+                // own list, which since v11 is the user's to order, rename and
+                // delete. The seeded Inbox used to be dropped here, on the
+                // argument that the row above the boards already went there;
+                // that row is gone, and a surface that quietly holds a view
+                // back reads as the board having lost one.
+                ForEach(store.views) { viewRow($0) }
                 newViewRow
             }
             .padding(.horizontal, 12)
@@ -354,16 +361,6 @@ struct PhoneNavDrawer: View {
             .padding(.bottom, 8)
     }
 
-    /// The global Inbox. A destination of its own rather than the first column
-    /// of whichever board happens to be open, which is what it was through v4.
-    private var inboxRow: some View {
-        destinationRow(
-            name: Board.inboxName, dot: Board.inboxDot,
-            count: store.inboxCount, isActive: isShowingInbox,
-            action: showInbox
-        )
-    }
-
     /// A real board, with its own count and its own context menu. These were
     /// three literals with the counts 9 and 4 painted on (4.2).
     private func boardRow(_ board: Board) -> some View {
@@ -419,12 +416,14 @@ struct PhoneNavDrawer: View {
         .buttonStyle(.bare)
     }
 
-    /// The Inbox row and every board row, which differ only in what they count.
+    /// Every board row. One function rather than a literal per row because it
+    /// drew the Inbox too until that row went — and because the boards are
+    /// `store.boards`, which is however many the user has made.
     ///
     /// The representation is `viewRow`'s, for `viewRow`'s reason and one more of
     /// its own: gathered, the count is read as part of the destination's *name*
-    /// — "Inbox, 3" against the views' "Today" value "1", in the same list — and
-    /// the name of a place then changes every time a card is added to it.
+    /// — "Backlog, 3" against the views' "Today" value "1", in the same list —
+    /// and the name of a place then changes every time a card is added to it.
     private func destinationRow(
         name: String, dot: SwatchColor, count: Int, isActive: Bool,
         action: @escaping () -> Void
@@ -571,14 +570,6 @@ struct PhoneNavDrawer: View {
         store.isNavDrawerOpen = false
     }
 
-    /// The drawer's Inbox row raises the slide-over and closes the drawer on
-    /// its way out. Both at once is a board list half-covered by the Inbox,
-    /// which is the wrong way round: the drawer is the way to a *board*.
-    private func showInbox() {
-        store.isInboxOpen = true
-        store.isNavDrawerOpen = false
-    }
-
     /// Both calls, in this order: `selectBoard` says which board and clears any
     /// saved view standing in for it, `selectTab` says the phone's list is the
     /// board's rather than the search results it may have been showing.
@@ -587,12 +578,6 @@ struct PhoneNavDrawer: View {
         store.selectTab(.board)
         store.isNavDrawerOpen = false
     }
-
-    /// Which row is highlighted. The Inbox is a panel over the board now rather
-    /// than a place instead of it, so this row marks itself while the panel is
-    /// up and the board row underneath goes on marking the board that is still
-    /// there behind it — which is the truth about both.
-    private var isShowingInbox: Bool { store.isInboxOpen }
 
     private func isActive(_ board: Board) -> Bool {
         store.activeView == nil && board.id == store.activeBoardID

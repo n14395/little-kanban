@@ -4651,8 +4651,10 @@ and the other five were off the side of the screen. So:
 
 - **General** — what the app looks like and how it comes up. *Appearance* (the
   light/dark/system override and the theme browser behind it — see **Themes**)
-  and *At launch* (reopen the last view,
-  open the Inbox with the board), plus *This Mac* on the desk: open at login and
+  and *At launch* (reopen the last view, and — on the desk and the iPad, where
+  the Inbox is a panel beside the board rather than a sheet over it — open the
+  Inbox with the board unless it is empty), plus *This Mac* on the desk: open at
+  login and
   the menu bar item. Those last two are still the desk's alone, but the `#if` is
   now around **two rows** rather than around a case of `SettingsTab`, so
   `allCases` is the same list on both platforms and neither has to filter it.
@@ -4815,7 +4817,7 @@ twice: it is a schema change needing a version bump and a migration (C7), and it
   | Card detail | `BoardTaskCard` | comfortable |
   | Tick cards off from the board | `BoardTaskCard`, `PhoneTaskCard` | on |
   | Reopen the view I was on | `applyStoredPreferences()` | off |
-  | Open the Inbox with the board | `applyStoredPreferences()`, on the board only | off |
+  | Open the Inbox with the board unless it's empty | `applyStoredPreferences()`, on the board only, and not on the phone | off |
   | The Trash keeps things for | `TrashedItem.isExpired(at:days:)` | 30 days |
   | Backups to keep | `backupNow(keeping:)` | 10 |
   | Also remind me the day before | a second `TaskReminder` per card | off |
@@ -4900,10 +4902,25 @@ twice: it is a schema change needing a version bump and a migration (C7), and it
   the key — sound while every launch landed on the board, since "nothing stored"
   and "the board" were the same answer, and wrong the moment they became two:
   somebody who asked to be put back where they were would have been put on Today
-  instead. And **"Open the Inbox with the board" is honoured on the board only**,
-  which is what it says: the phone's Inbox is a sheet drawn over whatever is
-  there, so an unconditional raise would put the panel over Today and hide the
-  very thing the launch went to.
+  instead. And **"Open the Inbox with the board unless it's empty" is honoured on
+  the board only**, which is what it says: the phone's Inbox is a sheet drawn over
+  whatever is there, so an unconditional raise would put the panel over Today and
+  hide the very thing the launch went to.
+
+  Two further conditions on the same line, and each is on the same split the
+  landing surface is. **The switch is the desk's and the iPad's**, through
+  `BoardStore.inboxOpensBesideTheBoard`, which Settings asks before it draws the
+  row at all: on those two the Inbox stands *beside* the board and opening it
+  with the board adds a column to a window that still shows everything it showed
+  before, while on the phone the same setting would read "cover the board at
+  launch". The idiom again rather than the size class, for the reason above. And
+  **an empty Inbox stays shut** — a panel raised over nothing is a column of
+  blank taking width from the board to say "no", which the count on the sidebar
+  row says already without moving anything. That read needs the board loaded,
+  which is another reason this runs where it does; the one gap is the
+  awaiting-sync path, where a card that lands seconds after the launch leaves the
+  panel shut, and a panel that opened itself some time after the launch would be
+  the worse of the two.
 
   `applyStoredPreferences()` runs on the `restored(…)` path alone, so a store
   built any other way — a test, a preview — is untouched by any of it. The DEBUG

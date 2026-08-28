@@ -17,8 +17,14 @@ struct TaskInspector: View {
         var sectionSpacing: CGFloat
         var titleSize: CGFloat
         var noteSize: CGFloat
-        var fieldNameSize: CGFloat
-        var fieldNameWidth: CGFloat
+        /// The box around Due and around Priority — see
+        /// ``TaskInspector/attributeCards``. One set of numbers for both
+        /// surfaces: the panel is 336pt wide and an iPhone's sheet lays out
+        /// around 330pt of content, so a card sized for one fits the other.
+        var cardSpacing: CGFloat = 8
+        var cardHorizontalPadding: CGFloat = 14
+        var cardVerticalPadding: CGFloat = 12
+        var cardRadius: CGFloat = 14
         /// The square each of the header's three controls claims — the tick,
         /// the trash and the close ✕ alike. See ``TaskInspector/header``.
         var headerButton: CGFloat
@@ -42,14 +48,14 @@ struct TaskInspector: View {
 
         static let desk = Metrics(
             width: 336, horizontalPadding: 18, sectionSpacing: 18, titleSize: 26, noteSize: 13,
-            fieldNameSize: 12.5, fieldNameWidth: 84, headerButton: 32, headerButtonRadius: 9,
+            headerButton: 32, headerButtonRadius: 9,
             headerGlyph: 13,
             fieldHit: 0, tick: .deskHeader, destination: .desk, moveTo: .desk, due: .desk,
             priority: .desk, labels: .desk, checklist: .desk, activity: .desk
         )
         static let pad = Metrics(
             width: nil, horizontalPadding: 20, sectionSpacing: 20, titleSize: 29, noteSize: 14.5,
-            fieldNameSize: 14, fieldNameWidth: 92, headerButton: 48, headerButtonRadius: 14,
+            headerButton: 48, headerButtonRadius: 14,
             headerGlyph: 17,
             fieldHit: 44, tick: .sheetHeader, destination: .sheet, moveTo: .sheet, due: .sheet,
             priority: .sheet, labels: .sheet, checklist: .sheet, activity: .sheet
@@ -100,8 +106,9 @@ struct TaskInspector: View {
                 VStack(alignment: .leading, spacing: metrics.sectionSpacing) {
                     titleField
                     noteField
-                    status
-                    attributes
+                    moveTo
+                    attributeCards
+                    labels
                     checklist
                     activity
                 }
@@ -326,9 +333,15 @@ struct TaskInspector: View {
     /// Which is also why the second question can go unasked. The card's own
     /// board and nothing else: set the menu to Inbox and the columns underneath
     /// go, because there is no board left for them to be the columns of.
-    private var status: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Status").sectionLabelStyle(size: 10.5, opacity: Palette.readableInk)
+    ///
+    /// Titled "Move to" rather than "Status", which is what the phone's sheet
+    /// has always called it: the section is two *destinations*, and the second
+    /// of them is a picker whose own segments are the statuses. Naming the pair
+    /// after the half of it that is a status left the board menu filed under a
+    /// word that does not describe it.
+    private var moveTo: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text("Move to").sectionLabelStyle(opacity: Palette.readableInk)
             BoardDestinationMenu(task: task, metrics: metrics.destination)
             MoveToPicker(
                 board: store.board(for: task),
@@ -339,44 +352,67 @@ struct TaskInspector: View {
         }
     }
 
-    private var attributes: some View {
-        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
-            GridRow(alignment: .center) {
-                fieldName("Due")
+    /// Due and Priority, side by side in a card each — the phone's arrangement,
+    /// which this panel now shares.
+    ///
+    /// It replaces a three-row `Grid` whose first column was a field name. The
+    /// grid read the two values as rows of a form and the labels as a third row
+    /// of the same form, which is not what any of the three are: two are one-tap
+    /// attributes that fit side by side, and the labels are a list that wants
+    /// the whole width. The name over the value rather than beside it is also
+    /// what every other section here does — see ``moveTo`` and ``checklist``.
+    private var attributeCards: some View {
+        HStack(spacing: metrics.cardSpacing) {
+            attributeCard(title: "Due") {
                 DueDateField(task: task, scope: .desk, metrics: metrics.due)
             }
-            GridRow(alignment: .center) {
-                fieldName("Priority")
+            attributeCard(title: "Priority") {
                 PriorityPicker(task: task, scope: .desk, metrics: metrics.priority)
             }
-            GridRow(alignment: .top) {
-                fieldName("Labels")
-                LabelEditor(task: task, scope: .desk, metrics: metrics.labels)
-            }
         }
+        .attributeCardRow()
     }
 
-    /// The grid's first column. A *minimum* rather than a width: 84pt is two
-    /// words at the default size and "Priority" broken across two lines as
-    /// "Prio / rity" at AX5. `Grid` sizes the column to the widest cell, so the
-    /// three names stay aligned however wide they grow.
-    private func fieldName(_ text: LocalizedStringKey) -> some View {
-        Text(text)
-            .font(palette.ui(metrics.fieldNameSize, .bold, relativeTo: .footnote))
-            .foregroundStyle(palette.inkText(0.42))
-            .frame(minWidth: metrics.fieldNameWidth, alignment: .leading)
+    /// `@escaping`, because ``AttributeCard`` *stores* the closure rather than
+    /// calling it here: a view builder held as a property outlives the call
+    /// that made it, and a parameter is non-escaping unless it says otherwise.
+    private func attributeCard(
+        title: LocalizedStringKey, @ViewBuilder value: @escaping () -> some View
+    ) -> some View {
+        AttributeCard(
+            title: title,
+            horizontalPadding: metrics.cardHorizontalPadding,
+            verticalPadding: metrics.cardVerticalPadding,
+            radius: metrics.cardRadius,
+            value: value
+        )
+    }
+
+    /// Its own section, with the name above the list rather than beside it. The
+    /// chips wrap, so a name in a column to their left took width off the one
+    /// thing in the panel that grows downwards when it runs out.
+    private var labels: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Labels").sectionLabelStyle(opacity: Palette.readableInk)
+            LabelEditor(task: task, scope: .desk, metrics: metrics.labels)
+        }
     }
 
     private var checklist: some View {
         VStack(alignment: .leading, spacing: 9) {
-            HStack(spacing: 8) {
-                Text("Checklist").sectionLabelStyle(size: 10.5, opacity: Palette.readableInk)
+            HStack(spacing: 10) {
+                Text("Checklist").sectionLabelStyle(opacity: Palette.readableInk)
                 ProgressMeter(fraction: task.subtaskFraction, height: 4)
                 Text(task.subtaskProgressText)
-                    .font(palette.ui(11, .bold, relativeTo: .caption2))
+                    .font(palette.ui(12, .bold, relativeTo: .caption))
                     .foregroundStyle(palette.inkText(0.45))
             }
-            ChecklistView(task: task, scope: .desk, metrics: metrics.checklist)
+            VStack(spacing: 0) {
+                ChecklistView(task: task, scope: .desk, metrics: metrics.checklist)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
+            .background(palette.card, in: .rect(cornerRadius: metrics.cardRadius))
         }
     }
 
@@ -384,8 +420,8 @@ struct TaskInspector: View {
     /// no history section at all — the same task showed its past on one
     /// platform and hid it on the other.
     private var activity: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Activity").sectionLabelStyle(size: 10.5, opacity: Palette.readableInk)
+        VStack(alignment: .leading, spacing: 9) {
+            Text("Activity").sectionLabelStyle(opacity: Palette.readableInk)
             ActivityFeed(task: task, metrics: metrics.activity)
         }
     }

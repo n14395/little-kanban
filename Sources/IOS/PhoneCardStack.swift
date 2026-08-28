@@ -71,7 +71,13 @@ struct PhoneCardStack<Trailing: View>: View {
     /// window, so if anything this surface needs it more.
     @ViewBuilder private var previewCard: some View {
         if let preview {
-            DropPreviewCard(preview: preview, cornerRadius: 16) {
+            // The reach is `PhoneTaskCard.dropZones`', written the same way
+            // rather than off this stack's own `metrics`: the two have to meet
+            // in the middle of the row gap, and the card names the sheet's.
+            DropPreviewCard(
+                preview: preview, cornerRadius: 16,
+                reach: TaskListMetrics.sheet.rowSpacing / 2
+            ) {
                 PhoneTaskCard(task: preview.task, showsColumn: false)
             }
             .id("drop-preview")

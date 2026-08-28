@@ -1037,10 +1037,23 @@ final class BoardStore {
         // is a promise about the board, and a launch that lands on Today has not
         // made it — on the phone the Inbox is a sheet drawn over whatever is
         // there, so an unconditional raise would put the panel over Today and
-        // hide the very thing the launch went to. The `#if DEBUG` flag is not
-        // conditional: it is how a UI test asks for the panel outright.
+        // hide the very thing the launch went to.
+        //
+        // **And after the board is loaded, because it asks what is in it.** The
+        // setting is "unless it's empty": a panel raised over nothing is a
+        // column of blank taking width from the board to say "no", which is what
+        // the count on the sidebar row already says without moving anything.
+        // `restored(…)` builds the store from the file or the records and calls
+        // this afterwards, so `inboxTasks` is the real Inbox by the time it is
+        // read — the one exception is the awaiting-sync path, where a card that
+        // arrives seconds later leaves the panel shut, and a launch that opened
+        // a panel by itself some time after the launch would be worse.
+        //
+        // The `#if DEBUG` flag is not conditional: it is how a UI test asks for
+        // the panel outright.
         isInboxOpen = Self.inboxOpensAtLaunch
-            || (Preferences.opensInboxAtLaunch && surface == .board)
+            || (Preferences.opensInboxAtLaunch && surface == .board
+                && Self.inboxOpensBesideTheBoard && !inboxTasks.isEmpty)
         #if DEBUG
         // **Last, so it is the last word.** These ran at the end of `init`,
         // which was before any of the above — fine while nothing here touched
@@ -2798,6 +2811,27 @@ final class BoardStore {
         UIDevice.current.userInterfaceIdiom == .phone ? .view(SavedView.id(of: .today)) : .board
         #else
         .board
+        #endif
+    }
+
+    /// Whether "Open the Inbox with the board" is a promise this device can
+    /// keep — and so whether Settings offers the switch at all.
+    ///
+    /// **The desk and the iPad, not the phone.** On both of those the Inbox is a
+    /// panel that stands *beside* the board: opening it with the board adds a
+    /// column to a window that still shows everything it showed before. The
+    /// phone draws the same Inbox as a sheet over the board, so the setting
+    /// would read "cover the board at launch", which is not the thing it says
+    /// and not a thing anyone would ask for.
+    ///
+    /// The idiom rather than the size class, for ``landingSurface``'s reason: an
+    /// iPad in Slide Over is still an iPad, and the setting is about what the
+    /// Inbox *is* on this device rather than how wide this window happens to be.
+    static var inboxOpensBesideTheBoard: Bool {
+        #if os(iOS)
+        UIDevice.current.userInterfaceIdiom != .phone
+        #else
+        true
         #endif
     }
 

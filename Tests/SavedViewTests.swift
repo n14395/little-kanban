@@ -402,16 +402,37 @@ import Testing
         #expect(store.tasks(in: .archive, today: TestBoard.dueDay).contains { $0.id == card.id })
     }
 
-    /// The phone leaves it out of both its lists: it has a tab for the Inbox
-    /// and a drawer row above the boards, and a third route to one place on the
-    /// smallest screen is noise rather than convenience.
-    @Test func thePhoneDoesNotListTheInboxAmongItsViews() {
-        #expect(SavedView.phone.map(\.preset) == SavedView.seededAll.map(\.preset).filter { $0 != .inbox })
-        #expect(SavedView.phoneFilters.contains { $0.preset == .inbox } == false)
-        #expect(SavedView.phoneFilters.contains { $0.preset == .archive } == false)
-        // And it is not a general-purpose "hide things" list: everything else
-        // the desk offers, the phone offers.
-        #expect(SavedView.phoneFilters.map(\.preset) == SavedView.filters.map(\.preset).filter { $0 != .inbox })
+    /// **Every surface lists every view, unfiltered.**
+    ///
+    /// The phone used to drop the seeded Inbox from its drawer, because the
+    /// drawer carried an Inbox row of its own a thumb's width above it. That row
+    /// is gone — the tab bar's middle slot is the way to the Inbox on the phone,
+    /// as the toolbar's toggle is on the desk — and the filter went with it. The
+    /// views are the board file's own list, so a surface that hides one is a
+    /// surface where the same file draws a shorter list than the machine next to
+    /// it: from the outside that is indistinguishable from a row having gone
+    /// missing, rather than from a decision anybody made.
+    ///
+    /// Read out of the source, because "what a list is handed" is not a value
+    /// the store can be asked: every one of these draws from `store.views`, and
+    /// the bug this pins is a `filter` appearing on one of them.
+    @Test func everySurfaceListsTheSameViews() {
+        guard SourceTree.isReachable else { return }
+        let lists = [
+            "Shared/BoardSidebar.swift",   // the desk and the iPad
+            "IOS/PhoneNavDrawer.swift",    // the phone
+            "App/BoardCommands.swift",     // the menu bar
+        ]
+        var seen: Set<String> = []
+        for file in SourceTree.files() where lists.contains(file.path) {
+            let code = String(file.code)
+            #expect(code.contains("ForEach(store.views)"),
+                    "\(file.path) no longer lists the board's views as they are")
+            #expect(code.contains("store.views.filter") == false,
+                    "\(file.path) hides a view every other surface shows")
+            seen.insert(file.path)
+        }
+        #expect(seen == Set(lists), "a list of views moved file: found \(seen)")
     }
 
     // MARK: The seeded seven

@@ -38,6 +38,24 @@ struct DropPreviewCard<Card: View>: View {
     /// The card's corner, so the dashed edge follows it rather than cutting
     /// across it. The two surfaces round their cards differently.
     var cornerRadius: CGFloat
+    /// How far the gap's own zone reaches past the stand-in, into the spacing
+    /// either side of it — a card's ``BoardTaskCard/Metrics/dropReach``, which
+    /// is half the gap between two cards.
+    ///
+    /// **Because without it there was a band belonging to nobody.** A card's
+    /// two halves reach `dropReach` into the gap at each end, so between two
+    /// cards the pointer is always over one of them. The stand-in opens a gap
+    /// *twice* that wide — a whole card and a second spacing — and claimed none
+    /// of it, which left a strip either side of it that was neither a card's
+    /// half nor the stand-in's: bare list, which is the list's **ground**, and
+    /// the ground is what retires a caret. A pointer held in that strip shut
+    /// the gap, the cards sprang back under it, the half it landed on named the
+    /// same gap again, and the stand-in flickered in and out at the frame rate
+    /// for as long as the pointer stayed there. Reaching as far as the cards do
+    /// closes the strip: the stand-in's zone and its neighbours' halves meet in
+    /// the middle of each spacing, and there is nowhere between two cards from
+    /// which the ground can be touched.
+    var reach: CGFloat
     /// The copy itself, built by whichever surface is drawing — the board's
     /// card and the phone's are different views.
     @ViewBuilder let card: () -> Card
@@ -81,6 +99,10 @@ struct DropPreviewCard<Card: View>: View {
     /// is the shape `BoardTaskCard.dropZones` uses and is known to be reached,
     /// and a copy drawn with its hit testing off is not something to hang a
     /// destination on. Applied *outside* `standIn` for that second reason.
+    ///
+    /// It is also the shape `BoardTaskCard.dropZones` *sizes* — out past its
+    /// row by ``reach`` at each end, so it meets the halves of the cards above
+    /// and below it. See ``reach`` for what was in the gap before it did.
     private func gap(at caret: DropCaret) -> some View {
         Color.clear
             .contentShape(.rect)
@@ -98,6 +120,7 @@ struct DropPreviewCard<Card: View>: View {
                 store.dropTargetColumnID = preview.placement.columnID
                 if preview.placement.isInbox { store.isInboxDropTarget = true }
             }
+            .padding(.vertical, -reach)
     }
 }
 

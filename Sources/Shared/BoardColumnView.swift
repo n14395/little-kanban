@@ -356,7 +356,10 @@ struct BoardColumnView: View {
     /// The stand-in itself, built once for the two places it can be drawn.
     @ViewBuilder private var previewCard: some View {
         if let preview {
-            DropPreviewCard(preview: preview, cornerRadius: metrics.card.cornerRadius) {
+            DropPreviewCard(
+                preview: preview, cornerRadius: metrics.card.cornerRadius,
+                reach: metrics.card.dropReach
+            ) {
                 BoardTaskCard(task: preview.task, metrics: metrics.card, isStandIn: true)
             }
             .id(Self.previewID)

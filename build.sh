@@ -231,13 +231,24 @@ build_app() {
     # xcodegen's source discovery is stale by default: adding or removing a
     # file here does not reach project.pbxproj until you regenerate, and the
     # symptom is a phantom "Cannot find type" for a file that is plainly there.
-    if [[ project.yml -nt SimpleKanban.xcodeproj/project.pbxproj ]]; then
-        step "Regenerating SimpleKanban.xcodeproj (project.yml is newer)"
+    #
+    # **Watching project.yml alone did not catch that**, which is the whole case
+    # the comment above describes: a new file under Sources/ leaves project.yml
+    # untouched, so the guard said nothing and the build failed on a type that
+    # was on disk. So the *directories* are watched too — a directory's mtime
+    # moves when a file inside it is added, removed or renamed, and stays put
+    # when one is merely edited, which is exactly the difference that matters.
+    # Keying on the files themselves would rewrite the project on every save and
+    # cost a full rebuild each time.
+    local pbxproj="SimpleKanban.xcodeproj/project.pbxproj"
+    # `-nt` is true when the left file exists and the right one does not, which
+    # is the fresh-clone case: SimpleKanban.xcodeproj is gitignored, so there is
+    # no project at all until this generates one.
+    if [[ project.yml -nt $pbxproj ]] \
+        || [[ -n $(find Sources Resources -type d -newer "$pbxproj" -print -quit 2>/dev/null) ]]; then
+        step "Regenerating SimpleKanban.xcodeproj (the file list has moved)"
         xcodegen generate
     fi
-    # SimpleKanban.xcodeproj is gitignored, so on a fresh clone the guard above
-    # sees no project.pbxproj at all and generates one — `-nt` is true when the
-    # left file exists and the right one does not.
 
     step "Building $APP_NAME (Release)"
     local derived="$BUILD_DIR/.derived"

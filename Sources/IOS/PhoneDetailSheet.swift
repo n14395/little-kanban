@@ -32,10 +32,10 @@ struct PhoneDetailSheet: View {
             .padding(.bottom, 36)
         }
         .scrollDismissesKeyboard(.interactively)
-        // The description is multi-line, so Return types a newline there and
-        // the keyboard needs a way out that is not "tap outside". The bar is
-        // scoped to the sheet rather than to that one field because SwiftUI
-        // raises it for whichever field brings the keyboard up.
+        // The title and the description both wrap, so Return types a newline in
+        // either and the keyboard needs a way out that is not "tap outside".
+        // The bar is scoped to the sheet rather than to one field because
+        // SwiftUI raises it for whichever field brings the keyboard up.
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
@@ -131,17 +131,31 @@ struct PhoneDetailSheet: View {
         }
     }
 
-    /// Single-line on purpose: a title is one line by definition, and on a
-    /// vertical-axis field Return inserts a newline instead of submitting, so
-    /// the `.done` key painted here would not have done what it said.
+    /// A title is one line of *text* — `setText` folds every run of whitespace
+    /// to a space, so a newline cannot reach the board — but the field wraps,
+    /// the same trade the desk's panel makes: see ``TaskInspector/titleField``.
+    /// Without the vertical axis a long title was clipped at the sheet's width
+    /// and the only way to read your own words was to tap in and scrub through
+    /// them, which is the worse half of the trade at 29pt.
+    ///
+    /// The `.done` key goes with it. On a vertical-axis field Return inserts a
+    /// newline and `.onSubmit` never fires, so a key labelled Done would not
+    /// have done what it said; the keyboard bar's Done — which this sheet
+    /// already raises for the description — is the way out for both fields now.
+    /// `.onKeyPress(.return)` keeps a hardware Return ending the session, and a
+    /// Return that arrives some way a key press does not becomes a space in the
+    /// fold, which is what it always became.
     private var titleField: some View {
-        TextField("Task title", text: binding(.title))
+        TextField("Task title", text: binding(.title), axis: .vertical)
             .textFieldStyle(.plain)
             .font(palette.display(29))
             .lineSpacing(3)
             .foregroundStyle(palette.ink)
             .focused($focusedField, equals: .title)
-            .submitLabel(.done)
+            .onKeyPress(.return) {
+                focusedField = nil
+                return .handled
+            }
             .onSubmit { focusedField = nil }
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .background { focusCatcher(.title) }
@@ -248,24 +262,14 @@ struct PhoneDetailSheet: View {
 
     private var attributeCards: some View {
         HStack(spacing: 8) {
-            attributeCard(title: "Due") {
+            AttributeCard(title: "Due") {
                 DueDateField(task: task, scope: .sheet, metrics: .sheet)
             }
-            attributeCard(title: "Priority") {
+            AttributeCard(title: "Priority") {
                 PriorityPicker(task: task, scope: .sheet, metrics: .sheet)
             }
         }
-    }
-
-    private func attributeCard(title: LocalizedStringKey, @ViewBuilder value: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title).sectionLabelStyle(size: 10.5, tracking: 0.08, opacity: Palette.readableInk)
-            value()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(palette.card, in: .rect(cornerRadius: 14))
+        .attributeCardRow()
     }
 
     private var labels: some View {

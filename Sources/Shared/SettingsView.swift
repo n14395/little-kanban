@@ -483,11 +483,17 @@ struct SettingsView: View {
                             .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
                     }
                 }
-                rule
-                row {
-                    Toggle(isOn: $opensInboxAtLaunch) {
-                        Text("Open the Inbox with the board")
-                            .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                // Desk and iPad only — see ``BoardStore/inboxOpensBesideTheBoard``.
+                // A runtime check rather than an `#if`, because the two iOS
+                // idioms are one build: the phone hides the row, the iPad in the
+                // same binary shows it.
+                if BoardStore.inboxOpensBesideTheBoard {
+                    rule
+                    row {
+                        Toggle(isOn: $opensInboxAtLaunch) {
+                            Text("Open the Inbox with the board unless it's empty")
+                                .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                        }
                     }
                 }
             }

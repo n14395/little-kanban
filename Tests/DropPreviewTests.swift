@@ -245,4 +245,47 @@ import Testing
         }
         #expect(seen == Set(halves + grounds), "a drop zone has moved file: found \(seen)")
     }
+
+    /// **The band that belonged to nobody**, and the other half of the rule
+    /// above: what retires a caret is the ground, so nothing between two cards
+    /// may be ground. A card's halves reach `dropReach` into the gap at each
+    /// end and meet in the middle of it — but the stand-in opens a gap twice as
+    /// wide as a spacing and used to claim only the card-shaped middle of it,
+    /// which left a `dropReach`-wide strip of bare list above it and another
+    /// below. A pointer held in one of those strips was on the ground: the gap
+    /// shut, the rows sprang back under it, the half it landed on named the
+    /// same gap again, and the stand-in flickered for as long as the pointer
+    /// stayed there — the exact loop `BoardStore.dropTargetCaret` is written to
+    /// avoid, coming in through the one zone that was not reaching.
+    ///
+    /// Read out of the source for that comment's reason: this is a fact about
+    /// layout inside a `dropDestination`, and there is nothing to measure from
+    /// here. Each surface's reach is its own card's, so the two meet exactly.
+    @Test func theStandInReachesAsFarIntoTheGapAsTheCardsDo() {
+        guard SourceTree.isReachable else { return }
+        let expected = [
+            "Shared/DropPreviewCard.swift": ".padding(.vertical, -reach)",
+            "Shared/BoardColumnView.swift": "reach: metrics.card.dropReach",
+            "Shared/InboxPanel.swift": "reach: metrics.card.dropReach",
+            "IOS/PhoneCardStack.swift": "reach: TaskListMetrics.sheet.rowSpacing / 2",
+        ]
+        var seen: Set<String> = []
+        for file in SourceTree.files() {
+            guard let snippet = expected[file.path] else { continue }
+            #expect(String(file.code).contains(snippet),
+                    "\(file.path): the stand-in's gap no longer reaches the cards' halves")
+            seen.insert(file.path)
+        }
+        #expect(seen == Set(expected.keys), "a stand-in moved file: found \(seen)")
+    }
+
+    /// The reach each surface passes is half its own row gap — which is what
+    /// makes "meet in the middle" true rather than merely close. Asserted on
+    /// the numbers rather than on the source, because these are the numbers.
+    @Test func everySurfacesReachIsHalfItsOwnRowGap() {
+        #expect(BoardTaskCard.Metrics.desk.dropReach == BoardColumnView.Metrics.desk.cardSpacing / 2)
+        #expect(BoardTaskCard.Metrics.pad.dropReach == BoardColumnView.Metrics.pad.cardSpacing / 2)
+        #expect(BoardTaskCard.Metrics.desk.dropReach == TaskListMetrics.panel.rowSpacing / 2)
+        #expect(BoardTaskCard.Metrics.pad.dropReach == TaskListMetrics.panelPad.rowSpacing / 2)
+    }
 }

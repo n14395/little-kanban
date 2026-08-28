@@ -592,11 +592,6 @@ extension SavedView {
     static var recentlyUpdated: SavedView { seeded(.recentlyUpdated) }
     static var archive: SavedView { seeded(.archive) }
 
-    /// What the phone's drawer draws: everything but the seeded Inbox, which it
-    /// reaches from a tab and a row of its own.
-    static var phone: [SavedView] { seededAll.filter { $0.preset != .inbox } }
-    static var phoneFilters: [SavedView] { phone.filter { $0.preset != .archive } }
-
     /// What `lastSurfaceName` writes down, which since v11 is the id rather
     /// than an enum case's spelling.
     var rawValue: String { id.uuidString }

@@ -24,10 +24,14 @@ struct BoardDestinationMenu: View {
         var height: CGFloat
         var radius: CGFloat
 
+        // The pointer pill keeps its own type — 12.5pt beside 11pt column
+        // segments — but not its own box. The padding and the corner are the
+        // sheet's, scaled down rather than a different idea of the shape, so
+        // the panel and the sheet draw the same control.
         static let desk = Metrics(
             dot: 7, spacing: 7, font: 12.5, textStyle: .footnote,
             textOpacity: 0.7, chevronOpacity: 0.35,
-            horizontalPadding: 10, height: 30, radius: 10
+            horizontalPadding: 12, height: 34, radius: 12
         )
         static let sheet = Metrics(
             dot: 8, spacing: 9, font: 14, textStyle: .subheadline,
@@ -72,6 +76,11 @@ struct BoardDestinationMenu: View {
         }
         .modifier(BorderlessMenu())
         .menuIndicator(.hidden)
+        // The pill spans its row on both surfaces. The label already ends in a
+        // `Spacer`, which is enough on iOS; macOS's borderless menu style sizes
+        // itself to its label instead, so without this the desk drew a pill as
+        // wide as the board's name with the column picker full-width beneath it.
+        .frame(maxWidth: .infinity)
         .accessibilityLabel("Board")
         .accessibilityValue(board?.name ?? Board.inboxName)
         .accessibilityIdentifier(Self.pillID)

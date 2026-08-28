@@ -98,8 +98,20 @@ struct PriorityPicker: View {
     }
 }
 
-/// Strips the menu's own chrome so only the label above shows. The borderless
-/// style is macOS-only; on iOS a plain `Menu` already draws nothing.
+/// Strips the menu's own chrome so only the label above shows. On iOS a plain
+/// `Menu` already draws nothing; macOS needs saying, and needs saying carefully.
+///
+/// **`.borderlessButton` does not draw the label it is given.** It bridges to a
+/// pull-down button, which keeps the label's *text* and throws the rest away —
+/// so the board pill lost its dot and its filled box, the priority menu lost its
+/// swatch, and both grew an indicator at the leading edge that
+/// `.menuIndicator(.hidden)` does not reach. The panel drew "⌃⌄ Programming"
+/// centred where the sheet drew a full-width pill, which is the whole of why the
+/// two surfaces did not match.
+///
+/// `.menuStyle(.button)` renders the label as a button instead — the view as
+/// written, laid out by whatever `ButtonStyle` is in the environment — so
+/// ``BareButtonStyle`` hands back exactly the HStack the call site built.
 ///
 /// Not private: `BoardDestinationMenu` draws a label of its own and needs the
 /// same chrome stripped, and a second copy of a `#if` is a second thing to keep
@@ -107,7 +119,9 @@ struct PriorityPicker: View {
 struct BorderlessMenu: ViewModifier {
     func body(content: Content) -> some View {
         #if os(macOS)
-        content.menuStyle(.borderlessButton)
+        content
+            .menuStyle(.button)
+            .buttonStyle(.bare)
         #else
         content
         #endif
