@@ -845,8 +845,8 @@ struct BoardToolbar: View {
     /// the accessibility label instead, which is what a reader gets either way:
     /// a button whose label is its glyph publishes nothing without one.
     ///
-    /// Where the card lands is Settings ▸ **New tasks go to**, which is why this
-    /// is `beginAddingWhereVisible` rather than the phone's `quickCapture` — the
+    /// The card lands in the board's landing column, which is why this is
+    /// `beginAddingWhereVisible` rather than the phone's `quickCapture` — the
     /// board is on screen here, so "where you are" is a place the user can see.
     @ViewBuilder private var captureButton: some View {
         if let diameter = metrics.capture {

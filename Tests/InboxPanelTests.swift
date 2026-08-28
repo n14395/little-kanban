@@ -41,6 +41,57 @@ import Testing
         #expect(store.showsInboxToggle)
     }
 
+    /// **The setting is a standing rule, not something that happened at launch.**
+    /// "Open the Inbox with the board unless it's empty" is a sentence about
+    /// arriving at the board, and picking another board — or coming back from
+    /// Today — is arriving at the board. So shutting the panel answers for the
+    /// board in front of you and not for the rest of the session, which is what
+    /// a button that says "hide this" means.
+    @Test func theSettingBringsThePanelBackOnEveryArrivalAtTheBoard() throws {
+        let store = TestBoard.store(boards: TestBoard.boards)
+        store.opensInboxWithTheBoard = true
+        #expect(!store.inboxTasks.isEmpty, "the rule is 'unless it's empty', so the fixture needs a card in it")
+
+        store.isInboxOpen = true
+        store.toggleInbox()
+        #expect(store.isInboxOpen == false, "shut, and shut it stays while the board under it does not change")
+
+        // Another board is another arrival — and the one `surface` cannot see,
+        // because it was `.board` before and after.
+        let other = try #require(TestBoard.boards.last?.id)
+        store.selectBoard(other)
+        #expect(store.isInboxOpen, "picking another board left the Inbox shut")
+
+        // So is coming back from a saved view.
+        store.toggleInbox()
+        store.selectSurface(.view(SavedView.today.id))
+        #expect(store.isInboxShowing == false, "the panel is beside a board that is not there")
+        store.selectSurface(.board)
+        #expect(store.isInboxOpen, "coming back to the board left the Inbox shut")
+    }
+
+    /// The other half, and the half a rule that only ever opens has to be held
+    /// to: with the switch off, or with nothing in the Inbox to stand there,
+    /// arriving at the board changes nothing.
+    @Test func nothingReopensAPanelTheSettingDidNotAskFor() throws {
+        let other = try #require(TestBoard.boards.last?.id)
+
+        let off = TestBoard.store(boards: TestBoard.boards)
+        off.opensInboxWithTheBoard = false
+        off.selectBoard(other)
+        #expect(off.isInboxOpen == false, "a switch that is off opened the Inbox anyway")
+
+        let empty = TestBoard.store(
+            tasks: TestBoard.tasks(on: SeedData.defaultBoard).filter { !$0.isUnfiled },
+            boards: TestBoard.boards
+        )
+        empty.opensInboxWithTheBoard = true
+        #expect(empty.inboxTasks.isEmpty)
+        empty.selectSurface(.view(SavedView.today.id))
+        empty.selectSurface(.board)
+        #expect(empty.isInboxOpen == false, "an empty Inbox was raised over the board to say so")
+    }
+
     /// A saved view takes the board's place, and the panel stands beside the
     /// *board*. It is hidden rather than switched off, so coming back does not
     /// cost a second click — picking Today was never a decision about the Inbox.

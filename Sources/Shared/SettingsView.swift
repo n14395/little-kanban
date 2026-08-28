@@ -165,8 +165,7 @@ struct SettingsView: View {
 
     @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
     @AppStorage(CardDensity.storageKey) private var density = CardDensity.fallback
-    @AppStorage(Preferences.cardTickKey) private var showsCardTick = true
-    @AppStorage(NewTaskDestination.storageKey) private var newTasks = NewTaskDestination.fallback
+    @AppStorage(Preferences.cardTickKey) private var showsCardTick = false
     @AppStorage(DefaultDueDate.storageKey) private var defaultDue = DefaultDueDate.fallback
     @AppStorage(AutoArchive.storageKey) private var autoArchive = AutoArchive.fallback
     @AppStorage(WeekMeaning.storageKey) private var weekMeaning = WeekMeaning.fallback
@@ -490,7 +489,16 @@ struct SettingsView: View {
                 if BoardStore.inboxOpensBesideTheBoard {
                     rule
                     row {
-                        Toggle(isOn: $opensInboxAtLaunch) {
+                        // Written through to the store as well as to the
+                        // defaults, the way the login switch reads `SMAppService`
+                        // back: the store carries this one for a test's sake and
+                        // would otherwise go on answering with what was stored at
+                        // launch, so a switch flipped here would do nothing until
+                        // the app was quit.
+                        Toggle(isOn: Binding(get: { opensInboxAtLaunch }, set: { wanted in
+                            opensInboxAtLaunch = wanted
+                            store.opensInboxWithTheBoard = wanted
+                        })) {
                             Text("Open the Inbox with the board unless it's empty")
                                 .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
                         }
@@ -584,15 +592,6 @@ struct SettingsView: View {
                             Text("The circle in a card's leading corner. Turned off, cards close the gutter up; the tick beside the title in the detail panel still finishes one.")
                                 .font(palette.ui(metrics.noteFont, .medium, relativeTo: .caption))
                                 .foregroundStyle(palette.inkText(0.45))
-                        }
-                    }
-                }
-                rule
-                row {
-                    choice(String(localized: "New tasks go to", comment: "Settings row: where a new task lands"),
-                           value: newTasks.label) {
-                        ForEach(NewTaskDestination.allCases) { option in
-                            pick(option.label, isCurrent: option == newTasks) { newTasks = option }
                         }
                     }
                 }
@@ -909,7 +908,7 @@ struct SettingsView: View {
     private var backupsRow: some View {
         action(
             String(localized: "Restore from a backup", comment: "Settings row that lists the rolling backups"),
-            note: String(localized: "The board is copied here every 15 minutes as you work; the ten newest are kept.",
+            note: String(localized: "The board is copied here every 15 minutes as you work; the newest are kept, as many as \"Backups to keep\" says.",
                          comment: "Settings note under the restore row"),
             trailing: isShowingBackups ? nil : "\(backups.count)"
         ) {

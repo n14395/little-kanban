@@ -76,7 +76,7 @@ struct BoardTaskCard: View {
     /// Whether the card draws its tick at all — see ``Preferences/cardTickKey``.
     /// `@AppStorage` for the same reason `density` is: every card on the board
     /// has to close its gutter the moment the switch is flipped.
-    @AppStorage(Preferences.cardTickKey) private var showsCardTick = true
+    @AppStorage(Preferences.cardTickKey) private var showsCardTick = false
     /// Where a click says which card the board should show whole. Optional
     /// because the phone's card and a preview have no board around them.
     @Environment(BoardFocusRelay.self) private var relay: BoardFocusRelay?

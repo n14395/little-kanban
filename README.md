@@ -4050,12 +4050,27 @@ that nothing comes out from under it — and, on the flat list, that the card ha
 not moved at all, since a row that slides 60pt and springs back has still opened
 under the finger.
 
-**Haptics are `.sensoryFeedback(_:trigger:)` throughout** — no generator to
-prepare, and the system setting is honoured by the API. `.selection` on paging
-and on a tab change; `.selection` on ticking a sub-task; `.success` on a card
-going *into* done, gated to fire once and only on that edge, so it plays wherever
-the tick came from and never on a reopen; `.impact(.light)` on a lift and on a
-drop. Nothing per keystroke.
+**Haptics are `.sensoryFeedback(_:trigger:)` throughout, with one exception** —
+no generator to prepare, and the system setting is honoured by the API.
+`.selection` on paging and on a tab change; `.selection` on ticking a sub-task;
+`.impact(.light)` on a lift and on a drop. Nothing per keystroke.
+
+**The exception is completion, and it had to move.** The tap for a card going
+into Done was `.sensoryFeedback(.success, trigger: isDone)` on `PhoneTaskCard`,
+which reads correctly and fires almost nowhere: the modifier fires when the value
+changes on a view *still in the tree*, and finishing a card on a board takes it
+out of the tree — the card moves to Done and the column page stops drawing it, so
+the row and its modifier go away together before the change is seen. What was
+left was a tap in the Inbox, where a completed capture stays put and merely goes
+grey, and silence everywhere else on the phone. It is performed from
+`CompletionFeedback` now, off the same announcement the chime rides —
+`BoardStore` says a card was finished, and the announcement outlives whatever was
+drawing it. That is a `UINotificationFeedbackGenerator(.success)` on iOS beside
+the `NSHapticFeedbackManager` knock on macOS, kept rather than made per tap, and
+a no-op on hardware with nothing to knock. The gate that keeps a bulk complete to
+one chime keeps it to one tap for the same reason, and it is still only the edge
+*into* done — never a reopen, and never an undo, which does not pass through
+`performMove` at all.
 
 **The lift bump is latched, because SwiftUI asks for the payload more than
 once.** `.draggable` takes the payload as an autoclosure, and the comment here
@@ -4547,8 +4562,9 @@ is untouched by it. If sync ever matters, this is the layer to replace.
   `trash` key" claim a test rather than a sentence. Drop a newer one in and
   `MigrationChainTests` picks it up off the bundle with no code change.
 - **Rolling backups.** The live file is copied to `backups/board-<stamp>.json`
-  beside the board when the newest backup has aged past 15 minutes, and the ten
-  newest are kept. Taken on the debounced path only, never at quit.
+  beside the board when the newest backup has aged past 15 minutes, and as many
+  of the newest as Settings ▸ **Backups to keep** says are kept — 25 by default.
+  Taken on the debounced path only, never at quit.
   `backupNow()` is the forced counterpart, used before a restore or a reset: it
   takes the next second rather than skipping when a backup already exists for
   this one, because "there was already one this second" is not an answer at the
@@ -4810,16 +4826,15 @@ twice: it is a schema change needing a version bump and a migration (C7), and it
 
   | setting | what it changes | default |
   | --- | --- | --- |
-  | New tasks go to | `beginAddingWhereVisible(to:)` | the board on screen |
   | New tasks are due | `mintTask`, through `BoardStore.defaultDueDate` | no date |
   | Archive finished cards | `sweepDone(now:after:)` | never |
   | A week means | `SavedView.dueThisWeek` and the weekly figures | the rolling seven days |
   | Card detail | `BoardTaskCard` | comfortable |
-  | Tick cards off from the board | `BoardTaskCard`, `PhoneTaskCard` | on |
+  | Tick cards off from the board | `BoardTaskCard`, `PhoneTaskCard` | off |
   | Reopen the view I was on | `applyStoredPreferences()` | off |
-  | Open the Inbox with the board unless it's empty | `applyStoredPreferences()`, on the board only, and not on the phone | off |
+  | Open the Inbox with the board unless it's empty | `raiseInboxWithTheBoard()`, on every arrival at the board, and not on the phone | off |
   | The Trash keeps things for | `TrashedItem.isExpired(at:days:)` | 30 days |
-  | Backups to keep | `backupNow(keeping:)` | 10 |
+  | Backups to keep | `backupNow(keeping:)` | 25 |
   | Also remind me the day before | a second `TaskReminder` per card | off |
   | Tell me daily while anything is overdue | one repeating request | off |
   | Open at login · Show the menu bar item | `SMAppService`, `MenuBarExtra(isInserted:)` | off · on |
@@ -4854,11 +4869,20 @@ twice: it is a schema change needing a version bump and a migration (C7), and it
   the circle in a card's trailing gutter — `Preferences.cardTickKey`, read as
   `@AppStorage` by `BoardTaskCard` and `PhoneTaskCard` alike so every card on
   the board closes up the moment it is flipped. It is the only switch here whose
-  off state takes a *verb* off a surface, which is exactly why it is a
-  preference rather than a decision: the circle is the fastest way to finish
-  something and the easiest thing to catch with a thumb on a board being dragged
-  around, and which of those matters more is not a question this app can answer
-  for somebody.
+  state takes a *verb* off a surface, which is exactly why it is a preference
+  rather than a decision: the circle is the fastest way to finish something and
+  the easiest thing to catch with a thumb on a board being dragged around, and
+  which of those matters more is not a question this app can answer for
+  somebody.
+
+  **It arrives off**, because the accident is the expensive half of that trade.
+  A card ticked by a thumb that meant to pick it up is not a stray glyph: it
+  chimes, it may auto-archive, and it has to be found again to be undone. A card
+  that cannot be ticked from the board costs one press of this switch, by
+  somebody who has already decided they want it. Everything else in **What a
+  card shows** is the same card either way, and the two routes that finish a
+  card without the circle — the context menu and the detail panel's own tick —
+  are drawn whatever this says.
 
   **The circle is in the trailing corner**, and it moved there from the leading
   one, where it stood in front of everything a card has to say: the label chips
@@ -4916,11 +4940,30 @@ twice: it is a schema change needing a version bump and a migration (C7), and it
   launch". The idiom again rather than the size class, for the reason above. And
   **an empty Inbox stays shut** — a panel raised over nothing is a column of
   blank taking width from the board to say "no", which the count on the sidebar
-  row says already without moving anything. That read needs the board loaded,
-  which is another reason this runs where it does; the one gap is the
-  awaiting-sync path, where a card that lands seconds after the launch leaves the
-  panel shut, and a panel that opened itself some time after the launch would be
-  the worse of the two.
+  row says already without moving anything.
+
+  **It is a standing rule and not a thing that happened at launch.** All four
+  conditions live in `raiseInboxWithTheBoard()`, and the launch is only its first
+  caller. The sentence is about *arriving at the board*, and picking another
+  board or coming back from Today is arriving at the board — so the panel comes
+  back on each of those, and shutting it answers for the board in front of you
+  rather than turning the setting off for the rest of the session. The rule sits
+  in two places because there are two kinds of arrival: `surface`'s `didSet`
+  catches every route back to the board — the sidebar, the View menu, the tab
+  bar, `activeView`'s setter — and `selectBoard(_:)` asks for itself, because
+  board-to-board leaves `surface` at `.board` on both sides and the observer
+  never runs. It **only ever opens**: an empty Inbox is a reason not to raise a
+  panel, never a reason to take away one already standing, or dragging the last
+  card out of the Inbox would close the panel it was dragged from.
+
+  The one gap is the awaiting-sync path, where a card that lands seconds after
+  the launch leaves the panel shut until the next arrival at the board — a panel
+  that opened itself some while after the launch would be the worse of the two.
+  And because the value is carried on the store for `trashRetention`'s reason,
+  the Settings row writes it *through* to `BoardStore.opensInboxWithTheBoard` as
+  well as to the defaults; without that the store would go on answering with
+  what was read at launch and a switch flipped in Settings would do nothing until
+  the app was quit.
 
   `applyStoredPreferences()` runs on the `restored(…)` path alone, so a store
   built any other way — a test, a preview — is untouched by any of it. The DEBUG

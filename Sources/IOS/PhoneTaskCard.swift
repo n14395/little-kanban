@@ -15,7 +15,7 @@ struct PhoneTaskCard: View {
     /// Whether the gutter is drawn at all — see ``Preferences/cardTickKey``.
     /// It does not silence the Archive's Restore, which uses the same gutter
     /// for a different verb and is the only way off that list.
-    @AppStorage(Preferences.cardTickKey) private var showsCardTick = true
+    @AppStorage(Preferences.cardTickKey) private var showsCardTick = false
 
     let task: TaskItem
     /// Set on the flat lists — Search, Inbox and any saved view — where a card
@@ -92,11 +92,14 @@ struct PhoneTaskCard: View {
             .shadow(color: palette.shadow(0.05), radius: 9, y: 6)
             .shadow(color: palette.shadow(0.07), radius: 1, y: 1)
         }
-        // The one act on this surface that deserves `.success` (5.8). Read off
-        // the card's own state rather than counted in the store, so it fires
-        // once wherever the tick came from — the gutter, the menu or the detail
-        // sheet — and only on the way *into* done.
-        .sensoryFeedback(.success, trigger: isDone) { was, now in now && !was }
+        // **No completion `sensoryFeedback` here**, and it is not an omission:
+        // a card that has just been finished on a board is on its way *out* of
+        // this list — it moves to Done — so a modifier hanging off the row goes
+        // away with the row and the tap that was supposed to follow the tick
+        // never fires. It fired in the Inbox, where a completed capture stays
+        // where it is, and nowhere else. `CompletionFeedback` performs it from
+        // the store's announcement instead, which covers every route in and
+        // every surface alike.
     }
 
     private var summary: some View {

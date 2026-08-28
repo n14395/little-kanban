@@ -2,6 +2,8 @@ import AudioToolbox
 import Foundation
 #if os(macOS)
 import AppKit
+#elseif os(iOS)
+import UIKit
 #endif
 
 /// One chime per act, however many cards the act finished.
@@ -31,17 +33,33 @@ struct ChimeGate {
 /// through `performMove`, which is the point: they put a board back, and a
 /// board being put back is not something being finished.
 ///
-/// **Haptics are split by platform on purpose.** The phone's card performs the
-/// `.success` tap itself (`PhoneTaskCard`, item 5.8) — `sensoryFeedback` is
-/// the right instrument there, and a second tap from here would knock twice.
-/// The desk has no such view, so the trackpad's knock is performed here; on a
-/// Mac without a haptic trackpad it is a no-op, which is what "devices that
-/// support it" comes to.
+/// **The tap is performed here on every platform**, and it used to be split:
+/// the phone's card carried its own `.success` through `sensoryFeedback`, on
+/// the argument that SwiftUI's instrument is the right one where there is a
+/// view to hang it on. There is a view, and it was the wrong view.
+/// `sensoryFeedback` fires when the value it watches changes on a view that is
+/// *still in the tree*, and finishing a card on a board takes it out of the
+/// tree: the card moves to Done and the column page it was on stops drawing it,
+/// so the modifier went away with the row that owned it. The tap therefore
+/// arrived in the Inbox — where a completed capture stays put and merely goes
+/// grey — and nowhere else on the phone, which is not a platform split anybody
+/// designed. This announcement is the one thing that knows a card was finished
+/// whether or not something is still drawing it, and it is already here for the
+/// chime. On hardware with nothing to knock — a Mac without a haptic trackpad,
+/// any iPad — it is a no-op.
 @MainActor
 final class CompletionFeedback {
     static let shared = CompletionFeedback()
 
     private var gate = ChimeGate()
+
+    #if os(iOS)
+    /// Kept rather than made per tap: the generator is the thing the system
+    /// warms, and one built at the moment it is asked to fire has nothing
+    /// warmed. `.success` is the same tap the card used to perform — SwiftUI's
+    /// `.success` is this generator underneath.
+    private let taps = UINotificationFeedbackGenerator()
+    #endif
 
     /// Loaded chimes, one system sound per preset, created on first play and
     /// kept — `AudioServicesCreateSystemSoundID` reads the file each time.
@@ -98,6 +116,8 @@ final class CompletionFeedback {
     private func haptic() {
         #if os(macOS)
         NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
+        #elseif os(iOS)
+        taps.notificationOccurred(.success)
         #endif
     }
 }

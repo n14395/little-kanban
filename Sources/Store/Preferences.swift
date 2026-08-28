@@ -26,35 +26,6 @@ import Foundation
 /// after it has been turned off and on again.
 enum Preferences {}
 
-// MARK: - Where a new task lands
-
-/// Where ⌘N, the toolbar's New Task button and the "+" put a card when nothing
-/// on screen says otherwise.
-///
-/// The board's landing column is the default because the board is what is in
-/// front of you; the Inbox is the choice for a capture habit, where a new
-/// thought is filed later rather than placed now.
-enum NewTaskDestination: String, CaseIterable, Identifiable, Sendable {
-    /// The landing column of the board on screen, falling back to the Inbox
-    /// when there is no board left to land on.
-    case board
-    /// Always the Inbox, whatever is on screen.
-    case inbox
-
-    var id: String { rawValue }
-    static let storageKey = "SimpleKanbanNewTaskDestination"
-    static let fallback = NewTaskDestination.board
-
-    var label: String {
-        switch self {
-        case .board:
-            String(localized: "The board I'm on", comment: "Setting: new tasks go to the current board")
-        case .inbox:
-            Board.inboxName
-        }
-    }
-}
-
 // MARK: - What a new task is due
 
 /// The due date a card arrives with.
@@ -154,21 +125,24 @@ enum TrashRetention: String, CaseIterable, Identifiable, Sendable {
 
 /// How many copies of the board file to keep beside it.
 ///
-/// Ten was the number `backupNow(keeping:)` defaulted to. A backup is a whole
-/// board document, so the cost of the high end is real disk on a big board —
-/// which is the reason to let the person paying it choose.
+/// Ten was the number `backupNow(keeping:)` defaulted to; twenty-five is the
+/// one the app starts on, because a backup is cheap next to losing a board. The
+/// cost of the high end is still real disk on a big board — which is the reason
+/// to let the person paying it choose.
 enum BackupsKept: String, CaseIterable, Identifiable, Sendable {
-    case few, ten, many
+    case few, ten, many, fifty, hundred
 
     var id: String { rawValue }
     static let storageKey = "SimpleKanbanBackupsKept"
-    static let fallback = BackupsKept.ten
+    static let fallback = BackupsKept.many
 
     var count: Int {
         switch self {
         case .few: 5
         case .ten: 10
         case .many: 25
+        case .fifty: 50
+        case .hundred: 100
         }
     }
 
@@ -318,17 +292,19 @@ extension Preferences {
     static let lastSurfaceKey = "SimpleKanbanLastSurface"
     /// Bring the Inbox panel up with the board.
     static let inboxAtLaunchKey = "SimpleKanbanOpenInboxAtLaunch"
-    /// Draw the tick in a card's leading gutter.
+    /// Draw the tick in a card's trailing gutter.
     ///
-    /// **On by default, and the only one of these switches whose off state
-    /// takes a verb off a surface** — which is why it is a preference rather
-    /// than a decision. The circle is the fastest way to finish something and
-    /// the easiest thing to hit by accident on a board being dragged around,
-    /// and which of those matters more is not a question this app can answer
-    /// for somebody. Turned off, the gutter closes up and the card's text
-    /// starts at its own margin; completing a card is then the context menu,
-    /// ⌘↩, and the tick beside the title in the detail panel, which is drawn
-    /// whatever this says.
+    /// **Off by default.** The circle is the fastest way to finish something
+    /// and the easiest thing to hit by accident on a board being dragged
+    /// around, and which of those matters more is not a question this app can
+    /// answer for somebody — which is why it is a preference rather than a
+    /// decision. It arrives closed because the accident is the expensive half:
+    /// a card ticked by a thumb that meant to pick it up is a state change with
+    /// a chime and an auto-archive behind it, where a card that cannot be
+    /// ticked from the board costs one press of the switch below. Off, the
+    /// gutter closes up and the card's text starts at its own margin;
+    /// completing a card is the context menu, ⌘↩, and the tick beside the title
+    /// in the detail panel, which is drawn whatever this says.
     static let cardTickKey = "SimpleKanbanShowsCardTick"
     /// Play the completion chime when a card reaches Done. On by default: the
     /// sound is the point of the feature, and the switch is for the person it
@@ -385,9 +361,6 @@ extension Preferences {
         defaults.object(forKey: key) == nil ? fallback : defaults.bool(forKey: key)
     }
 
-    static var newTaskDestination: NewTaskDestination {
-        choice(NewTaskDestination.self, key: NewTaskDestination.storageKey, fallback: .fallback)
-    }
     static var defaultDueDate: DefaultDueDate {
         choice(DefaultDueDate.self, key: DefaultDueDate.storageKey, fallback: .fallback)
     }
@@ -424,7 +397,7 @@ extension Preferences {
 
     static var resumesLastPlace: Bool { flag(resumeKey) }
     static var opensInboxAtLaunch: Bool { flag(inboxAtLaunchKey) }
-    static var showsCardTick: Bool { flag(cardTickKey, fallback: true) }
+    static var showsCardTick: Bool { flag(cardTickKey) }
     static var playsCompletionSound: Bool { flag(completionSoundKey, fallback: true) }
     static var showsMenuBarExtra: Bool { flag(menuBarExtraKey, fallback: true) }
     static var launchesAtLogin: Bool { flag(launchAtLoginKey) }

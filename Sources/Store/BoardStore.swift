@@ -687,6 +687,13 @@ final class BoardStore {
     /// starts with it shut.
     var isInboxOpen: Bool = false
 
+    /// Whether the Inbox comes out with the board — the setting of the same
+    /// name. On the store rather than read from `Preferences` at each use, for
+    /// ``trashRetention``'s reason: a parallel test can set it here without
+    /// changing what every other suite sees. Settings writes it through as well
+    /// as to the defaults, so flipping the switch does not wait for a relaunch.
+    var opensInboxWithTheBoard: Bool = Preferences.opensInboxAtLaunch
+
     /// The panel starts shut, and a harness cannot click it open: a simulator
     /// takes no synthetic taps from outside, and driving the host Mac's pointer
     /// is not a verification — it is a fight with whoever is using the machine.
@@ -1033,27 +1040,25 @@ final class BoardStore {
             // behind, and the board is the answer that is always true.
             surface = Self.surface(named: raw, among: views)
         }
-        // **After the surface, not before it.** "Open the Inbox with the board"
-        // is a promise about the board, and a launch that lands on Today has not
-        // made it — on the phone the Inbox is a sheet drawn over whatever is
-        // there, so an unconditional raise would put the panel over Today and
-        // hide the very thing the launch went to.
+        // **After the surface, not before it.** The rule in
+        // ``raiseInboxWithTheBoard()`` is about landing on the board, and a
+        // launch that lands on Today has not — on the phone the Inbox is a sheet
+        // drawn over whatever is there, so an unconditional raise would put the
+        // panel over Today and hide the very thing the launch went to. The
+        // helper reads `surface`, so it has to be told the truth about it first.
         //
-        // **And after the board is loaded, because it asks what is in it.** The
-        // setting is "unless it's empty": a panel raised over nothing is a
-        // column of blank taking width from the board to say "no", which is what
-        // the count on the sidebar row already says without moving anything.
-        // `restored(…)` builds the store from the file or the records and calls
-        // this afterwards, so `inboxTasks` is the real Inbox by the time it is
-        // read — the one exception is the awaiting-sync path, where a card that
-        // arrives seconds later leaves the panel shut, and a launch that opened
-        // a panel by itself some time after the launch would be worse.
+        // **And after the board is loaded, because the rule asks what is in the
+        // Inbox.** `restored(…)` builds the store from the file or the records
+        // and calls this afterwards, so `inboxTasks` is the real Inbox by the
+        // time it is read — the one exception is the awaiting-sync path, where a
+        // card that arrives seconds later leaves the panel shut until the next
+        // time the board is arrived at, and a panel that opened itself some
+        // while after the launch would be the worse of the two.
         //
         // The `#if DEBUG` flag is not conditional: it is how a UI test asks for
         // the panel outright.
         isInboxOpen = Self.inboxOpensAtLaunch
-            || (Preferences.opensInboxAtLaunch && surface == .board
-                && Self.inboxOpensBesideTheBoard && !inboxTasks.isEmpty)
+        raiseInboxWithTheBoard()
         #if DEBUG
         // **Last, so it is the last word.** These ran at the end of `init`,
         // which was before any of the above — fine while nothing here touched
@@ -2746,6 +2751,13 @@ final class BoardStore {
             guard surface != oldValue else { return }
             lastSurfaceName = activeView?.id.uuidString ?? Self.boardSurfaceName
             Preferences.remember(surface: lastSurfaceName)
+            // Coming back to the board is arriving at the board — see
+            // ``raiseInboxWithTheBoard()``. Here rather than in
+            // `selectSurface(_:)` because the sidebar, the View menu, the tab
+            // bar and `activeView`'s setter all reach the board through this
+            // one property, and a rule about landing on the board belongs where
+            // the landing is.
+            raiseInboxWithTheBoard()
         }
     }
 
@@ -2880,6 +2892,27 @@ final class BoardStore {
 
     /// The sidebar row and the View menu, which are the same switch twice.
     func toggleInbox() { isInboxOpen.toggle() }
+
+    /// Puts the Inbox back beside the board, if the setting asks for it and
+    /// there is anything in it to stand there.
+    ///
+    /// **The setting is a standing rule, not a thing that happened once at
+    /// launch.** "Open the Inbox with the board unless it's empty" is a sentence
+    /// about arriving at the board, and picking another board or coming back
+    /// from Today is arriving at the board — so shutting the panel is the
+    /// answer for *this* board, now, and not a switch that quietly turns the
+    /// setting off for the rest of the session. Closing it and staying put
+    /// leaves it closed, which is the whole of what the button means.
+    ///
+    /// It only ever opens. Nothing here shuts a panel somebody has out: an
+    /// empty Inbox is a reason not to raise one, never a reason to take away
+    /// one already standing — a card dragged out of the Inbox onto the board
+    /// would otherwise close the panel it was dragged from.
+    private func raiseInboxWithTheBoard() {
+        guard opensInboxWithTheBoard, surface == .board,
+              Self.inboxOpensBesideTheBoard, !inboxTasks.isEmpty else { return }
+        isInboxOpen = true
+    }
 
     /// Puts the Inbox in front of somebody who asked for a card that is in it —
     /// a deep link, an intent, Spotlight. The panel stands beside the board, so
@@ -4452,13 +4485,7 @@ final class BoardStore {
     /// that draws the Inbox draws an add row of its own, and that row is how you
     /// capture into it. The phone's Inbox tab used to be the exception, and it
     /// was one because the tab stood *instead* of the board rather than with it.
-    func beginAddingWhereVisible(to destination: NewTaskDestination = Preferences.newTaskDestination) {
-        // The setting wins over what is on screen, which is the whole of what
-        // it is for: a capture habit files later rather than placing now.
-        if destination == .inbox {
-            showInbox()
-            return beginAdding(in: .inbox)
-        }
+    func beginAddingWhereVisible() {
         guard let column = activeBoard?.landingColumn else {
             showInbox()
             return beginAdding(in: .inbox)
@@ -5293,6 +5320,12 @@ final class BoardStore {
         guard boards.contains(where: { $0.id == id }) else { return }
         activeBoardID = id
         surface = .board
+        // **After the surface, and not left to it.** Picking a board from the
+        // board is the one arrival `surface`'s `didSet` cannot see: it is
+        // already `.board`, so the assignment above changes nothing and the
+        // observer never runs. The Inbox is global — the same cards whichever
+        // board is under them — so the rule is the same on arrival either way.
+        raiseInboxWithTheBoard()
         // The pager and the composer were on the board just left.
         detachSurfacesFromMissingColumns()
         scheduleSave()

@@ -38,21 +38,23 @@ import Testing
     /// a changed default deserves.
     @Test func everyDefaultLeavesTheAppAsItWas() {
         Preferences.reading(suite([:])) {
-            #expect(Preferences.newTaskDestination == .board)
             #expect(Preferences.defaultDueDate == .none)
             #expect(Preferences.autoArchive == .never)
             #expect(Preferences.trashRetention.days == TrashedItem.retentionDays)
-            #expect(Preferences.backupsKept.count == 10)
+            #expect(Preferences.backupsKept.count == 25)
             #expect(Preferences.cardDensity == .comfortable)
             #expect(Preferences.weekMeaning == .rollingSevenDays)
             #expect(Preferences.resumesLastPlace == false)
             #expect(Preferences.opensInboxAtLaunch == false)
+            // The card's tick is off: the circle is the easiest thing on a
+            // board to hit by accident, and an accidental completion carries a
+            // chime and an auto-archive behind it — see `Preferences.cardTickKey`.
+            #expect(Preferences.showsCardTick == false)
             // The two that default *on*. The menu bar item is this app's only
-            // route in from another app; the card's tick is a verb, and a
-            // switch that arrives having taken one off a surface is not a
-            // default, it is a change nobody asked for.
+            // route in from another app, and the chime is the point of the
+            // feature it belongs to.
             #expect(Preferences.showsMenuBarExtra)
-            #expect(Preferences.showsCardTick)
+            #expect(Preferences.playsCompletionSound)
         }
     }
 
@@ -64,7 +66,7 @@ import Testing
         }
     }
 
-    /// `bool(forKey:)` cannot tell "off" from "never set", and two of these
+    /// `bool(forKey:)` cannot tell "off" from "never set", and some of these
     /// default to on, so the reader has to ask whether the key exists at all.
     @Test func aSwitchTurnedOffIsNotTheSameAsOneNeverTouched() {
         Preferences.reading(suite([Preferences.menuBarExtraKey: false])) {
@@ -73,14 +75,23 @@ import Testing
         Preferences.reading(suite([:])) {
             #expect(Preferences.showsMenuBarExtra)
         }
-        // The second of the two, asked the same way. A `bool(forKey:)` reader
+        // The second of them, asked the same way. A `bool(forKey:)` reader
         // would pass the first line here and fail the second, which is the
         // whole shape of the bug.
-        Preferences.reading(suite([Preferences.cardTickKey: false])) {
-            #expect(Preferences.showsCardTick == false)
+        Preferences.reading(suite([Preferences.completionSoundKey: false])) {
+            #expect(Preferences.playsCompletionSound == false)
         }
         Preferences.reading(suite([:])) {
+            #expect(Preferences.playsCompletionSound)
+        }
+        // And the switch that defaults *off*, from the other side: a card tick
+        // turned on has to survive the same read, or the setting would be one
+        // nobody could keep.
+        Preferences.reading(suite([Preferences.cardTickKey: true])) {
             #expect(Preferences.showsCardTick)
+        }
+        Preferences.reading(suite([:])) {
+            #expect(Preferences.showsCardTick == false)
         }
     }
 
@@ -149,17 +160,14 @@ import Testing
 
     // MARK: Where a new task goes
 
-    @Test func theInboxSettingOverridesWhatIsOnScreen() {
+    /// There is no setting for this any more: a new task lands on the board in
+    /// front of you, and the Inbox only catches it when there is no board left
+    /// to land on.
+    @Test func aNewTaskLandsOnTheBoardThatIsOnScreen() {
         let store = TestBoard.store()
         store.selectSurface(.board)
-        store.beginAddingWhereVisible(to: .inbox)
-        #expect(store.addingPlacement == .inbox)
-        #expect(store.isInboxOpen, "the panel that draws the composer is shut")
-
-        let byDefault = TestBoard.store()
-        byDefault.selectSurface(.board)
-        byDefault.beginAddingWhereVisible(to: .board)
-        #expect(byDefault.addingPlacement != .inbox, "the default stopped using the board")
+        store.beginAddingWhereVisible()
+        #expect(store.addingPlacement != .inbox, "the board on screen stopped taking new tasks")
     }
 
     // MARK: What happens to finished work

@@ -58,6 +58,47 @@ import Testing
         #expect(!onItsHeels, "and re-arms the gate behind it")
     }
 
+    // MARK: Where the tap is performed
+
+    /// **The tap belongs to the announcement, not to the card.**
+    ///
+    /// `PhoneTaskCard` used to carry its own `.success` `sensoryFeedback` keyed
+    /// on `isDone`. That modifier fires when the value changes on a view still
+    /// in the tree, and finishing a card on a board takes it out of the tree —
+    /// the card moves to Done and the column page stops drawing it — so the tap
+    /// went away with the row that owned it. It arrived in the Inbox, where a
+    /// completed capture stays put and merely goes grey, and nowhere else on the
+    /// phone: a platform split nobody designed, reported as "done gives haptic
+    /// feedback in the Inbox and not on the board".
+    ///
+    /// Read out of the source, because whether a modifier *fires* is not
+    /// something a unit test can observe — and the bug was the modifier being
+    /// there at all. `CompletionFeedback.taskCompleted()` is announced by
+    /// `BoardStore` on both completion paths, so it knows a card was finished
+    /// whether or not anything is still drawing it.
+    @Test func onlyTheAnnouncementPerformsTheCompletionTap() {
+        guard SourceTree.isReachable else { return }
+        var seen: Set<String> = []
+        for file in SourceTree.files() {
+            let code = String(file.code)
+            switch file.path {
+            case "IOS/PhoneTaskCard.swift", "Shared/BoardTaskCard.swift":
+                #expect(code.contains("sensoryFeedback(.success") == false,
+                        "\(file.path) performs the completion tap from a view the completion removes")
+                seen.insert(file.path)
+            case "Shared/CompletionFeedback.swift":
+                // Both platforms, from the one place that hears about it.
+                #expect(code.contains("NSHapticFeedbackManager"))
+                #expect(code.contains("notificationOccurred(.success)"),
+                        "the announcement no longer taps on iOS, which is where the tick is a finger")
+                seen.insert(file.path)
+            default:
+                break
+            }
+        }
+        #expect(seen.count == 3, "a card or the feedback moved file: found \(seen)")
+    }
+
     // MARK: The presets
 
     /// Every case of `CompletionSound` has to name a `.caf` actually in the
