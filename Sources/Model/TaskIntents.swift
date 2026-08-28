@@ -207,18 +207,33 @@ final class DeepLinkRouter {
             #endif
 
         case .newTask:
-            // The Inbox goes out first so that the card is made somewhere the
-            // user can see it being made. `reveal` afterwards is what puts the
-            // right detail surface up on each platform — the inspector on the
-            // desk and the iPad, the sheet on the phone — which is more than
-            // `addTask` alone does, and this card is arriving with an empty
-            // title that somebody has to be able to type into.
+            // **The widget's `+` is the app's own `+`**, and the app's own `+`
+            // is a different control on each platform: a one-line composer in
+            // the Inbox panel where the Inbox is a panel, and the card's whole
+            // editor in a sheet on the phone, where there is no panel to put a
+            // composer in. Both put a field on screen with the keyboard in it,
+            // which is the entire errand.
+            //
+            // **Reaching for a third thing is what did not work.** This used to
+            // make the card itself and open it in the task editor, which is
+            // right on the phone — a presented sheet — and is not a thing the
+            // iPad's editor can do: it is a column of the split view, and a
+            // `@FocusState` assignment aimed into it is refused outright.
+            // Measured on an iPad Pro 11": twenty attempts over a second and a
+            // half, the field reporting `nil` focus after every one. The panel
+            // came up on the right card with its title empty and no caret, and
+            // the first thing typed went nowhere — which is exactly what was
+            // reported. Nothing here is clever about it any more; it calls what
+            // the toolbar's `+` calls.
             store.clearQuery()
-            store.showInbox()
             #if os(iOS)
             store.isNavDrawerOpen = false
             #endif
-            store.reveal(store.addTask(to: .inbox, title: "", log: .captured))
+            if BoardStore.inboxOpensBesideTheBoard {
+                store.beginCapturingInInbox()
+            } else {
+                store.quickCapture()
+            }
         }
     }
 

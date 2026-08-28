@@ -306,6 +306,41 @@ import Testing
         #expect(store[id]?.title == "Named already")
     }
 
+    /// **The iPad, and only the iPad, opens its editor on the card it just
+    /// made.** `commitDraft` says why at length: there the editor is a panel the
+    /// *app* puts away when three of them will not fit, so a card can be made
+    /// into an editor that is not on screen — selected, and nowhere to be seen.
+    /// The desk's inspector is one the *user* shuts, and the phone answers with
+    /// its sheet.
+    ///
+    /// Written as "matches the platform" rather than as two tests behind an
+    /// `#if`, because the claim is exactly that the rule reads the platform: a
+    /// build where the branch was deleted passes one half and fails the other
+    /// whichever destination the suite is run on.
+    @Test func aCardMadeOnTheIPadOpensInTheEditorAndNowhereElse() throws {
+        let store = TestBoard.store()
+        store.isInspectorOpen = false
+        store.beginAdding(in: .inbox)
+        store.draft = "Ring the framer back"
+
+        let made = try #require(store.commitDraft())
+        #expect(store.selectedID == made, "the editor would have nothing to show")
+        #expect(store.isInspectorOpen == BoardStore.isPad,
+                "the editor opened where it should not, or did not where it should")
+    }
+
+    /// And it does not open one for a draft that committed nothing, on any
+    /// platform: a blank composer dismissed is not a card made.
+    @Test func aBlankDraftOpensNoEditor() {
+        let store = TestBoard.store()
+        store.isInspectorOpen = false
+        store.beginAdding(in: .inbox)
+        store.draft = "   "
+
+        #expect(store.commitDraft() == nil)
+        #expect(store.isInspectorOpen == false)
+    }
+
     @Test func theInlineComposerTrimsAndRefusesBlanks() {
         let store = TestBoard.store()
         store.beginAdding(in: upNext)

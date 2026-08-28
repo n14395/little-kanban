@@ -2047,6 +2047,7 @@ final class BoardStore {
     ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenTrash YES
     ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenBoardSettings YES
     ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanTab search
+    ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenLink simplekanban://new
     private func applyLaunchOverrides() {
         let defaults = UserDefaults.standard
         if let identifier = defaults.string(forKey: "SimpleKanbanOpenSheet"),
@@ -2067,6 +2068,15 @@ final class BoardStore {
         // desk screenshot needs a way in to that is not a right-click.
         if defaults.bool(forKey: "SimpleKanbanOpenBoardSettings"), let board = activeBoardID {
             boardSettings = BoardSettingsRequest(board: board)
+        }
+        // A `simplekanban://` link, queued exactly as an arriving one is — the
+        // scene resolves it when it appears, which is the same path a cold
+        // launch from a widget takes and therefore the same order of state
+        // changes. The alternative, `simctl openurl`, stops to ask "Open in
+        // Simple Kanban?" and needs a tap of its own, which is precisely the
+        // thing these arguments exist to avoid.
+        if let raw = defaults.string(forKey: "SimpleKanbanOpenLink"), let url = URL(string: raw) {
+            TaskLink.router.open(url)
         }
         if let raw = defaults.string(forKey: "SimpleKanbanTab"), let parsed = PhoneTab(rawValue: raw) {
             // `selectTab` rather than the field, because a tab names a *surface*
@@ -2955,6 +2965,20 @@ final class BoardStore {
         UIDevice.current.userInterfaceIdiom != .phone
         #else
         true
+        #endif
+    }
+
+    /// The iPad, and only the iPad.
+    ///
+    /// ``inboxOpensBesideTheBoard`` cannot answer this: it is true on the desk
+    /// as well, because the question it asks is what the Inbox *is* rather than
+    /// which machine is drawing it. The one rule that genuinely belongs to the
+    /// iPad alone is ``commitDraft()``'s, and it says there why.
+    static var isPad: Bool {
+        #if os(iOS)
+        UIDevice.current.userInterfaceIdiom != .phone
+        #else
+        false
         #endif
     }
 
@@ -4572,7 +4596,27 @@ final class BoardStore {
     func commitDraft() -> TaskItem.ID? {
         let title = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let placement = addingPlacement, !title.isEmpty else { return nil }
-        return addTask(to: placement, title: title)
+        let made = addTask(to: placement, title: title)
+        // **The iPad opens its editor on the card that was just made**, which
+        // `addTask` has already selected. The other two platforms do not, and
+        // the difference is real rather than a preference:
+        //
+        // - **The iPad's editor is a panel the *app* puts away.** Three panels
+        //   compete for one window there and `PadRootView` closes whichever is
+        //   furthest from what was last asked for, so a card can perfectly well
+        //   be made into an editor that is not on screen — selected, and
+        //   nowhere to be seen. Opening it is what makes the creation finish
+        //   somewhere the user can see it and fill in the rest of the card.
+        // - **The desk's is a panel the *user* puts away.** Its window holds
+        //   all three columns at nearly any size, so an inspector that is shut
+        //   is one somebody shut on purpose, and re-opening it on every card
+        //   made would be overruling that a dozen times an afternoon.
+        // - **The phone has its own answer already**: a card made from the `+`
+        //   over the tab bar opens in a sheet, and one made from a column's
+        //   composer deliberately does not — you are filling in a list, and a
+        //   full-screen sheet between every two cards would bury it.
+        if Self.isPad { isInspectorOpen = true }
+        return made
     }
 
     func cancelDraft() {

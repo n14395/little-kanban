@@ -374,23 +374,38 @@ import Testing
         #expect(store.isInboxOpen)
     }
 
-    /// The `+`. A card is made, it is put in front of the user, and its title
-    /// field is asked for — a capture that arrived without one would be an
-    /// untitled card the user has to go and find.
-    @Test func aNewTaskLinkMakesACaptureWithItsTitleWaiting() throws {
+    /// The `+`, which is **the app's own `+`** — a different control on each
+    /// platform, and both of them a field with the keyboard in it.
+    ///
+    /// Where the Inbox is a panel, that is the panel's one-line composer: the
+    /// card is not made until something is typed into it. On the phone there is
+    /// no panel to put a composer in, so it is the card's whole editor in a
+    /// sheet, which is what `quickCapture()` has always done for the button
+    /// floating over the tab bar.
+    @Test func aNewTaskLinkOpensWhicheverCaptureThisPlatformHas() throws {
         let store = TestBoard.store()
-        let before = store.inboxTasks.count
+        let before = store.tasks.count
 
         let router = opened(.newTask, in: store)
         #expect(router.failure == nil)
-
-        let made = try #require(store.pendingTitleFocusID, "nothing asked for the title field")
-        let task = try #require(store[made])
-        #expect(task.placement == .inbox)
-        #expect(task.title.isEmpty)
-        #expect(store.inboxTasks.count == before + 1)
-        #expect(store.isInboxOpen)
         #expect(store.surface == .board)
+
+        if BoardStore.inboxOpensBesideTheBoard {
+            #expect(store.isInboxOpen, "the panel that draws the composer is not out")
+            #expect(store.addingPlacement == .inbox, "no composer is open on the Inbox")
+            #expect(store.draft.isEmpty)
+            // Nothing is written down until something is typed, which is the
+            // whole difference between a composer and an editor — and why this
+            // route leaves no untitled card behind if it is opened and ignored.
+            #expect(store.tasks.count == before)
+        } else {
+            let made = try #require(store.pendingTitleFocusID, "nothing asked for the title field")
+            let task = try #require(store[made])
+            #expect(task.placement == .inbox)
+            #expect(task.title.isEmpty)
+            #expect(store.sheetID == made, "the sheet that carries the field is not up")
+            #expect(store.tasks.count == before + 1)
+        }
     }
 
     /// A widget goes on naming what it was set up with, and the four things it

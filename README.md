@@ -3726,6 +3726,34 @@ margins would still fit beside it; below that it is a trailing overlay. An iPad
 mini in portrait with the source list out leaves 166pt of detail beside a 348pt
 panel, and 166pt is half a column.
 
+### A card made here opens in the editor
+
+**On the iPad, and only there**, committing a composer opens the inspector on
+the card that was just made — `BoardStore.commitDraft`, guarded by
+`BoardStore.isPad`. `addTask` had already selected it; what was missing was
+somewhere to see it.
+
+The other two platforms deliberately do not, and the difference is real rather
+than a preference:
+
+- **The iPad's editor is a panel the *app* puts away.** Three panels compete for
+  one window and `PadRootView` closes whichever is furthest from what was last
+  asked for, so a card can perfectly well be made into an editor that is not on
+  screen — selected, and nowhere to be seen.
+- **The desk's is a panel the *user* puts away.** Its window holds all three
+  columns at nearly any size, so an inspector that is shut is one somebody shut
+  on purpose, and re-opening it on every card made would be overruling that a
+  dozen times an afternoon.
+- **The phone has its own answer already**: a card made from the `+` over the
+  tab bar opens in a sheet, and one made from a column's composer deliberately
+  does not — you are filling in a list, and a full-screen sheet between every
+  two cards would bury it.
+
+`BoardStoreMutationTests` states it as "matches the platform" rather than as two
+tests behind an `#if`, because the claim is exactly that the rule reads the
+platform: a build where the branch was deleted passes one half and fails the
+other whichever destination the suite is run on.
+
 ### The home indicator's strip is not a margin
 
 iPadOS keeps about 20pt along the bottom of the screen for the home indicator,
@@ -5443,7 +5471,7 @@ one would be a worse answer than drawing. They are a target of their own,
 | **Board overview** | medium | every column *before* Done, its name and its count | which board |
 
 Every row is a link to its card, every heading opens the list it names, and the
-`+` opens a fresh Inbox capture with its title field waiting.
+`+` opens the app's own capture with the keyboard in it.
 
 Where a widget has more than one size it is **the same widget with more room**
 rather than a different one: the Inbox and Column widgets keep their heading and
@@ -5570,8 +5598,25 @@ widget goes on naming it, so each has its **own** sentence when it has gone:
 **Widgets link; they do not act.** WidgetKit will run an `AppIntent` in the
 background from a button, and for *add a task* that is exactly the wrong thing —
 a task added with no title and no way to type one is litter the user then has to
-find and delete. The `+` opens the app on a fresh Inbox capture instead, which is
-what the app's own `+` does.
+find and delete. The `+` opens the app on a fresh Inbox capture instead.
+
+**And it opens the app's own capture rather than a third thing.** That control
+is genuinely different on each platform — the Inbox panel's one-line composer
+where the Inbox is a panel, the card's whole editor in a sheet on the phone,
+where there is no panel to put a composer in — and reaching for something in
+between is what did not work. The first version made the card itself and opened
+it in the task editor, which is right on the phone, because a sheet is
+*presented*; the iPad's editor is a column of the split view, and a
+`@FocusState` assignment aimed into it is refused outright. Measured on an iPad
+Pro 11": twenty attempts over a second and a half, the field reporting `nil`
+focus after every one. What the user saw was a panel on the right card with an
+empty title, no caret, and the first thing typed going nowhere — plus, because
+the editor was competing with the Inbox panel for a width that does not hold
+both, sometimes no editor at all. `simplekanban://new` now calls exactly what
+the toolbar's `+` calls, and `BoardStore.inboxOpensBesideTheBoard` is what picks
+between the two. What happens *after* the title is typed is the iPad's own rule
+— see **A card made here opens in the editor** — so the widget's capture ends in
+the editor there without this path knowing anything about it.
 
 ### Drawing them
 
@@ -6181,12 +6226,17 @@ xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenDrawer YES
 xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanTab search
 xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenSettings YES
 xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenBoardSettings YES
+xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenLink simplekanban://new
 xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanFirstRun YES
 xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanSkipFirstRun YES
 ```
 
 The sheet argument takes either a task's `code` or its UUID, matched
-case-insensitively. The last two are about the starter picker, which otherwise
+case-insensitively. The link argument takes any `simplekanban://` URL and queues
+it exactly as an arriving one is queued, so the four destinations a widget taps
+can be driven without a widget — and without `simctl openurl`, which stops to
+ask "Open in Simple Kanban?" and needs a tap of its own. It is how the iPad's
+capture bug above was found and how the fix was confirmed. The last two are about the starter picker, which otherwise
 stands between every one of the others and the board it means to drive: forcing it
 also redirects the session to a throwaway file, so a forced first run cannot write
 an empty board over a real one. `SeedData` exposes the seed ids as named statics
