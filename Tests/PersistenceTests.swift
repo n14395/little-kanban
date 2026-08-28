@@ -46,7 +46,14 @@ import Testing
         #expect(read.themes == TestBoard.otherThemes)
         #expect(read.labels == LabelDef.seed)
         #expect(read.tasks == written.tasks)
-        #expect(read.tasks[0].activity.map(\.kind) == TestBoard.everyActivityKind)
+        // Looked up by id rather than by index. It was `read.tasks[0]`, and
+        // `tasks[0]` stopped being the card carrying the activity the day
+        // `completedInbox` was written in front of it — so the assertion moved
+        // to a card with one entry on it and passed for years by reading
+        // nothing. An index into a fixture is a claim about the fixture's
+        // *order*, which is not what any of this is about.
+        let readTask = try #require(read.tasks.first { $0.id == task.id })
+        #expect(readTask.activity.map(\.kind) == TestBoard.everyActivityKind)
         #expect(read.tasks.last?.archivedAt == TestBoard.at(90))
         #expect(read.tasks.dropLast().allSatisfy { $0.archivedAt == nil })
         #expect(read.tasks.first?.inboxCompletedAt == TestBoard.at(120))

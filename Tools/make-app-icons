@@ -1,0 +1,28 @@
+#!/bin/bash
+# Builds and runs Tools/make-app-icon.swift, which needs the app's own theme
+# sources on the command line: the twenty theme-matched icons are derived from
+# `ThemePresets` rather than transcribed, so the tool has to compile it.
+#
+#     Tools/make-app-icons             # writes into Resources/Assets.xcassets
+#     Tools/make-app-icons --out DIR   # somewhere else, to eyeball a change
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+if [[ -z "${DEVELOPER_DIR:-}" ]] && ! xcode-select -p 2>/dev/null | grep -q '\.app'; then
+    for xc in /Applications/Xcode.app /Applications/Xcode-beta.app; do
+        [[ -d "$xc" ]] && export DEVELOPER_DIR="$xc/Contents/Developer" && break
+    done
+fi
+
+binary="$(mktemp -d)/make-app-icon"
+xcrun swiftc -O -parse-as-library \
+    Tools/make-app-icon.swift \
+    Sources/Theme/AppIcon.swift \
+    Sources/Theme/Theme.swift \
+    Sources/Theme/ThemeColor.swift \
+    Sources/Theme/ThemePresets.swift \
+    Sources/Theme/ThemeSettings.swift \
+    Sources/Theme/ColorMath.swift \
+    Sources/Theme/Color+Hex.swift \
+    -o "$binary"
+"$binary" "$@"

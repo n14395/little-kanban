@@ -26,6 +26,9 @@ struct BoardTaskComposer: View {
 
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
+    /// The board's scrollers, where this field is drawn on one. Absent in the
+    /// Inbox panel, which is a flat list with nothing to scroll a card into.
+    @Environment(BoardFocusRelay.self) private var relay: BoardFocusRelay?
     @FocusState private var isFocused: Bool
 
     /// Where this one is adding, which it needs only to tell its own loss of
@@ -44,7 +47,17 @@ struct BoardTaskComposer: View {
             .font(palette.ui(metrics.font, .bold, relativeTo: .subheadline))
             .foregroundStyle(palette.ink)
             .focused($isFocused)
-            .onSubmit { store.commitDraft() }
+            .onSubmit {
+                // The card is appended, so it arrives at the foot of the column
+                // however far from the foot this field was drawn. Nothing else
+                // moves the board here — a commit is not a click and not a key
+                // — so a card made from the head of a long column would land
+                // off the bottom of it, unseen. `intoView` is the smallest ask
+                // there is: nothing at all happens when the card is already
+                // whole on screen, which is the common case.
+                guard let made = store.commitDraft() else { return }
+                relay?.reveal = .intoView(made)
+            }
             .onKeyPress(.escape) {
                 store.cancelDraft()
                 return .handled

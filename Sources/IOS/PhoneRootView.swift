@@ -509,22 +509,12 @@ struct PhoneRootView: View {
         )
     }
 
+    /// ``ColumnAddRow``, which the desk and the iPad draw at the foot of their
+    /// columns too. It was this surface's alone until it was lifted out; what
+    /// stayed here is the destination — a column when the pager is on the
+    /// board, the current one when the list is flat.
     private func addRow(in column: BoardColumn?) -> some View {
-        Button { add(to: column) } label: {
-            Text("+ Add task to \(column?.name ?? store.mobileColumnName)")
-                .font(palette.ui(13.5, .bold, relativeTo: .subheadline))
-                .foregroundStyle(palette.inkText(0.45))
-                .frame(maxWidth: .infinity)
-                .padding(14)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 16)
-                        .strokeBorder(
-                            palette.ink(0.18),
-                            style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])
-                        )
-                }
-        }
-        .buttonStyle(.bare)
+        ColumnAddRow(name: column?.name ?? store.mobileColumnName) { add(to: column) }
     }
 
     private func add(to column: BoardColumn?) {

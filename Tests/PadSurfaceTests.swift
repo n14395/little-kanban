@@ -317,4 +317,66 @@ import UIKit
         #expect(TaskColumnMetrics.pad.bottomInset < TaskListMetrics.sheet.bottomInset)
         #expect(TaskColumnMetrics.pad.bottomInset > 0)
     }
+
+    /// **All three panels reach the glass.**
+    ///
+    /// An iPad keeps 20pt at the foot of the screen for the home indicator, and
+    /// a pane laid out inside that inset stops short of the bottom — which is
+    /// read as a strip of window fill under the source list, the Inbox panel and
+    /// the task editor, and not as a system margin. The two panels beside the
+    /// board bleed their *fill* under it while their rows stay where they are,
+    /// which is what `ignoresSafeArea` on the colour inside `background` buys.
+    ///
+    /// **The source list goes further and takes the strip outright, rows and
+    /// all.** Bleeding the fill alone left a list scrolled to its last row
+    /// sitting 20pt up with empty panel beneath it — the colour was right and
+    /// the list still stopped short. It can afford the whole strip because the
+    /// home indicator is a short pill centred on the *screen*, nowhere near a
+    /// column against the leading edge. And it is a negative padding rather
+    /// than an `ignoresSafeArea` because inside a split view column the inset is
+    /// a margin UIKit has already applied: a colour can be drawn over it, a
+    /// frame cannot reclaim it — both measured.
+    ///
+    /// The detail column's clip is here because it is the other half: it holds
+    /// the column's **sides** — the Inbox panel's `.move(edge: .leading)` would
+    /// otherwise slide across the source list — and spelled `.clipped()`, on the
+    /// column's own bounds, it cut two of the three fills off at exactly the
+    /// inset they were bleeding under. ``OpenFooted`` is the same clip with no
+    /// floor.
+    ///
+    /// Read out of the source: a safe area is a runtime fact about a device, and
+    /// what is asserted here is which views asked to reach past it.
+    @Test func everyPanelsFillReachesUnderTheHomeIndicator() {
+        guard SourceTree.isReachable else { return }
+        let bleed = "ignoresSafeArea(.container, edges: .bottom)"
+        var seen: Set<String> = []
+        for file in SourceTree.files() {
+            let code = String(file.code)
+            switch file.path {
+            case "IOS/PadRootView.swift":
+                // **One bleed and one negative padding, which is the whole
+                // point of the paragraph above.** This counted two bleeds, and
+                // there has only ever been one: the editor pane's empty state.
+                // The source list reaches the foot the other way — a negative
+                // bottom padding, because inside a split view column the inset
+                // is a margin UIKit has already applied and a frame cannot
+                // reclaim it. Counting to two tested the one mechanism twice
+                // and the one that carries the source list not at all.
+                #expect(code.components(separatedBy: bleed).count - 1 == 1,
+                        "the editor pane's empty state stops at the home indicator")
+                #expect(code.contains("padding(.bottom, -proxy.safeAreaInsets.bottom)"),
+                        "the source list's rows stop short of the home indicator again")
+                #expect(code.contains(".clipped()") == false,
+                        "the detail column's clip closed at the foot again")
+                #expect(code.contains("clipShape(OpenFooted())"))
+                seen.insert(file.path)
+            case "Shared/InboxPanel.swift", "Shared/TaskInspector.swift":
+                #expect(code.contains(bleed), "\(file.path) stops at the home indicator")
+                seen.insert(file.path)
+            default:
+                break
+            }
+        }
+        #expect(seen.count == 3, "a panel moved file: found \(seen)")
+    }
 }

@@ -27,6 +27,18 @@ struct BoardColumnView: View {
         /// segments on the add-column tile. Zero at a pointer.
         var rowHit: CGFloat
         var cardSpacing: CGFloat
+        /// Whether the foot's add row opens the draft field under itself, or
+        /// sends it to the head of the column with everything else.
+        ///
+        /// **The desk's does; the iPad's does not, and the difference is the
+        /// software keyboard.** A field at the foot of a column is a field at
+        /// the foot of the screen, which is where the keyboard comes up — and
+        /// the column is a scroller nested inside the board's own, so the
+        /// keyboard's inset does not reach it and nothing scrolls the field
+        /// clear. It opened under the keyboard and read as a button that had
+        /// done nothing. The head of a column is above every keyboard there
+        /// is, and is where the heading's `+` has always put it.
+        var composesUnderTheAddRow: Bool
         var card: BoardTaskCard.Metrics
         var composer: BoardTaskComposer.Metrics
         var emptyState: EmptyStateView.Metrics
@@ -37,14 +49,16 @@ struct BoardColumnView: View {
             width: 272, cornerRadius: 16, horizontalPadding: 8, topPadding: 10, bottomPadding: 8,
             titleSize: 12.5, headerButton: 22, headerButtonRadius: 7,
             headerGlyph: 12, rowHit: 0,
-            cardSpacing: 8, card: .desk, composer: .desk, emptyState: .desk,
+            cardSpacing: 8, composesUnderTheAddRow: true,
+            card: .desk, composer: .desk, emptyState: .desk,
             editor: .desk, colorWell: .desk
         )
         static let pad = Metrics(
             width: 320, cornerRadius: 18, horizontalPadding: 10, topPadding: 12, bottomPadding: 10,
             titleSize: 13.5, headerButton: 44, headerButtonRadius: 12,
             headerGlyph: 15, rowHit: 44,
-            cardSpacing: 10, card: .pad, composer: .pad, emptyState: .sheet,
+            cardSpacing: 10, composesUnderTheAddRow: false,
+            card: .pad, composer: .pad, emptyState: .sheet,
             editor: .pad, colorWell: .sheet
         )
     }
@@ -100,6 +114,16 @@ struct BoardColumnView: View {
     @FocusState.Binding var focus: TaskItem.ID?
 
     @State private var isEditing = false
+    /// Which end of the column the composer is open at.
+    ///
+    /// The heading's `+` opens it at the head, where it has always been. The
+    /// foot's row opens it under itself where the platform lets it — a card is
+    /// appended (`BoardStore.mintTask`), so the foot is also where the card is
+    /// about to appear — and at the head where a software keyboard would take
+    /// the foot of the screen; see ``Metrics/composesUnderTheAddRow``. Neither
+    /// end can be open while the other is, because a column has one draft — see
+    /// ``BoardStore/addingPlacement``.
+    @State private var composesAtFoot = false
     /// Why the last delete did not happen. A refusal has an explanation to
     /// show — from the outside, a menu item that does nothing is a bug.
     @State private var refusal: ColumnRefusal?
@@ -189,6 +213,7 @@ struct BoardColumnView: View {
             columnMenu
 
             Button {
+                composesAtFoot = false
                 store.beginAdding(in: column.id)
             } label: {
                 Image(systemName: "plus")
@@ -300,10 +325,7 @@ struct BoardColumnView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: metrics.cardSpacing) {
-                    if isComposing {
-                        BoardTaskComposer(placement: placement, metrics: metrics.composer)
-                            .id(Self.composerID)
-                    }
+                    if isComposing, !composesAtFoot { composer }
                     if preview?.index == 0 { previewCard }
                     ForEach(Array(tasks.enumerated()), id: \.element.id) { row, task in
                         BoardCard(task: task, metrics: metrics.card, focus: $focus)
@@ -319,6 +341,12 @@ struct BoardColumnView: View {
                         emptyState
                             .padding(.top, 6)
                     }
+                    if isComposing, composesAtFoot { composer }
+                    // The empty state above carries the same offer in more
+                    // words, and the composer *is* the offer taken — so the row
+                    // is drawn under a column that has cards and no draft, and
+                    // nowhere else.
+                    if !tasks.isEmpty, !isComposing { addRow }
                 }
                 .padding(.horizontal, 2)
                 .padding(.bottom, 2)
@@ -342,7 +370,19 @@ struct BoardColumnView: View {
                 }
             }
             .onChange(of: isComposing) { _, composing in
-                guard composing else { return }
+                guard composing else {
+                    // The next one opens where its own control says, not where
+                    // the last one happened to be.
+                    composesAtFoot = false
+                    return
+                }
+                proxy.scrollTo(Self.composerID, anchor: .top)
+            }
+            // And when it changes ends without ever closing — the foot's row
+            // pressed while the heading's composer is still up, which moves the
+            // field rather than opening a second one.
+            .onChange(of: composesAtFoot) { _, _ in
+                guard isComposing else { return }
                 proxy.scrollTo(Self.composerID, anchor: .top)
             }
         }
@@ -366,6 +406,25 @@ struct BoardColumnView: View {
         }
     }
 
+    /// The one draft field, drawn at whichever end asked for it.
+    private var composer: some View {
+        BoardTaskComposer(placement: placement, metrics: metrics.composer)
+            .id(Self.composerID)
+    }
+
+    /// The offer at the foot of the column, which is where the reading of a
+    /// column ends and — the board being taller than the window as often as
+    /// not — the only `+` in reach without scrolling back to the heading. The
+    /// same row the phone draws under its own column pages; see
+    /// ``ColumnAddRow``.
+    private var addRow: some View {
+        ColumnAddRow(name: column.name) {
+            composesAtFoot = metrics.composesUnderTheAddRow
+            store.beginAdding(in: column.id)
+        }
+        .padding(.top, 2)
+    }
+
     /// This column as a place a card can be put.
     private var placement: TaskPlacement { store.placement(forColumn: column.id) }
 
@@ -384,6 +443,7 @@ struct BoardColumnView: View {
     /// ``SearchResultsPanel`` — so "nothing matched" cannot happen here.
     private var emptyState: some View {
         EmptyStateView.column(column, metrics: metrics.emptyState) {
+            composesAtFoot = false
             store.beginAdding(in: column.id)
         }
     }

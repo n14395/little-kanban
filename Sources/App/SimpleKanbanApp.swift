@@ -207,6 +207,11 @@ struct RootView: View {
             // of the environment, and a modifier applied above `.environment`
             // sits above it in the tree and would never see one.
             .systemEntryPoints()
+            // Above `preferredColorScheme` in the tree, so the appearance it
+            // reads is the system's and the override is applied on top of it
+            // here — the same expression `palette` is built from. Inside
+            // `RootView.body` for `systemEntryPoints`' reason.
+            .keepsTheAppIconInStep()
             .modifier(LoadFailureAlert())
             .modifier(FlushOnTerminate())
             .onAppear { adoptUndoManager() }
@@ -307,6 +312,11 @@ private struct SettingsWindow: View {
             .tint(palette.accent)
             .foregroundStyle(palette.ink)
             .preferredColorScheme(appearance.colorScheme)
+            // A second copy, because on the desk these are two scenes and the
+            // board window can be closed with Settings still open — which is
+            // exactly when somebody is most likely to be changing the icon.
+            // Applying twice costs nothing; see ``AppIconInstaller``.
+            .keepsTheAppIconInStep()
     }
 }
 #endif

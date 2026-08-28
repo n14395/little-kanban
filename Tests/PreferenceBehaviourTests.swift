@@ -46,6 +46,10 @@ import Testing
             #expect(Preferences.weekMeaning == .rollingSevenDays)
             #expect(Preferences.resumesLastPlace == false)
             #expect(Preferences.opensInboxAtLaunch == false)
+            // The icon the app has always shipped wearing, and the switch that
+            // would hand the choice to the theme.
+            #expect(Preferences.appIcon.id == AppIcon.defaultID)
+            #expect(Preferences.appIconFollowsTheme == false)
             // The card's tick is off: the circle is the easiest thing on a
             // board to hit by accident, and an accidental completion carries a
             // chime and an auto-archive behind it — see `Preferences.cardTickKey`.

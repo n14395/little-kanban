@@ -12,6 +12,10 @@ import XCTest
 /// and from the menu-bar extra; the phone floats its own `+` over the tab bar
 /// (`UITests/QuickCaptureTests`). This bar is the iPad's, and so is this button.
 ///
+/// All three land in the Inbox, and that is the other half of what this presses
+/// for: the button used to open the composer on the board behind it, which is
+/// the column heading's job.
+///
 ///     xcodebuild test -scheme SimpleKanbanUITests \
 ///       -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)' \
 ///       -only-testing:SimpleKanbanUITests/PadCaptureTests
@@ -48,5 +52,11 @@ final class PadCaptureTests: XCTestCase {
 
         XCTAssertTrue(app.textFields["Task title, then ⏎"].waitForExistence(timeout: 5),
                       "the + did not open a composer to type into")
+        // And the composer it opened is the Inbox's, not the board's: this
+        // button captures, so it lands where a card goes before anything about
+        // it is decided. The panel's own "+" is the element that says the panel
+        // is out — the board behind it draws no such button.
+        XCTAssertTrue(app.buttons["Capture a task"].waitForExistence(timeout: 5),
+                      "the + opened a composer somewhere other than the Inbox panel")
     }
 }

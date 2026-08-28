@@ -119,7 +119,9 @@ struct TaskInspector: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .frame(width: chrome.scaling(metrics.width, cap: Self.widthCap))
-        .background(palette.panelOverlay)
+        // Down to the glass, the way the Inbox panel and the source list are —
+        // see `PadRootView.sidebar`.
+        .background(palette.panelOverlay.ignoresSafeArea(.container, edges: .bottom))
         .hairline(.leading, color: isColumn ? palette.ink(0.08) : .clear)
         .transition(.opacity)
         // What Handoff carries to the other device, and what Spotlight offers

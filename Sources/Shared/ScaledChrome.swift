@@ -45,21 +45,37 @@ struct ChromeScale: DynamicProperty {
 /// beside is what moves the two together. C3 already asks this of new code;
 /// this is what the old code was swept onto.
 private struct ScaledSymbol: ViewModifier {
-    @ScaledMetric private var scaled: CGFloat
-    let base: CGFloat
-    let weight: Font.Weight
-    let cap: CGFloat
+    private let size: ScaledGlyph
+    private let weight: Font.Weight
 
     init(size: CGFloat, weight: Font.Weight, relativeTo textStyle: Font.TextStyle, cap: CGFloat) {
-        _scaled = ScaledMetric(wrappedValue: size, relativeTo: textStyle)
-        self.base = size
+        self.size = ScaledGlyph(size, relativeTo: textStyle, cap: cap)
         self.weight = weight
-        self.cap = cap
     }
 
     func body(content: Content) -> some View {
-        content.font(.system(size: min(scaled, base * cap), weight: weight))
+        content.font(.system(size: size.points, weight: weight))
     }
+}
+
+/// A design point size that follows the reader's text size and stops at `cap`.
+///
+/// The arithmetic above, on its own, because ``CaptureGlyph`` needs the same
+/// answer and cannot get it the same way: it is a path rather than a glyph, so
+/// there is no font to hand the number to. The cap is a rule about chrome, not
+/// about either drawing, and it is stated once.
+struct ScaledGlyph: DynamicProperty {
+    @ScaledMetric private var scaled: CGFloat
+    private let base: CGFloat
+    private let cap: CGFloat
+
+    init(_ size: CGFloat, relativeTo textStyle: Font.TextStyle, cap: CGFloat = 1.6) {
+        _scaled = ScaledMetric(wrappedValue: size, relativeTo: textStyle)
+        self.base = size
+        self.cap = cap
+    }
+
+    var points: CGFloat { min(scaled, base * cap) }
 }
 
 extension View {

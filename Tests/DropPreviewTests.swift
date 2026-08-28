@@ -16,6 +16,14 @@ import Testing
 /// but a card-shaped hole opening beside the very card that would fill it reads
 /// as the board being about to change, and `drop(_:at:)` treats that release as
 /// a no-op rather than spend a ⌘Z on a card that has not moved.
+///
+/// "Free to mark the gap a card already sits in" is about the *stand-in*, and
+/// it is not a promise that a caret is drawn wherever the pointer is: a gap
+/// named by the card **in the air** has no caret at all, because a line against
+/// a card that is leaving says nothing about where anything lands. That rule is
+/// the caret's own and is pinned by
+/// ``DropCaretTests/thereIsNoCaretOnTheCardInTheAir()``; what is tested here is
+/// only what the stand-in does on top of it.
 @MainActor
 @Suite struct DropPreviewTests {
     private let backlog = BoardColumn.backlog.id
@@ -141,11 +149,19 @@ import Testing
 
     /// `dragDrop` sits directly above `cafe` in Backlog, so both names for the
     /// gap between them name the gap `dragDrop` is already in.
+    ///
+    /// **The stand-in is the subject, and it is absent under both names.** The
+    /// caret is not: `.above(cafe)` is drawn, because marking a gap a card
+    /// already sits in costs nothing, and `.below(dragDrop)` is not, because
+    /// `dragDrop` is the card in the air — see the note on the suite. Asserting
+    /// one caret for both said the second rule did not exist.
     @Test func noStandInWhereTheDropWouldMoveNothing() {
         for caret in [DropCaret.above(TestBoard.cafe), .below(TestBoard.dragDrop)] {
             let store = carrying(TestBoard.dragDrop, over: caret)
+            let namesTheCardInTheAir = caret.card == TestBoard.dragDrop
 
-            #expect(store.dropCaret == caret, "the caret still marks the gap")
+            #expect(store.dropCaret == (namesTheCardInTheAir ? nil : caret),
+                    "\(caret): the caret is not what the card in the air leaves it")
             #expect(store.dropPreview(in: store.placement(forColumn: backlog)) == nil,
                     "\(caret): a hole opened for a card that would not move")
         }

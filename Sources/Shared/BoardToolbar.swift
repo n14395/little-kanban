@@ -834,30 +834,34 @@ struct BoardToolbar: View {
     static let searchToggleID = "SearchToggle"
     static let searchFieldID = "SearchField"
 
-    /// A `+` in a filled circle, and nothing else — the same control the phone
-    /// floats over its tab bar (``PhoneTabBar/quickCaptureButton``), at the size
-    /// the rest of this row is.
+    /// ``CaptureGlyph`` in a filled circle, and nothing else — the same control
+    /// the phone floats over its tab bar (``PhoneTabBar/quickCaptureButton``),
+    /// at the size the rest of this row is.
     ///
     /// **No word beside it.** The label was 73pt of a row that has only the
-    /// board's name to give, and a `+` in the accent is the one glyph in this
-    /// app that already means *make one of these* — it is what the columns, the
-    /// Inbox panel and the phone all draw. What the word carried is carried by
-    /// the accessibility label instead, which is what a reader gets either way:
-    /// a button whose label is its glyph publishes nothing without one.
+    /// board's name to give, and the mark in the accent says the whole of it: a
+    /// tray with a `+` over it is *this goes in the Inbox*, which is what the
+    /// three ever-present capture buttons do and what the bare `+` on a column
+    /// heading does not. What the word carried is carried by the accessibility
+    /// label besides, which is what a reader gets either way: a button whose
+    /// label is its glyph publishes nothing without one.
     ///
-    /// The card lands in the board's landing column, which is why this is
-    /// `beginAddingWhereVisible` rather than the phone's `quickCapture` — the
-    /// board is on screen here, so "where you are" is a place the user can see.
+    /// **It captures to the Inbox, never to the board behind it.** This is the
+    /// iPad's copy of the control the desk keeps at the foot of its source list
+    /// and the phone floats over its tab bar, and all three mean the same thing:
+    /// a card worth writing down before anything about where it goes has been
+    /// decided. The `+` on a column heading is the other half — that one adds to
+    /// the column it sits on, because there the destination is what is already
+    /// settled. See ``BoardStore/beginCapturingInInbox()``.
     @ViewBuilder private var captureButton: some View {
         if let diameter = metrics.capture {
             Button {
-                store.beginAddingWhereVisible()
+                store.beginCapturingInInbox()
             } label: {
-                Image(systemName: "plus")
+                CaptureGlyph(size: diameter * 0.45, weight: .medium, relativeTo: .title3)
                     // Off the circle rather than off the bar's glyph size, so
                     // the two keep their proportion if the circle ever changes:
                     // the phone draws 24 in 52, which is this.
-                    .symbolSize(diameter * 0.45, weight: .medium, relativeTo: .title3)
                     .foregroundStyle(palette.onAccent)
                     .frame(minWidth: chrome(diameter), minHeight: chrome(diameter))
                     .background(palette.accent, in: .circle)

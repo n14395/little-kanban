@@ -140,6 +140,7 @@ struct SettingsView: View {
         var rowHit: CGFloat
         var controlRadius: CGFloat
         var labelManager: LabelManagerView.Metrics
+        var appIconPicker: AppIconPickerView.Metrics
         /// Whether the surface draws its own header. The desk's pane sits in a
         /// window that already has a title bar and a close button.
         var showsHeader: Bool
@@ -147,13 +148,13 @@ struct SettingsView: View {
         static let desk = Metrics(
             width: 520, minHeight: 460, padding: 20, sectionSpacing: 22, rowSpacing: 8,
             panelRadius: 12, titleSize: 15, rowFont: 12.5, noteFont: 11.5, rowHit: 0,
-            controlRadius: 8, labelManager: .desk,
+            controlRadius: 8, labelManager: .desk, appIconPicker: .desk,
             showsHeader: false
         )
         static let sheet = Metrics(
             width: nil, minHeight: nil, padding: 18, sectionSpacing: 26, rowSpacing: 10,
             panelRadius: 14, titleSize: 17, rowFont: 15, noteFont: 13, rowHit: 44,
-            controlRadius: 10, labelManager: .sheet,
+            controlRadius: 10, labelManager: .sheet, appIconPicker: .sheet,
             showsHeader: true
         )
     }
@@ -175,6 +176,8 @@ struct SettingsView: View {
     @AppStorage(BackupsKept.storageKey) private var backupsKept = BackupsKept.fallback
     @AppStorage(Preferences.resumeKey) private var resumesLastPlace = false
     @AppStorage(Preferences.inboxAtLaunchKey) private var opensInboxAtLaunch = false
+    @AppStorage(Preferences.appIconKey) private var appIconID = AppIcon.defaultID
+    @AppStorage(Preferences.appIconFollowsThemeKey) private var appIconFollowsTheme = false
     #if os(macOS)
     @AppStorage(Preferences.menuBarExtraKey) private var showsMenuBarExtra = true
     @State private var launchesAtLogin = LaunchAtLogin.isOn
@@ -190,6 +193,7 @@ struct SettingsView: View {
     @State private var isExportingMarkdown = false
     @State private var isImporting = false
     @State private var isManagingLabels = false
+    @State private var isPickingAppIcon = false
     @State private var isConfirmingReset = false
     /// Raised by the warning, and the only thing that mutates the board is a
     /// row in it — see `BoardStore.startOver(with:)` for why nothing is thrown
@@ -230,6 +234,13 @@ struct SettingsView: View {
         // System Settings since it started.
         .task { await NotificationScheduler.shared.refreshAuthorization() }
         .labelManagerSheet(isPresented: $isManagingLabels, metrics: metrics.labelManager)
+        // A sheet on both platforms, where the theme browser is a window on the
+        // desk — see ``AppIconPickerView`` for why this one is not.
+        .sheet(isPresented: $isPickingAppIcon) {
+            AppIconPickerView(metrics: metrics.appIconPicker)
+                .environment(\.palette, palette)
+                .environment(store)
+        }
         // iOS only. The desk opens the browser as a window of its own — see the
         // `themes` scene in `SimpleKanbanApp` for why — and a phone has no such
         // thing to open.
@@ -472,6 +483,16 @@ struct SettingsView: View {
                     #else
                     isBrowsingThemes = true
                     #endif
+                }
+                rule
+                // Under *Themes…* because the switch on the page it opens defers
+                // to the theme, so the two rows are one subject read downwards:
+                // which theme, then whether the icon follows it.
+                action(
+                    String(localized: "App icon…", comment: "Settings row: opens the app icon picker"),
+                    note: appIconNote
+                ) {
+                    isPickingAppIcon = true
                 }
             }
 
@@ -1112,6 +1133,23 @@ struct SettingsView: View {
             localized: "\(store.theme(for: .light).name) in light, \(store.theme(for: .dark).name) in dark.",
             comment: "Settings note naming the theme in each of the two slots"
         )
+    }
+
+    /// The icon as it resolves, so the row says what the app is actually
+    /// wearing rather than which of the ten was last pressed — with the switch
+    /// on, that is a theme's name and not a gradient's.
+    private var appIconNote: String {
+        let resolved = AppIcon.resolve(
+            AppIconSelection(gradientID: appIconID, followsTheme: appIconFollowsTheme),
+            themes: store.themes,
+            appearance: palette.theme.appearance
+        )
+        // The bare name when it is one of the ten: a `String(localized:)` whose
+        // whole content is an interpolation and a full stop is a translation
+        // unit that says nothing to a translator.
+        guard appIconFollowsTheme else { return resolved.name }
+        return String(localized: "\(resolved.name), following the theme.",
+                      comment: "Settings note naming the theme-matched app icon")
     }
 
     private var exportFailedTitle: String {

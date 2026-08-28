@@ -42,7 +42,11 @@ import Testing
         // tile into view as its composer opened, and the tile has gone — a
         // board's columns are managed in `BoardSettingsView` now.
         "Shared/BoardScrollView.swift": 4,
-        "Shared/BoardColumnView.swift": 3,
+        // Four as well, and the fourth is a click too: the foot's add row
+        // pressed while the heading's composer is still up moves the field
+        // rather than opening a second one, and the field has to be brought to
+        // where it went. `.onChange(of: composesAtFoot)`, not of the focus.
+        "Shared/BoardColumnView.swift": 4,
         "Shared/InboxPanel.swift": 2,
     ]
 

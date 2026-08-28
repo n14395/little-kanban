@@ -675,15 +675,19 @@ struct BoardSidebar: View {
     /// offer and defaults the one decision it has to make — the Inbox, which is
     /// where a card is by being nowhere.
     ///
+    /// The mark is ``CaptureGlyph`` — a tray with a `+` over it, not the bare
+    /// `+` this drew until now. The bare one is what a column heading and the
+    /// Inbox panel draw, and they mean *add here*; this one means *put it in
+    /// the Inbox*, which is a different sentence and now looks like one.
+    ///
     /// macOS only. `PadRootView` draws this same list, but a popover that size
     /// wants touch metrics and a width of its own, and the iPad's toolbar
-    /// carries capture itself — a circle with a `+` in it, at the right of the
+    /// carries capture itself — the same mark in a circle, at the right of the
     /// bar. See ``BoardToolbar/captureButton``.
     @ViewBuilder private var captureButton: some View {
         #if os(macOS)
         Button { capture = Capture(id: store.captureToInbox()) } label: {
-            Image(systemName: "plus")
-                .symbolSize(19, weight: .semibold, relativeTo: .title3)
+            CaptureGlyph(size: 19, weight: .semibold, relativeTo: .title3)
                 .foregroundStyle(palette.onAccent)
                 // The one control in the list that is a target rather than a
                 // row, so it takes a square of its own rather than the row

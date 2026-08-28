@@ -94,7 +94,13 @@ struct InboxPanel: View {
         }
         .frame(width: chrome(metrics.width))
         .frame(maxHeight: .infinity)
-        .background(isDropTarget ? palette.accent.opacity(0.07) : palette.panelOverlay)
+        // Down to the glass: see `PadRootView.sidebar` for the inset this is
+        // reaching under. A no-op on the desk, which has no safe area to speak
+        // of, and the panel's rows stay where they are either way.
+        .background(
+            (isDropTarget ? palette.accent.opacity(0.07) : palette.panelOverlay)
+                .ignoresSafeArea(.container, edges: .bottom)
+        )
         .hairline(.trailing, color: palette.ink(0.08))
         .overlay {
             if isDropTarget {

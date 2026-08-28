@@ -4450,11 +4450,18 @@ final class BoardStore {
         return board.codePrefix
     }
 
-    /// Commits the inline "Task title, then ⏎" composer at the top of a column.
-    func commitDraft() {
+    /// Commits the inline "Task title, then ⏎" composer.
+    ///
+    /// Returns the card it made, so the surface that drew the field can bring
+    /// it into view: a card is appended, and the field is not always at the end
+    /// of the column it is adding to — see ``BoardColumnView`` — so the card
+    /// can land off the bottom of a column the user is looking at the top of.
+    /// `nil` when there was nothing to commit.
+    @discardableResult
+    func commitDraft() -> TaskItem.ID? {
         let title = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let placement = addingPlacement, !title.isEmpty else { return }
-        addTask(to: placement, title: title)
+        guard let placement = addingPlacement, !title.isEmpty else { return nil }
+        return addTask(to: placement, title: title)
     }
 
     func cancelDraft() {
@@ -4486,12 +4493,29 @@ final class BoardStore {
     /// capture into it. The phone's Inbox tab used to be the exception, and it
     /// was one because the tab stood *instead* of the board rather than with it.
     func beginAddingWhereVisible() {
-        guard let column = activeBoard?.landingColumn else {
-            showInbox()
-            return beginAdding(in: .inbox)
-        }
+        guard let column = activeBoard?.landingColumn else { return beginCapturingInInbox() }
         selectSurface(.board)
         beginAdding(in: column.id)
+    }
+
+    /// The ever-present "+": a capture, which lands in the Inbox whatever is on
+    /// screen.
+    ///
+    /// **Not where you are, deliberately.** The `+` at the foot of a column adds
+    /// *to that column of that board* — the destination is decided and only the
+    /// title is missing. This button is the other moment: the thing is worth
+    /// writing down and nothing else about it is settled, so it goes to the
+    /// Inbox, which is where a card is by being nowhere. The desk and the phone
+    /// have said this in their own controls for as long as they have had them —
+    /// `captureToInbox()` behind the source list's `+`, `quickCapture()` behind
+    /// the one floating over the tab bar — and this is the iPad's half of the
+    /// same sentence.
+    ///
+    /// The panel comes out because it is what draws the composer: focusing a
+    /// field on a surface that is not up reads as a button that did nothing.
+    func beginCapturingInInbox() {
+        showInbox()
+        beginAdding(in: .inbox)
     }
 
     // MARK: - Editing

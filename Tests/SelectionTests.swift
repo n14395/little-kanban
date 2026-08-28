@@ -685,6 +685,18 @@ private func registrations(_ undo: RecordingUndoManager, _ body: () -> Void) -> 
         #expect(store.isInboxShowing, "the composer opened on a panel that is not out")
     }
 
+    /// The bar's "+" is not ⌘N: it captures, and a capture lands in the Inbox
+    /// whatever board is behind it. The panel has to come out with it, for the
+    /// same reason the no-board case above needs it.
+    @Test func theCaptureButtonLandsInTheInboxWithABoardOnScreen() {
+        let store = TestBoard.store()
+        store.selectSurface(.board)
+        #expect(store.activeBoard?.landingColumn != nil, "the board this is meant to ignore is missing")
+        store.beginCapturingInInbox()
+        #expect(store.addingPlacement == .inbox)
+        #expect(store.isInboxShowing, "the composer opened on a panel that is not out")
+    }
+
     /// ⌘F travels as a counter rather than a flag: with the field already
     /// focused a flag is already true, so the second press would be no change
     /// at all and the toolbar would never hear about it.

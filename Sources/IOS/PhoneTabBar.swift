@@ -173,16 +173,20 @@ struct PhoneTabBar: View {
     /// label, and it has a square of its own to sit in.
     private var showsGlyphBesideWord: Bool { !dynamicTypeSize.isAccessibilitySize }
 
-    /// The "+" — 52pt when it floats and 44 when it rides in the header, where
+    /// Capture — 52pt when it floats and 44 when it rides in the header, where
     /// it is one control in a row of them rather than the thing the thumb comes
     /// back to. It keeps its accent either way: it is the one button on this bar
     /// that makes something rather than going somewhere.
+    ///
+    /// The mark is ``CaptureGlyph``, the tray with a `+` over it that the desk
+    /// and the iPad's capture buttons draw. It says where the card is going,
+    /// which a bare `+` did not: this one lands in the Inbox
+    /// (``BoardStore/quickCapture()``), and the `+` on a column adds there.
     private var quickCaptureButton: some View {
         Button {
             store.quickCapture()
         } label: {
-            Image(systemName: "plus")
-                .symbolSize(isHeader ? 20 : 24, weight: .regular, relativeTo: .title3)
+            CaptureGlyph(size: isHeader ? 20 : 24, weight: .regular, relativeTo: .title3)
                 .foregroundStyle(palette.onAccent)
                 .frame(minWidth: isHeader ? 44 : 52, minHeight: isHeader ? 44 : 52)
         }

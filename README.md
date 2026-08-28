@@ -491,7 +491,12 @@ same thing in words.
 SF Symbols went with them. `.font(.system(size:))` pins a glyph, so at an
 accessibility size the word beside it doubled and the icon did not; `symbolSize(_:weight:relativeTo:)`
 is the replacement, and fourteen call sites now use it. C3 asks this of new code;
-that sweep is what the old code needed.
+that sweep is what the old code needed. `CaptureGlyph` — the tray-with-a-`+` on
+the three capture buttons, and the app's only drawn mark — is a path rather than
+a symbol and so cannot be handed a font at all, so it and `symbolSize` both take
+their point size from `ScaledGlyph`: one statement of the arithmetic, cap
+included, and a drawn mark that grows with the reader like every glyph beside
+it.
 
 **Reduce Motion is honoured everywhere there is motion.** `.animation(_:value:)`
 became `motionAnimation(_:value:)` — the same thing, with the animation dropped
@@ -1602,6 +1607,94 @@ worse than a drawn italic and much better than a theme that asks for italic Sora
 and silently gets roman.
 
 
+## The app icon
+
+The icon is the design document's `2e` **capped columns** mark: three columns at
+x = 20, 41 and 62 of a 100-unit box, each led by a short header rule with cards
+stacked under it — **2, 3 and 1**, because a board is not a staircase, it is work
+piled unevenly across the middle of it. Nine rectangles and a gradient. That is
+the whole drawing, and it is written once, in `AppIconArtwork`.
+
+What varies between one icon and the next is exactly three things, which is what
+`AppIconArt` carries: **the ground**, **the colour of the three header rules**,
+and **the colour of the six cards**. The ground is a `ThemeGradient` rather than
+a gradient type of its own, because the theme-matched icons *are* a theme's
+window gradient and a second type would be the same value written twice.
+
+Settings ▸ **General** ▸ *Appearance* carries an **App icon…** row under
+*Themes…*, naming whichever icon is being worn, and it opens `AppIconPickerView`
+— the icon large at the top, the ten grounds under it, and one switch.
+
+### Ten grounds, and twenty more from the themes
+
+The ten are the document's fourth round, `4a` through `4j`: three stops at nought,
+a half and one, eight running corner to corner and two — `4i` and `4j` — straight
+down. The mark is one colour in all ten, which is what that round settled: the
+ground carries the depth, so a second tone in the mark would be a third idea on
+an icon that has two. `4f`, peach through rose to violet, is the one the app has
+always shipped wearing and so the one the picker starts on.
+
+**Icon follows app theme** replaces that choice with the document's fifth round —
+a theme's own icon, by its rule rather than by transcribing its twenty outputs:
+
+> the theme's window gradient becomes the ground, its highlight colour the header
+> caps, its ink the cards.
+
+Twenty lines of transcribed hexadecimals would have been twenty chances to drift
+from the presets they were copied out of. `AppIcon.art(matching:)` is the rule
+itself, so the twenty cannot disagree with `ThemePresets` — and a theme built in
+the editor this morning gets a matching icon for nothing.
+
+The switch resolves against the theme in the slot **the appearance is showing**,
+so a Mac set to follow the system wears the light theme's icon by day and the
+dark one's by night.
+
+### The two platforms mean different things by "set the icon"
+
+**macOS draws it.** `NSApplication.applicationIconImage` takes a picture at run
+time, so `AppIconInstaller` renders `AppIconMark` through `ImageRenderer` at the
+Dock's own grid — the artwork in 824 of a 1024 canvas, the rest being where the
+shadow goes — and hands it over. Every icon works there, including one matching a
+theme that exists only on this machine.
+
+What it cannot do is change the icon **in Finder**, or in a Dock the app is not
+running in. That is the bundle's own `.icns`, and this app is sandboxed and does
+not rewrite its own bundle. The picker says so under the icon rather than leaving
+somebody to quit, see the old icon in Finder, and call it broken.
+
+**iOS names it.** `setAlternateIconName(_:)` takes the name of an icon already
+compiled into the app, so the alternates are baked: `Tools/make-app-icons` writes
+thirty `.appiconset`s — the built-in one plus nine grounds (`4f` *is* the built-in
+one) and twenty theme-matched — and
+`ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS[sdk=iphone*]` compiles them in.
+macOS is excluded from that: with no alternate-icon API there, they would be
+twenty-nine `.icns` files nothing can ever ask for.
+
+The alternates carry the **classic per-idiom sizes** rather than one 1024. An
+alternate is never shown in the App Store and never drawn above the Home Screen's
+own size, so the 1024 would be most of a megabyte of nothing each; measured, all
+twenty-nine together come to about 2.3 MB, against 20 MB the other way.
+
+The one thing that falls off the end: **a theme the user made has no icon in the
+bundle**, so on iOS *Icon follows app theme* wears the one the app shipped with
+until that theme is one of the twenty. The desk has no such limit.
+
+### The generator is not a second copy of the drawing
+
+`Tools/make-app-icon.swift` compiles the app's own theme sources — that is what
+`Tools/make-app-icons` is for — and reads `AppIcon.catalogue`, so every number in
+the bundle comes from the same place the picker draws from. A hexadecimal
+transcribed into the tool is a hexadecimal that can disagree with the tile, and
+the whole promise of a picker is that the tile is what you get.
+
+Two checks hold that together. Regenerating reproduces the shipping
+`AppIcon.appiconset` **byte for byte**, so the refactor that made the tool
+general is provably not a change to the icon; and `AppIconTests` renders
+`AppIconMark` through `ImageRenderer` and samples it, so the `Canvas` in the
+picker and the Core Graphics in the tool — which share numbers but not a line of
+drawing code — are held to the same corners.
+
+
 ## Editing
 
 Both detail surfaces — the macOS inspector and the iOS sheet — write straight
@@ -1822,6 +1915,50 @@ is put back *before* the undo step opens, so undo is never the one path that
 lands an untitled card on the board. There is still no confirmation, and now
 there are two things behind it rather than one: ⌘Z, and thirty days in the trash.
 See **The trash**.
+
+**Every column ends with the offer to add to it.** `ColumnAddRow` — the dashed
+"+ Add task to <column>" row — was the phone's alone, drawn under the last card
+of a column page where a thumb already is. The desk and the iPad had nothing
+there: the only way to add to a column was the `+` in its heading, and a column
+is taller than the window as often as not, so on one scrolled to the bottom that
+control was off screen and the offer with it. `BoardColumnView` now draws the
+same row, from the same view and the same numbers — 13.5 bold at 45% ink, 14 of
+padding, a 1.5pt dash on a 16pt corner — because the three are meant to be one
+row and a preset per platform is how two of them drift.
+
+**The composer opens at the end that asked for it, except where a keyboard
+would take that end.** This is the one thing that could not simply be copied:
+the phone has no inline composer at all, it opens the card's sheet. On the board
+the heading's `+` opens the draft at the head, where it has always been, and the
+foot's row opens it under itself — `BoardColumnView.composesAtFoot`, local state
+because it is which control was used, not anything about the board. A card is
+appended (`BoardStore.mintTask`), so the foot is also where the card is about to
+appear. There is one draft per column — `addingPlacement` is a single placement
+— so the two ends cannot both be open, and pressing the foot's row while the
+head's field is up moves the field rather than opening a second one. The row is
+drawn under a column that has cards and no draft: an empty column already
+carries the same offer in its empty state, and the composer *is* the offer
+taken.
+
+**On the iPad the foot's row opens the draft at the head**, and
+`Metrics.composesUnderTheAddRow` is the whole of that difference — `false` on
+the pad preset, `true` on the desk's, rather than an `#if os()` in a shared body
+(C1). The reason is the software keyboard: a field at the foot of a column is a
+field at the foot of the screen, and the column is a scroller nested inside the
+board's own, so the keyboard's inset does not reach it and nothing scrolls the
+field clear of the keys. It opened *under* the keyboard — a button that read as
+having done nothing, with a focused field somewhere off the bottom of the
+screen. The head of a column is above every keyboard there is.
+
+**And a committed card is brought into view, wherever the field was.** The card
+is appended, so a draft taken at the head of a long column lands off the bottom
+of it: `commitDraft()` returns the id it made and `BoardTaskComposer` raises
+`BoardReveal.intoView` on it. `intoView` is the smallest ask in that vocabulary
+— nothing happens at all when the card is whole on screen already, which is the
+common case — and it is the same request a click makes, so the column and the
+strip answer it the way they answer everything else. The Inbox panel's composer
+draws without a relay and asks for nothing; a card in the Inbox is in no column
+to be scrolled to.
 
 Every `+` that opens an editor rather than a one-line composer — the iOS
 quick-capture button, and the source list's capture popover on the desk —
@@ -2630,8 +2767,8 @@ carrying a second copy of them. Three things about it are load-bearing:
   Clicking the active row returns to the board, and so does the `← Board` button
   in the list's own header. The Archive sits slightly apart from the five
   filters, because it is a place things go rather than a filter over the board.
-  ⌘N leaves the view first: the composer lives at the top of a board column, so
-  from a flat list it opened a row nobody could see. Each row leads with
+  ⌘N leaves the view first: the composer lives in a board column, so from a flat
+  list it opened a row nobody could see. Each row leads with
   `SavedView.symbol` — the glyph that view's empty state and the phone's drawer
   were already drawing, so a row and the surface it opens carry one mark rather
   than each picking their own. The **boards** above them keep a coloured dot
@@ -3439,15 +3576,23 @@ inset instead.
 **New task** sat at the right of this row on both platforms until 8.2. The desk's
 went and did not come back: the foot of its source list already has a capture
 button, ⌘N is on the File menu, the menu-bar extra takes one from anywhere, and
-every column heading has a `+` — five ways to make a card, one of them in the
-narrowest row in the window.
+every column has a `+` in its heading and a dashed add row under its last card —
+six ways to make a card, one of them in the narrowest row in the window.
 
 The iPad kept one, because it has no menu bar and therefore no ⌘N: without it the
 only ways to make a card there are a column heading's `+` and the Inbox panel's,
-both of which decide where the card goes before you have decided what it is. But
-it is **a circle with a `+` in it now, and no word** — the same control the phone
-floats over its tab bar, at the 44pt square every other control in this row
-claims. The label was 117pt of a row whose only compressible piece is the board's
+both of which decide where the card goes before you have decided what it is. And
+**it captures to the Inbox**, which is the whole of that sentence — it used to
+open the composer on the board behind it, which is the column heading's job. The
+three ever-present `+`s now say one thing on all three platforms: the source
+list's foot on the desk (`captureToInbox()`), this one
+(`beginCapturingInInbox()`), and the phone's over the tab bar (`quickCapture()`)
+all land a card in the Inbox, because a capture is what you write down before
+you know where it goes. A column's own `+` adds to that column of that board,
+where the destination is the part that is already settled. But
+it is **a circle with a mark in it now, and no word** — the same control the
+phone floats over its tab bar, at the 44pt square every other control in this
+row claims. The label was 117pt of a row whose only compressible piece is the board's
 name; the glyph is 44. That is 73 points back to the name and a fold line 73
 points lower, and the word it dropped is carried by the accessibility label, which
 is what a reader was getting either way.
@@ -3455,6 +3600,21 @@ is what a reader was getting either way.
 `BoardToolbar.Metrics.capture` is how the two presets differ — a diameter on the
 iPad and `nil` on the desk, in the shape `ColumnEditorMetrics.arrowEdge` uses,
 rather than an `#if os()` in a shared body (C1).
+
+**The mark on all three is `CaptureGlyph`, and it is drawn rather than named.**
+A bare `plus` was the wrong word for these buttons: every column heading and the
+Inbox panel draw one too, and theirs mean *add here* while these three mean *put
+it in the Inbox* — the same glyph for two different sentences. There is no
+symbol to name for the second (`tray.and.arrow.down` is a download, `tray` is
+where the panel's own toggle points, and there is no `tray.badge.plus`), so
+`CaptureGlyph.Mark` is a `Shape` holding the strokes of `add-to-inbox.svg` in
+that file's own 24-unit grid, line for line, so the two can be read against each
+other. `weight:` becomes stroke width — 2 units is the file as drawn and is
+`.regular` by definition — because a path can only get thicker where a symbol
+would be redrawn, which is most of what that difference is at 20 points. The
+size each button already passed is unchanged and did not need to be: an SF
+Symbol at 19pt inks about 16 points tall and this grid inks 20.5 of its 24, so
+the swap moved no button by a quarter of a point.
 
 There are two more scenes beside it. `Settings { }` is a root of its own and
 inherits nothing from the window, so the palette, the tint and the appearance
@@ -3617,7 +3777,8 @@ than after, and that it is monotonic in width so no drag can make it flicker.
 `UITests/PadCaptureTests` is the capture button's: a `+` with no word publishes
 as a button with an empty name unless something gives it one, and a missing
 `accessibilityLabel` changes nothing on screen — so the test presses the button
-the header's row carries and checks it reaches a composer.
+the header's row carries and checks it reaches a composer, and that the composer
+is the Inbox panel's rather than the board's.
 
 **The desk does not fold, and not because its windows are wide.** Its bar *is* the
 title bar: the traffic lights are moved onto the row it lays out at and
@@ -4666,7 +4827,8 @@ They paid hardest on the phone, where the strip shows about three chips at a tim
 and the other five were off the side of the screen. So:
 
 - **General** — what the app looks like and how it comes up. *Appearance* (the
-  light/dark/system override and the theme browser behind it — see **Themes**)
+  light/dark/system override, the theme browser behind it — see **Themes** — and
+  the app icon picker behind the row under it, see **The app icon**)
   and *At launch* (reopen the last view, and — on the desk and the iPad, where
   the Inbox is a panel beside the board rather than a sheet over it — open the
   Inbox with the board unless it is empty), plus *This Mac* on the desk: open at
@@ -4831,6 +4993,8 @@ twice: it is a schema change needing a version bump and a migration (C7), and it
   | A week means | `SavedView.dueThisWeek` and the weekly figures | the rolling seven days |
   | Card detail | `BoardTaskCard` | comfortable |
   | Tick cards off from the board | `BoardTaskCard`, `PhoneTaskCard` | off |
+  | App icon | `AppIcon.resolve(_:themes:appearance:)` through `AppIconInstaller` | `4f`, peach → violet |
+  | Icon follows app theme | the same, resolved against the theme in the slot on show | off |
   | Reopen the view I was on | `applyStoredPreferences()` | off |
   | Open the Inbox with the board unless it's empty | `raiseInboxWithTheBoard()`, on every arrival at the board, and not on the phone | off |
   | The Trash keeps things for | `TrashedItem.isExpired(at:days:)` | 30 days |
@@ -5531,7 +5695,7 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `DayRolloverTests` | the day clock built from an instant either side of midnight, and the Today count and each saved view's membership before and after — including the three views that must *not* move, a year end, and the weekly meter's window rolling with it; plus the wake itself — a second either side of the boundary, and the DST days where the next midnight is 23 or 25 hours off rather than 24 |
 | `CommandTests` | the selection as a set — `selectedID` reading as one task or none, a second card ending the session the inspector left on the first, a range following the order the surface draws in, ⌘A following the surface and the query — and the bulk commands: one named step apiece, board order preserved, a mixed selection labelled *on* before it comes off, part of a selection deleted leaving the rest, and a bulk command with nothing to do staying off the Edit menu. Plus the shortcut vocabulary: no two commands claiming one press, ⌘N/⇧⌘N saying what the menu says, the system's own commands listed but not declared, and the board's keys getting no menu item to shadow a text field with |
 | `TrashTests` | throwing away, getting back and getting rid of, asked once per kind because the three are not one kind with three names. A task off the board and into the trash and back into the placement it had, with `restoredFromTrash` on its history; a column trashed while its cards move to the first column left, and restored to the index it sat at; a board trashed while its cards go to the Inbox, its columns travelling inside it, and restored to its place in the sidebar. Then the edges: a card whose column has gone comes back to the Inbox rather than being refused, a *column* whose board has gone is refused and says why and is still there to try again after the board, and a refusal registers no ⌘Z. Undo across all three verbs — a trash undone takes the row back out of the trash too, which is the whole reason `trash` is in `BoardMutation` — plus the thirty days: counted off the calendar rather than in seconds so a clock change cannot move them, reading 30 on the day rather than the 29 elapsed time floors to, filtered out of the list before they are swept out of the file, and swept on the way into `restored`. Then the file: three kinds round-tripping, and a v6 file with no `trash` key at all reading as an empty one rather than as a corrupt board. Then the card that says so: naming what went for each of the three kinds, counting a selection rather than announcing four times, saying nothing at all about a refusal, two announcements with one wording still being two, and a ⌘Z taking the sentence away with the act |
-| `SelectionTests` | the selection as a set, asked where it can break: a ⇧-click range including both of its ends in either direction, a run of them sweeping from the one anchor, ⌘A leaving the archive out and the anchor on the first row, and clearing taking the anchor with it. Then the bulk commands *counted* rather than inspected — every one of the eight filing exactly one registration whatever the size of the selection, a three-card delete undoing to indices 1, 3 and 5 rather than to the end of the array, and an empty, a stale or an already-satisfied selection registering nothing. Then the session-ending the set had to keep: the card the inspector was on losing its session even when it stays selected while others are added around it, the sheet's session on the same card surviving, and the ended session filing the typing as a ⌘Z of its own. Plus a bulk move of four cards arriving in the order the board had them, every position pinned — two cards is a coin toss, because `Set` hashing is seeded per process; a selection the command applies to only *half* of, where the step is named for what changed rather than for what was aimed at and the rest come out untouched; the menu item titled from that same count; the anchor moving when its card is ⌘-clicked out of the selection; ⌘N putting its surface up before opening the composer; ⌘F bumping a counter rather than setting a flag; and the rule that keeps the two rings on one card — focus arriving takes the selection with it, unless a ⌘ or ⇧ is held for the click that has not landed yet, or the card it landed on was already part of a multi-selection |
+| `SelectionTests` | the selection as a set, asked where it can break: a ⇧-click range including both of its ends in either direction, a run of them sweeping from the one anchor, ⌘A leaving the archive out and the anchor on the first row, and clearing taking the anchor with it. Then the bulk commands *counted* rather than inspected — every one of the eight filing exactly one registration whatever the size of the selection, a three-card delete undoing to indices 1, 3 and 5 rather than to the end of the array, and an empty, a stale or an already-satisfied selection registering nothing. Then the session-ending the set had to keep: the card the inspector was on losing its session even when it stays selected while others are added around it, the sheet's session on the same card surviving, and the ended session filing the typing as a ⌘Z of its own. Plus a bulk move of four cards arriving in the order the board had them, every position pinned — two cards is a coin toss, because `Set` hashing is seeded per process; a selection the command applies to only *half* of, where the step is named for what changed rather than for what was aimed at and the rest come out untouched; the menu item titled from that same count; the anchor moving when its card is ⌘-clicked out of the selection; ⌘N putting its surface up before opening the composer, and the bar's `+` landing in the Inbox with the panel out and a board on screen it declined to use; ⌘F bumping a counter rather than setting a flag; and the rule that keeps the two rings on one card — focus arriving takes the selection with it, unless a ⌘ or ⇧ is held for the click that has not landed yet, or the card it landed on was already part of a multi-selection |
 | `ShortcutTests` | `AppCommand` as the one vocabulary. No two commands claiming the press *the system will dispatch* — matched on the resolved `KeyEquivalent` and modifier mask, folded to lower case, rather than on the enum's spelling of them; every command titled, uniquely, in title case; the commands with no key named so that adding one is a decision; an unbuilt command holding no key hostage (vacuous now that nothing is unbuilt, and kept for the next one); ⌘N/⇧⌘N and nothing else answering to them; and no shortcut printing a private-use glyph, which is what `AppKey` exists for — `KeyEquivalent.leftArrow` renders as nothing at all. Then the anti-drift claim itself: the sheet's rows and the menu bar's are both generated from `AppCommand.commands(in:)`, every menu row appears in the sheet saying the same thing, and the difference between the two is exactly the board's own keys plus the system's Undo and Redo. `MenuDeclarationTests` then reads `BoardCommands.swift` itself, because a `Commands` body has nothing to enumerate at runtime and a suite that models the menu cannot notice a block commented out of it: every menu item declared into exactly one `AppMenuSection`, each block belonging to one menu and covering that menu's items in order, and the body drawing every block once under the anchor it belongs to |
 | `BoardKeyboardTests` | macOS only — how the arrows move around the board, as a value rather than a view: clamping at the ends, keeping the row sideways, stepping over an empty column while ⌥ lands in it, reading only what is *visible*, and where focus falls after a delete. Plus the key matcher — ⌥ as the whole difference between moving focus and moving the card, Space and ⌘⏎ both reaching completion, a press carrying caps lock still matching, and no two of the board's keys claiming one press. Then what each key *does*, through `BoardKeyboard.perform`: the arrows moving focus and the inspector following it, a refusal at each of the four edges keeping the key and the card it was on, ⌥→ walking a card across the board with focus on it, a card refusing to leave either end, ⏎ opening the detail surface, Space toggling one card both ways and never reopening a selection, ⌘⌫ handing focus to the neighbour and then to nothing, ⌘A and ⎋ — and that nothing the card claims falls through to the dispatcher's `default`. `FocusRingTests` holds the two rings apart — a card can wear both, so they differ in width *and* inset rather than only in colour — and pins when the inner one is drawn at all: not on the card that is the whole selection, and back again inside a multi-selection or on a focused card ⌘-clicked out of one |
 | `KeyOwnershipTests` | macOS only — one owner per press across the two surfaces that both handle keys. ⌘⌫ and ⌘⏎ reaching no card on either surface while the vocabulary still names them; Space and a bare ⏎ still reaching one; `menuOwnedShortcuts` written out as the eight presses the menu bar puts a key equivalent on and checked against the seven the board keeps; the rule stated over the whole vocabulary rather than over the two keys that collide today; and the converse, so a widened exclusion cannot mute a card — every command a card carries still has a press that reaches it. The split was a single defaulted argument at one call site, and the suite was blind to losing it in either direction |

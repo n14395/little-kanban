@@ -162,6 +162,18 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        # The twenty-nine alternates the icon picker offers — nine of the ten
+        # grounds plus one per preset theme, written by `Tools/make-app-icons`.
+        # This is what makes `setAlternateIconName(_:)` able to find them by the
+        # catalogue's own names; without it only `AppIcon` above is compiled in
+        # and every alternate fails with "not found".
+        #
+        # **iOS only.** macOS has no alternate-icon API at all — the desk sets
+        # its Dock icon at run time from the same drawing, see
+        # `AppIconInstaller` — so on that side these would be twenty-nine
+        # `.icns` files nothing can ever ask for, in an app that is downloaded
+        # rather than installed from a store.
+        ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS[sdk=iphone*]: YES
         SUPPORTS_MACCATALYST: NO
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: P52946XHRJ

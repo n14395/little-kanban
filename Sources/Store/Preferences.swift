@@ -315,6 +315,15 @@ extension Preferences {
     static let menuBarExtraKey = "SimpleKanbanShowsMenuBarExtra"
     /// Start the app when the Mac is logged in to.
     static let launchAtLoginKey = "SimpleKanbanLaunchAtLogin"
+
+    /// Which of the ten grounds the app wears — the design document's own
+    /// reference, `4a` through `4j`. See ``AppIcon``.
+    static let appIconKey = "SimpleKanbanAppIcon"
+    /// Wear the icon that matches the theme instead, whichever theme that turns
+    /// out to be. Off by default: the icon is the app's face in a Dock full of
+    /// other apps' faces, and one that changed the first time the system went
+    /// dark would be a surprise nobody asked for.
+    static let appIconFollowsThemeKey = "SimpleKanbanAppIconFollowsTheme"
 }
 
 // MARK: - Reading them
@@ -401,4 +410,18 @@ extension Preferences {
     static var playsCompletionSound: Bool { flag(completionSoundKey, fallback: true) }
     static var showsMenuBarExtra: Bool { flag(menuBarExtraKey, fallback: true) }
     static var launchesAtLogin: Bool { flag(launchAtLoginKey) }
+    static var appIconFollowsTheme: Bool { flag(appIconFollowsThemeKey) }
+
+    /// The stored ground, or the one the app ships wearing. Not ``choice(_:key:fallback:)``
+    /// — the ten are data rather than an enum, so the lookup is
+    /// ``AppIcon/gradient(_:)`` and an id this build has never heard of falls
+    /// back the same way a stale theme id does.
+    static var appIcon: AppIconGradient {
+        AppIcon.gradient(defaults.string(forKey: appIconKey) ?? "") ?? AppIcon.fallback
+    }
+
+    /// Both switches as the one value the resolver takes.
+    static var appIconSelection: AppIconSelection {
+        AppIconSelection(gradientID: appIcon.id, followsTheme: appIconFollowsTheme)
+    }
 }

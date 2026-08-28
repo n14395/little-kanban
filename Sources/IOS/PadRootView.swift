@@ -115,11 +115,35 @@ struct PadRootView: View {
     /// once every row claims its 44pt, and a source list that cannot reach its
     /// last row is worse than one that scrolls.
     private var sidebar: some View {
-        ScrollView {
-            BoardSidebar(metrics: .pad)
+        // **The whole pane, down to the glass**, and the inset is measured
+        // rather than named: an iPad keeps 20pt at the foot of the screen for
+        // the home indicator, but that is a number the device decides.
+        //
+        // **Why a negative padding and not `ignoresSafeArea`.** Bleeding the
+        // fill alone got the colour to the bottom and left the *list* where it
+        // was, so a sidebar scrolled to its last row still showed a band of
+        // empty panel under it — the fill was right and the rows still stopped
+        // short. `ignoresSafeArea` on the scroll view itself does not answer
+        // that: inside a `NavigationSplitView` column the inset is a layout
+        // margin UIKit has already applied, so a colour can be drawn over it —
+        // measured — and the scroll view's own frame will not reclaim it. A
+        // negative padding is plain layout and owes the safe area nothing: the
+        // scroll view is handed 20pt more than its slot, hangs into the strip,
+        // and its fill and its rows arrive together.
+        //
+        // Safe here, and only here, because the home indicator is a short pill
+        // centred on the *screen* — nowhere near a 300pt column against the
+        // leading edge, so a row that reaches the bottom of this list is under
+        // nothing. The board and the two panels beside it keep their inset and
+        // bleed only their fills; see `detail`.
+        GeometryReader { proxy in
+            ScrollView {
+                BoardSidebar(metrics: .pad)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .background(palette.panelOverlay)
+            .padding(.bottom, -proxy.safeAreaInsets.bottom)
         }
-        .scrollBounceBehavior(.basedOnSize)
-        .background(palette.panelOverlay)
         .navigationSplitViewColumnWidth(
             min: chrome(260, cap: 1.4), ideal: chrome(Self.sidebarIdeal, cap: 1.4),
             max: chrome(360, cap: 1.4)
@@ -188,7 +212,15 @@ struct PadRootView: View {
         // desk answers the same thing by drawing the source list above the
         // panel; here the two are in different containers, so `zIndex` has
         // nothing to say and the column has to hold its own edge.
-        .clipped()
+        //
+        // **Open at the foot**, because the edge it is holding is a *side* one.
+        // This was `.clipped()`, on the column's own bounds — and those bounds
+        // stop at the home indicator's 20pt inset, so it cut off the Inbox
+        // panel's fill and the task editor's exactly where they bleed under it
+        // (see `sidebar`). That strip of window fill under two of the three
+        // panels and not the third is what a clip meant for the sides was
+        // costing. Nothing in this column draws below its foot but those fills.
+        .clipShape(OpenFooted())
         .background(palette.windowFill)
         // No `value: store.selection` here: keyed on the selection, every tap
         // on a card put the whole detail column through a 0.16s diff. The
@@ -542,11 +574,33 @@ private struct PadInspectorPane: View {
             } else {
                 EmptyStateView.noSelection(metrics: .sheet)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(palette.panelOverlay)
+                    // Down to the glass, the way `TaskInspector` is: the empty
+                    // state is the same panel with nothing in it, and a pane
+                    // that changes height when a card is picked is worse than
+                    // either height.
+                    .background(palette.panelOverlay.ignoresSafeArea(.container, edges: .bottom))
             }
         }
         .motionAnimation(.easeOut(duration: 0.16), value: store.selectedID)
         .toolbar(.hidden, for: .navigationBar)
+    }
+}
+
+/// A rectangle with no floor: the view's own bounds, carried far enough past
+/// the foot that whatever bleeds under the home indicator survives the clip.
+///
+/// ``PadRootView`` clips its detail column to hold the column's *sides* — see
+/// the comment on the call — and a clip that also closed the bottom took the
+/// panels' fills with it.
+private struct OpenFooted: Shape {
+    /// Deeper than any inset a device reports — the iPad's is 20pt — and
+    /// finite, because a rectangle of infinite height is not one any renderer
+    /// wants to intersect.
+    static let depth: CGFloat = 200
+
+    func path(in rect: CGRect) -> Path {
+        Path(CGRect(x: rect.minX, y: rect.minY,
+                    width: rect.width, height: rect.height + Self.depth))
     }
 }
 

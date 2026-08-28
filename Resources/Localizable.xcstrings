@@ -1,13 +1,88 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "" : {},
+    "" : {
+
+    },
+    "—" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "—"
+          }
+        }
+      }
+    },
+    "·" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "·"
+          }
+        }
+      }
+    },
+    "· %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· %@"
+          }
+        }
+      }
+    },
+    "“%@” cannot be brought back. Export it first if you might want it again." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” cannot be brought back. Export it first if you might want it again."
+          }
+        }
+      }
+    },
+    "“%@” is missing from %@." : {
+      "comment" : "Theme import error: a required field is absent from a section",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” is missing from %2$@."
+          }
+        }
+      }
+    },
+    "“%@” is missing." : {
+      "comment" : "Theme import error: a required field is absent",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” is missing."
+          }
+        }
+      }
+    },
     "%@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@"
+          }
+        }
+      }
+    },
+    "%@ · empty" : {
+      "comment" : "First-run picker: a template with no cards on it",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · empty"
           }
         }
       }
@@ -64,6 +139,17 @@
         }
       }
     },
+    "%@, following the theme." : {
+      "comment" : "Settings note naming the theme-matched app icon",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, following the theme."
+          }
+        }
+      }
+    },
     "%@ is due today." : {
       "comment" : "Body of the reminder for a task due today; the placeholder is a task code like NW-118",
       "localizations" : {
@@ -104,17 +190,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ priority"
-          }
-        }
-      }
-    },
-    "%@ · empty" : {
-      "comment" : "First-run picker: a template with no cards on it",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ · empty"
           }
         }
       }
@@ -334,6 +409,28 @@
         }
       }
     },
+    "⌃⌘N from anywhere drops a task into Up Next." : {
+      "comment" : "Seed board: task description",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌃⌘N from anywhere drops a task into Up Next."
+          }
+        }
+      }
+    },
+    "⌘Z takes the whole import back." : {
+      "comment" : "Alert footer reminding the user an import is undoable",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌘Z takes the whole import back."
+          }
+        }
+      }
+    },
     "0° runs upwards, and the angle turns clockwise." : {
       "comment" : "Explains how the gradient angle is measured",
       "localizations" : {
@@ -455,7 +552,9 @@
         }
       }
     },
-    "A short chime when a card reaches Done, however it got there. The haptic tap stays either way, on hardware that has one." : {},
+    "A short chime when a card reaches Done, however it got there. The haptic tap stays either way, on hardware that has one." : {
+
+    },
     "A theme sets the recipe rather than the colours — each label carries its own. The ground is the label's colour lifted this far towards white, then drawn at the strength below." : {
       "comment" : "Explains that the theme carries the chip rule, not the chip colours",
       "localizations" : {
@@ -496,17 +595,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "A week means"
-          }
-        }
-      }
-    },
-    "API" : {
-      "comment" : "Seed label: server work",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "API"
           }
         }
       }
@@ -597,71 +685,6 @@
         }
       }
     },
-    "Add Column" : {
-      "comment" : "Undo action name for adding a board column",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add Column"
-          }
-        }
-      }
-    },
-    "Add Label" : {
-      "comment" : "Undo action name for putting a label on a task",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add Label"
-          }
-        }
-      }
-    },
-    "Add Stop" : {
-      "comment" : "Button: adds a colour stop to the window gradient",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add Stop"
-          }
-        }
-      }
-    },
-    "Add Sub-task" : {
-      "comment" : "Undo action name for adding a sub-task",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add Sub-task"
-          }
-        }
-      }
-    },
-    "Add Task" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add Task"
-          }
-        }
-      }
-    },
-    "Add View" : {
-      "comment" : "Undo action name for creating a saved view",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add View"
-          }
-        }
-      }
-    },
     "Add a column" : {
       "comment" : "Empty state button that starts the first column on a board",
       "localizations" : {
@@ -701,6 +724,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add another column first, then delete this one."
+          }
+        }
+      }
+    },
+    "Add Column" : {
+      "comment" : "Undo action name for adding a board column",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Column"
           }
         }
       }
@@ -745,12 +779,55 @@
         }
       }
     },
+    "Add Label" : {
+      "comment" : "Undo action name for putting a label on a task",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Label"
+          }
+        }
+      }
+    },
     "Add new sub-task" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add new sub-task"
+          }
+        }
+      }
+    },
+    "Add Stop" : {
+      "comment" : "Button: adds a colour stop to the window gradient",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Stop"
+          }
+        }
+      }
+    },
+    "Add Sub-task" : {
+      "comment" : "Undo action name for adding a sub-task",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Sub-task"
+          }
+        }
+      }
+    },
+    "Add Task" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Task"
           }
         }
       }
@@ -782,6 +859,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add to"
+          }
+        }
+      }
+    },
+    "Add View" : {
+      "comment" : "Undo action name for creating a saved view",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add View"
           }
         }
       }
@@ -846,6 +934,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "After two weeks"
+          }
+        }
+      }
+    },
+    "all" : {
+      "comment" : "Joins view criteria: every one must match",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "all"
           }
         }
       }
@@ -916,6 +1015,16 @@
         }
       }
     },
+    "and" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "and"
+          }
+        }
+      }
+    },
     "Angle" : {
       "comment" : "Theme parameter: the direction of the window gradient",
       "localizations" : {
@@ -923,6 +1032,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Angle"
+          }
+        }
+      }
+    },
+    "any" : {
+      "comment" : "Joins view criteria: one is enough",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "any"
+          }
+        }
+      }
+    },
+    "API" : {
+      "comment" : "Seed label: server work",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API"
+          }
+        }
+      }
+    },
+    "App icon" : {
+      "comment" : "Title of the app icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App icon"
+          }
+        }
+      }
+    },
+    "App icon…" : {
+      "comment" : "Settings row: opens the app icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App icon…"
           }
         }
       }
@@ -982,6 +1135,27 @@
         }
       }
     },
+    "Archive finished cards" : {
+      "comment" : "Settings row: when Done cards are archived",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archive finished cards"
+          }
+        }
+      }
+    },
+    "Archive task" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archive task"
+          }
+        }
+      }
+    },
     "Archive Task" : {
       "comment" : "Task menu item that files the selected task away\nUndo action name for archiving a task",
       "localizations" : {
@@ -1004,27 +1178,6 @@
         }
       }
     },
-    "Archive finished cards" : {
-      "comment" : "Settings row: when Done cards are archived",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Archive finished cards"
-          }
-        }
-      }
-    },
-    "Archive task" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Archive task"
-          }
-        }
-      }
-    },
     "Archived" : {
       "comment" : "Activity feed: the task was filed away\nView criterion field",
       "localizations" : {
@@ -1032,6 +1185,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Archived"
+          }
+        }
+      }
+    },
+    "are all done" : {
+      "comment" : "View criterion comparator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "are all done"
           }
         }
       }
@@ -1090,17 +1254,6 @@
         }
       }
     },
-    "Back to Board" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Back to Board"
-          }
-        }
-      }
-    },
     "Back to board" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1108,6 +1261,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Back to board"
+          }
+        }
+      }
+    },
+    "Back to Board" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back to Board"
           }
         }
       }
@@ -1179,28 +1343,6 @@
         }
       }
     },
-    "Board Settings" : {
-      "comment" : "The title of the settings for a board.",
-      "isCommentAutoGenerated" : true,
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Board Settings"
-          }
-        }
-      }
-    },
-    "Board Settings…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Board Settings…"
-          }
-        }
-      }
-    },
     "Board actions" : {
       "localizations" : {
         "en" : {
@@ -1260,6 +1402,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Board order"
+          }
+        }
+      }
+    },
+    "Board Settings" : {
+      "comment" : "The title of the settings for a board.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Board Settings"
+          }
+        }
+      }
+    },
+    "Board Settings…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Board Settings…"
           }
         }
       }
@@ -1337,17 +1501,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bug"
-          }
-        }
-      }
-    },
-    "CI green on both platforms" : {
-      "comment" : "Starter template: sub-task",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CI green on both platforms"
           }
         }
       }
@@ -1616,24 +1769,13 @@
         }
       }
     },
-    "Clear Due Date" : {
-      "comment" : "Undo action name for removing a task's due date",
+    "CI green on both platforms" : {
+      "comment" : "Starter template: sub-task",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Clear Due Date"
-          }
-        }
-      }
-    },
-    "Clear Search" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clear Search"
+            "value" : "CI green on both platforms"
           }
         }
       }
@@ -1645,6 +1787,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Clear due date"
+          }
+        }
+      }
+    },
+    "Clear Due Date" : {
+      "comment" : "Undo action name for removing a task's due date",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear Due Date"
           }
         }
       }
@@ -1667,6 +1820,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Clear search"
+          }
+        }
+      }
+    },
+    "Clear Search" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear Search"
           }
         }
       }
@@ -1874,6 +2038,16 @@
         }
       }
     },
+    "Complete task" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complete task"
+          }
+        }
+      }
+    },
     "Complete Task" : {
       "comment" : "Task menu item that sends the selected task to Done\nUndo action name for completing a task",
       "localizations" : {
@@ -1892,16 +2066,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Complete Tasks"
-          }
-        }
-      }
-    },
-    "Complete task" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Complete task"
           }
         }
       }
@@ -1938,6 +2102,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Conflict tests"
+          }
+        }
+      }
+    },
+    "contains" : {
+      "comment" : "View criterion comparator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "contains"
           }
         }
       }
@@ -2054,6 +2229,16 @@
         }
       }
     },
+    "days" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "days"
+          }
+        }
+      }
+    },
     "Delete" : {
       "comment" : "Alert button: confirms removing a theme\nMenu item: removes a custom theme\nTrash row button that throws something away for good",
       "localizations" : {
@@ -2122,61 +2307,6 @@
         }
       }
     },
-    "Delete Label" : {
-      "comment" : "Undo action name for deleting a label",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete Label"
-          }
-        }
-      }
-    },
-    "Delete Sub-task" : {
-      "comment" : "Undo action name for deleting a sub-task",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete Sub-task"
-          }
-        }
-      }
-    },
-    "Delete Task" : {
-      "comment" : "Undo action name for deleting a task",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete Task"
-          }
-        }
-      }
-    },
-    "Delete Tasks" : {
-      "comment" : "Undo action name for deleting several tasks at once",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete Tasks"
-          }
-        }
-      }
-    },
-    "Delete View" : {
-      "comment" : "Undo action name for deleting a saved view",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete View"
-          }
-        }
-      }
-    },
     "Delete everything on this board?" : {
       "comment" : "A confirmation dialog for deleting everything on a board.",
       "isCommentAutoGenerated" : true,
@@ -2221,12 +2351,34 @@
         }
       }
     },
+    "Delete Label" : {
+      "comment" : "Undo action name for deleting a label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Label"
+          }
+        }
+      }
+    },
     "Delete sub-task" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Delete sub-task"
+          }
+        }
+      }
+    },
+    "Delete Sub-task" : {
+      "comment" : "Undo action name for deleting a sub-task",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Sub-task"
           }
         }
       }
@@ -2238,6 +2390,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Delete task"
+          }
+        }
+      }
+    },
+    "Delete Task" : {
+      "comment" : "Undo action name for deleting a task",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Task"
+          }
+        }
+      }
+    },
+    "Delete Tasks" : {
+      "comment" : "Undo action name for deleting several tasks at once",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Tasks"
           }
         }
       }
@@ -2259,6 +2433,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Delete this theme?"
+          }
+        }
+      }
+    },
+    "Delete View" : {
+      "comment" : "Undo action name for deleting a saved view",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete View"
+          }
+        }
+      }
+    },
+    "deleted today" : {
+      "comment" : "Trash row: the last day before something is thrown away for good",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "deleted today"
           }
         }
       }
@@ -2349,6 +2545,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Display font"
+          }
+        }
+      }
+    },
+    "does not contain" : {
+      "comment" : "View criterion comparator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "does not contain"
+          }
+        }
+      }
+    },
+    "does not include" : {
+      "comment" : "View criterion comparator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "does not include"
           }
         }
       }
@@ -2594,17 +2812,6 @@
         }
       }
     },
-    "ERRAND" : {
-      "comment" : "Sample uppercase label chip in the theme preview",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ERRAND"
-          }
-        }
-      }
-    },
     "Each one is a whole copy of the board." : {
       "comment" : "Settings note under the backup count row",
       "localizations" : {
@@ -2623,6 +2830,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Edit"
+          }
+        }
+      }
+    },
+    "Edit a card and it will show up here." : {
+      "comment" : "Empty Recently updated view body copy",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit a card and it will show up here."
           }
         }
       }
@@ -2712,13 +2930,13 @@
         }
       }
     },
-    "Edit a card and it will show up here." : {
-      "comment" : "Empty Recently updated view body copy",
+    "Edit…" : {
+      "comment" : "Menu item: opens a theme in the editor",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Edit a card and it will show up here."
+            "value" : "Edit…"
           }
         }
       }
@@ -2730,17 +2948,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Editing"
-          }
-        }
-      }
-    },
-    "Edit…" : {
-      "comment" : "Menu item: opens a theme in the editor",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Edit…"
           }
         }
       }
@@ -2767,6 +2974,16 @@
         }
       }
     },
+    "Empty the trash?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empty the trash?"
+          }
+        }
+      }
+    },
     "Empty Trash" : {
       "comment" : "Undo action name for permanently deleting everything in the trash",
       "localizations" : {
@@ -2774,16 +2991,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Empty Trash"
-          }
-        }
-      }
-    },
-    "Empty the trash?" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Empty the trash?"
           }
         }
       }
@@ -2806,6 +3013,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Errand"
+          }
+        }
+      }
+    },
+    "ERRAND" : {
+      "comment" : "Sample uppercase label chip in the theme preview",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ERRAND"
           }
         }
       }
@@ -3094,6 +3312,9 @@
         }
       }
     },
+    "Follows the theme, and changes with it." : {
+      "comment" : "Note under the app icon when it is theme-matched"
+    },
     "Four columns and nothing in them. Bring your own work." : {
       "comment" : "One-line description of the empty starter",
       "localizations" : {
@@ -3195,13 +3416,13 @@
         }
       }
     },
-    "HOME" : {
-      "comment" : "Sample uppercase label chip in the theme preview",
+    "has some left" : {
+      "comment" : "View criterion comparator",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "HOME"
+            "value" : "has some left"
           }
         }
       }
@@ -3314,6 +3535,17 @@
         }
       }
     },
+    "HOME" : {
+      "comment" : "Sample uppercase label chip in the theme preview",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HOME"
+          }
+        }
+      }
+    },
     "How the design team plans a week" : {
       "comment" : "Starter template: task title",
       "localizations" : {
@@ -3334,6 +3566,21 @@
           }
         }
       }
+    },
+    "iCloud" : {
+      "comment" : "Settings group heading",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud"
+          }
+        }
+      }
+    },
+    "Icon follows app theme" : {
+      "comment" : "A toggle that lets the user choose whether the app icon follows the system theme.",
+      "isCommentAutoGenerated" : true
     },
     "Ideas" : {
       "comment" : "Content template column: not written yet",
@@ -3390,17 +3637,6 @@
         }
       }
     },
-    "In the Inbox" : {
-      "comment" : "Accessibility label for the place chip on an unfiled card",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "In the Inbox"
-          }
-        }
-      }
-    },
     "In the app" : {
       "comment" : "Font picker section: faces the app ships with",
       "localizations" : {
@@ -3408,6 +3644,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "In the app"
+          }
+        }
+      }
+    },
+    "In the Inbox" : {
+      "comment" : "Accessibility label for the place chip on an unfiled card",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In the Inbox"
           }
         }
       }
@@ -3434,17 +3681,6 @@
         }
       }
     },
-    "Inbox Panel" : {
-      "comment" : "View menu item that shows the Inbox beside the board",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Inbox Panel"
-          }
-        }
-      }
-    },
     "Inbox actions" : {
       "comment" : "A button that displays a menu of actions for the inbox.",
       "isCommentAutoGenerated" : true
@@ -3456,6 +3692,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Inbox is clear"
+          }
+        }
+      }
+    },
+    "Inbox Panel" : {
+      "comment" : "View menu item that shows the Inbox beside the board",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inbox Panel"
+          }
+        }
+      }
+    },
+    "includes" : {
+      "comment" : "View criterion comparator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "includes"
           }
         }
       }
@@ -3504,6 +3762,127 @@
         }
       }
     },
+    "iOS" : {
+      "comment" : "Seed label: Apple's mobile platform",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS"
+          }
+        }
+      }
+    },
+    "is" : {
+      "comment" : "View criterion comparator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is"
+          }
+        }
+      }
+    },
+    "is after" : {
+      "comment" : "View criterion comparator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is after"
+          }
+        }
+      }
+    },
+    "is any board" : {
+      "comment" : "View criterion comparator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is any board"
+          }
+        }
+      }
+    },
+    "is at least" : {
+      "comment" : "View criterion comparator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is at least"
+          }
+        }
+      }
+    },
+    "is at most" : {
+      "comment" : "View criterion comparator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is at most"
+          }
+        }
+      }
+    },
+    "is empty" : {
+      "comment" : "View criterion comparator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is empty"
+          }
+        }
+      }
+    },
+    "is not" : {
+      "comment" : "View criterion comparator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is not"
+          }
+        }
+      }
+    },
+    "is not empty" : {
+      "comment" : "View criterion comparator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is not empty"
+          }
+        }
+      }
+    },
+    "is on or before" : {
+      "comment" : "View criterion comparator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is on or before"
+          }
+        }
+      }
+    },
+    "is the Inbox" : {
+      "comment" : "View criterion comparator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is the Inbox"
+          }
+        }
+      }
+    },
     "Is the queue worth replacing?" : {
       "comment" : "Starter template: task title",
       "localizations" : {
@@ -3511,6 +3890,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Is the queue worth replacing?"
+          }
+        }
+      }
+    },
+    "is this week" : {
+      "comment" : "View criterion comparator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is this week"
+          }
+        }
+      }
+    },
+    "is within the next" : {
+      "comment" : "View criterion comparator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is within the next"
           }
         }
       }
@@ -3580,6 +3981,17 @@
         }
       }
     },
+    "just now" : {
+      "comment" : "Activity feed timestamp for something that happened moments ago",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "just now"
+          }
+        }
+      }
+    },
     "Keep this board on my other devices" : {
       "localizations" : {
         "en" : {
@@ -3601,17 +4013,6 @@
         }
       }
     },
-    "Keyboard Shortcuts" : {
-      "comment" : "Help menu item that opens the shortcuts sheet",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Keyboard Shortcuts"
-          }
-        }
-      }
-    },
     "Keyboard fallback" : {
       "comment" : "Seed board: sub-task",
       "localizations" : {
@@ -3619,6 +4020,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Keyboard fallback"
+          }
+        }
+      }
+    },
+    "Keyboard Shortcuts" : {
+      "comment" : "Help menu item that opens the shortcuts sheet",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keyboard Shortcuts"
           }
         }
       }
@@ -3819,16 +4231,6 @@
         }
       }
     },
-    "Manage Labels" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Manage Labels"
-          }
-        }
-      }
-    },
     "Manage labels" : {
       "comment" : "Settings row that opens the label manager",
       "localizations" : {
@@ -3836,6 +4238,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Manage labels"
+          }
+        }
+      }
+    },
+    "Manage Labels" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manage Labels"
           }
         }
       }
@@ -4041,16 +4453,6 @@
         }
       }
     },
-    "Move Up" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Move Up"
-          }
-        }
-      }
-    },
     "Move the build to the new toolchain" : {
       "comment" : "Starter template: task title",
       "localizations" : {
@@ -4101,6 +4503,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Move to Inbox"
+          }
+        }
+      }
+    },
+    "Move Up" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Up"
           }
         }
       }
@@ -4215,6 +4627,17 @@
         }
       }
     },
+    "New board" : {
+      "comment" : "Accessibility name of the sidebar row that starts a new board\nEmpty state button that creates a board\nSidebar row that starts a board",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New board"
+          }
+        }
+      }
+    },
     "New Board" : {
       "comment" : "File menu item that adds a board\nUndo action name for adding a board\nWhat a board is called until it is named",
       "localizations" : {
@@ -4242,6 +4665,17 @@
       "comment" : "A button that creates a new label.",
       "isCommentAutoGenerated" : true
     },
+    "New label, then ⏎" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New label, then ⏎"
+          }
+        }
+      }
+    },
     "New Light Theme" : {
       "comment" : "Menu item: starts a new theme for the light slot",
       "extractionState" : "stale",
@@ -4250,6 +4684,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "New Light Theme"
+          }
+        }
+      }
+    },
+    "New task" : {
+      "comment" : "Accessibility name of the toolbar button that adds a task",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New task"
           }
         }
       }
@@ -4276,61 +4721,6 @@
         }
       }
     },
-    "New Theme" : {
-      "comment" : "Menu item: starts a new theme for the slot on show",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "New Theme"
-          }
-        }
-      }
-    },
-    "New View" : {
-      "comment" : "Default name for a newly created saved view",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "New View"
-          }
-        }
-      }
-    },
-    "New board" : {
-      "comment" : "Accessibility name of the sidebar row that starts a new board\nEmpty state button that creates a board\nSidebar row that starts a board",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "New board"
-          }
-        }
-      }
-    },
-    "New label, then ⏎" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "New label, then ⏎"
-          }
-        }
-      }
-    },
-    "New task" : {
-      "comment" : "Accessibility name of the toolbar button that adds a task",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "New task"
-          }
-        }
-      }
-    },
     "New tasks are due" : {
       "comment" : "Settings row: a new task's due date",
       "localizations" : {
@@ -4342,6 +4732,17 @@
         }
       }
     },
+    "New Theme" : {
+      "comment" : "Menu item: starts a new theme for the slot on show",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Theme"
+          }
+        }
+      }
+    },
     "New view" : {
       "comment" : "Accessibility name of the drawer row that creates a saved view\nAccessibility name of the sidebar row that creates a saved view",
       "localizations" : {
@@ -4349,6 +4750,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "New view"
+          }
+        }
+      }
+    },
+    "New View" : {
+      "comment" : "Default name for a newly created saved view",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New View"
           }
         }
       }
@@ -4386,13 +4798,13 @@
         }
       }
     },
-    "No Board" : {
-      "comment" : "Phone header title when every board has been deleted",
+    "no" : {
+      "comment" : "View criterion comparator",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No Board"
+            "value" : "no"
           }
         }
       }
@@ -4414,6 +4826,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No board"
+          }
+        }
+      }
+    },
+    "No Board" : {
+      "comment" : "Phone header title when every board has been deleted",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Board"
           }
         }
       }
@@ -4703,17 +5126,6 @@
         }
       }
     },
-    "Nothing here matches your search." : {
-      "comment" : "Empty state body copy when a search finds nothing",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nothing here matches your search."
-          }
-        }
-      }
-    },
     "Nothing here matches “%@”." : {
       "comment" : "Empty state body copy naming the search that found nothing",
       "localizations" : {
@@ -4721,6 +5133,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nothing here matches “%@”."
+          }
+        }
+      }
+    },
+    "Nothing here matches your search." : {
+      "comment" : "Empty state body copy when a search finds nothing",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing here matches your search."
           }
         }
       }
@@ -4802,13 +5225,12 @@
         }
       }
     },
-    "OK" : {
-      "comment" : "Alert button: dismisses an error\nDismisses the alert about a link that could not be opened\nDismisses the alert confirming an imported board",
+    "of the following" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "OK"
+            "value" : "of the following"
           }
         }
       }
@@ -4832,6 +5254,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Offline queue for edits"
+          }
+        }
+      }
+    },
+    "OK" : {
+      "comment" : "Alert button: dismisses an error\nDismisses the alert about a link that could not be opened\nDismisses the alert confirming an imported board",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
           }
         }
       }
@@ -4900,6 +5333,18 @@
         }
       }
     },
+    "Open at login" : {
+      "comment" : "A label for a toggle that lets the user decide whether the app should open at login.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open at login"
+          }
+        }
+      }
+    },
     "Open Board" : {
       "localizations" : {
         "en" : {
@@ -4943,14 +5388,13 @@
         }
       }
     },
-    "Open at login" : {
-      "comment" : "A label for a toggle that lets the user decide whether the app should open at login.",
-      "isCommentAutoGenerated" : true,
+    "Open the download page" : {
+      "comment" : "Opens the GitHub release in a browser",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Open at login"
+            "value" : "Open the download page"
           }
         }
       }
@@ -4967,23 +5411,23 @@
         }
       }
     },
-    "Open the download page" : {
-      "comment" : "Opens the GitHub release in a browser",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open the download page"
-          }
-        }
-      }
-    },
     "Opens the Today view in Simple Kanban." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Opens the Today view in Simple Kanban."
+          }
+        }
+      }
+    },
+    "or" : {
+      "comment" : "Between two keys that do the same thing",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "or"
           }
         }
       }
@@ -5210,7 +5654,9 @@
         }
       }
     },
-    "Play a sound" : {},
+    "Play a sound" : {
+
+    },
     "Polish" : {
       "comment" : "Seed label: refinement work, not the language",
       "localizations" : {
@@ -5499,17 +5945,6 @@
         }
       }
     },
-    "Remove Label" : {
-      "comment" : "Undo action name for taking a label off a task",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Remove Label"
-          }
-        }
-      }
-    },
     "Remove from Palette" : {
       "localizations" : {
         "en" : {
@@ -5526,6 +5961,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Remove label"
+          }
+        }
+      }
+    },
+    "Remove Label" : {
+      "comment" : "Undo action name for taking a label off a task",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove Label"
           }
         }
       }
@@ -5648,6 +6094,16 @@
         }
       }
     },
+    "Reopen task" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reopen task"
+          }
+        }
+      }
+    },
     "Reopen Task" : {
       "comment" : "Undo action name for reopening a completed task",
       "localizations" : {
@@ -5655,16 +6111,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reopen Task"
-          }
-        }
-      }
-    },
-    "Reopen task" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reopen task"
           }
         }
       }
@@ -5862,24 +6308,13 @@
         }
       }
     },
-    "Restore Task" : {
-      "comment" : "Undo action name for taking a task back out of the archive",
+    "Restore from a backup" : {
+      "comment" : "Settings row that lists the rolling backups",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Restore Task"
-          }
-        }
-      }
-    },
-    "Restore Views" : {
-      "comment" : "Undo action name for restoring the built-in saved views",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Restore Views"
+            "value" : "Restore from a backup"
           }
         }
       }
@@ -5895,23 +6330,23 @@
         }
       }
     },
-    "Restore from a backup" : {
-      "comment" : "Settings row that lists the rolling backups",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Restore from a backup"
-          }
-        }
-      }
-    },
     "Restore task" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Restore task"
+          }
+        }
+      }
+    },
+    "Restore Task" : {
+      "comment" : "Undo action name for taking a task back out of the archive",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore Task"
           }
         }
       }
@@ -5937,6 +6372,16 @@
         }
       }
     },
+    "Restore to board" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore to board"
+          }
+        }
+      }
+    },
     "Restore to Board" : {
       "localizations" : {
         "en" : {
@@ -5947,12 +6392,13 @@
         }
       }
     },
-    "Restore to board" : {
+    "Restore Views" : {
+      "comment" : "Undo action name for restoring the built-in saved views",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Restore to board"
+            "value" : "Restore Views"
           }
         }
       }
@@ -6364,6 +6810,17 @@
         }
       }
     },
+    "shipped" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "shipped"
+          }
+        }
+      }
+    },
     "Short" : {
       "localizations" : {
         "en" : {
@@ -6392,16 +6849,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Short: the fastest way to a first draft"
-          }
-        }
-      }
-    },
-    "Show Today" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show Today"
           }
         }
       }
@@ -6436,6 +6883,18 @@
         }
       }
     },
+    "Show the menu bar item" : {
+      "comment" : "A label for a toggle that shows the menu bar item.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show the menu bar item"
+          }
+        }
+      }
+    },
     "Show the Trash" : {
       "comment" : "A button that opens the Trash.",
       "isCommentAutoGenerated" : true,
@@ -6448,14 +6907,23 @@
         }
       }
     },
-    "Show the menu bar item" : {
-      "comment" : "A label for a toggle that shows the menu bar item.",
-      "isCommentAutoGenerated" : true,
+    "Show Today" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Show the menu bar item"
+            "value" : "Show Today"
+          }
+        }
+      }
+    },
+    "Shown in the Dock while Simple Kanban is running." : {
+      "comment" : "Note under the large app icon, on the desk only",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shown in the Dock while Simple Kanban is running."
           }
         }
       }
@@ -6627,17 +7095,6 @@
         }
       }
     },
-    "Start Over" : {
-      "comment" : "Undo action name for replacing the whole board with a starter template",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Start Over"
-          }
-        }
-      }
-    },
     "Start over" : {
       "comment" : "Starter picker title when a board is being replaced",
       "localizations" : {
@@ -6645,6 +7102,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Start over"
+          }
+        }
+      }
+    },
+    "Start Over" : {
+      "comment" : "Undo action name for replacing the whole board with a starter template",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start Over"
           }
         }
       }
@@ -6941,6 +7409,17 @@
         }
       }
     },
+    "text" : {
+      "comment" : "Placeholder for a view criterion's text value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "text"
+          }
+        }
+      }
+    },
     "Text" : {
       "comment" : "Theme parameter: the full-strength text colour",
       "localizations" : {
@@ -7091,28 +7570,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "That theme could not be read."
-          }
-        }
-      }
-    },
-    "The This Week column's dot, and medium priority. Overdue has no field of its own — it is the hot due chip below." : {
-      "comment" : "Where the amber hue is used, and why there is no third status hue",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The This Week column's dot, and medium priority. Overdue has no field of its own — it is the hot due chip below."
-          }
-        }
-      }
-    },
-    "The Trash keeps things for" : {
-      "comment" : "Settings row: how long deleted items are kept",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The Trash keeps things for"
           }
         }
       }
@@ -7293,12 +7750,40 @@
         }
       }
     },
+    "The same icon whatever the theme." : {
+      "comment" : "Note under the app icon when it is one of the ten"
+    },
+    "The theme's window gradient, highlight and ink, drawn as the icon." : {
+
+    },
+    "The This Week column's dot, and medium priority. Overdue has no field of its own — it is the hot due chip below." : {
+      "comment" : "Where the amber hue is used, and why there is no third status hue",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The This Week column's dot, and medium priority. Overdue has no field of its own — it is the hot due chip below."
+          }
+        }
+      }
+    },
     "The trash is empty" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "The trash is empty"
+          }
+        }
+      }
+    },
+    "The Trash keeps things for" : {
+      "comment" : "Settings row: how long deleted items are kept",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Trash keeps things for"
           }
         }
       }
@@ -7331,28 +7816,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Themes…"
-          }
-        }
-      }
-    },
-    "This Mac" : {
-      "comment" : "Settings group heading over the desk-only rows",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This Mac"
-          }
-        }
-      }
-    },
-    "This Week" : {
-      "comment" : "Personal template column: work with a day on it",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This Week"
           }
         }
       }
@@ -7422,6 +7885,17 @@
         }
       }
     },
+    "This Mac" : {
+      "comment" : "Settings group heading over the desk-only rows",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Mac"
+          }
+        }
+      }
+    },
     "This month's newsletter" : {
       "comment" : "Starter template: task title",
       "localizations" : {
@@ -7440,6 +7914,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "This week"
+          }
+        }
+      }
+    },
+    "This Week" : {
+      "comment" : "Personal template column: work with a day on it",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Week"
           }
         }
       }
@@ -7533,6 +8018,16 @@
         }
       }
     },
+    "Toggle details sidebar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toggle details sidebar"
+          }
+        }
+      }
+    },
     "Toggle Inspector" : {
       "comment" : "View menu item that shows or hides the detail panel",
       "localizations" : {
@@ -7544,6 +8039,16 @@
         }
       }
     },
+    "Toggle sidebar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toggle sidebar"
+          }
+        }
+      }
+    },
     "Toggle Sidebar" : {
       "comment" : "View menu item that shows or hides the board list",
       "localizations" : {
@@ -7551,26 +8056,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Toggle Sidebar"
-          }
-        }
-      }
-    },
-    "Toggle details sidebar" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Toggle details sidebar"
-          }
-        }
-      }
-    },
-    "Toggle sidebar" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Toggle sidebar"
           }
         }
       }
@@ -7608,13 +8093,13 @@
         }
       }
     },
-    "Trash %lld Tasks" : {
-      "comment" : "Menu item that puts several selected tasks in the trash",
+    "Trash “%@”?" : {
+      "comment" : "Alert title before a board column is thrown away; the placeholder is the column's name",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Trash %lld Tasks"
+            "value" : "Trash “%@”?"
           }
         }
       }
@@ -7626,6 +8111,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Trash (%lld)"
+          }
+        }
+      }
+    },
+    "Trash %lld Tasks" : {
+      "comment" : "Menu item that puts several selected tasks in the trash",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trash %lld Tasks"
           }
         }
       }
@@ -7652,6 +8148,16 @@
         }
       }
     },
+    "Trash task" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trash task"
+          }
+        }
+      }
+    },
     "Trash Task" : {
       "comment" : "Edit menu item that puts the selected task in the trash\nUndo action name for putting a task in the trash",
       "localizations" : {
@@ -7670,27 +8176,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Trash Tasks"
-          }
-        }
-      }
-    },
-    "Trash task" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Trash task"
-          }
-        }
-      }
-    },
-    "Trash “%@”?" : {
-      "comment" : "Alert title before a board column is thrown away; the placeholder is the column's name",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Trash “%@”?"
           }
         }
       }
@@ -7904,6 +8389,28 @@
         }
       }
     },
+    "was not within the last" : {
+      "comment" : "View criterion comparator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "was not within the last"
+          }
+        }
+      }
+    },
+    "was within the last" : {
+      "comment" : "View criterion comparator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "was within the last"
+          }
+        }
+      }
+    },
     "Wash" : {
       "comment" : "Theme editor section heading, from the design document\nTheme parameter: the faint fill behind quiet controls",
       "localizations" : {
@@ -8038,6 +8545,17 @@
         }
       }
     },
+    "yes" : {
+      "comment" : "View criterion comparator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "yes"
+          }
+        }
+      }
+    },
     "Yesterday" : {
       "comment" : "Due chip, one day overdue",
       "localizations" : {
@@ -8111,461 +8629,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Your board was saved by a newer version of Simple Kanban (format %lld)."
-          }
-        }
-      }
-    },
-    "all" : {
-      "comment" : "Joins view criteria: every one must match",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "all"
-          }
-        }
-      }
-    },
-    "and" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "and"
-          }
-        }
-      }
-    },
-    "any" : {
-      "comment" : "Joins view criteria: one is enough",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "any"
-          }
-        }
-      }
-    },
-    "are all done" : {
-      "comment" : "View criterion comparator",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "are all done"
-          }
-        }
-      }
-    },
-    "contains" : {
-      "comment" : "View criterion comparator",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "contains"
-          }
-        }
-      }
-    },
-    "days" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "days"
-          }
-        }
-      }
-    },
-    "deleted today" : {
-      "comment" : "Trash row: the last day before something is thrown away for good",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "deleted today"
-          }
-        }
-      }
-    },
-    "does not contain" : {
-      "comment" : "View criterion comparator",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "does not contain"
-          }
-        }
-      }
-    },
-    "does not include" : {
-      "comment" : "View criterion comparator",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "does not include"
-          }
-        }
-      }
-    },
-    "has some left" : {
-      "comment" : "View criterion comparator",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "has some left"
-          }
-        }
-      }
-    },
-    "iCloud" : {
-      "comment" : "Settings group heading",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "iCloud"
-          }
-        }
-      }
-    },
-    "iOS" : {
-      "comment" : "Seed label: Apple's mobile platform",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "iOS"
-          }
-        }
-      }
-    },
-    "includes" : {
-      "comment" : "View criterion comparator",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "includes"
-          }
-        }
-      }
-    },
-    "is" : {
-      "comment" : "View criterion comparator",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "is"
-          }
-        }
-      }
-    },
-    "is after" : {
-      "comment" : "View criterion comparator",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "is after"
-          }
-        }
-      }
-    },
-    "is any board" : {
-      "comment" : "View criterion comparator",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "is any board"
-          }
-        }
-      }
-    },
-    "is at least" : {
-      "comment" : "View criterion comparator",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "is at least"
-          }
-        }
-      }
-    },
-    "is at most" : {
-      "comment" : "View criterion comparator",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "is at most"
-          }
-        }
-      }
-    },
-    "is empty" : {
-      "comment" : "View criterion comparator",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "is empty"
-          }
-        }
-      }
-    },
-    "is not" : {
-      "comment" : "View criterion comparator",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "is not"
-          }
-        }
-      }
-    },
-    "is not empty" : {
-      "comment" : "View criterion comparator",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "is not empty"
-          }
-        }
-      }
-    },
-    "is on or before" : {
-      "comment" : "View criterion comparator",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "is on or before"
-          }
-        }
-      }
-    },
-    "is the Inbox" : {
-      "comment" : "View criterion comparator",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "is the Inbox"
-          }
-        }
-      }
-    },
-    "is this week" : {
-      "comment" : "View criterion comparator",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "is this week"
-          }
-        }
-      }
-    },
-    "is within the next" : {
-      "comment" : "View criterion comparator",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "is within the next"
-          }
-        }
-      }
-    },
-    "just now" : {
-      "comment" : "Activity feed timestamp for something that happened moments ago",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "just now"
-          }
-        }
-      }
-    },
-    "no" : {
-      "comment" : "View criterion comparator",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "no"
-          }
-        }
-      }
-    },
-    "of the following" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "of the following"
-          }
-        }
-      }
-    },
-    "or" : {
-      "comment" : "Between two keys that do the same thing",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "or"
-          }
-        }
-      }
-    },
-    "shipped" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "shipped"
-          }
-        }
-      }
-    },
-    "text" : {
-      "comment" : "Placeholder for a view criterion's text value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "text"
-          }
-        }
-      }
-    },
-    "was not within the last" : {
-      "comment" : "View criterion comparator",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "was not within the last"
-          }
-        }
-      }
-    },
-    "was within the last" : {
-      "comment" : "View criterion comparator",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "was within the last"
-          }
-        }
-      }
-    },
-    "yes" : {
-      "comment" : "View criterion comparator",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "yes"
-          }
-        }
-      }
-    },
-    "·" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "·"
-          }
-        }
-      }
-    },
-    "· %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "· %@"
-          }
-        }
-      }
-    },
-    "—" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "—"
-          }
-        }
-      }
-    },
-    "“%@” cannot be brought back. Export it first if you might want it again." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%@” cannot be brought back. Export it first if you might want it again."
-          }
-        }
-      }
-    },
-    "“%@” is missing from %@." : {
-      "comment" : "Theme import error: a required field is absent from a section",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%1$@” is missing from %2$@."
-          }
-        }
-      }
-    },
-    "“%@” is missing." : {
-      "comment" : "Theme import error: a required field is absent",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%@” is missing."
-          }
-        }
-      }
-    },
-    "⌃⌘N from anywhere drops a task into Up Next." : {
-      "comment" : "Seed board: task description",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⌃⌘N from anywhere drops a task into Up Next."
-          }
-        }
-      }
-    },
-    "⌘Z takes the whole import back." : {
-      "comment" : "Alert footer reminding the user an import is undoable",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⌘Z takes the whole import back."
           }
         }
       }
