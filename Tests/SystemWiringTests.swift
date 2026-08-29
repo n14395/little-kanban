@@ -103,6 +103,29 @@ import Testing
                 "the intent bridge is adopted from somewhere other than the app's init()")
     }
 
+    /// The share extension can only write into the App Group — see
+    /// ``CaptureInbox`` — so this call is the *only* path a shared item takes
+    /// onto the board. Without it a share sheet reports success and the card
+    /// never appears, which is the worst kind of silent failure: the user
+    /// watched it work.
+    @Test func theAppDrainsWhatWasSharedIntoIt() throws {
+        try expectCalled(
+            "store.adoptPendingCaptures()",
+            "nothing drains the App Group, so anything shared into the app is written and never read"
+        )
+    }
+
+    /// Twice, and both are needed. `.onAppear` catches what was shared while
+    /// the app was not running — a launch is not a foregrounding on either
+    /// platform, so the scene comes up already active and `scenePhase` never
+    /// changes. The `.active` branch catches everything after that.
+    @Test func theDrainRunsAtLaunchAndOnComingForward() throws {
+        let app = try Self.source(named: "SimpleKanbanApp.swift")
+        let calls = app.components(separatedBy: "store.adoptPendingCaptures()").count - 1
+        #expect(calls == 2,
+                "the drain is called \(calls) times; it belongs on `.onAppear` and on `scenePhase == .active`")
+    }
+
     /// Handoff and Spotlight publish the open task from whichever surface is
     /// showing one. Two surfaces show one, and a modifier on only the desk's
     /// leaves the phone handing off nothing.

@@ -59,6 +59,29 @@ import Testing
         }
     }
 
+    /// A WIP limit is an attribute added to a schema that already existed, so
+    /// it is exactly the shape `SyncSchema`'s additive-only rule is about:
+    /// optional, defaulted, and `nil` on every record a build without it wrote.
+    ///
+    /// There is no version stamp on a record to refuse on — see
+    /// `StoredColumn.limit` — so this round trip is the whole of the guarantee
+    /// sync can offer about the field.
+    @Test func aColumnsWipLimitSurvivesTheRoundTrip() throws {
+        let sync = try store()
+        var boards = SeedData.boards
+        boards[0].columns[0].limit = 3
+        try sync.apply(snapshot(boards: boards))
+
+        let read = try #require(try sync.load())
+        let board = try #require(read.boards.first { $0.id == boards[0].id })
+        #expect(board.columns.first?.limit == 3)
+        #expect(board.columns.dropFirst().allSatisfy { $0.limit == nil },
+                "a limit set on one column reached the others")
+        // The whole board, field for field, which is what says the limit did
+        // not arrive at the cost of something else on the record.
+        #expect(board == boards[0])
+    }
+
     /// Task order is the order a manual drag writes. Unlike a Swift array,
     /// SwiftData's fetch order has no ordering contract, so the record stores
     /// it and the reader must use that position rather than fetch order.

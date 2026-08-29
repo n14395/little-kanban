@@ -369,6 +369,7 @@ final class BoardSyncStore: SyncStoring {
             // spelled in v8's vocabulary.
             record.roleKey = index == columns.count - 1 ? "done" : "backlog"
             record.position = index
+            record.limit = column.limit
         }
         for orphan in existing.values { context.delete(orphan) }
     }
@@ -601,7 +602,8 @@ final class BoardSyncStore: SyncStoring {
             id: record.id,
             name: record.name,
             short: record.short,
-            dot: Self.decoded(record.dot) ?? .accent
+            dot: Self.decoded(record.dot) ?? .accent,
+            limit: record.limit
         )
     }
 

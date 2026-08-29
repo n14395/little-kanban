@@ -178,6 +178,19 @@ final class StoredColumn {
     /// one still finds exactly one Done column and finds it in the right place.
     var roleKey: String = "backlog"
     var position: Int = 0
+    /// The column's WIP limit — ``BoardColumn/limit`` — or `nil` for none,
+    /// which is also what a record written before this attribute existed
+    /// decodes as. Optional and defaulted for the reason every attribute here
+    /// is: a record written by a build that did not know about a property still
+    /// has to decode.
+    ///
+    /// **There is no version to refuse on.** The board *file* refuses a v13
+    /// build outright; a CloudKit record carries no stamp, so a device on an
+    /// older build reads a limited column as unlimited and writes that back if
+    /// it edits the column. That is the bargain `Priority.max` already made —
+    /// see `StoredTask.priorityKey` and the README's v7 → v8 note — and it is
+    /// why the guarantee lives in `board.json`.
+    var limit: Int?
     var board: StoredBoard?
 
     init(id: UUID = UUID()) {

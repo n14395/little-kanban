@@ -144,6 +144,10 @@ struct WidgetHeading: View {
     let title: String
     var subtitle: String?
     var count: Int?
+    /// Only the column widget passes one: a board's total and a saved view's
+    /// are counts of things gathered from everywhere, and neither has a limit
+    /// to be over.
+    var limit: Int?
 
     var body: some View {
         HStack(spacing: 6) {
@@ -169,7 +173,7 @@ struct WidgetHeading: View {
             }
             Spacer(minLength: 4)
             if let count {
-                WidgetCountPill(count: count)
+                WidgetCountPill(count: count, limit: limit)
             }
         }
     }
@@ -180,15 +184,32 @@ struct WidgetCountPill: View {
     @Environment(\.palette) private var palette
 
     let count: Int
+    /// The column's WIP limit, when it has one — see ``BoardColumn/limit``. The
+    /// app's own `CountPill` reads exactly the same way, through exactly the
+    /// same `Palette.loadTone(_:)`, which is the point: a column drawn `4/3` in
+    /// hot on the board must not be a plain `4` on the home screen.
+    var limit: Int?
 
     var body: some View {
-        Text(count.formatted())
+        let tone = palette.loadTone(ColumnLoad(count: count, limit: limit))
+        return label
             .font(palette.ui(10, .bold, relativeTo: .caption2))
             .monospacedDigit()
-            .foregroundStyle(palette.inkText(0.6))
+            .foregroundStyle(tone?.foreground ?? palette.inkText(0.6))
             .padding(.horizontal, 5)
             .padding(.vertical, 1)
-            .background(palette.wash, in: Capsule())
+            .background(tone?.background ?? palette.wash, in: Capsule())
+    }
+
+    /// The limited spelling is the catalogue key the app's own `CountPill`
+    /// writes, deliberately: one entry, one translation, and the two pills
+    /// cannot drift into two ideas of what a pair of numbers looks like.
+    @ViewBuilder private var label: some View {
+        if let limit {
+            Text("\(count)/\(limit)", comment: "A column's card count against its WIP limit, as in 4/3")
+        } else {
+            Text(count.formatted())
+        }
     }
 }
 

@@ -140,4 +140,27 @@ extension Palette {
     ) -> (background: Color, foreground: Color) {
         dueTone(urgency: DueDate.urgency(due, from: today), isDone: isDone)
     }
+
+    /// The count pill's tint when a column is at or over its WIP limit.
+    ///
+    /// **The two due-chip recipes rather than two new theme parameters.** "This
+    /// is getting tight" and "this is past it" are precisely what warm and hot
+    /// already mean everywhere else in the app, all twenty presets have tuned
+    /// them against their own ground, and a `ThemeWip` pair would have made a
+    /// WIP limit a *theme* schema change — twenty presets and everybody's saved
+    /// themes rewritten — for two colours every theme already carries.
+    ///
+    /// `nil` for a column with no limit, and for one under it: the pill draws
+    /// its plain self, which is what it has always drawn. Colouring the normal
+    /// case would spend the reader's attention on the columns that are fine.
+    func loadTone(_ load: ColumnLoad) -> (background: Color, foreground: Color)? {
+        switch load {
+        case .unlimited, .under:
+            nil
+        case .at:
+            (theme.dueChips.warm.background.color, theme.dueChips.warm.foreground.color)
+        case .over:
+            (theme.dueChips.hot.background.color, theme.dueChips.hot.foreground.color)
+        }
+    }
 }

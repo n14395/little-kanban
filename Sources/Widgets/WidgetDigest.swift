@@ -30,7 +30,13 @@ struct WidgetDigest: Codable, Hashable, Sendable {
     /// be one: a digest the extension cannot read is redrawn by the app within
     /// the second, so the reader simply refuses anything that is not its own
     /// version. See ``WidgetShare``.
-    static let currentVersion = 1
+    /// **2 since columns carry a WIP limit.** A digest is a cache and a
+    /// version that does not match is refused rather than migrated — see
+    /// ``WidgetDigestFile/decode(_:)`` — so a bump costs one placeholder render
+    /// until the app writes the next digest, which is within half a second of
+    /// the next edit. That is the whole price, and it buys a widget that cannot
+    /// draw `4` beside a column the app is drawing `4/3` for.
+    static let currentVersion = 2
 
     /// How many rows any one list carries.
     ///
@@ -130,6 +136,10 @@ struct WidgetColumn: Identifiable, Codable, Hashable, Sendable {
     var dot: SwatchColor
     /// Every card in the column, not just the ones in ``tasks``. The badge on a
     /// widget has to agree with the badge on the board.
+    /// The column's WIP limit, or `nil` for none — ``BoardColumn/limit``. The
+    /// widget draws the same `4/3` pill the board does, which is the only
+    /// reason it crosses the fence.
+    var limit: Int?
     var count: Int
     var tasks: [WidgetTask]
 }

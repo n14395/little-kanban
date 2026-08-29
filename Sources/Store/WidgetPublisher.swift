@@ -94,6 +94,7 @@ enum WidgetPublisher {
                 let cards = store.visibleTasks(in: column.id)
                 return WidgetColumn(
                     id: column.id, name: column.name, short: column.short, dot: column.dot,
+                    limit: column.limit,
                     count: cards.count, tasks: rows(cards, in: store)
                 )
             }

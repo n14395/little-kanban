@@ -566,6 +566,8 @@ struct BoardSettingsView: View {
                 dot: column.dot, setDot: { store.recolorColumn(column.id, to: $0) }
             )
 
+            columnLimit(column)
+
             if isDoneColumn(column) {
                 Text("Every board keeps its Done column, at the end. Ticking a task sends it here.")
                     .font(palette.ui(12.5, .medium, relativeTo: .footnote))
@@ -598,6 +600,62 @@ struct BoardSettingsView: View {
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 14)
+    }
+
+    /// The column's WIP limit — see ``BoardColumn/limit``.
+    ///
+    /// **A toggle and a stepper, because that is what the one other optional
+    /// number in this app already is:** `SavedViewEditor` sets a view's card cap
+    /// with exactly this pair. Two spellings of "an `Int?` the user chooses"
+    /// would be two controls to learn for one idea, and a text field would need
+    /// its own answer to what a half-typed `1` on its way to `13` means.
+    ///
+    /// Written straight to the store rather than into a draft, the way the
+    /// colour well above it is. There is nothing to type here, so there is no
+    /// half-finished state that a commit-on-close would be protecting.
+    ///
+    /// **The Done column gets one too.** It is unusual to limit finished work
+    /// and it is not this pane's business to say so: a board whose last column
+    /// is Ready to Ship is a board where a cap means something, and the limit
+    /// is advisory everywhere, so the worst an odd one can do is colour a pill.
+    @ViewBuilder private func columnLimit(_ column: BoardColumn) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Toggle(isOn: Binding(
+                get: { column.limit != nil },
+                // **Switched on, it starts at what the column already holds.**
+                // Any fixed default would put most columns straight over a
+                // limit the user has not chosen yet — a warning colour arriving
+                // as the result of turning the feature on, which reads as
+                // having broken something. Starting at the current count can
+                // never produce `over`; narrowing it from there is a decision
+                // somebody makes on purpose.
+                set: { on in
+                    let count = store.visibleTasks(in: column.id).count
+                    store.setColumnLimit(on ? max(count, 1) : nil, on: column.id)
+                }
+            )) {
+                Text("Limit work in progress")
+                    .font(palette.ui(13, .semibold, relativeTo: .subheadline))
+                    .foregroundStyle(palette.ink(0.7))
+            }
+            .toggleStyle(.switch)
+
+            if let limit = column.limit {
+                Stepper(
+                    value: Binding(
+                        get: { limit },
+                        set: { store.setColumnLimit($0, on: column.id) }
+                    ),
+                    in: BoardStore.columnLimitRange
+                ) {
+                    Text(String(localized: "At most \(limit) at a time",
+                                comment: "How many cards a column is meant to hold at once — its WIP limit"))
+                        .font(palette.ui(13, .semibold, relativeTo: .subheadline))
+                        .foregroundStyle(palette.ink(0.7))
+                        .monospacedDigit()
+                }
+            }
+        }
     }
 
     private func columnField(_ title: LocalizedStringKey, text: Binding<String>, focus target: ColumnField) -> some View {

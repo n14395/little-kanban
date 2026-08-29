@@ -136,6 +136,11 @@ struct SimpleKanbanApp: App {
                 // than as anything the app asked for, so the listener goes up
                 // once and stays up.
                 store.beginObservingRemoteChanges()
+                // Anything shared while the app was not running. Here as well
+                // as on `.active` because a launch is not a foregrounding on
+                // either platform: the scene comes up already active and the
+                // change never fires.
+                store.adoptPendingCaptures()
             }
             .modifier(ScenePhaseWork(store: store, dayClock: dayClock))
     }
@@ -154,6 +159,12 @@ private struct ScenePhaseWork: ViewModifier {
             if phase == .active {
                 // A machine that slept through midnight never got its wake.
                 dayClock.refresh()
+                // Coming forward is the moment to collect whatever the share
+                // extension left in the App Group while this process was
+                // suspended — it cannot write to the board itself, so this is
+                // the only path a shared item takes onto it. Cheap and silent
+                // with nothing waiting.
+                store.adoptPendingCaptures()
             } else {
                 // Edits are written on a short debounce; leaving the foreground
                 // is one of the moments that debounce would not survive.

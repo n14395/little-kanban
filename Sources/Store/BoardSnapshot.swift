@@ -52,7 +52,7 @@ struct BoardSnapshot: Codable, Sendable {
     /// written before them means: a build whose sidebar offered exactly those.
     var views: [SavedView] = SavedView.seededAll
 
-    static let currentVersion = 13
+    static let currentVersion = 14
 
     enum CodingKeys: String, CodingKey {
         case version, tasks, boards, labels, nextSerial, activeBoardID, trash, palette, views, themes
@@ -322,7 +322,8 @@ struct BoardFile: Sendable {
         let atV12 = migratedFrom < 12
             ? BoardSnapshot.migrate(v11: atV11, accent: legacyAccent(in: data))
             : atV11
-        return (migratedFrom < 13 ? BoardSnapshot.migrate(v12: atV12) : atV12, migratedFrom)
+        let atV13 = migratedFrom < 13 ? BoardSnapshot.migrate(v12: atV12) : atV12
+        return (migratedFrom < 14 ? BoardSnapshot.migrate(v13: atV13) : atV13, migratedFrom)
     }
 
     /// Every version up to and including v8, decoded and walked forward to the
@@ -332,6 +333,13 @@ struct BoardFile: Sendable {
         switch try version(of: data) {
         case BoardSnapshot.currentVersion:
             return (try decoder.decode(BoardSnapshot.self, from: data), nil)
+        case 13:
+            // v13 and v14 are the same shape: v14 only *adds*
+            // `BoardColumn.limit`, and a synthesised decoder reads an absent
+            // `Optional` as `nil`, which is what a column written before there
+            // were WIP limits means. The bump is for the other direction, as
+            // ever — see `migrate(v13:)`.
+            return (try decoder.decode(BoardSnapshot.self, from: data), 13)
         case 12:
             // The new Inbox-completion timestamp is optional on `TaskItem`, so
             // v12 bytes already decode as the v13 shape without inventing state.

@@ -556,7 +556,7 @@
       }
     },
     "%lld/%lld" : {
-      "comment" : "Sub-task progress on a card: completed over total",
+      "comment" : "Sub-task progress on a card: completed over total\nA column's card count against its WIP limit, as in 4/3",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8921,6 +8921,580 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Your board was saved by a newer version of Simple Kanban (format %lld)."
+          }
+        }
+      }
+    },
+    "Change Column Limit" : {
+      "comment" : "Undo action name for setting or clearing a board column's WIP limit",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change Column Limit"
+          }
+        }
+      }
+    },
+    "iCloud's copy of the board could not be read when the app opened, so changes are staying on this device for now. Reading is retried with every save — Sync Now retries it too." : {
+      "comment" : "Settings note when the record store could not be read and pushes are withheld",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud's copy of the board could not be read when the app opened, so changes are staying on this device for now. Reading is retried with every save — Sync Now retries it too."
+          }
+        }
+      }
+    },
+    "Saving is paused so the unreadable board file is not written over. Export keeps a copy of what you do meanwhile." : {
+      "comment" : "iOS banner text while writes are held back",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saving is paused so the unreadable board file is not written over. Export keeps a copy of what you do meanwhile."
+          }
+        }
+      }
+    },
+    "The board could not be exported." : {
+      "comment" : "Alert title when the blocked-session export fails",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The board could not be exported."
+          }
+        }
+      }
+    },
+    "%lld of %lld, over the column limit" : {
+      "comment" : "VoiceOver label for a column count pill past its WIP limit",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld of %2$lld, over the column limit"
+          }
+        }
+      }
+    },
+    "%lld of %lld, at the column limit" : {
+      "comment" : "VoiceOver label for a column count pill exactly at its WIP limit",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld of %2$lld, at the column limit"
+          }
+        }
+      }
+    },
+    "%lld of %lld" : {
+      "comment" : "VoiceOver label for a column count pill below its WIP limit",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "${change} ${label} on ${task}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${change} ${label} on ${task}"
+          }
+        }
+      }
+    },
+    "Complete ${task}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complete ${task}"
+          }
+        }
+      }
+    },
+    "Find tasks in Simple Kanban" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find tasks in Simple Kanban"
+          }
+        }
+      }
+    },
+    "Get tasks in ${view}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get tasks in ${view}"
+          }
+        }
+      }
+    },
+    "Move ${task}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move ${task}"
+          }
+        }
+      }
+    },
+    "Open ${task}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open ${task}"
+          }
+        }
+      }
+    },
+    "Reopen ${task}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reopen ${task}"
+          }
+        }
+      }
+    },
+    "Set the due date of ${task} to ${due}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set the due date of ${task} to ${due}"
+          }
+        }
+      }
+    },
+    "Set the priority of ${task} to ${priority}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set the priority of ${task} to ${priority}"
+          }
+        }
+      }
+    },
+    "Limit work in progress" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limit work in progress"
+          }
+        }
+      }
+    },
+    "At most %lld at a time" : {
+      "comment" : "How many cards a column is meant to hold at once — its WIP limit",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "At most %lld at a time"
+          }
+        }
+      }
+    },
+    "That label no longer exists." : {
+      "comment" : "Shortcuts error: the named label has been deleted",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That label no longer exists."
+          }
+        }
+      }
+    },
+    "That task cannot be completed — the board it is on has no Done column." : {
+      "comment" : "Shortcuts error: there is nowhere to complete the task to",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That task cannot be completed — the board it is on has no Done column."
+          }
+        }
+      }
+    },
+    "Label Change" : {
+      "comment" : "Whether a Shortcut adds or removes a label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Label Change"
+          }
+        }
+      }
+    },
+    "Ticks a task off. A task on a board moves to its Done column; a task in the Inbox is completed where it is." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ticks a task off. A task on a board moves to its Done column; a task in the Inbox is completed where it is."
+          }
+        }
+      }
+    },
+    "Completed %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completed %@."
+          }
+        }
+      }
+    },
+    "%@ was already done." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ was already done."
+          }
+        }
+      }
+    },
+    "Takes a finished task back out of Done, to the column it was working in." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Takes a finished task back out of Done, to the column it was working in."
+          }
+        }
+      }
+    },
+    "Reopened %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reopened %@."
+          }
+        }
+      }
+    },
+    "%@ was not finished." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ was not finished."
+          }
+        }
+      }
+    },
+    "Moves a task to a column. With a board given instead, it goes to that board's first working column; with neither, it goes to the Inbox." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moves a task to a column. With a board given instead, it goes to that board's first working column; with neither, it goes to the Inbox."
+          }
+        }
+      }
+    },
+    "Moved %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moved %@."
+          }
+        }
+      }
+    },
+    "Opens a task in Simple Kanban." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opens a task in Simple Kanban."
+          }
+        }
+      }
+    },
+    "Find Tasks" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find Tasks"
+          }
+        }
+      }
+    },
+    "Finds tasks by text, board or column. With nothing given it returns everything on the board." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finds tasks by text, board or column. With nothing given it returns everything on the board."
+          }
+        }
+      }
+    },
+    "Get Tasks in View" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get Tasks in View"
+          }
+        }
+      }
+    },
+    "Returns the tasks a saved view gathers — Today, Overdue, or one of your own." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Returns the tasks a saved view gathers — Today, Overdue, or one of your own."
+          }
+        }
+      }
+    },
+    "Sets a task's due date. With no date given the due date is cleared." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sets a task's due date. With no date given the due date is cleared."
+          }
+        }
+      }
+    },
+    "Updated %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updated %@."
+          }
+        }
+      }
+    },
+    "Sets a task's priority." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sets a task's priority."
+          }
+        }
+      }
+    },
+    "Change Label" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change Label"
+          }
+        }
+      }
+    },
+    "Puts a label on a task or takes one off." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Puts a label on a task or takes one off."
+          }
+        }
+      }
+    },
+    "Change" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change"
+          }
+        }
+      }
+    },
+    "Sync Now" : {
+      "comment" : "Status bar button that sends this device's changes to iCloud and takes in the other devices'",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync Now"
+          }
+        }
+      }
+    },
+    "Send this device's changes and take in anything waiting from your other devices." : {
+      "comment" : "Status bar tooltip on the sync button when it can be pressed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send this device's changes and take in anything waiting from your other devices."
+          }
+        }
+      }
+    },
+    "Sync is off. Your board stays on this device — turn sync on in Settings." : {
+      "comment" : "Status bar tooltip on the sync button while sync is switched off",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync is off. Your board stays on this device — turn sync on in Settings."
+          }
+        }
+      }
+    },
+    "%@, %lld of %lld, over the column limit" : {
+      "comment" : "VoiceOver label for a column chip past its WIP limit",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$lld of %3$lld, over the column limit"
+          }
+        }
+      }
+    },
+    "%@, %lld of %lld, at the column limit" : {
+      "comment" : "VoiceOver label for a column chip exactly at its WIP limit",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$lld of %3$lld, at the column limit"
+          }
+        }
+      }
+    },
+    "%@, %lld of %lld" : {
+      "comment" : "VoiceOver label for a column chip below its WIP limit",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$lld of %3$lld"
+          }
+        }
+      }
+    },
+    "%@, %lld" : {
+      "comment" : "VoiceOver label for a column chip: the column's name and how many cards are in it",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$lld"
+          }
+        }
+      }
+    },
+    "Board Overview" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Board Overview"
+          }
+        }
+      }
+    },
+    "Saved View" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved View"
+          }
+        }
+      }
+    },
+    "Added to the Inbox" : {
+      "comment" : "Toast after things shared from another app are taken into the Inbox",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added to the Inbox"
+          }
+        }
+      }
+    },
+    "Add Shared Tasks" : {
+      "comment" : "Undo action name for taking shared items into the Inbox",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Shared Tasks"
+          }
+        }
+      }
+    },
+    "Add to Inbox" : {
+      "comment" : "Title of the share sheet that captures into Simple Kanban",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to Inbox"
+          }
+        }
+      }
+    },
+    "Note" : {
+      "comment" : "Field label on the share sheet, above the read-only note",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Note"
+          }
+        }
+      }
+    },
+    "This copy of Simple Kanban is not set up for sharing." : {
+      "comment" : "Share sheet error when the build is not entitled to the App Group",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This copy of Simple Kanban is not set up for sharing."
+          }
+        }
+      }
+    },
+    "That could not be saved. Try again, or add it in Simple Kanban." : {
+      "comment" : "Share sheet error when the capture could not be written to disk",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That could not be saved. Try again, or add it in Simple Kanban."
           }
         }
       }

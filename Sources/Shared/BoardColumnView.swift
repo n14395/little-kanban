@@ -206,7 +206,7 @@ struct BoardColumnView: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
 
-            CountPill(count: tasks.count)
+            CountPill(count: tasks.count, limit: column.limit)
 
             Spacer(minLength: 0)
 
@@ -490,6 +490,7 @@ private struct BoardColumnEditor: View {
                     store.recolorColumn(column.id, to: $0)
                 }
             }
+            limitControls
         }
         .padding(editor.padding)
         .frame(width: chrome(editor.width, cap: 1.45))
@@ -520,6 +521,50 @@ private struct BoardColumnEditor: View {
                 .frame(minHeight: chrome(editor.fieldHeight))
                 .fieldHitArea(minHeight: editor.fieldHit) { focus = target }
                 .background(palette.ink(0.06), in: .rect(cornerRadius: 8))
+        }
+    }
+
+    /// The WIP limit, the same toggle-and-stepper pair board settings draws and
+    /// wearing the same two strings — see `BoardSettingsView.columnLimit(_:)`,
+    /// which is where the reasoning for the control and for its starting value
+    /// is written down. It is here as well because this popover is the fast way
+    /// into a column on the desk, and a column setting reachable from only one
+    /// of the two places a column is edited is one nobody finds.
+    ///
+    /// Unlike the fields above it this writes straight through, as the colour
+    /// well does: there is nothing typed to commit.
+    @ViewBuilder private var limitControls: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle(isOn: Binding(
+                get: { column.limit != nil },
+                set: { on in
+                    let count = store.visibleTasks(in: column.id).count
+                    store.setColumnLimit(on ? max(count, 1) : nil, on: column.id)
+                }
+            )) {
+                Text("Limit work in progress")
+                    .font(palette.ui(editor.fieldFont, .semibold, relativeTo: .subheadline))
+                    .foregroundStyle(palette.ink(0.7))
+            }
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+
+            if let limit = column.limit {
+                Stepper(
+                    value: Binding(
+                        get: { limit },
+                        set: { store.setColumnLimit($0, on: column.id) }
+                    ),
+                    in: BoardStore.columnLimitRange
+                ) {
+                    Text(String(localized: "At most \(limit) at a time",
+                                comment: "How many cards a column is meant to hold at once — its WIP limit"))
+                        .font(palette.ui(editor.fieldFont, .semibold, relativeTo: .subheadline))
+                        .foregroundStyle(palette.ink(0.7))
+                        .monospacedDigit()
+                }
+                .controlSize(.mini)
+            }
         }
     }
 

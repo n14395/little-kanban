@@ -226,16 +226,56 @@ struct ColumnChip: View {
 struct CountPill: View {
     @Environment(\.palette) private var palette
     let count: Int
+    /// The column's WIP limit, when it has one — see ``BoardColumn/limit``.
+    /// `nil` draws the pill exactly as it always has: a bare number in the
+    /// wash, saying nothing about how full anything is.
+    var limit: Int?
     var font: CGFloat = 11
     var horizontalPadding: CGFloat = 6
 
+    private var load: ColumnLoad { ColumnLoad(count: count, limit: limit) }
+
     var body: some View {
-        Text("\(count)")
+        // The tone is `nil` under the limit and without one, which is the same
+        // pill this has always been. See `Palette.loadTone(_:)`.
+        let tone = palette.loadTone(load)
+        label
             .font(palette.ui(font, .bold, relativeTo: .caption2))
-            .foregroundStyle(palette.inkText(0.4))
+            .foregroundStyle(tone?.foreground ?? palette.inkText(0.4))
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, 1)
-            .background(palette.ink(0.06), in: .capsule)
+            .background(tone?.background ?? palette.ink(0.06), in: .capsule)
+            .accessibilityLabel(spokenLabel)
+    }
+
+    @ViewBuilder private var label: some View {
+        if let limit {
+            // Localised rather than assembled from a String, so a locale that
+            // wants a different separator between the pair has somewhere to say
+            // so — and so the numbers themselves are formatted for it.
+            Text("\(count)/\(limit)", comment: "A column's card count against its WIP limit, as in 4/3")
+        } else {
+            Text("\(count)")
+        }
+    }
+
+    /// Silent about a column with no limit, which leaves VoiceOver reading the
+    /// number itself — what it has always read, and all there is to say. A pill
+    /// carrying a limit reads as two numbers otherwise ("4 slash 3"), which
+    /// says nothing about whether that is good news.
+    private var spokenLabel: Text {
+        guard let limit else { return Text("\(count)") }
+        return switch load {
+        case .over:
+            Text("\(count) of \(limit), over the column limit",
+                 comment: "VoiceOver label for a column count pill past its WIP limit")
+        case .at:
+            Text("\(count) of \(limit), at the column limit",
+                 comment: "VoiceOver label for a column count pill exactly at its WIP limit")
+        case .under, .unlimited:
+            Text("\(count) of \(limit)",
+                 comment: "VoiceOver label for a column count pill below its WIP limit")
+        }
     }
 }
 

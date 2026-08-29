@@ -28,6 +28,53 @@ import UniformTypeIdentifiers
         #expect(string("CFBundleDisplayName") == "Simple Kanban")
     }
 
+    // MARK: The extensions
+
+    /// **Both extensions ship *inside* the app.** The system finds a widget or a
+    /// share sheet in the bundle that owns it, so one that failed to embed is
+    /// one nothing can ever launch — and nothing about the build says so: it
+    /// compiles, it signs, and the feature is simply absent.
+    @Test func theAppCarriesItsWidgetAndShareExtensions() throws {
+        let plugins = try #require(Bundle.main.builtInPlugInsURL, "the app has no PlugIns directory")
+        let names = (try? FileManager.default.contentsOfDirectory(
+            atPath: plugins.path(percentEncoded: false)
+        )) ?? []
+        #expect(names.contains("SimpleKanbanWidgets.appex"), "the widget extension is not embedded: \(names)")
+        #expect(names.contains("SimpleKanbanShare.appex"), "the share extension is not embedded: \(names)")
+    }
+
+    /// What the share extension declares about itself, read off the built
+    /// bundle rather than off `project.yml`.
+    ///
+    /// Each of these fails differently and none of them fails loudly. A wrong
+    /// `NSExtensionPointIdentifier` is an extension the share sheet never
+    /// offers; a wrong `NSExtensionPrincipalClass` — and it carries the module
+    /// name, which is `PRODUCT_NAME` — is one it offers and then fails to load,
+    /// with nothing in the log naming the key; an activation rule that matches
+    /// nothing is an extension that is installed and never appears.
+    @Test func theShareExtensionDeclaresWhatItIsAndWhatItTakes() throws {
+        let plugins = try #require(Bundle.main.builtInPlugInsURL)
+        let appex = try #require(
+            Bundle(url: plugins.appending(path: "SimpleKanbanShare.appex")),
+            "the share extension is not in the built app"
+        )
+        let info = appex.infoDictionary ?? [:]
+        #expect(info["CFBundleIdentifier"] as? String == "com.n14395.SimpleKanban.Share")
+        // The extension's version must match the app's, or a .dmg refuses to
+        // install and a submission is rejected — the same rule the widgets keep.
+        #expect(info["CFBundleShortVersionString"] as? String == string("CFBundleShortVersionString"))
+        #expect(info["CFBundleVersion"] as? String == string("CFBundleVersion"))
+
+        let extensionInfo = try #require(info["NSExtension"] as? [String: Any])
+        #expect(extensionInfo["NSExtensionPointIdentifier"] as? String == "com.apple.share-services")
+        #expect(extensionInfo["NSExtensionPrincipalClass"] as? String == "SimpleKanbanShare.ShareViewController")
+
+        let attributes = try #require(extensionInfo["NSExtensionAttributes"] as? [String: Any])
+        let rule = try #require(attributes["NSExtensionActivationRule"] as? [String: Any])
+        #expect(rule["NSExtensionActivationSupportsText"] as? Bool == true)
+        #expect(rule["NSExtensionActivationSupportsWebURLWithMaxCount"] as? Int == 1)
+    }
+
     // MARK: Version
 
     /// A marketing version the About panel can show and a build number the

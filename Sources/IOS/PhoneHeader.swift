@@ -419,6 +419,7 @@ struct PhoneHeader: View {
                         ColumnPill(
                             name: column.name,
                             count: store.visibleTasks(in: column.id).count,
+                            limit: column.limit,
                             isCurrent: isCurrent
                         )
                         // The capsule stays as drawn; the row around it is the

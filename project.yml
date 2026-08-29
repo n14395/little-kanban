@@ -28,6 +28,12 @@ targets:
         # two targets *share* is `Sources/Widgets/`, which stays in both.
         excludes:
           - "WidgetExtension"
+          # The share extension's own code, for `WidgetExtension`'s reason: it
+          # is under `Sources/` so the suite's source-tree rules apply to it,
+          # and it is compiled into `SimpleKanbanShare` below rather than here.
+          # What the two targets *share* is `Sources/Capture/`, which stays in
+          # both — the same arrangement `Sources/Widgets/` is.
+          - "ShareExtension"
       - path: Resources/Assets.xcassets
       # The String Catalog every `String(localized:)` and `Text(_:comment:)` in
       # the app extracts into. `SWIFT_EMIT_LOC_STRINGS` above writes the
@@ -229,6 +235,10 @@ targets:
       # they share is what lets it read anything. XcodeGen copies it into
       # `PlugIns/` on both platforms.
       - target: SimpleKanbanWidgets
+      # The share sheet, embedded for the same reason and on both platforms:
+      # macOS puts it in the Share menu once Launch Services has seen the app,
+      # iOS puts it in the share sheet. See `SimpleKanbanShare` below.
+      - target: SimpleKanbanShare
     scheme:
       testTargets:
         - SimpleKanbanTests
@@ -257,10 +267,12 @@ targets:
       - path: Sources/WidgetExtension
       - path: Sources/Widgets
       - path: Sources/Theme
-      # The four model types the theme layer asks about: a priority has a dot
-      # colour, a due date has a chip, and a label has a chip rule. Nothing else
-      # from the model crosses — the extension is handed answers, not a board.
+      # The five model types the theme layer asks about: a priority has a dot
+      # colour, a due date has a chip, a column's load against its WIP limit has
+      # a chip recipe, and a label has a chip rule. Nothing else from the model
+      # crosses — the extension is handed answers, not a board.
       - path: Sources/Model/CalendarDay.swift
+      - path: Sources/Model/ColumnLoad.swift
       - path: Sources/Model/DueDate.swift
       - path: Sources/Model/Priority.swift
       - path: Sources/Model/TaskLabel.swift
@@ -303,6 +315,81 @@ targets:
         CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Resources/SimpleKanbanWidgets.entitlements
         CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: Resources/SimpleKanbanWidgets-iOS.entitlements
         CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Resources/SimpleKanbanWidgets-iOS.entitlements
+
+  # The share sheet: text or a link from any app becomes an Inbox card.
+  #
+  # **It shares source with the app rather than a framework**, the way
+  # `SimpleKanbanWidgets` does and for the same reasons. What crosses is
+  # `Sources/Capture/` — the capture, the rules that turn a payload into one,
+  # and the folder in the App Group it is written to — plus the theme layer and
+  # `Sources/Widgets/`, which is how the sheet knows the App Group's name and
+  # reads the digest to wear the user's theme. It never opens the board file or
+  # the record store; `CaptureInbox` says why at length.
+  #
+  # `Resources/Fonts` is here for the widgets' reason: `FontCatalog` registers
+  # what it finds in `Bundle.main`, which inside an extension is the extension.
+  SimpleKanbanShare:
+    type: app-extension
+    supportedDestinations: [macOS, iOS]
+    sources:
+      - path: Sources/ShareExtension
+      - path: Sources/Capture
+      - path: Sources/Widgets
+      - path: Sources/Theme
+      # The same five the widgets take, and for the same reason: the theme layer
+      # asks these four value types for a colour, and `ColumnLoad` for a chip.
+      - path: Sources/Model/CalendarDay.swift
+      - path: Sources/Model/ColumnLoad.swift
+      - path: Sources/Model/DueDate.swift
+      - path: Sources/Model/Priority.swift
+      - path: Sources/Model/TaskLabel.swift
+      - path: Resources/Localizable.xcstrings
+      - path: Resources/Fonts
+        type: folder
+    info:
+      path: Resources/ShareInfo.plist
+      properties:
+        CFBundleDisplayName: Simple Kanban
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSHumanReadableCopyright: "Copyright © 2026 Nicholas Fay. All rights reserved."
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          # `$(PRODUCT_MODULE_NAME).ShareViewController` — a Swift class is
+          # named to ObjC by its module. Get this wrong and the share sheet
+          # shows the extension and then fails to load it, with nothing in the
+          # log that names this key.
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            # Text and one link. **No `SupportsWebPageWithMaxCount`**: that one
+            # asks the system to run a JavaScript preprocessing file inside the
+            # page, which is a whole extra artefact and a whole extra trust
+            # question for a title this extension already gets from
+            # `attributedContentText`.
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+    settings:
+      base:
+        PRODUCT_NAME: SimpleKanbanShare
+        PRODUCT_BUNDLE_IDENTIFIER: com.n14395.SimpleKanban.Share
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        # An embedded extension is copied into the app rather than installed
+        # beside it; without this the archive carries a second, loose copy.
+        SKIP_INSTALL: YES
+        SUPPORTS_MACCATALYST: NO
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: P52946XHRJ
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
+        # The App Group, and on macOS the sandbox that makes granting it
+        # possible. No iCloud container and no network client: this bundle
+        # writes one file into the group and the app drains it.
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Resources/SimpleKanbanShare.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: Resources/SimpleKanbanShare-iOS.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Resources/SimpleKanbanShare-iOS.entitlements
 
   # A target of its own, and a scheme of its own, deliberately. Drag and drop
   # is the one interaction in this app that no unit test can reach: the store

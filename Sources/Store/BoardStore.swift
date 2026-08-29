@@ -266,6 +266,19 @@ struct Announcement: Identifiable, Equatable, Sendable {
     /// brought a card down and a pull that found nothing both end with the
     /// spinner going away, and "nothing arrived" is the answer people are
     /// actually waiting for confirmation of.
+    /// Shares drained out of the App Group as the app comes forward — see
+    /// ``BoardStore/adoptPendingCaptures()``.
+    ///
+    /// **No count in the sentence.** The Inbox row's own badge is about to say
+    /// how many arrived, and it says it in a place that stays on screen; a
+    /// counted noun here would be the same number twice, and would want a
+    /// plural rule for it.
+    static let captured = Announcement(
+        text: String(localized: "Added to the Inbox",
+                     comment: "Toast after things shared from another app are taken into the Inbox"),
+        symbol: "tray.and.arrow.down"
+    )
+
     static func synced(adopted: Bool) -> Announcement {
         adopted
             ? Announcement(
@@ -2752,6 +2765,26 @@ final class BoardStore {
         }
     }
 
+    /// The board's answer to a piece of text, **without touching the session's
+    /// own query** — what Shortcuts asks through `FindTasksIntent`.
+    ///
+    /// ``narrowed(_:)`` cannot do this: it reads `query`, which is the field
+    /// the user is typing in, and an intent that ran while somebody was
+    /// searching would answer their question instead of its own — or, if it set
+    /// `query` first, would rewrite the search field of an app it was never
+    /// meant to disturb. The scoring is the same `TaskSearch` the panel uses, so
+    /// the two cannot drift into two ideas of what a match is.
+    ///
+    /// Archived cards are left out, as they are everywhere the board is asked
+    /// what it holds.
+    func tasks(matching text: String) -> [TaskItem] {
+        let tokens = TaskSearch.tokens(in: text)
+        guard !tokens.isEmpty else { return tasks.filter { !$0.isArchived } }
+        return tasks.filter { task in
+            !task.isArchived && TaskSearch.score(searchText(for: task), matching: tokens) != nil
+        }
+    }
+
     /// The global Inbox: everything on no board, in board order.
     ///
     /// Memoised because it is not only the panel that asks: `groundCaret`
@@ -4661,6 +4694,51 @@ final class BoardStore {
         return id
     }
 
+    /// Takes everything the share extension has left in the App Group and makes
+    /// Inbox cards of it. Returns how many arrived.
+    ///
+    /// Called as the app comes forward and once at launch — see
+    /// `ScenePhaseWork`. The extension cannot write to the board itself (see
+    /// ``CaptureInbox``), so this is the only path a shared item takes onto it,
+    /// and it has to be safe to call at any moment, including when there is
+    /// nothing waiting.
+    ///
+    /// **One step for the lot.** N shares cost one ⌘Z, the way a paste of N
+    /// lines does — `addTasks` makes the same bargain for the same reason.
+    ///
+    /// **A file is deleted only once its card exists.** The order matters and
+    /// it is the order below: mint first, then remove. A crash in between costs
+    /// a card that arrives twice, which the user can delete; the other order
+    /// costs one that never arrives at all, which they cannot get back and
+    /// would have no way of even knowing about.
+    @discardableResult
+    func adoptPendingCaptures() -> Int {
+        let (captures, unreadable) = CaptureInbox.pending()
+        // Set aside rather than deleted or retried — `CaptureInbox.reject`.
+        for file in unreadable { CaptureInbox.reject(file) }
+        guard !captures.isEmpty else { return 0 }
+
+        var made: [(PendingCapture.ID, TaskItem.ID)] = []
+        undoable(String(localized: "Add Shared Tasks",
+                        comment: "Undo action name for taking shared items into the Inbox")) {
+            for capture in captures {
+                // `.captured` rather than `.created`: this arrived through the
+                // share sheet, which is the same errand the menu bar's quick add
+                // and the widget's `+` are on.
+                let id = mintTask(to: .inbox, title: capture.title, log: .captured)
+                if !capture.note.isEmpty {
+                    setText(capture.note, field: .note, on: id)
+                }
+                made.append((capture.id, id))
+            }
+        }
+        for (captureID, taskID) in made where self[taskID] != nil {
+            CaptureInbox.remove(captureID)
+        }
+        announce(.captured)
+        return made.count
+    }
+
     /// Files a card a `+` has just made empty, exactly as it was made, so that
     /// closing its editor can tell whether anything was filled in. See
     /// ``blankCaptures``.
@@ -5456,6 +5534,60 @@ final class BoardStore {
             boards[board].columns[index].dot = dot
             scheduleSave()
         }
+    }
+
+    /// The widest limit a column may be given. Not a rule about kanban — a
+    /// board with a hundred cards in one column has bigger problems than the
+    /// chip — but a field that accepts `999999999` is a field that draws
+    /// `4/999999999` in a pill eight points wide.
+    static let columnLimitRange = 1...99
+
+    /// Sets a column's WIP limit, or clears it with `nil`.
+    ///
+    /// A limit outside ``columnLimitRange`` is clamped rather than refused, and
+    /// **zero clears** — the field is a number field, `0` is what backspacing
+    /// to nothing and typing one digit passes through on the way, and a column
+    /// nothing may ever be in is not a thing anybody means. See
+    /// ``BoardColumn/limit`` for why the stored form is an `Int?` and not a
+    /// zero-means-none `Int`.
+    ///
+    /// Nothing is logged and no card is touched, for `renameColumn`'s reason:
+    /// the limit is on screen, and the cards in the column did not change.
+    func setColumnLimit(_ limit: Int?, on id: BoardColumn.ID) {
+        let clamped = limit.flatMap { value -> Int? in
+            guard value > 0 else { return nil }
+            return min(max(value, Self.columnLimitRange.lowerBound), Self.columnLimitRange.upperBound)
+        }
+        guard let board = boardIndex(ofColumn: id),
+              let index = boards[board].columns.firstIndex(where: { $0.id == id }),
+              boards[board].columns[index].limit != clamped
+        else { return }
+        undoable(String(localized: "Change Column Limit",
+                        comment: "Undo action name for setting or clearing a board column's WIP limit")) {
+            boards[board].columns[index].limit = clamped
+            scheduleSave()
+        }
+    }
+
+    /// How full a column is against its limit.
+    ///
+    /// **Measured against what the board draws, not against
+    /// ``cardCount(inColumn:)``.** That one counts archived cards, deliberately
+    /// and correctly — it exists for the delete-a-column warning, where a
+    /// promise to move four cards must not then move nine. A limit counting
+    /// them would climb for as long as the board is used: every card ever
+    /// finished and filed away would still be pressing against the limit, and a
+    /// column would sit permanently over one with nothing on screen to explain
+    /// it. Archived is off the board, and off the board is not work in
+    /// progress.
+    ///
+    /// So this reads ``visibleTasks(in:)`` — the same array the column header
+    /// already has in hand, and the same number the pill has always shown. The
+    /// search query does not narrow it (see ``searchResults``) and a saved view
+    /// draws no columns at all, so there is no state in which the pill's count
+    /// and the limit's count are different numbers.
+    func load(ofColumn id: BoardColumn.ID) -> ColumnLoad {
+        ColumnLoad(count: visibleTasks(in: id).count, limit: column(id: id)?.limit)
     }
 
     // MARK: The palette

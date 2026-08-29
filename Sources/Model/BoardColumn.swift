@@ -26,6 +26,27 @@ struct BoardColumn: Identifiable, Hashable, Codable, Sendable {
     var short: String
     var dot: SwatchColor
 
+    /// How many cards the column is meant to hold at once — a kanban WIP limit
+    /// — or `nil` for no limit, which is what every column starts as and what
+    /// every column written before v14 means.
+    ///
+    /// **Advisory, and only advisory.** The count pill says `4/3` and turns
+    /// warm at the limit and hot over it; nothing anywhere refuses a card
+    /// because of this number. A drag, a drop, the composer, a paste of forty
+    /// lines, a move from Shortcuts, reopening a card and restoring one from
+    /// the trash all land exactly as they did before — refusing a drop would
+    /// punish the moment somebody is trying to reorganise, which is the moment
+    /// a full column most needs rearranging. ``BoardStore/load(ofColumn:)`` is
+    /// the whole of what the limit does, and `ColumnTests` pins the refusal
+    /// that must never appear.
+    ///
+    /// An `Int?` rather than an `Int` with `0` meaning none: zero is a
+    /// perfectly sayable limit that happens to mean "nothing may be here",
+    /// and a field where the off state and a real value share a spelling is
+    /// one nobody can set back to off with confidence. ``BoardStore`` clamps
+    /// what it is given and turns a zero into `nil` on the way in.
+    var limit: Int?
+
     /// What a column made by hand starts as, before anybody picks a colour.
     ///
     /// **Deliberately not one of `Board.dots`.** The six are choices; this is

@@ -112,7 +112,7 @@ struct PhoneColumnPage<Trailing: View>: View {
     /// what tells them apart.
     private var heading: some View {
         HStack(spacing: 8) {
-            ColumnPill(name: column.name, count: tasks.count)
+            ColumnPill(name: column.name, count: tasks.count, limit: column.limit)
             Spacer(minLength: 0)
         }
         .padding(.horizontal, metrics.horizontalPadding)

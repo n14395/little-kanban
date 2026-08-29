@@ -1,6 +1,10 @@
 import Foundation
 
-/// The one piece of disk the app and its widgets both hold.
+/// The App Group, and the digest the app and its widgets both hold.
+///
+/// It is no longer the only thing in the container: `CaptureInbox` puts a
+/// `Captures/` folder beside `Widgets/` for the share extension to write into,
+/// which is exactly what ``digestURL`` left room for below.
 ///
 /// **Not `board.json`.** The board file lives in the app's own container, it is
 /// versioned, it is migrated on the way in, and it is the only copy of the

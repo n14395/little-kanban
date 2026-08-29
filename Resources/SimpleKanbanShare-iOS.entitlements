@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- iOS sandboxes every extension, so the macOS file's `app-sandbox` key has
+	     nothing to say here and provisioning objects to it. The group is the
+	     whole of what this bundle needs. See WidgetShare for why the identifier
+	     is spelled differently on each platform. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.n14395.SimpleKanban</string>
+	</array>
+</dict>
+</plist>

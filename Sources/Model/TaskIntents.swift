@@ -414,6 +414,10 @@ enum TaskIntentBridge {
 enum TaskIntentError: Swift.Error, CustomLocalizedStringResourceConvertible {
     case notReady
     case noSuchColumn
+    case noSuchTask
+    case noSuchView
+    case noSuchLabel
+    case cannotComplete
 
     var localizedStringResource: LocalizedStringResource {
         switch self {
@@ -423,6 +427,21 @@ enum TaskIntentError: Swift.Error, CustomLocalizedStringResourceConvertible {
         case .noSuchColumn:
             LocalizedStringResource("That column is not on this board any more.",
                                     comment: "Shortcuts error: the named column has been deleted")
+        // Each of these names one kind of thing rather than sharing a sentence,
+        // for `DeepLinkFailure`'s reason: "that view no longer exists" tells
+        // somebody which shortcut to fix, and "something went wrong" does not.
+        case .noSuchTask:
+            LocalizedStringResource("That task no longer exists.",
+                                    comment: "Shortcuts error: the named task has been deleted")
+        case .noSuchView:
+            LocalizedStringResource("That view no longer exists.",
+                                    comment: "Shortcuts error: the named saved view has been deleted")
+        case .noSuchLabel:
+            LocalizedStringResource("That label no longer exists.",
+                                    comment: "Shortcuts error: the named label has been deleted")
+        case .cannotComplete:
+            LocalizedStringResource("That task cannot be completed — the board it is on has no Done column.",
+                                    comment: "Shortcuts error: there is nowhere to complete the task to")
         }
     }
 }
@@ -595,6 +614,22 @@ struct SimpleKanbanShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Show Today",
             systemImageName: "sun.max"
+        )
+        // **Only Complete joins the two above.** Every intent in
+        // `TaskActionIntents.swift` is reachable from the Shortcuts editor
+        // whether or not it is registered here; what registration buys is a
+        // *spoken* phrase, and Move, Find, the setters and the rest all need a
+        // card named first, which is not a thing anybody says to Siri. A
+        // provider crowded with phrases nobody can complete is a worse Siri
+        // than a short one.
+        AppIntents.AppShortcut(
+            intent: CompleteTaskIntent(),
+            phrases: [
+                "Complete a task in \(.applicationName)",
+                "Tick off a \(.applicationName) task"
+            ],
+            shortTitle: "Complete Task",
+            systemImageName: "checkmark.circle"
         )
     }
 }

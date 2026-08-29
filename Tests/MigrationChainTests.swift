@@ -354,6 +354,29 @@ import Testing
         #expect(v12.themes != .seed, "v12 themes are file content and must arrive as written")
     }
 
+    /// The v14 step's fixture: a real v13 file, written by a build that had
+    /// never heard of WIP limits. Every column has to arrive **unlimited** —
+    /// the field is optional and absent, and a step that invented a default
+    /// would be a step that put a cap on everybody's board.
+    ///
+    /// It carries v13's own furniture too, which no other fixture does: an
+    /// Inbox card completed where it lies rather than filed onto a board. A
+    /// bare stamp is exactly the kind of step that can quietly drop something,
+    /// and this is what would notice.
+    @Test func aV13FileArrivesWithEveryColumnUnlimited() throws {
+        let v13 = try snapshot("board-v13")
+        #expect(v13.version == BoardSnapshot.currentVersion)
+
+        let board = try #require(v13.boards.first)
+        #expect(board.columns.isEmpty == false)
+        #expect(board.columns.allSatisfy { $0.limit == nil },
+                "a file written before WIP limits arrived carrying one")
+
+        let completed = try #require(v13.tasks.first { $0.isUnfiled && $0.inboxCompletedAt != nil },
+                                     "the v13 Inbox completion did not survive the step to v14")
+        #expect(completed.code == "NW-120")
+    }
+
     /// `legacyAccent(in:)` had no test at all — and it is the whole of what
     /// keeps a v11 user's chosen colour across the upgrade that removes the
     /// field it lives in.

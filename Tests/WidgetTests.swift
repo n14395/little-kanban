@@ -128,6 +128,27 @@ import Testing
             .prefix(WidgetDigest.listLength).map(\.id))
     }
 
+    /// The limit crosses the fence so the widget can draw the `4/3` the board
+    /// is drawing. A column shown as a plain `4` on the home screen while the
+    /// app shows it over its limit would be the digest quietly disagreeing with
+    /// the board, which is the one thing this file exists to prevent.
+    @Test func aColumnsWipLimitTravelsWithItsCount() throws {
+        let store = ViewBoard.store(tasks: ViewBoard.deepTasks)
+        store.setColumnLimit(5, on: BoardColumn.backlog.id)
+
+        let published = digest(store, today: ViewBoard.today)
+        let backlog = try #require(published.column(id: BoardColumn.backlog.id)?.column)
+        #expect(backlog.limit == 5)
+        #expect(ColumnLoad(count: backlog.count, limit: backlog.limit) == .over)
+
+        // Every other column arrives unlimited rather than defaulted to
+        // something, so a widget on a board with no limits draws what it always
+        // drew.
+        let others = try #require(published.boards.first).columns.filter { $0.id != BoardColumn.backlog.id }
+        #expect(others.isEmpty == false)
+        #expect(others.allSatisfy { $0.limit == nil })
+    }
+
     // MARK: Saved views
 
     @Test func everyViewCarriesItsOwnCountAndItsOwnRows() throws {
@@ -463,8 +484,9 @@ import Testing
     @Test func everyBundleJoinsTheGroupItsPlatformNames() throws {
         guard SourceTree.isReachable else { return }
         let mac = ["SimpleKanban-CloudKit.entitlements", "SimpleKanban.entitlements",
-                   "SimpleKanbanWidgets.entitlements"]
-        let ios = ["SimpleKanban-iOS-CloudKit.entitlements", "SimpleKanbanWidgets-iOS.entitlements"]
+                   "SimpleKanbanWidgets.entitlements", "SimpleKanbanShare.entitlements"]
+        let ios = ["SimpleKanban-iOS-CloudKit.entitlements", "SimpleKanbanWidgets-iOS.entitlements",
+                   "SimpleKanbanShare-iOS.entitlements"]
 
         for file in mac {
             #expect(try groups(in: file) == ["P52946XHRJ.group.com.n14395.SimpleKanban"],
@@ -482,9 +504,11 @@ import Testing
         #if os(macOS)
         #expect(try groups(in: mac[0]) == [WidgetShare.appGroup])
         #expect(try groups(in: "SimpleKanbanWidgets.entitlements") == [WidgetShare.appGroup])
+        #expect(try groups(in: "SimpleKanbanShare.entitlements") == [WidgetShare.appGroup])
         #else
         #expect(try groups(in: ios[0]) == [WidgetShare.appGroup])
         #expect(try groups(in: "SimpleKanbanWidgets-iOS.entitlements") == [WidgetShare.appGroup])
+        #expect(try groups(in: "SimpleKanbanShare-iOS.entitlements") == [WidgetShare.appGroup])
         #endif
     }
 

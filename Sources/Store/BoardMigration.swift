@@ -682,8 +682,31 @@ extension BoardSnapshot {
 
     /// v13 lets a global Inbox task be completed without filing it onto a board.
     /// The optional timestamp defaults to `nil`, so there is no data to reshape.
+    ///
+    /// Stamps **13** rather than `currentVersion`, for `migrate(v5:)`'s reason:
+    /// this is one step of a chain and `migrate(v13:)` carries it the rest of
+    /// the way. It read `currentVersion` while it *was* the last step, which is
+    /// exactly the spelling that goes wrong the day another step is added.
     static func migrate(v12: BoardSnapshot) -> BoardSnapshot {
         var snapshot = v12
+        snapshot.version = 13
+        return snapshot
+    }
+
+    /// v14 gives a column a WIP limit: ``BoardColumn/limit``, optional, and
+    /// `nil` on every column a v13 file carries — which is the truth about
+    /// them, since a build that had never heard of limits drew every column
+    /// unlimited. So this is another bare stamp, the sixth.
+    ///
+    /// **The bump is for the other direction**, as every bump in this file is.
+    /// `BoardColumn`'s synthesised `Codable` reads an absent `limit` as `nil`
+    /// and writes nothing for one, so a v13 build handed a v14 board would
+    /// decode it *perfectly*, notice nothing, and write it straight back with
+    /// every limit the user had set silently gone. Refusing the file and saying
+    /// why is the kinder failure — the same argument v6 → v7 makes about the
+    /// trash, and the reason a purely additive field still costs a version.
+    static func migrate(v13: BoardSnapshot) -> BoardSnapshot {
+        var snapshot = v13
         snapshot.version = BoardSnapshot.currentVersion
         return snapshot
     }

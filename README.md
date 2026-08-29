@@ -1257,6 +1257,54 @@ so the sheet calls `selectBoard` on appear rather than risk adding board A's
 column while showing board B. `rename`, `recolor` and `delete` find the board
 from the column and are safe anywhere.
 
+### Work-in-progress limits
+
+A column may carry a **WIP limit** — `BoardColumn.limit`, an optional `Int`,
+`nil` on every column until somebody sets one. The count pill in the column
+header then reads `4/3` instead of `4`, and takes a colour: the theme's *warm*
+due-chip recipe at the limit, its *hot* one over it. Both phone orientations
+draw the same pair through `ColumnPill`, and the column widget draws it from the
+digest, so a column that is over its limit says so everywhere it is counted.
+
+**It is advisory, and that is a promise rather than an omission.** Nothing in
+the app refuses a card because of this number: not a drag, not a drop, not the
+composer, not a paste of forty lines, not a move from Shortcuts, not a tick that
+sends a card to a full Done column. Refusing a drop would punish the exact
+moment somebody is trying to reorganise a full column, which is the moment a
+full column most needs it — and a limit that blocks work is a limit people turn
+off. `ColumnLimitTests/nothingIsRefusedByALimit` asks every one of those
+entry points, so the promise is a test rather than an intention; enforcing a
+limit later would mean deleting that test on purpose.
+
+**The count is what the board draws, not `cardCount(inColumn:)`.** That one
+counts archived cards, deliberately and correctly — it exists for the
+delete-a-column warning, where a promise to move four cards must not then move
+nine. A limit built on it would climb for as long as the board was used: every
+card ever finished and filed away would still be pressing against the limit, and
+a column would sit permanently over one with nothing on screen to explain it.
+Archived is off the board, and off the board is not work in progress. So
+`BoardStore.load(ofColumn:)` reads `visibleTasks(in:)` — the same array the
+header already has, and the same number the pill has always shown. There is no
+"but what about while filtering": the board is not drawn from the search query
+(see **It is a search, not a filter**) and a saved view draws no columns at all,
+so the pill's count and the limit's count are never two different numbers.
+
+**Set with a toggle and a stepper**, in board settings and in the popover off a
+column header — the same pair `SavedViewEditor` uses for a view's card cap,
+because that is the app's one other optional number and two spellings of it
+would be two controls to learn. Switching it on starts at what the column
+already holds: any fixed default would put most columns straight over a limit
+nobody had chosen, which is a warning colour arriving as the result of turning
+the feature on. Zero clears rather than meaning "nothing may be here", and the
+range is 1–99 — not a rule about kanban, but a field that accepts `999999999` is
+a pill eight points wide drawing `4/999999999`.
+
+The colours are the due chips' own recipes rather than two new theme
+parameters. "Getting tight" and "past it" are precisely what warm and hot
+already mean everywhere else, all twenty presets have tuned them against their
+own ground, and a `ThemeWip` pair would have made a column setting a *theme*
+schema change.
+
 ### Board settings
 
 **A board is one thing, and this is where it is edited**: its name, its colour,
@@ -4676,7 +4724,7 @@ is untouched by it. If sync ever matters, this is the layer to replace.
   pins the arrangement, reaching the blocked state the honest way: a corrupt
   board in a directory nothing can write into.
 - **Older files are migrated, not guessed at.** `BoardSnapshot.currentVersion`
-  is 13. The version is read out of the raw JSON *before* anything is decoded,
+  is 14. The version is read out of the raw JSON *before* anything is decoded,
   because synthesised `Codable` throws `keyNotFound` for a key the older shape
   never wrote — a property default does not make a field backward-compatible.
   Only an `Optional` tolerates absence, which is why `archivedAt` is one.
@@ -4782,6 +4830,20 @@ is untouched by it. If sync ever matters, this is the layer to replace.
     rest, which is v9's rule spelled in v8's vocabulary, so a device on an older
     build still finds exactly one Done column and finds it in the right place.
 
+  - **v13 → v14** — a column gains ``BoardColumn.limit``, its WIP limit. Purely
+    additive and optional, so it is another bare stamp: a v13 file has no
+    `limit` on any column, a synthesised decoder reads an absent `Optional` as
+    `nil`, and `nil` is exactly what a column drawn by a build without limits
+    meant. `board-v13.json` is the fixture that says so.
+
+    The bump is the trash's argument again, from the other direction: without it
+    a v13 build handed a v14 board would decode it *perfectly*, notice nothing,
+    and write it back with every limit the user had set silently gone. **Sync
+    has no such stamp** — `StoredColumn.limit` is optional and defaulted, so a
+    device on an older build reads a limited column as unlimited and writes that
+    back if it edits it, exactly as `Priority.max` does. The board *file* is
+    where the guarantee lives.
+
   Those last two were planned as **one** step to v4 — "boards and columns" was a
   single item — and shipped as two because each half is separately verifiable and
   a half-migrated file is not: v3 → v4 turns the compiled-in columns into data
@@ -4795,7 +4857,7 @@ is untouched by it. If sync ever matters, this is the layer to replace.
   decoder — widening an old decoder to reach the current shape instead would make
   every future field silently rewrite the past. The pre-migration bytes are copied
   to `board.v<n>-<stamp>.json` first: a migration is the one moment the old shape
-  stops existing anywhere. `Tests/Fixtures/` keeps seven real files to migrate
+  stops existing anywhere. `Tests/Fixtures/` keeps a real file per era to migrate
   against: `board-v1.json`; `board-v1-minted.json`, whose board went on minting
   codes after it was written and so pins `nextSerial` continuity too;
   `board-v2.json`; `board-v3.json`; `board-v4.json` — those three generated by
@@ -4805,8 +4867,13 @@ is untouched by it. If sync ever matters, this is the layer to replace.
   legacy priority spellings, on the task *and* inside a `prioritySet` activity
   entry, which is the half a raw-value swap forgets; and `board-v6.json`, the
   same shape one stamp further on, which is what makes the "reads a file with no
-  `trash` key" claim a test rather than a sentence. Drop a newer one in and
-  `MigrationChainTests` picks it up off the bundle with no code change.
+  `trash` key" claim a test rather than a sentence. Every later era has one too
+  — `board-v7.json`, `board-v8-done-adrift.json` above, and `board-v9.json`
+  through `board-v13.json` — so no step of the chain is exercised only by a
+  synthetic value: each is the bytes a build of that era would have written, and
+  each carries whatever its own version was *for*, which is what makes a bare
+  stamp a step that can fail. Drop a newer one in and `MigrationChainTests`
+  picks it up off the bundle with no code change.
 - **Rolling backups.** The live file is copied to `backups/board-<stamp>.json`
   beside the board when the newest backup has aged past 15 minutes, and as many
   of the newest as Settings ▸ **Backups to keep** says are kept — 25 by default.
@@ -5431,6 +5498,56 @@ offers the boards and columns that actually exist. `AppShortcut` collides with t
 app's own `AppShortcut` in `AppCommand.swift`, so every use is written
 `AppIntents.AppShortcut` — do not "simplify" it.
 
+**Those two live in `TaskIntents.swift`; the rest are in
+`TaskActionIntents.swift`.** The split is by subject rather than by size: the
+first file is the app's *doors* — deep links, Handoff, Spotlight, the bridge —
+and the second is its automation vocabulary. What the second adds is Complete,
+Reopen, Move, Open, Find Tasks, Get Tasks in View, Set Due Date, Set Priority
+and Change Label.
+
+**`TaskEntity` is what makes all of them usable.** Without it each would take a
+raw UUID, which is not a thing anybody has: a Shortcut is built by picking a card
+from a list or finding one by name. Its query is an `EntityStringQuery` running
+the app's own search through `BoardStore.tasks(matching:)`, so a card is found by
+title *or* by code — "NW-118" is what a person says out loud — with the same
+folding the search panel does. It suggests the Inbox and the active board rather
+than every card in the file: a picker of four hundred rows is a picker nobody
+scrolls, and the string query is how the rest are reached.
+`BoardStore.tasks(matching:)` exists rather than `narrowed(_:)` because
+`narrowed` reads `query`, the field the user is typing in — an intent must not
+answer somebody's half-typed search, nor rewrite it to run its own.
+
+`ViewEntity` and `LabelEntity` are the same shape for saved views and labels. The
+view one is deliberately **not** the widget extension's `WidgetViewEntity`: that
+is configured in another process against a digest, this one reads the live store,
+and sharing the type would mean sharing a data source neither half can hold. The
+priority parameter is a `TaskPriorityAppEnum` rather than `Priority: AppEnum`,
+because `Priority` is compiled into the widget extension too and conforming it
+would put an automation vocabulary into a bundle that draws a coloured dot.
+
+Three rules the verbs share:
+
+- **Nothing silently does nothing.** A card deleted since the Shortcut was built
+  is the likeliest failure of any of this, and a shortcut that "worked" while
+  doing nothing is indistinguishable from one that ran. Each names its own kind
+  of missing thing — `noSuchTask`, `noSuchView`, `noSuchLabel` — which is
+  `DeepLinkFailure`'s rule spelled for Shortcuts.
+- **Completing something already done is not an error.** A Shortcut that runs
+  nightly over everything overdue would fail on its second run, and "it is
+  finished" is what the caller asked for either way. `cannotComplete` is kept for
+  the case that genuinely cannot happen: a board with no Done column.
+- **Add means add.** `ChangeLabelIntent` takes a direction rather than
+  toggling, because a rule saying *put the Urgent label on this* must mean that
+  whether or not the label is there — a Shortcut run twice must not undo itself.
+
+Only **Complete** joins Add Task and Show Today in `SimpleKanbanShortcuts`.
+Registration buys a *spoken* phrase, and every other verb needs a card named
+first, which is not a thing anybody says to Siri; all of them are reachable from
+the Shortcuts editor regardless. `OpenTaskIntent` is the one with
+`openAppWhenRun = true`, for `ShowTodayIntent`'s reason — it is navigation — and
+it goes through `BoardStore.reveal`, the same call a deep link and a tapped
+notification make.
+
 `AddTaskIntent` has `openAppWhenRun = false` and therefore depends entirely on the
 store being registered before any scene exists: `SimpleKanbanApp.init()` builds it
 and calls `TaskIntentBridge.adopt(store)`. On `.onAppear` instead, a cold launch
@@ -5452,6 +5569,82 @@ from another app is precisely the case the Inbox exists for, and deciding which
 board it belongs on is the thing the user is deferring by capturing at all. The
 picker offers every column of every board and remembers the choice; a remembered
 column that has since been deleted falls back to the Inbox rather than erroring.
+
+### The share sheet
+
+`SimpleKanbanShare` is an app extension on **both** platforms: text or a link
+shared from any app becomes an Inbox card. It is the phone's equivalent of the
+desk's menu bar quick add, and on the desk it is what puts Simple Kanban in
+Safari's Share menu.
+
+**The extension writes one file and does nothing else.** It never opens
+`board.json` and never opens the record store. The board file is versioned,
+migrated on the way in, quarantined when it cannot be read, and is the only copy
+of the user's work — none of which is safe to hand to a process the system
+starts and kills around a share sheet. What crosses instead is a
+`PendingCapture`: a title, a note, a timestamp, written into `Captures/` in the
+App Group, beside the `Widgets/` folder the digest lives in. This is the write
+side of the fence **The widgets are handed answers, not the board** describes
+from the read side.
+
+**One file per capture, not one file appended to.** Two share sheets in quick
+succession are two processes, and a read-modify-write of a shared list across
+two processes loses one of them — there is no lock either side could take that
+the other is guaranteed to respect. A file each has no race at all.
+
+**A capture is not a cache, and that is where it parts company with the
+digest.** A digest that will not decode is refused and forgotten, because the
+app rewrites it within half a second. A capture is the only copy of something
+somebody typed, so one the app cannot read is *set aside* — renamed to
+`.rejected`, still on disk — rather than deleted, which would be silent loss, or
+retried, which would fail on every launch for the rest of the install's life.
+The board file's quarantine rule, applied to something much smaller.
+
+`BoardStore.adoptPendingCaptures()` drains the folder, on `.onAppear` and on
+every `scenePhase == .active`. Both are needed: a launch is not a foregrounding
+on either platform — the scene comes up already active and the change never
+fires — so the first catches whatever was shared while the app was not running
+and the second catches everything after. N shares are **one** ⌘Z, the way a
+paste of N lines is. **A file is deleted only once its card exists**, in that
+order: a crash in between costs a card that arrives twice, which the user can
+delete, where the other order costs one that never arrives at all, which they
+cannot get back and would have no way of knowing about.
+
+**There is a sheet, and the title is editable.** A no-UI extension is one tap
+faster and gets the title wrong constantly — shared pages are called
+"Home | Acme Corp — Official Site" and shared selections start mid-sentence.
+The first non-empty line of the shared text is the title and everything else is
+the note; a bare link names itself by its host with `www.` dropped, with the
+whole address still in the note; a title too long to read in a column is cut at
+a word boundary and **kept whole at the top of the note** — nothing is dropped,
+it moves. `CaptureDraft.from(text:url:)` is a free function of two optionals
+precisely so those rules can be tested, because no test in this suite can
+present a share sheet or drive an `NSItemProvider`.
+
+The sheet wears the user's theme by reading the widgets' digest, which is
+already in the group and already carries `themes` and `appearance` — no board is
+opened to get it, and with no digest yet it falls back to the shipping preset,
+which is what a widget draws in the same position. A write that fails leaves the
+sheet open with the user's text still in it and says why: there is nowhere here
+to retry to, and the one thing that must not happen is pretending it worked.
+
+**What no test can reach.** The share sheet itself, on either platform. What is
+pinned instead is everything either side of it: the draft rules, the folder, the
+drain, and — in `PackagingTests` — that the `.appex` is embedded and declares
+the right extension point, principal class and activation rule, each of which
+fails silently in its own way. Two things need a person:
+
+- **iOS** — share a page from Safari, confirm the card appears in the Inbox when
+  the app next comes forward.
+- **macOS** — the extension only appears once Launch Services has seen the
+  containing app: the app in `/Applications`, run once, then enabled in
+  System Settings ▸ Extensions ▸ Sharing. A build run out of `build/` may not
+  show up at all, and that is not a bug in the code.
+
+Both bundle identifiers — `com.n14395.SimpleKanban.Share` on each platform —
+need App IDs with the App Group capability. Automatic signing with
+`-allowProvisioningUpdates` mints them the way it did for the widgets, but the
+first build of this target needs the network and the team.
 
 ### Comments were considered and not built
 
