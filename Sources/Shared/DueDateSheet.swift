@@ -1,5 +1,3 @@
-#if os(macOS)
-
 import SwiftUI
 
 /// Task ▸ Set Due Date…, which is the one menu item with something to type into.
@@ -11,14 +9,14 @@ import SwiftUI
 ///
 /// The three shortcuts are the ones `DueDateField` offers, for the same reason —
 /// most due dates on a board are today, tomorrow, or the end of the week.
-struct MacDueDateSheet: View {
+struct DueDateSheet: View {
     @Environment(\.palette) private var palette
     @Environment(\.dayClock) private var dayClock
     @Environment(\.dismiss) private var dismiss
     @Environment(BoardStore.self) private var store
     /// Optional for `MacRootView`'s reason: this stands up in a preview, which
     /// has no window and no menu bar to have been opened from.
-    @Environment(MacWindowState.self) private var window: MacWindowState?
+    @Environment(AppWindowState.self) private var window: AppWindowState?
 
     @State private var day: Date = .now
 
@@ -139,5 +137,3 @@ struct MacDueDateSheet: View {
         dismiss()
     }
 }
-
-#endif

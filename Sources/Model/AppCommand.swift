@@ -40,9 +40,33 @@ enum AppCommandGroup: String, CaseIterable, Identifiable, Sendable {
 /// vocabulary rather than transcribed from it: an item cannot be lost or gained
 /// there without the enum saying so.
 enum AppMenuSection: String, CaseIterable, Identifiable, Sendable {
-    case new, importExport, edit, view, task, filing, help
+    case new, importExport, file, app, edit, view, viewOptions, navigate, task, filing, help
 
     var id: String { rawValue }
+}
+
+/// Which machine is asking.
+///
+/// The vocabulary is one list on both platforms — every command in it means the
+/// same thing on a desk and on an iPad, and the shortcuts sheet prints the same
+/// rows — but two of them exist on one platform only: the desk's Settings… is
+/// the system's own item on the app menu and ours would be a second, and the
+/// theme browser is a **window**, which is a thing an iPad's Settings sheet
+/// carries a row for instead.
+///
+/// Named rather than written as `#if os(macOS)` at each site so that a test can
+/// ask for both answers on either machine — a menu that is wrong on the platform
+/// you are not building for is exactly the drift nothing notices.
+enum AppPlatform: String, CaseIterable, Sendable {
+    case desk, touch
+
+    static var current: AppPlatform {
+        #if os(macOS)
+        .desk
+        #else
+        .touch
+        #endif
+    }
 }
 
 /// Who performs a command, which is what the menu bar has to know to avoid
@@ -58,7 +82,7 @@ enum AppCommandSource: Sendable {
     /// is whole and the gap is visible rather than silently absent. Nothing is
     /// in this state now that Import… and Export… are wired; the case stays
     /// because the next unbuilt item should be declared rather than omitted,
-    /// and because `MacShortcutsSheet` and `ShortcutTests` already know how to
+    /// and because `ShortcutsSheet` and `ShortcutTests` already know how to
     /// account for one.
     case unbuilt
 }
@@ -177,10 +201,16 @@ struct AppShortcut: Hashable, Sendable {
 /// and the key disagreed about what the app did. Replacing SwiftUI's `.newItem`
 /// group with these two is what settles it.
 enum AppCommand: String, CaseIterable, Identifiable, Sendable {
-    case newTask, newBoard, importBoard, exportBoard
+    case newTask, newBoard, newColumn, newView
+    case importBoard, exportBoard
+    case boardSettings, saveBoard, syncNow, settings
     case undo, redo, trashTask, find
-    case toggleInspector, toggleSidebar
-    case completeTask, moveToColumn, setPriority, setDueDate, archiveTask
+    case toggleInspector, toggleSidebar, toggleInbox
+    case showTrash, manageLabels, themes
+    case appearance, cardDensity, sortOrder
+    case previousBoard, nextBoard
+    case completeTask, reopenTask, moveToColumn, moveToBoard, setPriority, setDueDate, showInBoard
+    case archiveTask, unarchiveTask
     case copyTask, pasteTask, selectAll, deselect, openTask
     case focusPreviousColumn, focusNextColumn, focusCardAbove, focusCardBelow
     case moveCardLeft, moveCardRight
@@ -190,10 +220,13 @@ enum AppCommand: String, CaseIterable, Identifiable, Sendable {
 
     var group: AppCommandGroup {
         switch self {
-        case .newTask, .newBoard, .importBoard, .exportBoard: .file
+        case .newTask, .newBoard, .newColumn, .newView, .importBoard, .exportBoard,
+             .boardSettings, .saveBoard, .syncNow, .settings: .file
         case .undo, .redo, .trashTask, .find: .edit
-        case .toggleInspector, .toggleSidebar: .view
-        case .completeTask, .moveToColumn, .setPriority, .setDueDate, .archiveTask: .task
+        case .toggleInspector, .toggleSidebar, .toggleInbox, .showTrash, .manageLabels,
+             .themes, .appearance, .cardDensity, .sortOrder, .previousBoard, .nextBoard: .view
+        case .completeTask, .reopenTask, .moveToColumn, .moveToBoard, .setPriority,
+             .setDueDate, .showInBoard, .archiveTask, .unarchiveTask: .task
         case .copyTask, .pasteTask, .selectAll, .deselect, .openTask,
              .focusPreviousColumn, .focusNextColumn, .focusCardAbove, .focusCardBelow,
              .moveCardLeft, .moveCardRight: .board
@@ -208,15 +241,49 @@ enum AppCommand: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// Which machines draw this item.
+    ///
+    /// Two commands are one platform's only, and both for the same kind of
+    /// reason — the system already has the item, or the thing it opens does not
+    /// exist there:
+    ///
+    /// - **Settings…** is the desk's app menu's own, put there by SwiftUI's
+    ///   `Settings` scene along with ⌘, . An item of ours would be a second one
+    ///   beside it. The iPad has no such scene — Settings is a sheet raised by
+    ///   `BoardStore.isShowingSettings` — so there the app must offer it.
+    /// - **Themes…** opens a `Window`, which iPadOS has no equivalent of; the
+    ///   iPad reaches the browser through Settings ▸ Appearance instead.
+    /// - **Toggle Sidebar** is UIKit's on the iPad. A `NavigationSplitView` is a
+    ///   `UISplitViewController` there, and the system puts *Show Sidebar* —
+    ///   ⌃⌘S, `toggleSidebar:` — on the View menu for it. The column moves
+    ///   either way, and `PadRootView` reads the movement back onto
+    ///   ``AppWindowState/isSidebarVisible``, so the menu items that need the
+    ///   list out still get it out. The desk has no such item, and its source
+    ///   list is an `HStack`'s first child rather than a split view column.
+    ///
+    /// **Three, and each of them because the platform already has the item.**
+    /// That is not a style rule: a second item on the same key is a `UIKeyCommand`
+    /// collision, and UIKit answers one by throwing while it builds the menu —
+    /// the app terminates on launch, before any window appears. Both of the
+    /// touch platform's exclusions here were found that way.
+    var platforms: Set<AppPlatform> {
+        switch self {
+        case .settings: [.touch]
+        case .themes, .toggleSidebar: [.desk]
+        default: Set(AppPlatform.allCases)
+        }
+    }
+
     /// Whether the command is aimed at a task at all. The coarse half of
     /// ``isEnabled(for:in:)``, which is what a menu item asks — on its own this
     /// knows only that *something* must be selected, and not that Complete Task
-    /// means nothing to a card already in Done or that the whole Task menu
+    /// means nothing to a card already in Done or that most of the Task menu
     /// means nothing to a card in the Archive.
     var needsSelection: Bool {
         switch self {
-        case .trashTask, .completeTask, .moveToColumn, .setPriority, .setDueDate,
-             .archiveTask, .copyTask, .deselect, .openTask, .moveCardLeft, .moveCardRight:
+        case .trashTask, .completeTask, .reopenTask, .moveToColumn, .moveToBoard,
+             .setPriority, .setDueDate, .showInBoard, .archiveTask, .unarchiveTask,
+             .copyTask, .deselect, .openTask, .moveCardLeft, .moveCardRight:
             true
         default:
             false
@@ -227,8 +294,8 @@ enum AppCommand: String, CaseIterable, Identifiable, Sendable {
     /// so has a plural title to offer.
     var actsOnWholeSelection: Bool {
         switch self {
-        case .trashTask, .completeTask, .moveToColumn, .setPriority, .setDueDate,
-             .archiveTask, .copyTask:
+        case .trashTask, .completeTask, .reopenTask, .moveToColumn, .moveToBoard,
+             .setPriority, .setDueDate, .archiveTask, .unarchiveTask, .copyTask:
             true
         default:
             false
@@ -237,15 +304,15 @@ enum AppCommand: String, CaseIterable, Identifiable, Sendable {
 
     /// Whether this command can do anything to `task`.
     ///
-    /// A card in the Archive is off the board: moving it to a column, giving it
-    /// a priority or a due date all silently edit something the user is looking
-    /// at as a record, and completing or filing it again is a no-op. Being
-    /// selected is not the same as being a fit subject, and this is the
+    /// A card in the Archive is off the board: moving it to a column or a board,
+    /// giving it a priority or a due date all silently edit something the user is
+    /// looking at as a record, and completing or filing it again is a no-op.
+    /// Being selected is not the same as being a fit subject, and this is the
     /// difference.
     ///
     /// Asked of the store rather than of the task alone because the answers are
     /// the board's, not the card's — which column counts as Done, and whether
-    /// this card's board has one at all — and because the two the store already
+    /// this card's board has one at all — and because the ones the store already
     /// answers for itself are asked of it here rather than written out a second
     /// time.
     @MainActor
@@ -255,19 +322,49 @@ enum AppCommand: String, CaseIterable, Identifiable, Sendable {
             // The store's own question, asked of the store: `complete(_:)` acts
             // on this answer, so the item is live exactly when it works.
             store.canComplete(task.id)
+        case .reopenTask:
+            store.canReopen(task.id)
         case .archiveTask:
             store.canArchive(task.id)
-        case .moveToColumn, .setPriority, .setDueDate, .moveCardLeft, .moveCardRight:
+        case .unarchiveTask:
+            store.canUnarchive(task.id)
+        case .moveToColumn, .moveToBoard, .setPriority, .setDueDate, .showInBoard,
+             .moveCardLeft, .moveCardRight:
             !task.isArchived
         case .trashTask, .copyTask, .deselect, .openTask:
             // All four read or dispose of a card wherever it is, the Archive
             // included: a filed card can still be opened, copied and deleted.
             true
-        case .newTask, .newBoard, .importBoard, .exportBoard, .undo, .redo, .find,
-             .toggleInspector, .toggleSidebar, .pasteTask, .selectAll,
+        case .newTask, .newBoard, .newColumn, .newView, .importBoard, .exportBoard,
+             .boardSettings, .saveBoard, .syncNow, .settings, .undo, .redo, .find,
+             .toggleInspector, .toggleSidebar, .toggleInbox, .showTrash, .manageLabels,
+             .themes, .appearance, .cardDensity, .sortOrder, .previousBoard, .nextBoard,
+             .pasteTask, .selectAll,
              .focusPreviousColumn, .focusNextColumn, .focusCardAbove, .focusCardBelow,
              .shortcuts:
             // Not aimed at a task at all.
+            true
+        }
+    }
+
+    /// What the *board* has to be for this item to be live, for the commands
+    /// that are aimed at something other than a card.
+    ///
+    /// The same rule the Task menu follows, one level up: an item that cannot do
+    /// anything must disable rather than no-op silently. New Column on a board
+    /// that is not there has nowhere to add one; Sync Now with sync switched off
+    /// would spin and adopt nothing; Next Board on a one-board install is a
+    /// press that changes nothing.
+    @MainActor
+    func isAvailable(in store: BoardStore) -> Bool {
+        switch self {
+        case .newColumn, .boardSettings:
+            store.activeBoard != nil
+        case .syncNow:
+            store.isSyncing
+        case .previousBoard, .nextBoard:
+            store.boards.count > 1
+        default:
             true
         }
     }
@@ -283,16 +380,30 @@ enum AppCommand: String, CaseIterable, Identifiable, Sendable {
     @MainActor
     func isEnabled(for tasks: [TaskItem], in store: BoardStore) -> Bool {
         guard source != .unbuilt else { return false }
+        guard isAvailable(in: store) else { return false }
         guard needsSelection else { return true }
         return tasks.contains { applies(to: $0, in: store) }
     }
 
-    /// Whether it opens a submenu rather than doing something itself. The
-    /// submenu's rows come from the store — the board's columns, the priorities.
-    var opensSubmenu: Bool { self == .moveToColumn || self == .setPriority }
+    /// Whether it opens a submenu rather than doing something itself. The rows
+    /// underneath come from the store or from the preferences — the board's
+    /// columns, the boards themselves, the priorities, the three appearances.
+    var opensSubmenu: Bool {
+        switch self {
+        case .moveToColumn, .moveToBoard, .setPriority, .appearance, .cardDensity, .sortOrder:
+            true
+        default:
+            false
+        }
+    }
 
-    /// Whether the `.commands` block declares this item itself.
+    /// Whether the `.commands` block declares this item itself, on any machine.
     var isMenuItem: Bool { group.hasMenu && source != .system }
+
+    /// Whether *this* machine's menu bar declares it. See ``platforms``.
+    func isMenuItem(on platform: AppPlatform) -> Bool {
+        isMenuItem && platforms.contains(platform)
+    }
 
     /// Which block of the menu bar declares it, or `nil` for the commands the
     /// menu bar does not declare at all: the board's own keys, and the two the
@@ -304,12 +415,17 @@ enum AppCommand: String, CaseIterable, Identifiable, Sendable {
     /// cannot be silently absent from it.
     var menuSection: AppMenuSection? {
         switch self {
-        case .newTask, .newBoard: .new
+        case .newTask, .newBoard, .newColumn, .newView: .new
         case .importBoard, .exportBoard: .importExport
+        case .boardSettings, .saveBoard, .syncNow: .file
+        case .settings: .app
         case .trashTask, .find: .edit
-        case .toggleInspector, .toggleSidebar: .view
-        case .completeTask, .moveToColumn, .setPriority, .setDueDate: .task
-        case .archiveTask: .filing
+        case .toggleInspector, .toggleSidebar, .toggleInbox, .showTrash, .manageLabels, .themes: .view
+        case .appearance, .cardDensity, .sortOrder: .viewOptions
+        case .previousBoard, .nextBoard: .navigate
+        case .completeTask, .reopenTask, .moveToColumn, .moveToBoard, .setPriority,
+             .setDueDate, .showInBoard: .task
+        case .archiveTask, .unarchiveTask: .filing
         case .shortcuts: .help
         case .undo, .redo, .copyTask, .pasteTask, .selectAll, .deselect, .openTask,
              .focusPreviousColumn, .focusNextColumn, .focusCardAbove, .focusCardBelow,
@@ -325,14 +441,35 @@ enum AppCommand: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .newTask: [AppShortcut("n", .command)]
         case .newBoard: [AppShortcut("n", [.command, .shift])]
-        case .importBoard, .exportBoard, .setDueDate, .archiveTask, .moveToColumn, .setPriority: []
+        case .newColumn: [AppShortcut("n", [.command, .option])]
+        // **⌃⌘N is not free.** `MenuBarQuickAdd` is documented — and the seed
+        // board's own card `t8` promises — as the quick-add key, and a menu item
+        // that took it would be the app disagreeing with itself in writing. A
+        // fourth New item is not worth the last N in the alphabet of modifiers.
+        case .newView,
+             .importBoard, .exportBoard, .themes, .setDueDate, .archiveTask, .unarchiveTask,
+             .moveToColumn, .moveToBoard, .setPriority, .appearance, .cardDensity, .sortOrder:
+            []
+        case .boardSettings: [AppShortcut(",", [.command, .shift])]
+        case .saveBoard: [AppShortcut("s", .command)]
+        case .syncNow: [AppShortcut("r", .command)]
+        // The key the desk's own Settings… already carries, claimed here for the
+        // platform that has no such item to inherit it from.
+        case .settings: [AppShortcut(",", .command)]
         case .undo: [AppShortcut("z", .command)]
         case .redo: [AppShortcut("z", [.command, .shift])]
         case .trashTask: [AppShortcut(.delete, .command)]
         case .find: [AppShortcut("f", .command)]
         case .toggleInspector: [AppShortcut("i", [.command, .option])]
         case .toggleSidebar: [AppShortcut("s", [.command, .control])]
+        case .toggleInbox: [AppShortcut("i", [.command, .shift])]
+        case .showTrash: [AppShortcut("t", [.command, .shift])]
+        case .manageLabels: [AppShortcut("l", [.command, .shift])]
+        case .previousBoard: [AppShortcut(.upArrow, [.command, .option])]
+        case .nextBoard: [AppShortcut(.downArrow, [.command, .option])]
         case .completeTask: [AppShortcut(.return, .command), AppShortcut(.space)]
+        case .reopenTask: [AppShortcut(.return, [.command, .shift])]
+        case .showInBoard: [AppShortcut("j", .command)]
         case .copyTask: [AppShortcut("c", .command)]
         case .pasteTask: [AppShortcut("v", .command)]
         case .selectAll: [AppShortcut("a", .command)]
@@ -358,10 +495,22 @@ enum AppCommand: String, CaseIterable, Identifiable, Sendable {
             String(localized: "New Task", comment: "File menu item that opens the inline task composer")
         case .newBoard:
             String(localized: "New Board", comment: "File menu item that adds a board")
+        case .newColumn:
+            String(localized: "New Column…", comment: "File menu item that opens board settings with the add-column field open")
+        case .newView:
+            String(localized: "New View…", comment: "File menu item that adds a saved view and opens its editor")
         case .importBoard:
             String(localized: "Import…", comment: "File menu item that reads a board in from a file")
         case .exportBoard:
             String(localized: "Export…", comment: "File menu item that writes the board out to a file")
+        case .boardSettings:
+            String(localized: "Board Settings…", comment: "File menu item that opens this board's columns and name")
+        case .saveBoard:
+            String(localized: "Save Board", comment: "File menu item that writes the board out now rather than on the debounce")
+        case .syncNow:
+            String(localized: "Sync Now", comment: "File menu item that sends this device's changes to iCloud and takes in the other devices'")
+        case .settings:
+            String(localized: "Settings…", comment: "Menu item that opens the app's settings, on the platforms where the system does not provide one")
         case .undo:
             String(localized: "Undo", comment: "Edit menu item, provided by the system")
         case .redo:
@@ -374,16 +523,42 @@ enum AppCommand: String, CaseIterable, Identifiable, Sendable {
             String(localized: "Toggle Inspector", comment: "View menu item that shows or hides the detail panel")
         case .toggleSidebar:
             String(localized: "Toggle Sidebar", comment: "View menu item that shows or hides the board list")
+        case .toggleInbox:
+            String(localized: "Toggle Inbox", comment: "View menu item that shows or hides the Inbox panel beside the board")
+        case .showTrash:
+            String(localized: "Show Trash", comment: "View menu item that opens the trash")
+        case .manageLabels:
+            String(localized: "Labels…", comment: "View menu item that opens the label manager")
+        case .themes:
+            String(localized: "Themes…", comment: "View menu item that opens the theme browser window")
+        case .appearance:
+            String(localized: "Appearance", comment: "View submenu listing light, dark and system")
+        case .cardDensity:
+            String(localized: "Card Size", comment: "View submenu listing the card densities")
+        case .sortOrder:
+            String(localized: "Sort By", comment: "View submenu listing the orders a column can be drawn in")
+        case .previousBoard:
+            String(localized: "Previous Board", comment: "View menu item that opens the board above this one in the sidebar")
+        case .nextBoard:
+            String(localized: "Next Board", comment: "View menu item that opens the board below this one in the sidebar")
         case .completeTask:
             String(localized: "Complete Task", comment: "Task menu item that sends the selected task to Done")
+        case .reopenTask:
+            String(localized: "Reopen Task", comment: "Task menu item that takes a completed task back out of Done")
         case .moveToColumn:
             String(localized: "Move to Column", comment: "Task submenu listing the board's columns")
+        case .moveToBoard:
+            String(localized: "Move to Board", comment: "Task submenu listing the Inbox and the boards")
         case .setPriority:
             String(localized: "Set Priority", comment: "Task submenu listing the priorities")
         case .setDueDate:
             String(localized: "Set Due Date…", comment: "Task menu item that opens the due-date picker")
+        case .showInBoard:
+            String(localized: "Show in Board", comment: "Task menu item that goes to where the task lives and reveals it")
         case .archiveTask:
             String(localized: "Archive Task", comment: "Task menu item that files the selected task away")
+        case .unarchiveTask:
+            String(localized: "Restore Task", comment: "Task menu item that takes a task back out of the archive")
         case .copyTask:
             String(localized: "Copy", comment: "Copies the selected task's code and title to the pasteboard")
         case .pasteTask:
@@ -423,13 +598,17 @@ enum AppCommand: String, CaseIterable, Identifiable, Sendable {
             return String(localized: "Trash \(count) Tasks", comment: "Menu item that puts several selected tasks in the trash")
         case .completeTask:
             return String(localized: "Complete \(count) Tasks", comment: "Menu item that completes several selected tasks")
+        case .reopenTask:
+            return String(localized: "Reopen \(count) Tasks", comment: "Menu item that takes several completed tasks back out of Done")
         case .archiveTask:
             return String(localized: "Archive \(count) Tasks", comment: "Menu item that archives several selected tasks")
+        case .unarchiveTask:
+            return String(localized: "Restore \(count) Tasks", comment: "Menu item that takes several tasks back out of the archive")
         case .copyTask:
             return String(localized: "Copy \(count) Tasks", comment: "Menu item that copies several selected tasks")
         default:
-            // Move to Column, Set Priority and Set Due Date read the same
-            // whatever they are aimed at.
+            // The submenus and Set Due Date read the same whatever they are
+            // aimed at.
             return title
         }
     }
@@ -438,10 +617,17 @@ enum AppCommand: String, CaseIterable, Identifiable, Sendable {
         allCases.filter { $0.group == group }
     }
 
+    /// The commands of one menu that `platform` has at all — what the shortcuts
+    /// sheet prints, so that a machine is never taught a key it does not carry.
+    static func commands(in group: AppCommandGroup, on platform: AppPlatform) -> [AppCommand] {
+        commands(in: group).filter { $0.platforms.contains(platform) }
+    }
+
     /// The items one block of the menu bar declares, in the order the menu draws
     /// them. `BoardCommands` renders exactly this and nothing else.
-    static func menuItems(in section: AppMenuSection) -> [AppCommand] {
-        allCases.filter { $0.menuSection == section }
+    static func menuItems(in section: AppMenuSection,
+                          on platform: AppPlatform = .current) -> [AppCommand] {
+        allCases.filter { $0.menuSection == section && $0.platforms.contains(platform) }
     }
 
     /// Every group that has anything to list, in menu order — what the shortcuts

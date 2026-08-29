@@ -1,59 +1,4 @@
-#if os(macOS)
-
 import SwiftUI
-
-/// What one macOS window knows about itself that the board does not: whether
-/// its sidebar is showing, which column has the keyboard, and the two things a
-/// menu item asks of a view it cannot reach.
-///
-/// Session state like the store's own, and here rather than there because none
-/// of it means anything on a phone and none of it is saved. Owned by the app so
-/// the menu bar — which is outside every window's view tree — can read and
-/// write it.
-@MainActor
-@Observable
-final class MacWindowState {
-    var isSidebarVisible = true
-
-    /// The column holding the focused card, or `nil` while nothing on the board
-    /// has focus. ⌘N adds to it: the composer has to open where the user is
-    /// looking, and on a board scrolled right the leftmost column is not it.
-    var focusedColumnID: BoardColumn.ID?
-
-    /// The card the keyboard is on, written by the surface that draws it.
-    ///
-    /// The menu bar reads it because ⌘⌫ and ⌘⏎ are *its* keys: an item on the
-    /// menu bar wins a press before a focused view ever sees it, so a card
-    /// claiming them too would simply never run. The menu asks what the
-    /// keyboard is on instead, and acts on that card's `commandTargets`.
-    var focusedTaskID: TaskItem.ID?
-
-    /// Set by File ▸ New Board and cleared by the sidebar when it opens its
-    /// field. A board is named as it is made, and the field that names it is a
-    /// row in a list the menu has no way to reach.
-    var isNamingNewBoard = false
-
-    /// Set by Task ▸ Set Due Date… and cleared by the sheet it opens. The
-    /// ellipsis in that title is a promise that something appears to type into.
-    var isPickingDueDate = false
-
-    /// Which of the two app-menu items opened the About window. Check for
-    /// Updates… promises a check, so the panel starts one rather than making the
-    /// user ask twice; About promises nothing and does nothing. Session state
-    /// like the rest of this, and none of it is saved.
-    var aboutStartsCheck = false
-
-    /// The cards that item was aimed at, handed to the sheet rather than worked
-    /// out there a second time.
-    ///
-    /// The sheet read `store.selection`, which is not what the item acts on: ⎋
-    /// clears the selection and leaves focus where it was, so the item stayed
-    /// live — rightly, it is aimed at the focused card — opened a sheet titled
-    /// "Due date", and Set did nothing at all. Two derivations of one rule is
-    /// how a menu comes to promise what it will not do; there is one now, and it
-    /// is `applicable(_:)`.
-    var dueDateTargets: Set<TaskItem.ID> = []
-}
 
 /// The menu bar, **generated** from ``AppCommand`` rather than transcribed from
 /// it: each placement draws `AppCommand.menuItems(in:)` for one section, and
@@ -62,13 +7,23 @@ final class MacWindowState {
 /// so, and a command added to the enum cannot compile until it has both a
 /// section and an action.
 ///
+/// **On both platforms**, which it was not. iPadOS draws a real menu bar for
+/// every app now, and an app that declares no `.commands` gets the system's
+/// default one — File, Edit, View with nothing of ours in any of them, and every
+/// key this app has taught people going nowhere. The desk and the iPad ask for
+/// the same things, so they ask for them from the same list; ``AppCommand/platforms``
+/// is where the two items that exist on one machine only are named, and
+/// ``AppWindowState`` is the per-window state both menus write into.
+///
 /// Everything aimed at a card acts on ``targets`` — the focused card and
 /// whatever it brings with it, or the selection when the board has no focus —
 /// and is **disabled** when none of those cards can accept it. From the outside
 /// a command that does nothing is a broken one, and "does nothing" is a
 /// question about the cards, not about whether anything is selected at all: on
 /// the Archive surface every item on the Task menu is aimed at a card that is
-/// off the board.
+/// off the board. The items that are aimed at the *board* rather than at a card
+/// ask ``AppCommand/isAvailable(in:)`` the same way — New Column on no board,
+/// Sync Now with sync off.
 ///
 /// Three groups are deliberately absent. Undo and Redo are `UndoManager`'s and
 /// the system puts them on the Edit menu itself; declaring them here would put
@@ -77,15 +32,19 @@ final class MacWindowState {
 /// field in the app. They are handled where the board has focus and taught by
 /// the sheet.
 struct BoardCommands: Commands {
+    #if os(macOS)
     @Environment(\.openWindow) private var openWindow
+    #endif
+
+    /// The two preferences the View menu can set. Read through `@AppStorage`
+    /// rather than through `Preferences` so that the tick beside the current row
+    /// follows a change made anywhere else — Settings has the same two controls,
+    /// and a menu that had read the value once would go on ticking yesterday's.
+    @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
+    @AppStorage(CardDensity.storageKey) private var density = CardDensity.fallback
 
     let store: BoardStore
-    let window: MacWindowState
-
-    private func openAbout(checking: Bool) {
-        window.aboutStartsCheck = checking
-        openWindow(id: SimpleKanbanApp.aboutWindowID)
-    }
+    let window: AppWindowState
 
     var body: some Commands {
         // ⌘N belonged to New Window while the toolbar had quietly taken it for
@@ -93,9 +52,32 @@ struct BoardCommands: Commands {
         // Replacing the group is what settles it.
         CommandGroup(replacing: .newItem) { items(.new) }
 
-        // Neither carries a key: both open a panel the user then has to answer,
-        // so a shortcut would buy one keystroke and cost one of the few left.
-        CommandGroup(replacing: .importExport) { items(.importExport) }
+        // Import… and Export… open a panel the user then has to answer, so
+        // neither carries a key. Saving and syncing are in the same block
+        // because all four are the board as a *file*: what is written, what is
+        // read, and what is sent.
+        CommandGroup(replacing: .importExport) {
+            items(.importExport)
+            Divider()
+            items(.file)
+        }
+
+        // **Replacing, and only where there is something to replace.** The desk
+        // has SwiftUI's `Settings` scene, which puts the system's own item and
+        // its ⌘, on the app menu; ours would be a second one beside it, so the
+        // `.app` section is empty there and this block is not hung at all.
+        //
+        // iPadOS puts an item there too — `Simple Kanban Settings…`, wired to
+        // `orderFrontPreferencesPanel:` — for an app that has no `Settings`
+        // scene to open. Declaring ours *after* it is not a duplicate item but a
+        // duplicate **key**, and UIKit does not merely resolve that in somebody's
+        // favour: it throws `NSInvalidArgumentException` while building the menu,
+        // which is a crash on launch. Measured on an iPad Pro 13", where it took
+        // the whole test host down before a single test ran. So on the platform
+        // whose settings are a sheet of ours, the item that opens them is ours.
+        #if !os(macOS)
+        CommandGroup(replacing: .appSettings) { items(.app) }
+        #endif
 
         CommandGroup(after: .pasteboard) {
             Divider()
@@ -104,6 +86,10 @@ struct BoardCommands: Commands {
 
         CommandGroup(after: .sidebar) {
             items(.view)
+            Divider()
+            items(.viewOptions)
+            Divider()
+            items(.navigate)
             Divider()
             destinations
         }
@@ -114,13 +100,15 @@ struct BoardCommands: Commands {
             items(.filing)
         }
 
+        #if os(macOS)
         // The two items that are about the *app* rather than about the board
         // or a card. They are not in ``AppCommand`` because that vocabulary is
         // the board's — everything in it is aimed at cards, counts them in its
         // title and goes dead when there are none — and because replacing
         // `.appInfo` is the only way to take the system's own About item away,
         // which has to happen for there to be one place the app talks about
-        // itself rather than two that disagree.
+        // itself rather than two that disagree. The iPad reaches both through
+        // Settings, which is where its own About row already lives.
         CommandGroup(replacing: .appInfo) {
             Button(String(localized: "About Simple Kanban", comment: "App menu item")) {
                 openAbout(checking: false)
@@ -129,6 +117,7 @@ struct BoardCommands: Commands {
                 openAbout(checking: true)
             }
         }
+        #endif
 
         // The default item leads to a help book this app does not have.
         CommandGroup(replacing: .help) { items(.help) }
@@ -137,7 +126,7 @@ struct BoardCommands: Commands {
     // MARK: Items
 
     /// One block of the menu bar: every command the vocabulary declares into
-    /// that section, in the order it declares them.
+    /// that section *on this machine*, in the order it declares them.
     private func items(_ section: AppMenuSection) -> some View {
         ForEach(AppCommand.menuItems(in: section)) { item($0) }
     }
@@ -151,10 +140,14 @@ struct BoardCommands: Commands {
     @ViewBuilder
     private func item(_ command: AppCommand) -> some View {
         switch command {
-        // The two anchors. Their rows are the store's and change as the user
-        // works, so the enum names the anchor and the menu fills it.
+        // The anchors. Their rows are the store's or the preferences' and change
+        // as the user works, so the enum names the anchor and the menu fills it.
         case .moveToColumn: columnRows
+        case .moveToBoard: boardRows
         case .setPriority: priorityRows
+        case .appearance: appearanceRows
+        case .cardDensity: densityRows
+        case .sortOrder: sortRows
         default:
             let acting = applicable(command)
             Button(command.title(selectionCount: acting.count)) { perform(command, on: acting) }
@@ -171,17 +164,32 @@ struct BoardCommands: Commands {
         switch command {
         case .newTask: newTask()
         case .newBoard: newBoard()
+        case .newColumn: openBoardSettings(addingColumn: true)
+        case .newView: newView()
+        case .boardSettings: openBoardSettings(addingColumn: false)
+        case .saveBoard: store.saveNow()
+        case .syncNow: Task { await store.syncNow() }
+        case .settings: store.isShowingSettings = true
         case .trashTask: trash(ids)
         case .find: store.focusSearch()
         case .toggleInspector: store.isInspectorOpen.toggle()
         case .toggleSidebar: window.isSidebarVisible.toggle()
+        case .toggleInbox: store.toggleInbox()
+        case .showTrash: showTrash()
+        case .manageLabels: window.isManagingLabels = true
+        case .themes: openThemes()
+        case .previousBoard: step(-1)
+        case .nextBoard: step(1)
         case .completeTask: store.complete(ids)
+        case .reopenTask: store.reopen(ids)
         case .setDueDate: pickDueDate(for: ids)
+        case .showInBoard: showPlace(of: ids)
         case .archiveTask: store.archive(ids)
+        case .unarchiveTask: store.unarchive(ids)
         case .shortcuts: store.isShowingShortcuts = true
         case .importBoard: store.isImportingBoard = true
         case .exportBoard: store.isExportingBoard = true
-        case .moveToColumn, .setPriority:
+        case .moveToColumn, .moveToBoard, .setPriority, .appearance, .cardDensity, .sortOrder:
             // Anchors: the rows underneath them are what act.
             break
         case .undo, .redo, .copyTask, .pasteTask, .selectAll, .deselect, .openTask,
@@ -198,8 +206,8 @@ struct BoardCommands: Commands {
     /// The cards a menu item is aimed at: the focused card and whatever it
     /// brings with it, or the selection when nothing on the board has focus.
     ///
-    /// Focus first because the menu bar owns ⌘⌫ and ⌘⏎ — AppKit offers a press
-    /// to the menu before the focused view, so a card that claimed either would
+    /// Focus first because the menu bar owns ⌘⌫ and ⌘⏎ — the menu is offered a
+    /// press before the focused view is, so a card that claimed either would
     /// never see it. A focused card that has since gone falls back to the
     /// selection rather than aiming at nothing.
     private var targets: [TaskItem] {
@@ -241,6 +249,33 @@ struct BoardCommands: Commands {
         .disabled(ids.isEmpty || store.columns.isEmpty)
     }
 
+    /// Which board a card is filed on, the Inbox included — the same list
+    /// `BoardDestinationItems` draws beside a card, as a menu that can be aimed
+    /// at several at once.
+    ///
+    /// Filing does **not** follow the card here. From a card's own pill it does,
+    /// because the panel in front of you would otherwise be showing a card that
+    /// has left the board behind it; from the menu bar the act is a filing act
+    /// aimed at a selection, and being thrown onto another board after each one
+    /// is the worse answer.
+    private var boardRows: some View {
+        let ids = applicable(.moveToBoard)
+        return Menu(AppCommand.moveToBoard.title) {
+            let isInbox = every(ids) { $0.isUnfiled }
+            row(Board.inboxName, isCurrent: isInbox) { file(ids, onto: nil) }
+                .disabled(isInbox)
+
+            if !store.boards.isEmpty { Divider() }
+
+            ForEach(store.boards) { board in
+                let isCurrent = every(ids) { $0.boardID == board.id }
+                row(board.name, isCurrent: isCurrent) { file(ids, onto: board.id) }
+                    .disabled(isCurrent)
+            }
+        }
+        .disabled(ids.isEmpty)
+    }
+
     private var priorityRows: some View {
         let ids = applicable(.setPriority)
         return Menu(AppCommand.setPriority.title) {
@@ -251,6 +286,35 @@ struct BoardCommands: Commands {
             }
         }
         .disabled(ids.isEmpty)
+    }
+
+    /// Light, dark, or whatever the system is doing — the same three Settings
+    /// offers, writing the same key.
+    private var appearanceRows: some View {
+        Menu(AppCommand.appearance.title) {
+            ForEach(AppAppearance.allCases) { choice in
+                row(choice.label, isCurrent: appearance == choice) { appearance = choice }
+            }
+        }
+    }
+
+    private var densityRows: some View {
+        Menu(AppCommand.cardDensity.title) {
+            ForEach(CardDensity.allCases) { choice in
+                row(choice.label, isCurrent: density == choice) { density = choice }
+            }
+        }
+    }
+
+    /// How a column's cards are ordered. A display preference on the store
+    /// rather than in `UserDefaults` alone — see ``BoardSortOrder`` — so this
+    /// writes what the column headers' own picker writes.
+    private var sortRows: some View {
+        Menu(AppCommand.sortOrder.title) {
+            ForEach(BoardSortOrder.allCases) { order in
+                row(order.label, isCurrent: store.sortOrder == order) { store.sortOrder = order }
+            }
+        }
     }
 
     /// Whether every targeted card already answers to the row — which is what
@@ -332,12 +396,113 @@ struct BoardCommands: Commands {
         window.isNamingNewBoard = true
     }
 
+    /// New Column… and Board Settings… are one door with the composer either
+    /// open or shut — the same request `BoardSidebar`'s board menu makes, and
+    /// the same one `BoardScrollView`'s blank state makes. There is nowhere else
+    /// a column can be added from: the strip stopped carrying an add tile when
+    /// columns became something a board owns.
+    private func openBoardSettings(addingColumn: Bool) {
+        guard let board = store.activeBoardID else { return }
+        store.boardSettings = BoardSettingsRequest(board: board, addsColumn: addingColumn)
+    }
+
+    /// A view is made and its editor opens on it, which is the sidebar's own
+    /// "New view" in one step: an empty saved view with no rule shows nothing,
+    /// so handing somebody one without the editor would be handing them a blank
+    /// row to wonder about.
+    ///
+    /// Raised through ``BoardStore/editingViewID`` rather than through state of
+    /// the sidebar's own, for the reason the phone's drawer already had: the
+    /// asker is not the presenter. The menu bar is outside every view tree, and
+    /// the source list it would otherwise borrow the flag from may not be on
+    /// screen at all.
+    private func newView() {
+        store.editingViewID = store.addView().id
+    }
+
     /// Task ▸ Set Due Date…. The sheet is aimed at the cards the item was aimed
     /// at, which it is told rather than asked to work out again.
     private func pickDueDate(for ids: Set<TaskItem.ID>) {
         window.dueDateTargets = ids
         window.isPickingDueDate = true
     }
+
+    /// ⌘J: go to where this card lives and light it up. Aimed at one card —
+    /// the first in board order — because there is one board to land on, and a
+    /// selection spread across three of them cannot be shown at once.
+    private func showPlace(of ids: Set<TaskItem.ID>) {
+        guard let id = store.tasks.first(where: { ids.contains($0.id) })?.id else { return }
+        store.showPlace(of: id)
+    }
+
+    /// Files several cards at once, as one undo step. `nil` is the Inbox, which
+    /// is what a card on no board at all is.
+    private func file(_ ids: Set<TaskItem.ID>, onto boardID: Board.ID?) {
+        guard !ids.isEmpty else { return }
+        let ordered = store.tasks.filter { ids.contains($0.id) }.map(\.id)
+        let name = ordered.count > 1
+            ? String(localized: "Move Tasks", comment: "Undo action name for filing several tasks onto another board")
+            : String(localized: "Move Task", comment: "Undo action name for filing a task onto another board")
+        store.undoable(name) {
+            for id in ordered {
+                if let boardID {
+                    store.file(id, onto: boardID)
+                } else {
+                    store.unfile(id)
+                }
+            }
+        }
+    }
+
+    /// ⌥⌘↑ and ⌥⌘↓.
+    private func step(_ delta: Int) {
+        guard let next = Self.board(delta, from: store.activeBoardID, in: store.boards) else { return }
+        store.clearQuery()
+        store.selectBoard(next)
+    }
+
+    /// The board `delta` steps from the one in front of you, **wrapping at both
+    /// ends**: a list of three that stopped at the last one would need the user
+    /// to know which end they were at before pressing, which is a keyboard
+    /// command that has to be looked at to be used.
+    ///
+    /// A static of the rule rather than a body inside the action, so it can be
+    /// held up to a test — a `Commands` body has nothing a test can enumerate.
+    /// `nil` when there is nowhere else to go, which is the one board case; a
+    /// board that is not in the list at all — the Inbox is the surface, say —
+    /// counts as being before the first, so ↓ lands on the first and ↑ on the
+    /// last.
+    static func board(_ delta: Int, from current: Board.ID?, in boards: [Board]) -> Board.ID? {
+        guard boards.count > 1 else { return nil }
+        guard let index = boards.firstIndex(where: { $0.id == current }) else {
+            return delta > 0 ? boards.first?.id : boards.last?.id
+        }
+        return boards[(index + delta % boards.count + boards.count) % boards.count].id
+    }
+
+    /// The Trash is a popover hanging off the source list's own row — see
+    /// `BoardSidebar` — so the list has to be out for there to be anything to
+    /// hang it from. Raising the flag against a hidden list is a menu item that
+    /// silently does nothing, which is the one thing an item may not do.
+    ///
+    /// The wait is for the list to be *there*: a popover asks its anchor for a
+    /// frame at the moment it is presented, and a view added in the same runloop
+    /// turn has none yet. `sidebarTravel` is the animation the two roots move it
+    /// with, plus the slack `BoardScrollView.panelTravel` allows for the same
+    /// reason.
+    private func showTrash() {
+        guard !window.isSidebarVisible else {
+            store.isShowingTrash = true
+            return
+        }
+        window.isSidebarVisible = true
+        Task { @MainActor in
+            try? await Task.sleep(for: Self.sidebarTravel)
+            store.isShowingTrash = true
+        }
+    }
+
+    static let sidebarTravel: Duration = .milliseconds(210)
 
     /// ⌘⌫. Focus follows the card off the board, which the card can no longer
     /// do for itself now that the menu takes the press first. Worked out before
@@ -348,6 +513,20 @@ struct BoardCommands: Commands {
         }
         store.trashTasks(ids)
     }
-}
 
-#endif
+    #if os(macOS)
+    private func openAbout(checking: Bool) {
+        window.aboutStartsCheck = checking
+        openWindow(id: SimpleKanbanApp.aboutWindowID)
+    }
+
+    private func openThemes() {
+        openWindow(id: SimpleKanbanApp.themesWindowID)
+    }
+    #else
+    /// Unreachable: ``AppCommand/themes`` is `.desk` only, so no item for it is
+    /// drawn here. Present so the one `perform(_:on:)` switch stays exhaustive
+    /// over the whole vocabulary rather than growing a platform hole.
+    private func openThemes() {}
+    #endif
+}

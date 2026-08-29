@@ -13,9 +13,9 @@ struct MacRootView: View {
     /// up without one — `UndoHandoverTests` puts it in a bare `NSHostingView`,
     /// and a preview has no app either. The subtree is handed whichever it got,
     /// so nothing below here has to ask the question twice.
-    @Environment(MacWindowState.self) private var injectedWindow: MacWindowState?
+    @Environment(AppWindowState.self) private var injectedWindow: AppWindowState?
     @Environment(\.dayClock) private var dayClock
-    @State private var standaloneWindow = MacWindowState()
+    @State private var standaloneWindow = AppWindowState()
     /// What the shared board publishes about its own keyboard. The board is
     /// `Sources/Shared` and cannot name a window, so this is where the two are
     /// introduced: the relay is handed down, and mirrored onto the window state
@@ -25,15 +25,27 @@ struct MacRootView: View {
     /// in its own alert; this is the menu bar's, because the menu bar has no
     /// surface of its own to say it on.
     @State private var transferNotice: SettingsNotice?
-    /// The source list's, held here so the window can take itself out of the
-    /// accessibility tree while the sheet is up — see `BoardSidebar`.
+    /// The source list's own, held here so the window can take itself out of
+    /// the accessibility tree while the sheet is up — see `BoardSidebar`. View ▸
+    /// Labels… raises the window state's flag instead, because the list it would
+    /// otherwise ask can be hidden; either one is the same sheet, and a sheet is
+    /// modal, so the second can never be asked for while the first is up.
     @State private var isManagingLabels = false
     /// What the header actually measured. The traffic lights are put on that
     /// row, and the bar grows with the type inside it — so the row is read off
     /// the laid-out bar rather than off the metric it started from.
     @State private var headerHeight = BoardToolbar.Metrics.desk.height
 
-    private var resolvedWindow: MacWindowState { injectedWindow ?? standaloneWindow }
+    private var resolvedWindow: AppWindowState { injectedWindow ?? standaloneWindow }
+
+    /// `sheet(item:)` wants something `Identifiable`, and the store keeps the
+    /// id — the same mapping `PhoneRootView` makes for the drawer's row.
+    private var editingView: Binding<SavedViewDraft?> {
+        Binding(
+            get: { store.editingViewID.flatMap { store.view(id: $0) }.map(SavedViewDraft.init) },
+            set: { store.editingViewID = $0?.id }
+        )
+    }
 
     var body: some View {
         @Bindable var store = store
@@ -121,7 +133,7 @@ struct MacRootView: View {
         // this it takes nothing away from a reader. Applied under the sheet
         // modifiers rather than over them, which is what leaves the sheet's own
         // 55 elements published while the 84 behind it go.
-        .accessibilityHidden(isManagingLabels)
+        .accessibilityHidden(isManagingLabels || resolvedWindow.isManagingLabels)
         // The board's own floor, which is what `.contentMinSize` on the window
         // is measured against. The sidebar can go, so the floor goes with it.
         .frame(minWidth: Self.floor(sidebar: window.isSidebarVisible, inbox: store.isInboxShowing),
@@ -136,10 +148,17 @@ struct MacRootView: View {
         .motionAnimation(.easeOut(duration: 0.16), value: window.isSidebarVisible)
         .motionAnimation(.easeOut(duration: 0.16), value: store.isInboxShowing)
         .sheet(isPresented: $store.isShowingShortcuts) {
-            MacShortcutsSheet()
+            ShortcutsSheet()
         }
         .sheet(isPresented: $window.isPickingDueDate) {
-            MacDueDateSheet()
+            DueDateSheet()
+        }
+        // File ▸ New View… and the source list's own "New view" both end here.
+        // Raised off the store rather than off the list's state for the reason
+        // `BoardCommands.newView()` gives: the menu bar is outside every view
+        // tree, and the list it would borrow a flag from can be hidden.
+        .sheet(item: editingView) { draft in
+            SavedViewEditor(viewID: draft.id)
         }
         // File ▸ Export… / Import…. Presented here rather than by the settings
         // pane so the panel sheets onto the window the menu belongs to; the
@@ -164,6 +183,7 @@ struct MacRootView: View {
         } message: { notice in
             Text(notice.message)
         }
+        .labelManagerSheet(isPresented: $window.isManagingLabels, metrics: BoardSidebar.Metrics.desk.labelManager)
         .environment(resolvedWindow)
         .environment(focusRelay)
         // Both directions, because the menu hands focus on as well as reading

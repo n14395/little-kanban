@@ -21,7 +21,10 @@ import UIKit
 @MainActor
 @Suite struct SidebarRoomTests {
     private let panel = InboxPanel.Metrics.pad.width
-    private let editor: CGFloat = 348
+    /// Read off the view rather than copied: widening the panel changes every
+    /// answer below, and a number spelled again here would go on agreeing with
+    /// itself while the window it describes had moved.
+    private let editor = PadRootView.baseInspectorWidth
     private let list = PadRootView.sidebarIdeal
     /// One `.pad` column and the strip's margins, which is `PadRootView`'s own
     /// floor spelled out — a board narrower than this is not a board.
@@ -177,7 +180,7 @@ import UIKit
     ///
     /// Whatever closes to make room for the Inbox, the window it leaves has to
     /// be one the panel will actually draw in. It was not: an 11" in portrait
-    /// with a task selected declined the panel at 834 − 348 − 320, so the Inbox
+    /// with a task selected declined the panel at 834 − 384 − 320, so the Inbox
     /// button put the source list away and did nothing else, which is the same
     /// dead button the turn-taking was written to remove.
     @Test(arguments: [834.0, 1024, 1032, 1180, 1194, 1366, 1376] as [CGFloat])
@@ -242,10 +245,15 @@ import UIKit
 /// `menuOwnedShortcuts` is a claim about AppKit: a menu key equivalent is
 /// dispatched out of `NSApplication.sendEvent` before the responder chain is
 /// offered the event, so a card that also claims ⌘⌫ or ⌘⏎ is claiming a press
-/// it will never receive. The set was built on both platforms all the same,
-/// and `BoardCommands` is only ever built into the macOS scene — the iPad's
-/// `WindowGroup` declares no commands — so on a keyboard-equipped iPad the two
-/// presses were excluded from the card's vocabulary and handled by nobody.
+/// it will never receive. The set was built on both platforms all the same, and
+/// on a keyboard-equipped iPad the two presses were excluded from the card's
+/// vocabulary and handled by nobody.
+///
+/// The iPad has a menu bar of this app's now — `BoardCommands` is declared into
+/// both scenes — so the reason the exclusion stays empty there has changed and
+/// the answer has not: UIKit offers a press to the responder chain first and
+/// reaches the menu at the end of it, which is the opposite order. The card
+/// answers, and the menu item is what catches the press when no card has focus.
 ///
 /// `KeyOwnershipTests` says the macOS half; this says the other one, and it has
 /// to live in a file that is not `#if os(macOS)` to say it at all.
@@ -269,7 +277,10 @@ import UIKit
         #expect(board(KeyEquivalentBox(key: .return, modifiers: .command)) == nil)
         #else
         #expect(BoardKeyboard.menuOwnedShortcuts.isEmpty,
-                "iOS builds no menu bar of ours, so nothing takes these presses first")
+                "on iOS the card is offered the press before the menu is, so it keeps these")
+        // And the menu bar it does have declares both items all the same.
+        #expect(AppCommand.trashTask.isMenuItem(on: .touch))
+        #expect(AppCommand.completeTask.isMenuItem(on: .touch))
         #expect(board(KeyEquivalentBox(key: .delete, modifiers: .command)) == .trashTask)
         #expect(board(KeyEquivalentBox(key: .return, modifiers: .command)) == .completeTask)
         #endif

@@ -23,7 +23,7 @@ struct EmptyStateView: View {
         var message: CGFloat
         var textSpacing: CGFloat
         /// Where the body copy wraps. The desk preset has to sit inside a 272pt
-        /// board column as well as the 336pt inspector, so it is sized for the
+        /// board column as well as the 372pt inspector, so it is sized for the
         /// narrower of the two.
         var maxTextWidth: CGFloat
         var horizontalPadding: CGFloat

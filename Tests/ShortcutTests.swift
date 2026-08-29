@@ -60,13 +60,17 @@ import Testing
     }
 
     /// The commands with no key of their own, named — so adding one is a
-    /// decision rather than an omission. Two open submenus, one opens a picker,
-    /// one is a Task-menu item nobody has claimed a key for, and Import… and
-    /// Export… open panels the user then has to answer anyway.
+    /// decision rather than an omission. Six open submenus; Import…, Export…,
+    /// Themes… and New View… open something the user then has to answer anyway;
+    /// and the four filing items are ones nobody has claimed a key for. New View…
+    /// is the one with a key it may not have: ⌃⌘N is `MenuBarQuickAdd`'s in the
+    /// documentation and on the seed board.
     @Test func theCommandsWithoutAKeyAreTheOnesWeChose() {
         let keyless = Set(AppCommand.allCases.filter(\.shortcuts.isEmpty))
-        #expect(keyless == [.moveToColumn, .setPriority, .setDueDate, .archiveTask,
-                            .importBoard, .exportBoard])
+        #expect(keyless == [.newView, .importBoard, .exportBoard, .themes,
+                            .moveToColumn, .moveToBoard, .setPriority, .setDueDate,
+                            .archiveTask, .unarchiveTask,
+                            .appearance, .cardDensity, .sortOrder])
         // And everything else has a key that SwiftUI can be handed.
         for command in AppCommand.allCases where !keyless.contains(command) {
             #expect(command.keyboardShortcut != nil, "\(command.rawValue) has no key equivalent")
@@ -147,8 +151,9 @@ import Testing
     /// one.
     @Test func everyCommandThatActsOnATaskSaysItNeedsOne() {
         #expect(Set(AppCommand.allCases.filter(\.needsSelection))
-                == [.trashTask, .completeTask, .moveToColumn, .setPriority, .setDueDate,
-                    .archiveTask, .copyTask, .deselect, .openTask, .moveCardLeft, .moveCardRight])
+                == [.trashTask, .completeTask, .reopenTask, .moveToColumn, .moveToBoard,
+                    .setPriority, .setDueDate, .showInBoard, .archiveTask, .unarchiveTask,
+                    .copyTask, .deselect, .openTask, .moveCardLeft, .moveCardRight])
 
         // Acting on the whole selection without needing one is incoherent.
         for command in AppCommand.allCases where command.actsOnWholeSelection {
@@ -156,8 +161,11 @@ import Testing
         }
         // And the commands that make something new, or that only move focus
         // about, must stay live on an empty board.
-        for command in [AppCommand.newTask, .newBoard, .pasteTask, .selectAll, .find,
-                        .toggleInspector, .toggleSidebar, .shortcuts,
+        for command in [AppCommand.newTask, .newBoard, .newColumn, .newView, .pasteTask,
+                        .selectAll, .find, .saveBoard, .syncNow, .settings, .boardSettings,
+                        .toggleInspector, .toggleSidebar, .toggleInbox, .showTrash,
+                        .manageLabels, .themes, .appearance, .cardDensity, .sortOrder,
+                        .previousBoard, .nextBoard, .shortcuts,
                         .focusPreviousColumn, .focusNextColumn, .focusCardAbove, .focusCardBelow] {
             #expect(command.needsSelection == false, "\(command.rawValue) would disable with nothing selected")
         }
@@ -172,6 +180,8 @@ import Testing
         #expect(AppCommand.completeTask.title(selectionCount: 2) == "Complete 2 Tasks")
         #expect(AppCommand.archiveTask.title(selectionCount: 2) == "Archive 2 Tasks")
         #expect(AppCommand.copyTask.title(selectionCount: 2) == "Copy 2 Tasks")
+        #expect(AppCommand.reopenTask.title(selectionCount: 2) == "Reopen 2 Tasks")
+        #expect(AppCommand.unarchiveTask.title(selectionCount: 2) == "Restore 2 Tasks")
 
         // A submenu and a picker read the same whatever they are aimed at, and
         // a command that never acts on more than one ignores the count.
@@ -290,11 +300,16 @@ import Testing
     /// added to the vocabulary has to be added here, which is the moment to ask
     /// which menu it belongs on and whether anything already owns its key.
     @Test func theVocabularyIsWhatWeThinkItIs() {
-        #expect(AppCommand.commands(in: .file) == [.newTask, .newBoard, .importBoard, .exportBoard])
+        #expect(AppCommand.commands(in: .file)
+                == [.newTask, .newBoard, .newColumn, .newView, .importBoard, .exportBoard,
+                    .boardSettings, .saveBoard, .syncNow, .settings])
         #expect(AppCommand.commands(in: .edit) == [.undo, .redo, .trashTask, .find])
-        #expect(AppCommand.commands(in: .view) == [.toggleInspector, .toggleSidebar])
+        #expect(AppCommand.commands(in: .view)
+                == [.toggleInspector, .toggleSidebar, .toggleInbox, .showTrash, .manageLabels,
+                    .themes, .appearance, .cardDensity, .sortOrder, .previousBoard, .nextBoard])
         #expect(AppCommand.commands(in: .task)
-                == [.completeTask, .moveToColumn, .setPriority, .setDueDate, .archiveTask])
+                == [.completeTask, .reopenTask, .moveToColumn, .moveToBoard, .setPriority,
+                    .setDueDate, .showInBoard, .archiveTask, .unarchiveTask])
         #expect(AppCommand.commands(in: .board)
                 == [.copyTask, .pasteTask, .selectAll, .deselect, .openTask,
                     .focusPreviousColumn, .focusNextColumn, .focusCardAbove, .focusCardBelow,
@@ -317,8 +332,10 @@ import Testing
 
         #expect(Set(rows).union(menuOnly).union(unbuilt) == Set(AppCommand.allCases))
         #expect(rows.count + menuOnly.count + unbuilt.count == AppCommand.allCases.count)
-        #expect(Set(menuOnly) == [.moveToColumn, .setPriority, .setDueDate, .archiveTask,
-                                  .importBoard, .exportBoard])
+        #expect(Set(menuOnly) == [.newView, .importBoard, .exportBoard, .themes,
+                                  .moveToColumn, .moveToBoard, .setPriority, .setDueDate,
+                                  .archiveTask, .unarchiveTask,
+                                  .appearance, .cardDensity, .sortOrder])
         #expect(unbuilt.isEmpty, "an unbuilt command is drawn disabled — say which, and why")
     }
 
@@ -339,15 +356,15 @@ import Testing
     /// works. A vocabulary that named today's columns would be wrong the moment
     /// somebody renamed one.
     @Test func aSubmenuAnchorOpensRatherThanDoes() {
-        #expect(Set(AppCommand.allCases.filter(\.opensSubmenu)) == [.moveToColumn, .setPriority])
+        #expect(Set(AppCommand.allCases.filter(\.opensSubmenu))
+                == [.moveToColumn, .moveToBoard, .setPriority,
+                    .appearance, .cardDensity, .sortOrder])
         for command in AppCommand.allCases where command.opensSubmenu {
             #expect(command.shortcuts.isEmpty, "\(command.rawValue) opens a submenu and cannot take a key")
             #expect(command.isMenuItem)
         }
     }
 }
-
-#if os(macOS)
 
 /// The menu bar itself, as against a model of it.
 ///
@@ -363,16 +380,24 @@ import Testing
 /// over opaque values with nothing to enumerate at runtime, there is no `NSMenu`
 /// outside a running app and a test bundle cannot host one. `#filePath` finds
 /// the file, so the check follows the tests into a scratch copy of the tree.
+///
+/// **On both platforms**, which this suite was not: it was `#if os(macOS)` while
+/// the menu bar was, and the menu bar is now declared into the iPad's scene too.
+/// Reading the source is a claim about the file rather than about the machine
+/// running the test, so it holds either way — and the platform split is itself
+/// something to check, which is what the last two tests do.
 @Suite struct MenuDeclarationTests {
     /// Where each block of the menu bar is hung, which is the one thing not in
     /// `AppCommand` and cannot be: `.pasteboard` is a place on the Edit menu and
-    /// `.sidebar` a place on View. The Task menu draws two blocks with a divider
-    /// between them — filing a card away is not editing it.
+    /// `.sidebar` a place on View. Several menus draw more than one block with a
+    /// divider between them — filing a card away is not editing it, and setting
+    /// how the board is drawn is not the same as showing or hiding a panel.
     private static let placements: [(anchor: String, sections: [AppMenuSection])] = [
         ("CommandGroup(replacing: .newItem)", [.new]),
-        ("CommandGroup(replacing: .importExport)", [.importExport]),
+        ("CommandGroup(replacing: .importExport)", [.importExport, .file]),
+        ("CommandGroup(replacing: .appSettings)", [.app]),
         ("CommandGroup(after: .pasteboard)", [.edit]),
-        ("CommandGroup(after: .sidebar)", [.view]),
+        ("CommandGroup(after: .sidebar)", [.view, .viewOptions, .navigate]),
         ("CommandMenu(AppCommandGroup.task.title)", [.task, .filing]),
         ("CommandGroup(replacing: .help)", [.help]),
     ]
@@ -400,10 +425,12 @@ import Testing
     /// all — `UndoManager` puts Undo and Redo on the Edit menu itself, and an
     /// item for ⌘C, ⌘V or ⌘A takes that key from every text field in the app.
     @Test func everyMenuItemIsDeclaredIntoExactlyOneBlock() {
-        let declared = AppMenuSection.allCases.flatMap(AppCommand.menuItems(in:))
-        #expect(Set(declared) == Set(AppCommand.allCases.filter(\.isMenuItem)))
-        #expect(declared.count == AppCommand.allCases.count(where: \.isMenuItem),
-                "a command is drawn into two blocks of the menu bar")
+        for platform in AppPlatform.allCases {
+            let declared = AppMenuSection.allCases.flatMap { AppCommand.menuItems(in: $0, on: platform) }
+            #expect(Set(declared) == Set(AppCommand.allCases.filter { $0.isMenuItem(on: platform) }))
+            #expect(declared.count == AppCommand.allCases.count(where: { $0.isMenuItem(on: platform) }),
+                    "a command is drawn into two blocks of the \(platform.rawValue) menu bar")
+        }
 
         for command in AppCommand.allCases {
             #expect((command.menuSection != nil) == command.isMenuItem,
@@ -413,20 +440,27 @@ import Testing
 
     /// A block belongs to one menu, and the blocks of a menu hold that menu's
     /// items in the order the vocabulary lists them.
+    ///
+    /// A block may be empty on *one* platform — `.app` is, on the desk, where
+    /// the system's own Settings… is already there — and on neither may it be
+    /// empty on both, which would be a block hung for nothing.
     @Test func theBlocksOfAMenuCoverThatMenusItemsInOrder() {
         for section in AppMenuSection.allCases {
-            let items = AppCommand.menuItems(in: section)
-            #expect(!items.isEmpty, "the \(section.rawValue) block would draw nothing")
-            #expect(Set(items.map(\.group)).count == 1,
+            let anywhere = AppPlatform.allCases.contains { !AppCommand.menuItems(in: section, on: $0).isEmpty }
+            #expect(anywhere, "the \(section.rawValue) block would draw nothing on either platform")
+            #expect(Set(AppCommand.menuItems(in: section, on: .desk).map(\.group)
+                        + AppCommand.menuItems(in: section, on: .touch).map(\.group)).count == 1,
                     "the \(section.rawValue) block spans two menus")
         }
 
-        for group in AppCommandGroup.allCases where group.hasMenu {
-            let drawn = AppMenuSection.allCases
-                .flatMap(AppCommand.menuItems(in:))
-                .filter { $0.group == group }
-            #expect(drawn == AppCommand.commands(in: group).filter(\.isMenuItem),
-                    "the \(group.rawValue) menu and the vocabulary disagree about what is on it")
+        for platform in AppPlatform.allCases {
+            for group in AppCommandGroup.allCases where group.hasMenu {
+                let drawn = AppMenuSection.allCases
+                    .flatMap { AppCommand.menuItems(in: $0, on: platform) }
+                    .filter { $0.group == group }
+                #expect(drawn == AppCommand.commands(in: group, on: platform).filter(\.isMenuItem),
+                        "the \(group.rawValue) menu and the vocabulary disagree about what is on \(platform.rawValue)")
+            }
         }
     }
 
@@ -463,6 +497,55 @@ import Testing
                     "the \(section.rawValue) block is not drawn exactly once")
         }
     }
-}
 
-#endif
+    /// **The iPad has a menu bar of ours**, which is the whole point of the
+    /// vocabulary having a platform axis at all. Asked of the scene as text for
+    /// `body()`'s reason: a `Scene` is opaque, and the modifier that carries the
+    /// menu bar into the iPad's `WindowGroup` is one line that could be deleted
+    /// without a single other test noticing.
+    @Test func bothScenesDeclareTheSameMenuBar() throws {
+        let root = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let text = try String(
+            contentsOf: root.appending(path: "Sources/App/SimpleKanbanApp.swift"), encoding: .utf8
+        )
+        // Once for the desk's `Window`, once for the touch platforms'
+        // `WindowGroup` — the same commands, built from the same list.
+        #expect(text.components(separatedBy: ".commands { BoardCommands(store: store, window: window)").count == 3,
+                "one of the two scenes declares no menu bar")
+        // And the state both of them write into is owned by the app rather than
+        // by a window, or the menu would have nothing to toggle.
+        #expect(text.contains("@State private var window = AppWindowState()"))
+    }
+
+    /// The split itself, named rather than derived: a command that quietly
+    /// became one platform's only is an item that vanished from the other's
+    /// menu bar, and nothing else would say so.
+    ///
+    /// Two of the three are not taste. iPadOS puts its own **Settings…** (⌘,)
+    /// and its own **Show Sidebar** (⌃⌘S, for the split view) on the menu bar,
+    /// and a second item on either key is not a duplicate the system resolves —
+    /// UIKit throws `NSInvalidArgumentException` building the menu and the app
+    /// terminates before its first window. Both were found exactly that way, on
+    /// an iPad Pro 13" that took the test host down with it.
+    @Test func theOnlyItemsOnePlatformKeepsToItselfAreTheThreeWeNamed() {
+        let exclusive: [AppCommand: Set<AppPlatform>] = [
+            .settings: [.touch], .themes: [.desk], .toggleSidebar: [.desk],
+        ]
+        for (command, platforms) in exclusive {
+            #expect(command.platforms == platforms, "\(command.rawValue) is on the wrong machines")
+        }
+        for command in AppCommand.allCases where exclusive[command] == nil {
+            #expect(command.platforms == Set(AppPlatform.allCases),
+                    "\(command.rawValue) is missing from one platform's menu bar")
+        }
+        // The iPad's own item moves the same column, and `PadRootView` reads
+        // that movement back — so the items that need the list out still get it.
+        #expect(AppCommand.newBoard.platforms.contains(.touch))
+        #expect(AppCommand.showTrash.platforms.contains(.touch))
+        // Which is what the desk must *not* declare: SwiftUI's `Settings` scene
+        // puts that item and its ⌘, on the app menu itself, and a second one
+        // beside it is the defect `.appInfo` is replaced to avoid elsewhere.
+        #expect(AppCommand.menuItems(in: .app, on: .desk).isEmpty)
+        #expect(AppCommand.menuItems(in: .app, on: .touch) == [.settings])
+    }
+}

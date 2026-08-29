@@ -4494,6 +4494,33 @@ final class BoardStore {
         }
     }
 
+    /// Takes several cards back out of Done in one step. The mirror of
+    /// `complete(_:)` above, and one undo step for the same reason: a menu item
+    /// aimed at three cards is one act, however many cards it moves.
+    func reopen(_ ids: Set<TaskItem.ID>) {
+        let targets = reopenTargets(ids)
+        guard !targets.isEmpty else { return }
+        let name = targets.count > 1
+            ? String(localized: "Reopen Tasks", comment: "Undo action name for reopening several tasks at once")
+            : String(localized: "Reopen Task", comment: "Undo action name for reopening a task")
+        undoable(name) {
+            for id in targets { reopen(id) }
+        }
+    }
+
+    /// And several out of the Archive, which the Archive view does a row at a
+    /// time and the Task menu does to whatever it is aimed at.
+    func unarchive(_ ids: Set<TaskItem.ID>) {
+        let targets = unarchiveTargets(ids)
+        guard !targets.isEmpty else { return }
+        let name = targets.count > 1
+            ? String(localized: "Restore Tasks", comment: "Undo action name for taking several tasks back out of the archive")
+            : String(localized: "Restore Task", comment: "Undo action name for taking a task back out of the archive")
+        undoable(name) {
+            for id in targets { unarchive(id) }
+        }
+    }
+
     func archive(_ ids: Set<TaskItem.ID>) {
         let targets = archiveTargets(ids)
         guard !targets.isEmpty else { return }
@@ -4613,11 +4640,23 @@ final class BoardStore {
     /// Archive is the only one it would not.
     func canArchive(_ id: TaskItem.ID) -> Bool { self[id]?.isArchived == false }
 
+    /// Whether taking this card back out of the Archive would do anything —
+    /// `canArchive`'s mirror, and the question Task ▸ Restore Task asks before
+    /// it draws itself live.
+    func canUnarchive(_ id: TaskItem.ID) -> Bool { self[id]?.isArchived == true }
+
     /// The cards `complete(_:)` will move, in board order.
     func completeTargets(_ ids: Set<TaskItem.ID>) -> [TaskItem.ID] { ordered(ids).filter(canComplete) }
 
     /// The cards `archive(_:)` will file away, in board order.
     func archiveTargets(_ ids: Set<TaskItem.ID>) -> [TaskItem.ID] { ordered(ids).filter(canArchive) }
+
+    /// The cards `reopen(_:)` will take back out of Done, in board order.
+    func reopenTargets(_ ids: Set<TaskItem.ID>) -> [TaskItem.ID] { ordered(ids).filter(canReopen) }
+
+    /// The cards `unarchive(_:)` will take back out of the Archive, in board
+    /// order.
+    func unarchiveTargets(_ ids: Set<TaskItem.ID>) -> [TaskItem.ID] { ordered(ids).filter(canUnarchive) }
 
     /// The same two counts over the current selection, which is what the menu
     /// bar has to hand: it names no ids, it just asks the store what the

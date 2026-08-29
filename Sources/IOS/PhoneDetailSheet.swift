@@ -262,12 +262,14 @@ struct PhoneDetailSheet: View {
 
     private var attributeCards: some View {
         HStack(spacing: 8) {
-            AttributeCard(title: "Due") {
-                DueDateField(task: task, scope: .sheet, metrics: .sheet)
-            }
-            AttributeCard(title: "Priority") {
-                PriorityPicker(task: task, scope: .sheet, metrics: .sheet)
-            }
+            DueDateField(
+                task: task, scope: .sheet, metrics: .sheet,
+                card: AttributeCardStyle(title: "Due")
+            )
+            PriorityPicker(
+                task: task, scope: .sheet, metrics: .sheet,
+                card: AttributeCardStyle(title: "Priority")
+            )
         }
         .attributeCardRow()
     }

@@ -20,11 +20,10 @@ struct SimpleKanbanApp: App {
     /// a due chip or a relative timestamp reads it, and one clock keeps them
     /// all rolling over together.
     @State private var dayClock = DayClock()
-    #if os(macOS)
-    /// Owned here rather than in `MacRootView` because the menu bar is outside
-    /// every window's view tree and still has to toggle the sidebar.
-    @State private var window = MacWindowState()
-    #endif
+    /// Owned here rather than in a root view because the menu bar is outside
+    /// every window's view tree and still has to toggle the source list. On both
+    /// platforms now that the iPad has a menu bar of ours — see ``BoardCommands``.
+    @State private var window = AppWindowState()
 
     /// The store is built here rather than in a property initialiser because an
     /// App Intent can run in a process the user never brought to the front, and
@@ -121,8 +120,19 @@ struct SimpleKanbanApp: App {
         MenuBarQuickAdd(store: store)
         #else
         WindowGroup {
-            root
+            root.environment(window)
         }
+        // **iPadOS draws a menu bar too.** Without this the app got the system's
+        // default one — File, Edit and View with nothing of this app's in any of
+        // them — and every key the shortcuts sheet teaches went nowhere. The same
+        // `Commands` the desk declares, from the same vocabulary: see
+        // `AppCommand.platforms` for the two items that are one platform's only.
+        //
+        // The iPhone has no menu bar to draw them on and loses nothing by their
+        // being declared: a `Commands` body it cannot show is a set of key
+        // equivalents for a hardware keyboard, which is exactly what an iPhone
+        // with one attached should have.
+        .commands { BoardCommands(store: store, window: window) }
         #endif
     }
 

@@ -47,6 +47,11 @@ struct DueDateField: View {
     let task: TaskItem
     let scope: DetailScope
     var metrics: Metrics = .desk
+    /// The attribute card this control draws as, where it is one. The detail
+    /// surfaces hand it theirs so that the whole card opens the calendar — see
+    /// ``SwiftUI/View/inAttributeCard(_:)``. `nil` anywhere else, and then this
+    /// is the chip alone.
+    var card: AttributeCardStyle?
 
     @State private var isPickerOpen = false
     /// Which month the grid is showing. The panel's, not the task's: paging
@@ -90,8 +95,11 @@ struct DueDateField: View {
                 }
             }
             .frame(minWidth: metrics.chipHit, minHeight: metrics.chipHit)
+            .inAttributeCard(card)
         }
         .buttonStyle(.bare)
+        // Stated rather than left to the label, which now includes the card's
+        // own name: "Due" and "Due date" read one after the other otherwise.
         .accessibilityLabel("Due date")
         .accessibilityValue(spokenDue)
         .popover(isPresented: pickerBinding, arrowEdge: .bottom) {

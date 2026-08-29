@@ -1,5 +1,3 @@
-#if os(macOS)
-
 import SwiftUI
 
 /// The keyboard reference, from Help ▸ Keyboard Shortcuts (⌘/).
@@ -11,7 +9,7 @@ import SwiftUI
 ///
 /// Seed task `t12`, sitting in the Done column, is "Keyboard shortcuts sheet" —
 /// the sample data has claimed this shipped since the first commit.
-struct MacShortcutsSheet: View {
+struct ShortcutsSheet: View {
     @Environment(\.palette) private var palette
     @Environment(\.dismiss) private var dismiss
 
@@ -21,8 +19,13 @@ struct MacShortcutsSheet: View {
         AppCommand.groups.filter { !commands(in: $0).isEmpty }
     }
 
+    /// This machine's rows, which is not the whole vocabulary: two commands
+    /// exist on one platform only — see ``AppCommand/platforms`` — and a
+    /// reference card that taught an iPad the desk's ⌘, or taught the desk a
+    /// theme browser it opens some other way would be a card claiming a key the
+    /// app in front of you does not have.
     private func commands(in group: AppCommandGroup) -> [AppCommand] {
-        AppCommand.commands(in: group).filter { !$0.shortcuts.isEmpty }
+        AppCommand.commands(in: group, on: .current).filter { !$0.shortcuts.isEmpty }
     }
 
     var body: some View {
@@ -124,8 +127,9 @@ struct MacShortcutsSheet: View {
     /// command that gains a shortcut leaves this sentence on its own.
     @ViewBuilder
     private var footer: some View {
-        let menuOnly = AppCommand.allCases.filter { $0.shortcuts.isEmpty && $0.source == .app }
-        let unbuilt = AppCommand.allCases.filter { $0.source == .unbuilt }
+        let here = AppCommand.allCases.filter { $0.platforms.contains(.current) }
+        let menuOnly = here.filter { $0.shortcuts.isEmpty && $0.source == .app }
+        let unbuilt = here.filter { $0.source == .unbuilt }
         // The four keys that need columns. The Inbox, the saved views and the
         // Archive draw the same cards and answer to the same keys less these,
         // and a reference that does not say so has promised ⌥← everywhere.
@@ -156,5 +160,3 @@ struct MacShortcutsSheet: View {
         commands.map(\.title).formatted(.list(type: .and))
     }
 }
-
-#endif

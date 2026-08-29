@@ -19,8 +19,9 @@ struct TaskInspector: View {
         var noteSize: CGFloat
         /// The box around Due and around Priority — see
         /// ``TaskInspector/attributeCards``. One set of numbers for both
-        /// surfaces: the panel is 336pt wide and an iPhone's sheet lays out
-        /// around 330pt of content, so a card sized for one fits the other.
+        /// surfaces: the panel is 372pt wide and an iPhone's sheet lays out
+        /// around 330pt of content, so a card sized for the narrower of the two
+        /// is comfortable in the wider.
         var cardSpacing: CGFloat = 8
         var cardHorizontalPadding: CGFloat = 14
         var cardVerticalPadding: CGFloat = 12
@@ -47,7 +48,7 @@ struct TaskInspector: View {
         var activity: ActivityFeed.Metrics
 
         static let desk = Metrics(
-            width: 336, horizontalPadding: 18, sectionSpacing: 18, titleSize: 26, noteSize: 13,
+            width: 372, horizontalPadding: 18, sectionSpacing: 18, titleSize: 26, noteSize: 13,
             headerButton: 32, headerButtonRadius: 9,
             headerGlyph: 13,
             fieldHit: 0, tick: .deskHeader, destination: .desk, moveTo: .desk, due: .desk,
@@ -82,10 +83,10 @@ struct TaskInspector: View {
     var metrics: Metrics = .desk
     var container: Container = .column
 
-    /// The panel is a 336pt box around type that grows, so it grows too — see
+    /// The panel is a 372pt box around type that grows, so it grows too — see
     /// ``ChromeScale``. Capped harder than the board's columns are: the panel
     /// takes its width off the board rather than off a scroller, and at AX5 an
-    /// uncapped 336 is half an iPad.
+    /// uncapped 372 is half an iPad.
     private var chrome = ChromeScale()
 
     /// How far the panel's width may grow with the reader's text size. Named
@@ -365,28 +366,23 @@ struct TaskInspector: View {
     /// what every other section here does — see ``moveTo`` and ``checklist``.
     private var attributeCards: some View {
         HStack(spacing: metrics.cardSpacing) {
-            attributeCard(title: "Due") {
-                DueDateField(task: task, scope: .desk, metrics: metrics.due)
-            }
-            attributeCard(title: "Priority") {
-                PriorityPicker(task: task, scope: .desk, metrics: metrics.priority)
-            }
+            DueDateField(task: task, scope: .desk, metrics: metrics.due, card: card("Due"))
+            PriorityPicker(
+                task: task, scope: .desk, metrics: metrics.priority, card: card("Priority")
+            )
         }
         .attributeCardRow()
     }
 
-    /// `@escaping`, because ``AttributeCard`` *stores* the closure rather than
-    /// calling it here: a view builder held as a property outlives the call
-    /// that made it, and a parameter is non-escaping unless it says otherwise.
-    private func attributeCard(
-        title: LocalizedStringKey, @ViewBuilder value: @escaping () -> some View
-    ) -> some View {
-        AttributeCard(
+    /// The card one of the two controls draws *as*, rather than a box drawn
+    /// around it: the name and the whitespace open what the value opens — see
+    /// ``SwiftUI/View/inAttributeCard(_:)``.
+    private func card(_ title: LocalizedStringKey) -> AttributeCardStyle {
+        AttributeCardStyle(
             title: title,
             horizontalPadding: metrics.cardHorizontalPadding,
             verticalPadding: metrics.cardVerticalPadding,
-            radius: metrics.cardRadius,
-            value: value
+            radius: metrics.cardRadius
         )
     }
 

@@ -3,7 +3,7 @@ import SwiftUI
 /// How much larger the reader's text is than the default, as one number the
 /// chrome can multiply its own fixed sizes by.
 ///
-/// The design pins a toolbar at 66pt, a column at 272 and the inspector at 336.
+/// The design pins a toolbar at 66pt, a column at 272 and the inspector at 372.
 /// Every one of those is a box drawn around type that grows with Dynamic Type,
 /// so at an accessibility size the type outgrows the box and is clipped — an
 /// iPad at AX5 truncated its column headings to "Bac…" and wrapped the

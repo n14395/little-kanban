@@ -68,7 +68,7 @@ Tools/
                        in one can be checked against the other
 Sources/
   App/                 SimpleKanbanApp scene, RootView's size-class switch and undo-manager
-                       handover; BoardCommands — the macOS menu bar, and MacWindowState;
+                       handover; BoardCommands — the menu bar, on both platforms, and AppWindowState;
                        FirstRunView — the starter picker a first launch comes up on;
                        AboutView and UpdateChecker — the macOS About window's panel;
                        AppIconInstaller and WidgetKeeper — the two facts about the app
@@ -495,7 +495,7 @@ whose 11pt digit sits on a second wash of ink and computes to 4.76:1 — a numbe
 anti-aliased type that small does not actually deliver.
 
 **Chrome grows with the type inside it.** A 50pt toolbar, a 232pt source list, a
-272pt column and a 336pt panel are all boxes around text that scales, and at AX5
+272pt column and a 372pt panel are all boxes around text that scales, and at AX5
 they clipped: column headings truncated to "Bac…", the inspector broke "Priority"
 across two lines as "Prio / rity". `ChromeScale` is a `DynamicProperty` that
 hands back one multiplier — how much larger the reader's text is than the
@@ -602,7 +602,7 @@ appearance when it was empty and rendered as blank space. `EmptyStateView` is
 the shared control — an SF Symbol, a headline in `SimpleKanbanFont.serif`, a
 line of body copy, and at most one button — with the usual `Metrics.desk` /
 `Metrics.sheet` presets. `.desk` is sized to fit a 272pt board column as well as
-the 336pt inspector, so there is no third preset.
+the 372pt inspector, so there is no third preset.
 
 **Which kind of empty it is decides the way out**, and that distinction is the
 whole point of the copy:
@@ -645,7 +645,7 @@ symbols, two headlines and two bodies before they were pulled back onto one
 factory. All are `String(localized:)`.
 
 Two of them are worth calling out. **The macOS inspector no longer collapses**:
-it used to guard on `isInspectorOpen && selectedTask != nil`, so the whole 336pt
+it used to guard on `isInspectorOpen && selectedTask != nil`, so the whole 372pt
 panel vanished the moment a card was deselected and the board reflowed under the
 pointer, which made the inspector toggle look broken. It now renders at its own
 width with a placeholder. And **the iOS empty column does not use
@@ -945,8 +945,8 @@ it fits, so it appears, so the row shrinks, so it no longer fits. That loop is
 what shipped in the first draft, and the panel simply never appeared.
 
 **And it counts the board, not the inspector.** The inspector's width was in that
-sum too, and it made the panel decline on an 11" in portrait — 834 less 348 less
-320 is 166 — *after* the source list had already closed to make room for it, so
+sum too, and it made the panel decline on an 11" in portrait — 834 less 384 less
+320 is 130 — *after* the source list had already closed to make room for it, so
 the Inbox button put the list away and did nothing else. Nothing needs reserving
 for the inspector here, precisely because the inspector has the answer this panel
 has not: it draws over the board. `holdsTheInbox(detail:panel:floor:)` counts what
@@ -1007,7 +1007,7 @@ Four things about how it is wired:
 The rule and `holdsTheInbox` have an invariant between them, and breaking it is
 what a dead Inbox button is made of: **whatever closes to make room for the Inbox
 has to leave a window the panel will actually draw in**. It did not — an 11" in
-portrait with a task selected declined the panel at 834 − 348 − 320, so the Inbox
+portrait with a task selected declined the panel at 834 − 384 − 320, so the Inbox
 button put the source list away and did nothing else. `SidebarRoomTests` walks
 the iPad widths and every combination of what was open and asserts exactly that,
 along with the other half: that whatever closes, what is left holds the rest.
@@ -1570,7 +1570,7 @@ three ways: it is pinned to the width of the pane it hangs off, it cannot be
 resized, and it blocks the window it is attached to — and this is a surface for
 *comparing* pictures while the theme it chooses repaints the board behind it. The
 grid is adaptive rather than fixed, so a wider window is more columns: three at the
-900×720 it opens at, five at 1400, one at the 336pt floor. The phone keeps a
+900×720 it opens at, five at 1400, one at the 372pt floor. The phone keeps a
 sheet, having no windows to open, and keeps a Done button for the same reason —
 a window has a close box and a second door to the same room is clutter.
 
@@ -1799,6 +1799,19 @@ through to `BoardStore`, so an edit lands on the board card as it is typed.
   cancels a rename in the label manager. Where there is nothing to clear it is
   passed on rather than swallowed, so it still closes whatever is presenting the
   field.
+
+**The two attribute cards are the controls, not boxes around them.** Due and
+Priority sit side by side in an `AttributeCard` — a name over a value, each
+taking half the row — and the card is drawn *inside* the button's or the menu's
+label rather than around it (`View.inAttributeCard(_:)`, handed an
+`AttributeCardStyle` by whichever surface is drawing). So the name, the padding
+and the empty half of the card open the calendar or drop the priority menu
+exactly as the chip in the middle of it does. Before, only the value itself was
+live: a card the size of a thumb answered a press on about a fifth of itself,
+and on a pointer the cursor changed over a word and nowhere else. The hit shape
+is stated to the card's own corner radius, and each control keeps its
+`accessibilityLabel` — otherwise VoiceOver read the card's name and then the
+control's, "Priority, Priority".
 
 ### The calendar is hand-drawn
 
@@ -3215,10 +3228,10 @@ from `AppCommand` rather than transcribed from it:
 
 | menu | items |
 | --- | --- |
-| **File** | New Task ⌘N · New Board ⇧⌘N · Import… · Export… |
-| **Edit** | Undo ⌘Z · Redo ⇧⌘Z · Delete Task ⌘⌫ · Find ⌘F |
-| **View** | Toggle Inspector ⌥⌘I · Toggle Sidebar ⌃⌘S · Board · Inbox · the six saved views · every board |
-| **Task** | Complete Task ⌘⏎ · Move to Column ▸ · Set Priority ▸ · Set Due Date… · Archive Task |
+| **File** | New Task ⌘N · New Board ⇧⌘N · New Column… ⌥⌘N · New View… · Import… · Export… · Board Settings… ⇧⌘, · Save Board ⌘S · Sync Now ⌘R · Settings… ⌘, *(iPad)* |
+| **Edit** | Undo ⌘Z · Redo ⇧⌘Z · Trash Task ⌘⌫ · Find ⌘F |
+| **View** | Toggle Inspector ⌥⌘I · Toggle Sidebar ⌃⌘S *(Mac)* · Toggle Inbox ⇧⌘I · Show Trash ⇧⌘T · Labels… ⇧⌘L · Themes… *(Mac)* · Appearance ▸ · Card Size ▸ · Sort By ▸ · Previous Board ⌥⌘↑ · Next Board ⌥⌘↓ · Board · Inbox Panel · the saved views · every board |
+| **Task** | Complete Task ⌘⏎ · Reopen Task ⇧⌘⏎ · Move to Column ▸ · Move to Board ▸ · Set Priority ▸ · Set Due Date… · Show in Board ⌘J · Archive Task · Restore Task |
 | **Help** | Keyboard Shortcuts ⌘/ |
 
 Nothing in `BoardCommands` names an item. `AppMenuSection` is one
@@ -3237,6 +3250,20 @@ test pinning that order a test of the menu bar. The View menu reads Toggle
 Inspector, Toggle Sidebar because `AppCommand` declares them that way and the
 shortcuts sheet lists them that way; it used to read the other way round, which
 made the pinned order a statement about nothing.
+
+**Two menus are the app's own furniture rather than the board's.** The View
+menu's middle block writes preferences — Appearance, Card Size and Sort By are
+the same three controls Settings has, read through `@AppStorage` and
+`store.sortOrder` so a tick beside a row follows a change made anywhere else —
+and its next block steps through the boards, wrapping at both ends because a key
+that stopped at the last one would need the user to know which end they were at
+before pressing it. `BoardCommands.board(_:from:in:)` is that rule as a static so
+a test can hold it up; a `Commands` body has nothing to enumerate.
+
+**Some items are aimed at the board rather than at a card**, and they disable on
+the same principle: `AppCommand.isAvailable(in:)` takes New Column and Board
+Settings… dead when there is no board, Sync Now dead when sync is off or iCloud
+is unavailable, and Next/Previous Board dead on a one-board install.
 
 With a hidden title bar there is no Show Toolbar and no Enter Full Screen, so
 the View menu is **only** what this app puts in it — placing the two toggles
@@ -3285,9 +3312,9 @@ why ⌘⌫ and ⌘⏎ are the menu's keys rather than the card's — see **Keybo
 board**.
 
 Some items ask a view for something the menu bar cannot reach itself, because the
-menu bar is outside every window's view tree. `MacWindowState` is where they
-meet: it holds whether the sidebar is showing, which column has the keyboard,
-which card has it, and one flag each for New Board and Set Due Date…. **New Board
+menu bar is outside every window's view tree. `AppWindowState` is where they
+meet: it holds whether the source list is showing, which column has the keyboard,
+which card has it, and one flag each for New Board, Set Due Date… and Labels…. **New Board
 asks the sidebar's own row** rather than calling the store itself, so there is one
 answer to what making a board does: it mints one under `Board.defaultName` and
 opens its settings on the empty name field. **Set Due
@@ -3302,6 +3329,76 @@ column the user is looking at** when the board has the keyboard, falling back to
 composer into view, because a composer that opens off the right-hand edge takes
 the focus somewhere the user cannot see. That was the whole of the old
 `beginAdding(in:)` bug: it always targeted the leftmost column.
+
+**Four items open a sheet, and the root presents it rather than the thing that
+asked.** Keyboard Shortcuts, Set Due Date…, New View… and Labels… are all raised
+as a flag — on `BoardStore` where a surface already owned one, on `AppWindowState`
+where the menu is the only asker — and `MacRootView` and `PadRootView` present
+all four. The source list has rows that open two of the same sheets and keeps its
+own state for them, which is right: a row can present what it asks for. A menu
+item cannot, and the list it would borrow a flag from can be hidden. **Show Trash
+is the exception that proves it**: the Trash is a popover hanging off the source
+list's own row, so the item brings the list out first and waits
+`BoardCommands.sidebarTravel` for it to have a frame — a popover asks its anchor
+for one at the moment it is presented, and a view added in the same runloop turn
+has none.
+
+### The iPad has the same menu bar
+
+iPadOS 26 draws a menu bar for every app, and this one declared no commands into
+it: the iPad got the system's default File, Edit and View with nothing of the
+app's in any of them, while the shortcuts sheet went on teaching keys that
+reached nobody. `.commands { BoardCommands(...) }` is now on both scenes, built
+from the same vocabulary, and `MenuDeclarationTests` reads `SimpleKanbanApp.swift`
+as text to say so — a one-line modifier is exactly the kind of thing that can be
+deleted without another test noticing.
+
+Everything the vocabulary holds is on both machines except three items, and each
+of the three is excluded because **the platform already has that item**:
+
+| item | whose | why |
+| --- | --- | --- |
+| Settings… ⌘, | the iPad's | macOS has SwiftUI's `Settings` scene, which puts its own item and key on the app menu |
+| Toggle Sidebar ⌃⌘S | the Mac's | a `NavigationSplitView` is a `UISplitViewController`, and UIKit puts *Show Sidebar* on the View menu for it |
+| Themes… | the Mac's | it opens a `Window`; the iPad reaches the browser through Settings ▸ Appearance |
+
+The first two are not taste. A second item on a key UIKit has already claimed is
+not a duplicate the system resolves in somebody's favour: it throws
+`NSInvalidArgumentException` while building the menu, and the app **terminates on
+launch**. Both were found that way on an iPad Pro 13", each taking the whole test
+host down before a single test ran — which is also the evidence that the
+declarations reach the system's menu bar at all, since UIKit could only object to
+keys it had been handed. The iPad's own Show Sidebar moves the same split view
+column, and `PadRootView` reads that movement back onto
+`AppWindowState.isSidebarVisible`, so the items that need the list out — New
+Board, Show Trash — still get it out.
+
+`AppPlatform` is where the split is written down, rather than `#if os(macOS)` at
+each site, so a test can ask for both answers on either machine: a menu that is
+wrong on the platform you are not building for is drift nothing would otherwise
+notice. The shortcuts sheet filters by it too, so neither machine is taught a key
+it does not carry.
+
+**What had to move for this to work.** `MacWindowState` became `AppWindowState`
+and is owned by the app on both platforms; `MacShortcutsSheet` and
+`MacDueDateSheet` became `ShortcutsSheet` and `DueDateSheet` in `Sources/Shared`,
+because an item declared on both platforms cannot open a sheet that is `#if
+os(macOS)`; and `PadRootView` grew the two mirrors `MacRootView` already had —
+focus both ways, so ⌘⌫ can name the neighbour of the card it deleted, and the
+focused column one way, because nothing outside the board sets that.
+
+**The dispatch order is the other way round, and the answer is unchanged.**
+`BoardKeyboard.menuOwnedShortcuts` takes ⌘⌫ and ⌘⏎ away from cards on the desk,
+because AppKit dispatches a menu key equivalent out of `NSApplication.sendEvent`
+before the responder chain is offered the event. UIKit offers the press to the
+responder chain first and reaches the menu at the end of it, so on the iPad the
+card answers and the menu item is what catches the press when nothing has focus —
+the same act on the same card either way, because the item aims at exactly the
+focused card. The set stays empty there; only the reason for it has changed.
+
+The iPhone has no menu bar to draw any of this on and loses nothing by the
+declaration: a `Commands` body it cannot show is a set of key equivalents for a
+hardware keyboard, which is what an iPhone with one attached should have.
 
 ### Keyboard on the board
 
@@ -3326,7 +3423,7 @@ equivalent is dispatched out of `NSApplication.sendEvent` before the responder
 chain is offered the event at all, so a card claiming either would be claiming a
 key it never receives: two owners written down, one in fact, and the written-down
 one is the one the next reader believes. The card publishes
-`MacWindowState.focusedTaskID` instead and the menu acts on that card's
+`AppWindowState.focusedTaskID` instead and the menu acts on that card's
 `commandTargets`; Delete lands focus on `BoardFocusMap.card(after:)` itself,
 before deleting, because the card can no longer do that for itself. Space is
 completion's *other* key and stays the card's, which makes the rule a partition
@@ -3554,7 +3651,7 @@ would appear on a board the user is not looking at.
 
 ### The shortcuts sheet
 
-Help ▸ Keyboard Shortcuts (⌘/) opens `MacShortcutsSheet`. Seed task `t12`, in the
+Help ▸ Keyboard Shortcuts (⌘/) opens `ShortcutsSheet`, on either platform. Seed task `t12`, in the
 Done column, has been called "Keyboard shortcuts sheet" since the first commit;
 the sample data claimed this shipped long before it did.
 
@@ -3592,8 +3689,8 @@ what lets it drop from 940pt to 708pt when the sidebar is hidden — pinning
 `.contentSize` instead would also pin the *maximum*, and a board is a surface
 people want as wide as the screen.
 
-`MacRootView` re-injects a `MacWindowState` of its own when the environment has
-none, so the view still stands up in a preview or a test host. It also owns the
+`MacRootView` re-injects an `AppWindowState` of its own when the environment has
+none — as `PadRootView` now does too — so the view still stands up in a preview or a test host. It also owns the
 `BoardFocusRelay` the shared board publishes its keyboard focus through, and
 mirrors it onto the window state both ways — the board is `Sources/Shared` and
 cannot name a window, and the menu bar hands focus on as well as reading it. It
@@ -3758,7 +3855,7 @@ card reorder dragged inside Backlog, hundreds of points from where the panel was
 drawn, silently did nothing. `PadRootView.detail` is now the toolbar above an
 `HStack` of the board and the panel — the same three pieces `MacRootView` puts in
 the same order — bound to the same `store.isInspectorOpen` the desk toggles, and
-holding its 348pt column with nothing selected exactly as `MacEmptyInspector`
+holding its 384pt column with nothing selected exactly as `MacEmptyInspector`
 does. A sibling cannot cover the toolbar. Re-measured after the change, New task
 is `hittable=true` with the list out and with it hidden, and the reorder lands.
 
@@ -3771,8 +3868,8 @@ Where there is not room for both the board and the *inspector*, the inspector go
 **over the board** — never over the toolbar, which is the whole point. `PadRootView` measures the row with
 `onGeometryChange` and insets the panel only while a `.pad` column and its
 margins would still fit beside it; below that it is a trailing overlay. An iPad
-mini in portrait with the source list out leaves 166pt of detail beside a 348pt
-panel, and 166pt is half a column.
+mini in portrait with the source list out leaves 130pt of detail beside a 384pt
+panel, and 130pt is half a column.
 
 ### A card made here opens in the editor
 

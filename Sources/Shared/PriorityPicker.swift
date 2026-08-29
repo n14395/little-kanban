@@ -30,6 +30,11 @@ struct PriorityPicker: View {
     let task: TaskItem
     let scope: DetailScope
     var metrics: Metrics = .desk
+    /// The attribute card this control draws as, where it is one. The detail
+    /// surfaces hand it theirs so that the whole card drops the menu — see
+    /// ``SwiftUI/View/inAttributeCard(_:)``. `nil` anywhere else, and then this
+    /// is the dot and the word alone.
+    var card: AttributeCardStyle?
 
     /// Which task the open session belongs to. A detail surface can be pointed
     /// at another card while the menu is open, and a session ended against the
@@ -73,10 +78,19 @@ struct PriorityPicker: View {
             }
             .frame(minWidth: metrics.hit, minHeight: metrics.hit)
             .contentShape(.rect)
+            .inAttributeCard(card)
         }
         .modifier(BorderlessMenu())
         .menuIndicator(.hidden)
-        .fixedSize()
+        // A bare menu shrink-wraps its label, which is right when the label is
+        // a dot and a word — and wrong when it is the card, whose whole job is
+        // to take half the row and the height of its neighbour. Fixed, the menu
+        // would end where the word ends and the rest of the card would go on
+        // looking pressable while doing nothing, which is the whole of what
+        // handing it the card was for.
+        .fixedSize(horizontal: card == nil, vertical: card == nil)
+        // Stated rather than left to the label, which now includes the card's
+        // own name: "Priority" would otherwise be read out twice.
         .accessibilityLabel("Priority")
         .accessibilityValue(task.priority.displayName)
         // A surface torn down — or re-pointed at another card — with the menu

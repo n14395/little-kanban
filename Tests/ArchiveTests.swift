@@ -490,14 +490,20 @@ import Testing
         #expect(store.selection == Set(filed))
     }
 
-    /// Every item on the Task menu, dead.
+    /// Every item on the Task menu, dead — bar the one whose whole purpose is a
+    /// filed card. Task ▸ Restore Task is the Archive's own verb on the menu
+    /// bar, the same one the card's context menu has always offered there, and
+    /// it is live exactly where the others are not.
     @Test func everyTaskCommandIsDisabledForASelectionOfFiledCards() {
         let store = store()
         let cards = filed.compactMap { store[$0] }
         #expect(cards.count == 2)
         #expect(cards.map(\.isArchived) == [true, true])
 
-        for command in AppCommand.commands(in: .task) {
+        #expect(AppCommand.unarchiveTask.isEnabled(for: cards, in: store))
+        #expect(cards.allSatisfy { AppCommand.unarchiveTask.applies(to: $0, in: store) })
+
+        for command in AppCommand.commands(in: .task) where command != .unarchiveTask {
             #expect(command.isEnabled(for: cards, in: store) == false,
                     "Task ▸ \(command.title) is live on a selection that is off the board")
             // And nothing for it to act on, so the menu passes the store
@@ -538,7 +544,7 @@ import Testing
         let store = store()
         let card = try #require(store[TestBoard.cafe])
         let live = AppCommand.allCases.filter { $0.needsSelection && $0.applies(to: card, in: store) }
-        #expect(Set(live) == [.trashTask, .copyTask, .deselect, .openTask])
+        #expect(Set(live) == [.trashTask, .copyTask, .deselect, .openTask, .unarchiveTask])
     }
 
     /// The rule has to live in the store, not in the menu that usually asks it.

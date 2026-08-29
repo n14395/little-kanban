@@ -23,10 +23,17 @@ struct PadRootView: View {
     /// on the way in — beside the board in landscape, over it in portrait — and
     /// the toolbar's button drives it from there.
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
-    /// The board's own; see ``BoardFocusRelay``. Nothing outside the view tree
-    /// reads it here — iPadOS has no menu bar of ours — but the board asks it
-    /// which column the keyboard is in before scrolling, and without one it
-    /// would re-centre the strip under every arrow press.
+    /// The app's, when there is an app. iPadOS draws a menu bar for us now — see
+    /// ``BoardCommands`` — and the menu bar is outside every view tree, so the
+    /// state it reads and writes is owned above this view. Optional for
+    /// `MacRootView`'s reason: this view must still stand up in a preview, which
+    /// has no app and no menu bar to have been opened from.
+    @Environment(AppWindowState.self) private var injectedWindow: AppWindowState?
+    @State private var standaloneWindow = AppWindowState()
+    /// The board's own; see ``BoardFocusRelay``. The board asks it which column
+    /// the keyboard is in before scrolling — without one it would re-centre the
+    /// strip under every arrow press — and it is mirrored onto the window state
+    /// the menu bar reads, exactly as the desk mirrors it.
     @State private var focusRelay = BoardFocusRelay()
     /// Which row the keyboard is on in the flat surfaces. Owned here for
     /// `BoardScrollView`'s reason: ↑ and ↓ cross rows, and a row cannot see its
@@ -50,8 +57,22 @@ struct PadRootView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var chrome = ChromeScale()
 
+    private var resolvedWindow: AppWindowState { injectedWindow ?? standaloneWindow }
+
+    /// `sheet(item:)` wants something `Identifiable`, and the store keeps the
+    /// id — the same mapping `PhoneRootView` makes for the drawer's row.
+    private var editingView: Binding<SavedViewDraft?> {
+        Binding(
+            get: { store.editingViewID.flatMap { store.view(id: $0) }.map(SavedViewDraft.init) },
+            set: { store.editingViewID = $0?.id }
+        )
+    }
+
     var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
+        @Bindable var store = store
+        @Bindable var window = resolvedWindow
+
+        return NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebar
         } detail: {
             detail
@@ -102,6 +123,44 @@ struct PadRootView: View {
         // is built to outrank.
         .leadingEdgeSwipe(perform: revealSidebar)
         .boardToast(metrics: .sheet)
+        // What the menu bar opens. All four are presented here rather than by
+        // whatever asked for them, for one reason: the asker is a menu item and
+        // menu items are outside every view tree. The source list presents its
+        // own label manager and its own view editor from its own state, which is
+        // right — a row can present the sheet it asks for — and these are the
+        // menu's, which is why they are separate flags.
+        .sheet(isPresented: $store.isShowingShortcuts) {
+            ShortcutsSheet()
+        }
+        .sheet(isPresented: $window.isPickingDueDate) {
+            DueDateSheet()
+        }
+        .sheet(item: editingView) { draft in
+            SavedViewEditor(viewID: draft.id, metrics: .sheet)
+        }
+        .labelManagerSheet(isPresented: $window.isManagingLabels, metrics: .sheet)
+        // **The source list is the split view's column, not a child of ours**,
+        // so View ▸ Toggle Sidebar cannot simply hide a view: it asks for the
+        // flag, and this is where the flag becomes `columnVisibility`. Written
+        // back the other way too, because the button, the edge swipe and the
+        // system's own `.automatic` all move that column without asking the
+        // menu — and a tick that says the list is out while it is away is worse
+        // than no tick.
+        .onChange(of: window.isSidebarVisible) { _, visible in
+            setSidebar(visible)
+        }
+        .onChange(of: columnVisibility) { _, visibility in
+            window.isSidebarVisible = visibility != .detailOnly
+        }
+        // Both directions, because the menu hands focus on as well as reading
+        // it: ⌘⌫ names the neighbour of the card it deleted. Each write is a
+        // no-op when the two already agree, so neither can chase the other.
+        .onChange(of: focusRelay.focusedTaskID) { _, id in window.focusedTaskID = id }
+        .onChange(of: window.focusedTaskID) { _, id in focusRelay.focusedTaskID = id }
+        // One way only: nothing outside the board sets which column is under
+        // the keyboard, ⌘N only asks.
+        .onChange(of: focusRelay.focusedColumnID) { _, id in window.focusedColumnID = id }
+        .environment(resolvedWindow)
         .environment(focusRelay)
         .background(palette.windowFill.ignoresSafeArea())
         .motionAnimation(.easeOut(duration: 0.16), value: store.surface)
@@ -127,7 +186,17 @@ struct PadRootView: View {
         // still stops at the inset is the Inbox panel's rows and the task
         // editor's fields, which bleed only their fills; see `detail`.
         ScrollView {
-            BoardSidebar(metrics: .pad)
+            // The two bindings a menu bar needs: File ▸ New Board opens the
+            // list's own naming field rather than making an untitled board, and
+            // the window takes itself out of the accessibility tree while the
+            // label manager is up.
+            BoardSidebar(
+                metrics: .pad,
+                isNamingNewBoard: Binding(
+                    get: { resolvedWindow.isNamingNewBoard },
+                    set: { resolvedWindow.isNamingNewBoard = $0 }
+                )
+            )
         }
         .scrollBounceBehavior(.basedOnSize)
         .background(palette.panelOverlay)
@@ -178,8 +247,8 @@ struct PadRootView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             // Where there is not room for both, the panel goes *over the
             // board* — never over the toolbar, which is the whole point. An
-            // iPad mini in portrait with the source list out leaves 166pt of
-            // detail beside a 348pt panel, and 166pt is half a column: showing
+            // iPad mini in portrait with the source list out leaves 130pt of
+            // detail beside a 384pt panel, and 130pt is half a column: showing
             // the board underneath is worth more than showing a sliver of it.
             .overlay(alignment: .trailing) {
                 if store.isInspectorOpen, !hasRoomBesideTheBoard {
@@ -222,11 +291,14 @@ struct PadRootView: View {
     /// resizable one: the divider came with `.inspector`, and so did drawing
     /// over the toolbar.
     /// Both grow with the reader's text size, by the same factor the panel and
-    /// the columns inside them do — otherwise a 348pt slot holds a panel that
-    /// has grown to 470 and clips it, and the floor lets a column through that
+    /// the columns inside them do — otherwise a 384pt slot holds a panel that
+    /// has grown to 518 and clips it, and the floor lets a column through that
     /// is no longer wide enough to draw.
     private var inspectorWidth: CGFloat { chrome(Self.baseInspectorWidth, cap: TaskInspector.widthCap) }
-    private static let baseInspectorWidth: CGFloat = 348
+    /// Not private: `SidebarRoomTests` asks what this window closes and for
+    /// which panel, and the answer is arithmetic on this number. A copy of it
+    /// in the test would go on passing after the panel had been widened.
+    static let baseInspectorWidth: CGFloat = 384
     /// What the split view lays the source list out at, named once because two
     /// things read it: the column-width modifier that asks for it, and
     /// ``makeRoomForTheSourceList``, which has to know what the list will take
@@ -315,8 +387,8 @@ struct PadRootView: View {
     ///
     /// **And it waits for the board alone.** The inspector's width used to count
     /// against this too, which looked like arithmetic and behaved like a dead button:
-    /// an 11" in portrait is 834pt, and 834 less the inspector's 348 and the
-    /// panel's 320 is 166 — so with a task selected the panel went on declining
+    /// an 11" in portrait is 834pt, and 834 less the inspector's 384 and the
+    /// panel's 320 is 130 — so with a task selected the panel went on declining
     /// *after* the source list had closed to make room for it, and the Inbox
     /// button did nothing but put the source list away. The inspector needs no
     /// room reserved here precisely because it has its own answer to being
@@ -492,6 +564,19 @@ struct PadRootView: View {
         if opening { makeRoomForTheSourceList() }
         Motion.run(.easeOut(duration: 0.2), reduceMotion: reduceMotion) {
             columnVisibility = opening ? .all : .detailOnly
+        }
+    }
+
+    /// The menu bar's half of the same act. It says which state it wants rather
+    /// than which way to flip, because a menu item is pressed against a tick
+    /// that may already be right — and it goes through `makeRoomForTheSourceList`
+    /// like the other two, so a list brought out from the menu puts away
+    /// whatever it needs to exactly as the button's does.
+    private func setSidebar(_ visible: Bool) {
+        guard visible != (columnVisibility != .detailOnly) else { return }
+        if visible { makeRoomForTheSourceList() }
+        Motion.run(.easeOut(duration: 0.2), reduceMotion: reduceMotion) {
+            columnVisibility = visible ? .all : .detailOnly
         }
     }
 

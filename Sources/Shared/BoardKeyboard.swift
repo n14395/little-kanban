@@ -162,14 +162,24 @@ enum BoardKeyboard {
     /// item), so a shortcut added to a menu item cannot silently start
     /// shadowing a card's.
     ///
-    /// Empty on iOS, because the premise is. `BoardCommands` is built into the
-    /// macOS scene alone — the iPad's `WindowGroup` declares no commands — so on
-    /// a keyboard-equipped iPad nothing takes these presses first and excluding
-    /// them left ⌘⌫ and ⌘⏎ handled by nobody at all. The other six the menu
-    /// declares are not in any card's vocabulary either way; these two are.
+    /// Still empty on iOS, and the reason is now the interesting one. The iPad
+    /// **does** draw this app's menu bar — `BoardCommands` is declared into both
+    /// scenes — so the old premise ("there is no menu there") has gone; what is
+    /// left is the dispatch order, which is the other way round. UIKit offers a
+    /// key press to the responder chain first and reaches the menu at the end of
+    /// it, where AppKit dispatches a menu key equivalent out of
+    /// `NSApplication.sendEvent` before any view is asked. So on the desk the
+    /// card must stand aside for ⌘⌫ and ⌘⏎, and on the iPad the card answers
+    /// first and the menu item is what catches the press when nothing has focus
+    /// — which is the same act on the same cards either way, because the menu
+    /// aims at exactly the focused card. Excluding them on iOS is what left both
+    /// keys handled by nobody at all.
+    ///
+    /// The desk's list is derived from what the menu actually declares on the
+    /// desk, so an item added there cannot silently start shadowing a card's key.
     nonisolated static let menuOwnedShortcuts: Set<AppShortcut> = {
         #if os(macOS)
-        Set(AppCommand.allCases.filter(\.isMenuItem).compactMap(\.shortcuts.first))
+        Set(AppCommand.allCases.filter { $0.isMenuItem(on: .current) }.compactMap(\.shortcuts.first))
         #else
         []
         #endif
@@ -398,7 +408,7 @@ enum BoardKeyboard {
 /// On macOS that is the menu bar: ⌘⌫ and ⌘⏎ are *its* keys, an item on it wins
 /// a press before any view sees the event, so it has to be able to name the
 /// card the press was aimed at. `MacRootView` mirrors this onto
-/// `MacWindowState`, which is where the menu reads it — the shared board would
+/// `AppWindowState`, which is where the menu reads it — the shared board would
 /// otherwise have to know what a window is, and a phone has neither.
 @MainActor
 @Observable

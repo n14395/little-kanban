@@ -34,7 +34,7 @@ import Testing
         // the sidebar read it out of the environment, and a missing
         // `@Environment` object is a trap rather than an empty state — it takes
         // the whole test host down.
-        let windowState = MacWindowState()
+        let windowState = AppWindowState()
         // Never ordered front: the test must not take a screen or a focus.
         window.contentView = NSHostingView(
             rootView: RootView().environment(store).environment(windowState)

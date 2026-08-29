@@ -183,14 +183,26 @@ import Testing
 
     /// Named rather than derived, because a set defined as "whatever the menu
     /// declares" agrees with itself however the menu is spelt. These are the
-    /// eight presses the menu bar puts a key equivalent on, and the seven the
+    /// presses the desk's menu bar puts a key equivalent on, and the seven the
     /// board keeps — the second list is what a widened exclusion silently eats.
+    ///
+    /// It grew when the menu bar did, which is the point of writing it out: only
+    /// two of these were ever a card's as well, and any of the others becoming
+    /// one would be a card that stopped answering with nothing else to say so.
+    /// ⌘, is not here — that item is the system's own, off the `Settings` scene,
+    /// and belongs to the touch platforms in this app's vocabulary.
     @Test func theMenuTakesItsOwnKeysAndNoneOfTheBoards() {
         let menu: Set<AppShortcut> = [
             AppShortcut("n", .command), AppShortcut("n", [.command, .shift]),
+            AppShortcut("n", [.command, .option]), AppShortcut(",", [.command, .shift]),
+            AppShortcut("s", .command), AppShortcut("r", .command),
             AppShortcut(.delete, .command), AppShortcut("f", .command),
             AppShortcut("i", [.command, .option]), AppShortcut("s", [.command, .control]),
-            AppShortcut(.return, .command), AppShortcut("/", .command),
+            AppShortcut("i", [.command, .shift]), AppShortcut("t", [.command, .shift]),
+            AppShortcut("l", [.command, .shift]),
+            AppShortcut(.upArrow, [.command, .option]), AppShortcut(.downArrow, [.command, .option]),
+            AppShortcut(.return, .command), AppShortcut(.return, [.command, .shift]),
+            AppShortcut("j", .command), AppShortcut("/", .command),
         ]
         #expect(BoardKeyboard.menuOwnedShortcuts == menu)
 
