@@ -284,3 +284,91 @@ import Testing
         }
     }
 }
+
+#if os(macOS)
+
+/// The label picker's popover, and the one thing a popover cannot be told twice.
+///
+/// **The defect.** The picker's panel swaps itself for the compose form, which
+/// is shorter, and the popover follows it down. Cancel, and the list came back
+/// into a popover that stayed the compose form's size for as long as it was
+/// open — a list of labels in a 130pt slot with a scroll bar down the side of it.
+///
+/// **Why.** A scroll view accepts whatever height it is offered, so the panel
+/// had no height of its own: once the popover was small, the list fitted into it
+/// without complaint and asked for nothing. Its *ideal* height was right the
+/// whole time — 236pt, measured — and a popover that is already open does not
+/// read the ideal; it follows what the content accepts. The compose form has a
+/// definite height, which is why the popover shrank at all.
+///
+/// Measured on macOS 27 with a SwiftUI `.popover` in an off-screen window,
+/// switching a fixed-height panel and a scroll-view panel against a shorter one:
+///
+/// | panel | opened | swapped | back |
+/// | --- | --- | --- | --- |
+/// | two fixed heights | 262 | 156 | **262** |
+/// | scroll view, no floor | 238 | 156 | **156** |
+/// | scroll view, floored | 238 | 156 | **238** |
+///
+/// So the popover grows perfectly well; it was never being asked to. The floor
+/// is `LabelPickerList.rowsHeight`, and this is the invariant it buys: the panel
+/// will not lay itself out shorter than the rows it is drawing.
+@MainActor
+@Suite struct LabelPickerHeightTests {
+    /// Somewhere for `onGeometryChange` to report to. A class rather than a
+    /// captured `var` because the write lands on a later layout pass.
+    @Observable final class Measured { var height: CGFloat = -1 }
+
+    /// The panel's laid-out height when it is offered `height` — which is what
+    /// an open popover offers it, and what the popover then takes as its size.
+    private func panelHeight(offered height: CGFloat, in store: BoardStore) async -> CGFloat {
+        let measured = Measured()
+        let task = store[TestBoard.dragDrop]!
+        let view = NSHostingView(
+            rootView: LabelPickerList(task: task, scope: .desk, metrics: .desk)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { measured.height = $0 }
+                .environment(store)
+        )
+        view.frame = NSRect(x: 0, y: 0, width: LabelPickerList.Metrics.desk.width, height: height)
+        view.layoutSubtreeIfNeeded()
+        for _ in 0..<20 where measured.height < 0 {
+            try? await Task.sleep(for: .milliseconds(25))
+        }
+        return measured.height
+    }
+
+    /// The whole of the fix: squeezed into the compose form's slot, the list
+    /// stands its ground rather than folding into it.
+    @Test func theListWillNotFoldIntoTheComposeFormsHeight() async {
+        let store = TestBoard.store()
+        let natural = await panelHeight(offered: 400, in: store)
+        let squeezed = await panelHeight(offered: 130, in: store)
+
+        #expect(squeezed > 130, "the list accepted the compose form's height and the popover will stay there")
+        #expect(squeezed == natural || squeezed >= 200,
+                "the list came back at \(squeezed) rather than its own \(natural)")
+    }
+
+    /// And the cap still caps: a list longer than `maxListHeight` scrolls inside
+    /// it rather than growing a popover the length of the vocabulary. The floor
+    /// is `min(rows, maxListHeight)` precisely so these two cannot fight.
+    @Test func aLongListStillStopsAtItsCap() async {
+        let seed = LabelDef.seed[0]
+        let many = (0..<40).map {
+            LabelDef(key: "probe-\($0)", name: "Label \($0)", light: seed.light, dark: seed.dark)
+        }
+        let store = BoardStore(
+            tasks: TestBoard.tasks, boards: SeedData.boards, activeBoardID: SeedData.boards.first?.id,
+            labels: many, nextSerial: BoardSnapshot.baseSerial
+        )
+        let natural = await panelHeight(offered: 900, in: store)
+        // The rows come to well over a thousand points; the panel is the cap
+        // plus the search field, the New Label button and the panel's padding.
+        #expect(natural < LabelPickerList.Metrics.desk.maxListHeight + 120,
+                "the panel grew past its cap and would open a popover the length of the vocabulary")
+        #expect(natural > LabelPickerList.Metrics.desk.maxListHeight,
+                "the panel did not reach its cap at all")
+    }
+}
+
+#endif

@@ -2260,6 +2260,36 @@ and not the other would only have moved the problem. `LabelDef.palette` is still
 there as the derived pair list `recolorLabel` and the round-robin in `addLabel`
 take, exactly as `Board.dotPalette` is.
 
+**The picker's popover has to be able to grow back.** The panel swaps itself for
+the compose form when you press New Label, the form is shorter, and the popover
+follows it down — then Cancel put the list back into a 130pt popover that stayed
+that size for as long as it was open, a list of labels in a slot with a scroll
+bar down the side of it. The cause is that **a scroll view accepts whatever
+height it is offered**, so the panel had no height of its own: once the popover
+was small the list fitted into it without complaint and asked for nothing. Its
+*ideal* height was right the whole time — 236pt — and a popover that is already
+open does not read the ideal, it follows what the content accepts, which is why
+it shrank in the first place (the compose form has a definite height).
+
+Measured on macOS 27, a SwiftUI `.popover` in an off-screen window, switching one
+panel for a shorter one and back:
+
+| panel | opened | swapped | back |
+| --- | --- | --- | --- |
+| two fixed heights | 262 | 156 | **262** |
+| scroll view, no floor | 238 | 156 | **156** |
+| scroll view, floored | 238 | 156 | **238** |
+
+So the popover grows perfectly well; it was never being asked to. `LabelPickerList`
+measures its rows and gives the scroll view `minHeight: min(rows, maxListHeight)`
+— a floor rather than an exact height, because the first layout pass has nothing
+measured yet and a `frame(height:)` keyed on it would open the popover at nought
+and grow it, where a floor of nought is the flexible list the panel already was,
+sized correctly on the way in and pinned from the next pass onwards. The cap is
+still the cap, so a vocabulary of forty labels scrolls inside its 320pt rather
+than opening a popover its own length. `LabelPickerHeightTests` pins both halves
+by hosting the real panel and offering it the compose form's height.
+
 ### Activity
 
 The feed is live rather than static text. Moves, renames, description changes,

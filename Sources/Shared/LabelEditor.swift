@@ -130,6 +130,26 @@ struct LabelPickerList: View {
     @State private var query = ""
     /// Whether the panel is showing the compose form instead of the list.
     @State private var isComposing = false
+    /// What the rows come to, measured — the floor under the list, and the
+    /// whole of why the popover can come back from the compose form.
+    ///
+    /// **A scroll view accepts any height it is offered**, which is what a
+    /// scroll view is for and is exactly wrong for the one thing above it. The
+    /// panel swaps itself for the compose form, which has a definite height and
+    /// is shorter, so the popover shrinks to fit it — measured on macOS, 236pt
+    /// down to 130pt. Cancel, and the list comes back into a 130pt popover,
+    /// fits itself into it without complaint, and asks for nothing: the popover
+    /// has no reason to grow and stays at the compose form's size for as long
+    /// as it is open. The list's *ideal* height was right all along — 236 —
+    /// but ideal is not what a popover that is already open reads.
+    ///
+    /// So the list states a floor. `minHeight` rather than an exact height
+    /// because the first layout pass has nothing measured yet: a `frame(height:)`
+    /// keyed on this would open the popover at nought and grow it, where a
+    /// floor of nought is simply the flexible list the panel already was, sized
+    /// correctly on the way in and pinned from the next pass onwards. Capped at
+    /// `maxListHeight` so a long list still scrolls inside its 320pt.
+    @State private var rowsHeight: CGFloat = 0
     /// The colour picked in the form, or `nil` while it still shows the
     /// rotation's next — see `BoardStore.nextLabelColor`.
     @State private var chosenColor: SwatchColor?
@@ -169,9 +189,13 @@ struct LabelPickerList: View {
                             .padding(.horizontal, metrics.rowHorizontalPadding)
                     }
                 }
+                // What the rows actually come to, which is the one number a
+                // scroll view will not tell anybody. See ``rowsHeight``.
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { rowsHeight = $0 }
             }
             .scrollBounceBehavior(.basedOnSize)
-            .frame(maxHeight: metrics.maxListHeight)
+            .frame(minHeight: min(rowsHeight, metrics.maxListHeight),
+                   maxHeight: metrics.maxListHeight)
         }
         .defaultFocus($isSearchFocused, true)
         // `defaultFocus` alone does not always take in a popover, whose window
