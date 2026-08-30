@@ -343,7 +343,7 @@ struct BoardFile: Sendable {
     /// shape instead would make every future field silently rewrite the past.
     static func decode(_ data: Data) throws -> (snapshot: BoardSnapshot, migratedFrom: Int?) {
         let (snapshot, migratedFrom) = try decodeToV8(data)
-        guard let migratedFrom else { return (snapshot, nil) }
+        guard let migratedFrom else { return (snapshot.settlingDuplicates(), nil) }
         // The v8 step is applied once at the end of whichever chain ran, because
         // it is the only one that needs something the *bytes* still have and the
         // decoded value no longer does — see `migrate(v8:legacyDoneColumns:)`.
@@ -360,7 +360,8 @@ struct BoardFile: Sendable {
             : atV11
         let atV13 = migratedFrom < 13 ? BoardSnapshot.migrate(v12: atV12) : atV12
         let atV14 = migratedFrom < 14 ? BoardSnapshot.migrate(v13: atV13) : atV13
-        return (migratedFrom < 15 ? BoardSnapshot.migrate(v14: atV14) : atV14, migratedFrom)
+        let current = migratedFrom < 15 ? BoardSnapshot.migrate(v14: atV14) : atV14
+        return (current.settlingDuplicates(), migratedFrom)
     }
 
     /// Every version up to and including v8, decoded and walked forward to the
@@ -878,6 +879,78 @@ extension BoardSnapshot {
     /// quarantine — the file is theirs and stays where it is.
     static func decoding(_ data: Data) throws -> BoardSnapshot {
         try BoardFile.decode(data).snapshot
+    }
+
+    /// Whether this snapshot is still arriving: a task naming a column that no
+    /// board here has.
+    ///
+    /// CloudKit applies records and relationships independently, so a board and
+    /// the columns it is made of do not land together. A card pointing at a
+    /// column nothing has yet is not a card in the Inbox — it is a card whose
+    /// board is halfway here — and the two readings are the difference between
+    /// waiting a moment and rewriting somebody's board.
+    ///
+    /// Asked in two places, which is why it is here rather than on either of
+    /// them. ``BoardStore`` asks it to decide whether to *adopt* a read.
+    /// ``BoardSyncStore/load()`` asks it to decide whether that read may become
+    /// the **diff base** — and that second question was not being asked at all.
+    /// The base advanced on every read, adopted or not, so a declined read left
+    /// this device believing the records held a board its own board list had
+    /// never heard of. The next save read the difference as a deletion, and
+    /// deleted a board somebody had just made on another device, along with
+    /// the cards on it. See `NewBoardTests`.
+    var hasUnresolvedPlacements: Bool {
+        let columns = Set(boards.flatMap(\.columns).map(\.id))
+        return tasks.contains { task in
+            task.columnID.map { !columns.contains($0) } ?? false
+        }
+    }
+
+    /// One of each, where the records cannot promise it.
+    ///
+    /// CloudKit enforces no uniqueness, so two devices that each create the
+    /// same logical row leave **two records under one id** — the case
+    /// ``BoardSyncStore/deduplicated(_:by:newest:)`` exists for. It settles the
+    /// three record types that stand on their own: tasks, boards and labels.
+    /// The three that hang off a parent record were settled by nothing at all:
+    /// a board's columns, and a task's sub-tasks and activity.
+    ///
+    /// The symptom was a column drawn twice, and it did not stay still. The
+    /// board that was read carried both, the save that followed wrote the board
+    /// that was read, and the write found no record for the second copy of an
+    /// id it had already written — so it made one. Every save doubled the board
+    /// again. Sub-tasks and activity had the same hole and the same shape.
+    ///
+    /// Applied at the two doors board data comes in through — ``decode(_:)``
+    /// for the file, an import and a backup, and `BoardSyncStore.load()` for
+    /// the records — because in-memory the app cannot make one: every verb that
+    /// adds a column, a sub-task or an entry mints a fresh id for it.
+    ///
+    /// The first of each id wins, which is not arbitrary: both readers order
+    /// their rows totally before calling this, so two devices settling the same
+    /// pair keep the same one.
+    func settlingDuplicates() -> BoardSnapshot {
+        var settled = self
+        settled.boards = boards.map { board in
+            var board = board
+            board.columns = Self.oneOfEach(board.columns, by: \.id)
+            return board
+        }
+        settled.tasks = tasks.map { task in
+            var task = task
+            task.subtasks = Self.oneOfEach(task.subtasks, by: \.id)
+            task.activity = Self.oneOfEach(task.activity, by: \.id)
+            return task
+        }
+        return settled
+    }
+
+    /// The first element under each key, in the order they were given.
+    private static func oneOfEach<Element, Key: Hashable>(
+        _ elements: [Element], by key: KeyPath<Element, Key>
+    ) -> [Element] {
+        var seen: Set<Key> = []
+        return elements.filter { seen.insert($0[keyPath: key]).inserted }
     }
 
     /// Folds an imported board into this one.

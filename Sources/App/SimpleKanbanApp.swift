@@ -724,8 +724,18 @@ private struct FirstRunChoice: ViewModifier {
     /// Written only by the choice. The getter is what closes the cover once the
     /// preference lands, and the setter exists because a presentation binding
     /// must have one — nothing else can reach it.
+    ///
+    /// **And the picker yields to a board that arrives.** A fresh install on a
+    /// device whose account already has a board is not a first run — it only
+    /// looks like one because CloudKit has not finished delivering yet. If the
+    /// person picks a starter inside that window, the template mints a whole
+    /// second identity for boards they already have, and the two copies then
+    /// fight on every device — the twin-boards disaster. So the moment a merge
+    /// puts boards on the store while the cover is still up, the cover goes:
+    /// the account has answered the question the picker was asking.
     private var isPresented: Binding<Bool> {
-        Binding(get: { FirstRun.isPending && !hasChosen }, set: { if !$0 { hasChosen = true } })
+        Binding(get: { FirstRun.isPending && !hasChosen && store.boards.isEmpty },
+                set: { if !$0 { hasChosen = true } })
     }
 
     func body(content: Content) -> some View {

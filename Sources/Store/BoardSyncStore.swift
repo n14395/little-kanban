@@ -1,3 +1,4 @@
+import CoreData
 import Foundation
 import OSLog
 import SwiftData
@@ -70,6 +71,51 @@ struct SyncedLists: OptionSet, Sendable {
 /// `BoardStore.isSyncReadBlocked`) is exactly the kind of never-executed
 /// fallback this project has learned not to trust. `SyncStoreTests` conforms
 /// a wrapper that fails on command.
+/// The ids a snapshot spans, as bare sets — worn two ways by the deletion
+/// licence.
+///
+/// ``BoardStore`` keeps one as its **baseline**: the ids it last agreed the
+/// records hold, reset by every adoption and every push. The difference
+/// between the baseline and the snapshot being pushed is the **tombstone
+/// set** — the ids that left the board *on this device, by someone's hand* —
+/// and ``SyncStoring/apply(_:deleting:)`` may delete those records and no
+/// others. The base-names-it rule turned out not to be a licence at all: any
+/// skew between the base and the snapshot — a launch race, a store holding a
+/// board twice under different ids, a read taken mid-import — read as a
+/// deletion nobody made, travelled to every device, and was the third data
+/// loss in a week. Evidence of an actual deletion is the only licence left.
+struct SyncIDs: Sendable, Equatable {
+    var boards: Set<Board.ID> = []
+    var columns: Set<BoardColumn.ID> = []
+    var tasks: Set<TaskItem.ID> = []
+    var labels: Set<String> = []
+
+    static let none = SyncIDs()
+
+    static func of(_ snapshot: BoardSnapshot) -> SyncIDs {
+        SyncIDs(
+            boards: Set(snapshot.boards.map(\.id)),
+            columns: Set(snapshot.boards.flatMap(\.columns).map(\.id)),
+            tasks: Set(snapshot.tasks.map(\.id)),
+            labels: Set(snapshot.labels.map(\.key))
+        )
+    }
+
+    /// What this set holds and `other` does not: the ids that left.
+    func subtracting(_ other: SyncIDs) -> SyncIDs {
+        SyncIDs(
+            boards: boards.subtracting(other.boards),
+            columns: columns.subtracting(other.columns),
+            tasks: tasks.subtracting(other.tasks),
+            labels: labels.subtracting(other.labels)
+        )
+    }
+
+    var isEmpty: Bool {
+        boards.isEmpty && columns.isEmpty && tasks.isEmpty && labels.isEmpty
+    }
+}
+
 @MainActor
 protocol SyncStoring: AnyObject {
     var isSyncing: Bool { get }
@@ -77,7 +123,15 @@ protocol SyncStoring: AnyObject {
     func carriedLists() throws -> SyncedLists
     func hasStoredTaskOrder() throws -> Bool
     func backfillTaskPositions(from taskIDs: [TaskItem.ID]) throws
-    func apply(_ snapshot: BoardSnapshot) throws
+    func apply(_ snapshot: BoardSnapshot, deleting: SyncIDs) throws
+}
+
+extension SyncStoring {
+    /// A write that deletes nothing — what every caller without a deletion to
+    /// report means, and the only spelling most tests need.
+    func apply(_ snapshot: BoardSnapshot) throws {
+        try apply(snapshot, deleting: .none)
+    }
 }
 
 @MainActor
@@ -127,6 +181,10 @@ final class BoardSyncStore: SyncStoring {
     /// has to hear about, because `board.json` is the answer to it and a store
     /// that could not be read must never look like a board with nothing on it.
     static func app(syncing: Bool, at url: URL) throws -> BoardSyncStore {
+        // Before the store opens, while nothing else has the file: the pass
+        // that keeps it a board rather than an archive of every board there
+        // has been. See ``sweepHistory(at:olderThan:now:)``.
+        sweepHistory(at: url)
         if let container = cloudContainer(syncing: syncing) {
             do {
                 return try opened(at: url, cloudKit: .private(container), isSyncing: true)
@@ -199,6 +257,126 @@ final class BoardSyncStore: SyncStoring {
         return BoardSyncStore(container: container, isSyncing: false)
     }
 
+    // MARK: Maintenance
+
+    /// Deletes the persistent history the mirror no longer needs, and gives
+    /// the pages back.
+    ///
+    /// CloudKit sync runs on Core Data's persistent history — every save
+    /// appends transactions, and the mirroring delegate reads them to know
+    /// what to export. What nothing does, on any layer, is *delete* them:
+    /// SwiftData has no knob for it, and the container keeps the log forever.
+    /// Measured on a real device after a week of use (and one runaway write
+    /// loop): 476,096 transactions, 2.3 million change rows, a 149 MB file
+    /// for a 110 KB board. Unbounded by design is still unbounded.
+    ///
+    /// So the app prunes for itself, before the store opens each launch:
+    /// history older than `olderThan` is deleted, and — when the file has
+    /// grown past ``vacuumThreshold`` — the store is reopened once with
+    /// `NSSQLiteManualVacuumOption` so SQLite returns the freed pages to the
+    /// filesystem rather than keeping the file at its high-water mark.
+    /// Measured against a copy of the 149 MB store: 143 MB on disk to 6.9 MB,
+    /// the board unchanged. Below the threshold the vacuum is skipped, not
+    /// because it would fail but because it copies the whole file to reclaim
+    /// nothing a healthy store cannot simply reuse: freed pages feed later
+    /// writes either way, so a small store merely plateaus.
+    ///
+    /// **The window is the safety.** The delegate has consumed anything a
+    /// week old on any device that has been online at all, so pruning behind
+    /// it costs nothing. The exception is a device offline for longer than
+    /// the window *with unpushed edits*: deleting history its mirror has not
+    /// exported makes the mirror re-baseline — drop the local records and
+    /// re-import from the server. That used to be the disaster scenario; the
+    /// deletion licence makes it additive (see ``apply(_:deleting:)``), and
+    /// the board file still holds every local edit for the merge that
+    /// follows, so the cost is bandwidth rather than work. A deliberate
+    /// trade, and the reason the window is seven days rather than one.
+    ///
+    /// Failures here are logged and swallowed: a maintenance pass must never
+    /// stand between the person and their board.
+    static func sweepHistory(
+        at url: URL, olderThan window: TimeInterval = 7 * 86_400, now: Date = .now
+    ) {
+        // Never on a store that does not exist — loading one creates the
+        // file, and a first launch must keep meaning "the store is empty".
+        guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else { return }
+        do {
+            // Delete first, then reopen with the vacuum option, so the space
+            // freed by this pass comes back this launch rather than next.
+            let pruning = try maintenanceContainer(at: url, vacuuming: false)
+            defer { close(pruning) }
+            let context = pruning.newBackgroundContext()
+            try context.performAndWait {
+                let cutoff = now.addingTimeInterval(-window)
+                try context.execute(NSPersistentHistoryChangeRequest.deleteHistory(before: cutoff))
+            }
+        } catch {
+            logger.error("The history sweep failed; the log stands until the next launch: \(error.localizedDescription)")
+            return
+        }
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        guard size > Self.vacuumThreshold else { return }
+        do {
+            close(try maintenanceContainer(at: url, vacuuming: true))
+        } catch {
+            logger.error("The vacuum failed; the file keeps its high-water mark: \(error.localizedDescription)")
+        }
+    }
+
+    /// Twice the biggest store a busy board has honestly earned, with its
+    /// CloudKit bookkeeping — the healthy one measured 7 MB. Below this the
+    /// file is left to reuse its own pages.
+    static let vacuumThreshold = 32 * 1_048_576
+
+    /// Whether any history transactions remain in the store — the test seam
+    /// for ``sweepHistory(at:olderThan:now:)``, which has nothing else to
+    /// observe: the whole point of the sweep is that the board it leaves
+    /// behind is indistinguishable from the board it found.
+    static func historyRemains(at url: URL) throws -> Bool {
+        let container = try maintenanceContainer(at: url, vacuuming: false)
+        defer { close(container) }
+        let context = container.newBackgroundContext()
+        return try context.performAndWait {
+            let request = NSPersistentHistoryChangeRequest.fetchHistory(after: .distantPast)
+            let result = try context.execute(request) as? NSPersistentHistoryResult
+            let transactions = result?.result as? [NSPersistentHistoryTransaction]
+            return transactions?.isEmpty == false
+        }
+    }
+
+    /// A plain Core Data stack on the same file, for the requests SwiftData
+    /// cannot make. History tracking stays on — the store was created with it
+    /// and must never be opened without it — and the CloudKit options stay
+    /// off: this stack maintains the store, it does not mirror it.
+    private static func maintenanceContainer(
+        at url: URL, vacuuming: Bool
+    ) throws -> NSPersistentContainer {
+        guard let model = NSManagedObjectModel.makeManagedObjectModel(for: SyncSchema.models) else {
+            throw CocoaError(.persistentStoreIncompatibleSchema)
+        }
+        let description = NSPersistentStoreDescription(url: url)
+        description.shouldAddStoreAsynchronously = false
+        description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
+        if vacuuming {
+            description.setOption(true as NSNumber, forKey: NSSQLiteManualVacuumOption)
+        }
+        let container = NSPersistentContainer(name: "SimpleKanbanMaintenance", managedObjectModel: model)
+        container.persistentStoreDescriptions = [description]
+        var failure: Error?
+        container.loadPersistentStores { _, error in failure = error }
+        if let failure { throw failure }
+        return container
+    }
+
+    /// Detaches the maintenance stack's store so the file is fully released
+    /// before the real container opens it.
+    private static func close(_ container: NSPersistentContainer) {
+        let coordinator = container.persistentStoreCoordinator
+        for store in coordinator.persistentStores {
+            try? coordinator.remove(store)
+        }
+    }
+
     // MARK: Reading
 
     /// The board as the store holds it, or `nil` when the store is empty — a
@@ -240,7 +418,23 @@ final class BoardSyncStore: SyncStoring {
         var carried = snapshot
         carried.views = Self.decoded([SavedView].self, from: meta?.viewsJSON) ?? snapshot.views
         carried.palette = Self.decoded([PaletteSwatch].self, from: meta?.paletteJSON) ?? snapshot.palette
-        lastWritten = carried
+        // The dedup above settles the three record types that stand on their
+        // own. This settles the three that hang off one — a board's columns, a
+        // task's sub-tasks and its activity — which CloudKit can leave two of
+        // just as easily and which nothing was settling at all. The base is set
+        // to the settled snapshot, not the raw one, because the diff has to
+        // describe what the caller was actually given.
+        carried = carried.settlingDuplicates()
+        // **Only a whole read becomes the diff base.** The base carries two
+        // facts that are the same on every ordinary read and part company on
+        // this one: what the records hold, which is what the diff needs, and
+        // what this device has taken on, which is what licenses it to delete.
+        // A read the caller then declines — see
+        // ``BoardSnapshot/hasUnresolvedPlacements`` — advanced the first and
+        // not the second, and the next save deleted the board it had read and
+        // not adopted. Leaving the base where it was keeps the arriving records
+        // unseen, which is exactly what protects them.
+        if !carried.hasUnresolvedPlacements { lastWritten = carried }
         return carried
     }
 
@@ -319,28 +513,32 @@ final class BoardSyncStore: SyncStoring {
     /// or what the last write left. A record in the store it does not name is
     /// not one the person deleted — on a device whose CloudKit import is still
     /// landing, which is every fresh install for its first minutes, it is
-    /// somebody else's board arriving. So the writers below insert freely, and
-    /// overwrite or delete **only what the diff base names**. An apply with no
-    /// base at all adds and disturbs nothing, because a device that has never
-    /// read the records knows nothing about them.
+    /// somebody else's board arriving. So the writers below insert freely and
+    /// overwrite **only what the diff base names** — with one exception, where
+    /// there is a clock to argue with: an unseen task record older than the
+    /// value in hand is one this device is genuinely ahead of, so it is
+    /// written, the last-writer-wins ``deduplicated(_:by:newest:)`` already
+    /// settles duplicate records with. An apply with no base at all adds and
+    /// disturbs nothing.
     ///
-    /// Tasks are the one exception, and only where there is a clock to argue
-    /// with: an unseen record older than the value in hand is one this device
-    /// is genuinely ahead of, so it is written. That is the last-writer-wins
-    /// ``deduplicated(_:by:newest:)`` already settles duplicate records with.
-    ///
-    /// The sequence this rule exists for: a fresh install reads the store,
-    /// finds it empty because nothing has arrived yet, pushes its seeded or
-    /// first-run board — and sweeps every record the import has delivered
-    /// since as an orphan. CloudKit then replays those deletions onto every
-    /// other device, which is the whole board on all of them. `FreshDeviceTests`
-    /// is that sequence, device by device.
-    func apply(_ snapshot: BoardSnapshot) throws {
+    /// **Deleting takes more than the base.** "The base names it and the
+    /// snapshot does not" turned out to be met by every kind of skew as well
+    /// as by deletions — a launch race, a read taken mid-import, a store
+    /// holding one board under two id-sets — and each false positive was a
+    /// deletion replayed onto every device, then a fresh record minted for
+    /// the reinsert, forever. So deletion now requires `deleting`: the
+    /// ``SyncIDs`` the caller can attest actually left its board — see
+    /// `BoardStore.syncBaseline` for how it knows. A tombstone lands even on
+    /// a record the base never named, because a deletion made here must not
+    /// resurface; everything else absent-but-untombstoned survives to be read
+    /// back, which is the recoverable direction. `FreshDeviceTests` holds the
+    /// fresh-install sequence and `DeletionLicenseTests` the licence itself.
+    func apply(_ snapshot: BoardSnapshot, deleting: SyncIDs) throws {
         let previous = lastWritten
         try applyMeta(snapshot, changedFrom: previous)
-        try applyLabels(snapshot, changedFrom: previous)
-        try applyBoards(snapshot, changedFrom: previous)
-        try applyTasks(snapshot, changedFrom: previous)
+        try applyLabels(snapshot, changedFrom: previous, deleting: deleting.labels)
+        try applyBoards(snapshot, changedFrom: previous, deleting: deleting)
+        try applyTasks(snapshot, changedFrom: previous, deleting: deleting.tasks)
         if context.hasChanges { try context.save() }
         lastWritten = snapshot
     }
@@ -403,8 +601,9 @@ final class BoardSyncStore: SyncStoring {
         meta.updatedAt = .now
     }
 
-    private func applyLabels(_ snapshot: BoardSnapshot, changedFrom previous: BoardSnapshot?) throws {
-        guard previous?.labels != snapshot.labels else { return }
+    private func applyLabels(_ snapshot: BoardSnapshot, changedFrom previous: BoardSnapshot?,
+                             deleting: Set<String>) throws {
+        guard previous?.labels != snapshot.labels || !deleting.isEmpty else { return }
         var existing = Dictionary(
             Self.deduplicated(try context.fetch(FetchDescriptor<StoredLabel>()), by: \.key,
                               newest: { _ in Date.distantPast }).map { ($0.key, $0) },
@@ -426,11 +625,15 @@ final class BoardSyncStore: SyncStoring {
             record.dark = Self.encoded(label.dark)
             record.position = index
         }
-        for (key, orphan) in existing where seen.contains(key) { context.delete(orphan) }
+        // The licence, not the base: a leftover the tombstones do not name is
+        // one nobody here deleted, whatever the base believes — it stays, and
+        // the next read brings it back to the screen it vanished from.
+        for (key, orphan) in existing where deleting.contains(key) { context.delete(orphan) }
     }
 
-    private func applyBoards(_ snapshot: BoardSnapshot, changedFrom previous: BoardSnapshot?) throws {
-        guard previous?.boards != snapshot.boards else { return }
+    private func applyBoards(_ snapshot: BoardSnapshot, changedFrom previous: BoardSnapshot?,
+                             deleting: SyncIDs) throws {
+        guard previous?.boards != snapshot.boards || !deleting.boards.isEmpty else { return }
         var existing = Dictionary(
             Self.deduplicated(try context.fetch(FetchDescriptor<StoredBoard>()), by: \.id,
                               newest: \.createdAt).map { ($0.id, $0) },
@@ -455,19 +658,31 @@ final class BoardSyncStore: SyncStoring {
             record.codePrefix = board.codePrefix
             record.position = index
             applyColumns(board.columns, to: record,
-                         seen: Set((seen[board.id]?.columns ?? []).map(\.id)))
+                         seen: Set((seen[board.id]?.columns ?? []).map(\.id)),
+                         deleting: deleting.columns)
         }
-        for (id, orphan) in existing where seen[id] != nil { context.delete(orphan) }
+        // Deletion by tombstone alone — see `applyLabels`. The cascade takes a
+        // deleted board's columns and, on the way out, nothing else.
+        for (id, orphan) in existing where deleting.boards.contains(id) { context.delete(orphan) }
     }
 
     /// `seen` is the columns the diff base gave this board — the ones this
     /// device may speak for. See ``apply(_:)``.
     private func applyColumns(_ columns: [BoardColumn], to board: StoredBoard,
-                              seen: Set<BoardColumn.ID>) {
+                              seen: Set<BoardColumn.ID>, deleting: Set<BoardColumn.ID>) {
         var existing = Dictionary(
             (board.columns ?? []).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }
         )
+        // An id written once in this pass is not written again. `existing` is
+        // keyed by id, so a snapshot carrying the same column twice found
+        // nothing the second time and inserted a *second* record for it — and
+        // the read that followed carried both, so every save doubled the board
+        // again. See ``BoardSnapshot/settlingDuplicates()``, which is why a
+        // snapshot no longer arrives here in that state, and this, which is why
+        // it would not matter if one did.
+        var written: Set<BoardColumn.ID> = []
         for (index, column) in columns.enumerated() {
+            guard written.insert(column.id).inserted else { continue }
             let found = existing.removeValue(forKey: column.id)
             if found != nil, !seen.contains(column.id) { continue }
             let record = found ?? {
@@ -486,10 +701,11 @@ final class BoardSyncStore: SyncStoring {
             record.position = index
             record.limit = column.limit
         }
-        for (id, orphan) in existing where seen.contains(id) { context.delete(orphan) }
+        for (id, orphan) in existing where deleting.contains(id) { context.delete(orphan) }
     }
 
-    private func applyTasks(_ snapshot: BoardSnapshot, changedFrom previous: BoardSnapshot?) throws {
+    private func applyTasks(_ snapshot: BoardSnapshot, changedFrom previous: BoardSnapshot?,
+                            deleting: Set<TaskItem.ID>) throws {
         // The one hot path: a keystroke changes one card, and comparing against
         // the last write is what stops the other four hundred being rewritten.
         let before = Dictionary(
@@ -507,9 +723,8 @@ final class BoardSyncStore: SyncStoring {
             snapshot.tasks.enumerated().map { ($0.element.id, $0.offset) },
             uniquingKeysWith: { first, _ in first }
         )
-        let removed = Set(before.keys).subtracting(snapshot.tasks.map(\.id))
         let changedIDs = Set(changed.map(\.id)).union(repositioned)
-        guard !changedIDs.isEmpty || !removed.isEmpty || previous == nil else { return }
+        guard !changedIDs.isEmpty || !deleting.isEmpty || previous == nil else { return }
 
         // Only the records this apply will touch are fetched. A diffed apply
         // can trust that: an id it did not write is one the last write left
@@ -520,7 +735,10 @@ final class BoardSyncStore: SyncStoring {
         if previous == nil {
             fetched = try context.fetch(FetchDescriptor<StoredTask>())
         } else {
-            let wanted = changedIDs.union(removed)
+            // The tombstoned ids ride along whether or not the base names
+            // them: a deletion made here is licensed to reach a record this
+            // device never read.
+            let wanted = changedIDs.union(deleting)
             fetched = try context.fetch(FetchDescriptor<StoredTask>(
                 predicate: #Predicate { wanted.contains($0.id) }
             ))
@@ -550,11 +768,13 @@ final class BoardSyncStore: SyncStoring {
             Self.write(task, at: position, into: record, context: context,
                        encodingFails: encodingFailsForTesting)
         }
-        // `removed` and not "everything the snapshot no longer names": an id
-        // the diff base never carried is one this device has never seen, and
-        // its absence from the snapshot is ignorance rather than a deletion.
-        for id in removed {
-            guard let record = existing[id] else { continue }
+        // The tombstones and not "everything the snapshot no longer names",
+        // nor even everything the base names and the snapshot does not: an id
+        // nobody here deleted is not this device's to delete, whatever the
+        // base believes. What the tombstones miss survives and resurfaces on
+        // the next read, which is the recoverable direction.
+        for id in deleting {
+            guard positions[id] == nil, let record = existing[id] else { continue }
             context.delete(record)
         }
     }
@@ -582,7 +802,9 @@ final class BoardSyncStore: SyncStoring {
         var subtasks = Dictionary(
             (record.subtasks ?? []).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }
         )
+        var writtenSubtasks: Set<SubTask.ID> = []
         for (index, subtask) in task.subtasks.enumerated() {
+            guard writtenSubtasks.insert(subtask.id).inserted else { continue }
             let row = subtasks.removeValue(forKey: subtask.id) ?? {
                 let fresh = StoredSubtask(id: subtask.id)
                 context.insert(fresh)
@@ -675,7 +897,7 @@ final class BoardSyncStore: SyncStoring {
         task.inboxCompletedAt = record.inboxCompletedAt
         task.archivedAt = record.archivedAt
         task.subtasks = (record.subtasks ?? [])
-            .sorted { $0.position < $1.position }
+            .sorted { ($0.position, $0.text) < ($1.position, $1.text) }
             .map { SubTask(id: $0.id, text: $0.text, done: $0.done) }
         // Newest first, the order the feed reads in.
         task.activity = (record.activity ?? [])
@@ -728,8 +950,12 @@ final class BoardSyncStore: SyncStoring {
             name: record.name,
             dot: Self.decoded(record.dot) ?? .accent,
             createdAt: record.createdAt,
+            // Ordered totally rather than by position alone: two records under
+            // one id are settled by keeping the first, so every device has to
+            // sort them into the same order or they would each keep a different
+            // one and never agree on the column's name again.
             columns: (record.columns ?? [])
-                .sorted { $0.position < $1.position }
+                .sorted { ($0.position, $0.name, $0.short) < ($1.position, $1.name, $1.short) }
                 .map(value(of:)),
             codePrefix: record.codePrefix
         )

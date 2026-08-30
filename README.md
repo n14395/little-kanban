@@ -6280,6 +6280,151 @@ which is exactly what the rule above makes safe. A forced first run (the DEBUG
 launch argument) still gets neither the real file nor the real records — it is a
 rehearsal, and a rehearsal must not reach somebody's account.
 
+### A read that is not adopted is not a diff base
+
+The diff base carries two facts that are the same on every ordinary read and
+part company on one particular read:
+
+- **what the records hold**, which is what the diff needs in order to write only
+  what changed, and
+- **what this device has taken on**, which is what licenses it to say a record's
+  absence from the board is a deletion.
+
+`load()` advanced both, every time, before the caller had decided anything. And
+there is one read the caller declines: a snapshot with a card pointing at a
+column no board here has — `BoardSnapshot.hasUnresolvedPlacements` — which is
+not a card in the Inbox but a board **halfway here**, because CloudKit applies
+records and relationships independently and a board, its columns and the first
+card on it do not land together.
+
+So a board made on another device arrived, was read, was correctly not adopted —
+and left this device believing the records held a board its own board list had
+never heard of. The next save compared the two, read the difference as a
+deletion, and deleted the board and the cards on it from every device. Making a
+board on the phone and watching it vanish was this; it happened *sometimes*
+because it needs the read to land inside the window, which a board with a card
+already on it makes much likelier.
+
+Now only a whole read becomes the base. A declined read leaves it exactly where
+it was, which keeps the arriving records **unseen** — and unseen is already the
+thing that protects them, by the rule above. Nothing else changes: this device
+goes on pushing its own edits, a deletion it genuinely makes still travels
+because the base still names what it deleted, and the board arrives on the next
+read that is whole. `NewBoardTests` holds the wait, the arrival and the
+deletion.
+
+### The store is not an archive
+
+CloudKit sync runs on Core Data's persistent history: every save appends
+transactions, and the mirroring delegate reads them to know what to export.
+What nothing does — on any layer, and SwiftData offers no knob for it — is
+delete them. The log is simply kept, forever. Measured on a real device after
+a week of use (and one runaway write loop, § *Deletion needs a deletion*):
+476,096 transactions, 2.3 million change rows, a **149 MB file for a 110 KB
+board**, with the oldest transaction dating from the day the store was
+created. Unbounded by design is still unbounded.
+
+So the app prunes for itself. `BoardSyncStore.sweepHistory` runs at every
+launch, before the store opens, while nothing else has the file: history older
+than **seven days** is deleted through a plain Core Data stack on the same
+file (the request SwiftData cannot make), and when the file has grown past 32
+MB it is reopened once with the manual-vacuum option so SQLite hands the freed
+pages back to the filesystem instead of keeping the high-water mark. Against a
+copy of that 149 MB store: **143 MB on disk became 6.9 MB**, the board
+unchanged. Below the threshold the vacuum is skipped — freed pages feed later
+writes either way, so a healthy store merely plateaus at single-digit
+megabytes.
+
+The window is the safety, and it is a trade made with open eyes. Anything a
+week old has been exported by any device that has been online at all, so
+pruning behind the mirror costs nothing. A device offline for *longer* than a
+week with unpushed edits loses history its mirror still wanted, and the mirror
+answers by re-baselining — dropping the local records and re-importing from
+the server. That used to be the disaster scenario; under the deletion licence
+a re-import is additive, and `board.json` still holds every local edit for the
+merge that follows, so the cost is bandwidth rather than work. Seven days
+rather than one, for exactly that device. `SyncMaintenanceTests` holds the
+sweep: past-window history goes, in-window history stays, the board survives
+byte for byte, and a sweep aimed at a store that does not exist must not
+conjure one.
+
+### Deletion needs a deletion
+
+The rule the last three sections circle finally has its full statement. The
+record store used to delete on inference: *the diff base names this record and
+the snapshot does not, so it was deleted*. Every fix above narrowed when that
+inference could run; none questioned the inference — and it is wrong, because
+the same condition is met by every kind of skew the mirror can produce. The
+afternoon that proved it, the cloud held the same three boards under **two
+id-sets** (each minted by a first-run picker racing its own import), and every
+reconciliation on either device deleted the set it wasn't standing on and
+re-inserted its own — which mints **fresh CloudKit records** for the same
+content, because record identity belongs to the object, not to the id field.
+The container ended the week at 149 MB, 476,096 transactions, forty column
+records for eleven columns, and "sync deleted all my boards" on whichever
+device lost the round.
+
+So deletion is licensed by evidence now, not inference. `BoardStore` keeps a
+baseline — ``SyncIDs``, the ids it last agreed the records hold, reset by every
+adoption and every push — and the tombstone set for a push is what has left the
+board since. Nothing else takes ids out of a board: the verbs, the trash, an
+undo of a creation and start-over are all of them, and all of them are the
+user. A merge is not — it resets the baseline instead of feeding the diff.
+`apply` deletes exactly the tombstoned records, including one the base never
+named (a deletion made here must not resurface), and nothing else however the
+base and the snapshot disagree. The failure mode this trades into is the
+recoverable one: skew can at worst duplicate, and a duplicate resurfaces where
+a deletion is forever.
+
+Two accomplices went with it. The first-run picker now **yields to a board
+that arrives**: a fresh install on an account that already has a board is not
+a first run, only the first minutes of an import, and a starter picked inside
+that window is where the second id-set came from — the cover closes the moment
+a merge lands boards. And the macOS entitlements spelled the push entitlement
+in iOS's dialect (`aps-environment` rather than
+`com.apple.developer.aps-environment`), which cost the Mac its CloudKit change
+notifications entirely and put every arrival on the mirror's polling cadence —
+the observed three to five minutes. `DeletionLicenseTests` holds the licence.
+
+### One of each
+
+CloudKit enforces no uniqueness, so two devices that each create the same
+logical row leave **two records under one id**. `load()` has always known that
+about the three record types that stand on their own — tasks, boards and labels
+are settled on read, newest wins, and the losers are left where they are rather
+than deleted, because two devices deleting each other's copy at the same moment
+would take the row itself with them.
+
+The three that hang off a parent record were settled by nothing at all: a
+board's columns, a task's sub-tasks, and its activity. The symptom is a column
+drawn twice — and it did not stay still, because the loop closes:
+
+1. the read hands back a board carrying the column twice,
+2. the save writes the board that was read,
+3. the writer is keyed by id, so the second copy of an id it has already written
+   matches no record, and it **inserts one**,
+4. go to 1, with four columns where there were two.
+
+`BoardSnapshot.settlingDuplicates()` is the answer, applied at the two doors
+board data comes in through: `decode(_:)`, which every file, import and backup
+passes, and `BoardSyncStore.load()`. In memory the app cannot make one — every
+verb that adds a column, a sub-task or an entry mints a fresh id — so those two
+doors are the whole surface. The writer refuses to write an id twice in one pass
+as well, so a snapshot that arrives doubled from anywhere else cannot grow the
+store either.
+
+Which of a duplicated pair survives the read is deliberate rather than
+incidental: both readers order their rows **totally** first — columns by
+position, then name, then short name; sub-tasks by position, then text — so two
+devices settling the same pair keep the same one and cannot end up disagreeing
+about the column's name forever. The redundant records stay in the store,
+invisible, exactly as a duplicate task or board record does.
+
+Nothing is stranded on the copy that loses: both rows carry the same id, which
+is what a card's `columnID` names, so a board that has been read once comes back
+with its columns in order and every card still on the one it was on.
+`DuplicateRecordTests` holds the read, the growth, the write and the file.
+
 ### Pull to sync
 
 The desk has a window in front of you and the touch platforms have a list in your

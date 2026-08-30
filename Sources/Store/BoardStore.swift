@@ -1009,6 +1009,13 @@ final class BoardStore {
 
     @ObservationIgnored private var remoteChangeObserver: (any NSObjectProtocol)?
 
+    /// The ids this device last agreed the records hold — reset by every
+    /// adoption and every push. What has left the board since is the only
+    /// thing a push may delete: see ``SyncIDs`` for why the diff base stopped
+    /// being a deletion licence. `nil` until the records have spoken or been
+    /// spoken to, which is also the state in which nothing may be deleted.
+    @ObservationIgnored private var syncBaseline: SyncIDs?
+
     /// Bumped by every mutation. `scheduleSave()` is the one call the mutation
     /// contract requires them all to make, so bumping it there covers the lot.
     @ObservationIgnored private var boardRevision: Int = 0
@@ -1093,6 +1100,11 @@ final class BoardStore {
                 file: file, sync: sync
             )
             store.applyStoredPreferences()
+            // The records have spoken; what they hold is the baseline every
+            // later push measures its deletions against. Before the sweeps,
+            // deliberately: what a sweep archives stays a record, and a card
+            // the trash sweep lets go of has genuinely left the board.
+            store.syncBaseline = .of(synced)
             store.sweepTrash()
             store.sweepDone()
             return store
@@ -1349,11 +1361,13 @@ final class BoardStore {
     /// arrived. This is distinct from an Inbox task, which names no column at
     /// all, and from a real board deletion, whose task records are unfiled in
     /// the same remote update.
+    ///
+    /// The rule lives on ``BoardSnapshot/hasUnresolvedPlacements`` because the
+    /// record store needs the same answer for a different question — whether a
+    /// read is whole enough to become its diff base. See it for what happened
+    /// when only this side asked.
     private static func hasUnresolvedTaskPlacements(in snapshot: BoardSnapshot) -> Bool {
-        let columns = Set(snapshot.boards.flatMap(\.columns).map(\.id))
-        return snapshot.tasks.contains { task in
-            task.columnID.map { !columns.contains($0) } ?? false
-        }
+        snapshot.hasUnresolvedPlacements
     }
 
     // MARK: - Persistence
@@ -1523,8 +1537,15 @@ final class BoardStore {
     /// not reaching the user's other devices, which is a different sentence.
     private func pushToSync(_ board: BoardSnapshot? = nil) {
         guard let sync, !isAwaitingCompleteSync, !isSyncReadBlocked else { return }
+        let pending = board ?? snapshot
+        // What left the board since the records last spoke is a deletion made
+        // on this device — the verbs, the trash, an undo of a creation, all of
+        // them, because nothing else takes ids out of the board. A merge does
+        // not: it resets the baseline instead, in `adoptSyncedBoard`'s callers.
+        let deleting = syncBaseline.map { $0.subtracting(.of(pending)) } ?? .none
         do {
-            try sync.apply(board ?? snapshot)
+            try sync.apply(pending, deleting: deleting)
+            syncBaseline = .of(pending)
             if case .sync = lastError { lastError = nil }
         } catch {
             lastError = .sync(message: error.localizedDescription)
@@ -1959,6 +1980,11 @@ final class BoardStore {
     /// say; by the time it reaches here the question has been asked, so this
     /// takes the outcome rather than the read.
     private func adoptSyncedBoard(_ content: BoardSnapshot, sharing shared: SharedList.Outcome) {
+        // The records have spoken again; deletions are measured from here.
+        // This is what keeps a merge from ever being read back to the records
+        // as this device's editing: only what leaves the board *after* this
+        // moment is anybody's deletion.
+        syncBaseline = .of(content)
         adopt(
             content,
             views: shared.views, viewsChangedAt: shared.viewsChangedAt,

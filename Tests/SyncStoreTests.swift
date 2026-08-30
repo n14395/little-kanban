@@ -278,7 +278,10 @@ import Testing
         let context = sync.container.mainContext
         #expect(try context.fetch(FetchDescriptor<StoredSubtask>()).isEmpty == false)
 
-        try sync.apply(snapshot(tasks: []))
+        // The tombstones are the licence — a snapshot merely missing the tasks
+        // deletes nothing. `DeletionLicenseTests` holds that side.
+        try sync.apply(snapshot(tasks: []),
+                       deleting: SyncIDs(tasks: Set(Self.filed.map(\.id))))
         #expect(try context.fetch(FetchDescriptor<StoredTask>()).isEmpty)
         #expect(try context.fetch(FetchDescriptor<StoredSubtask>()).isEmpty)
         #expect(try context.fetch(FetchDescriptor<StoredActivity>()).isEmpty)
@@ -290,7 +293,9 @@ import Testing
         let context = sync.container.mainContext
         #expect(try context.fetch(FetchDescriptor<StoredColumn>()).isEmpty == false)
 
-        try sync.apply(snapshot(tasks: [], boards: []))
+        try sync.apply(snapshot(tasks: [], boards: []),
+                       deleting: SyncIDs(boards: Set(SeedData.boards.map(\.id)),
+                                         tasks: Set(Self.filed.map(\.id))))
         #expect(try context.fetch(FetchDescriptor<StoredBoard>()).isEmpty)
         #expect(try context.fetch(FetchDescriptor<StoredColumn>()).isEmpty)
     }
@@ -739,9 +744,9 @@ private final class FlakySyncStore: SyncStoring {
     func backfillTaskPositions(from taskIDs: [TaskItem.ID]) throws {
         try wrapped.backfillTaskPositions(from: taskIDs)
     }
-    func apply(_ snapshot: BoardSnapshot) throws {
+    func apply(_ snapshot: BoardSnapshot, deleting: SyncIDs) throws {
         applyCount += 1
-        try wrapped.apply(snapshot)
+        try wrapped.apply(snapshot, deleting: deleting)
     }
 }
 
