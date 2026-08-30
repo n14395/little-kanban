@@ -44,16 +44,31 @@ struct PhoneDetailSheet: View {
             }
         }
         .background(palette.windowFill)
-        // Four fifths of the screen, near enough the design's 82%, and back
-        // from the `.large` this was raised to. The board it came up over stays
-        // legible above it, which is the whole point of a sheet that is not a
-        // page.
+        // Nine tenths of the screen, which is a tenth more than the Inbox sheet
+        // beside it takes — and that is the difference between the two rather
+        // than an inconsistency in them. The editor is one card and you want
+        // the whole of it at once, every field without a scroll; the Inbox is a
+        // list you are filing *out of*, and what you are filing into is the
+        // board behind it, so it keeps more of that in sight. See
+        // ``PhoneInboxSheet/Metrics/heightFraction``, which says it from there.
+        //
+        // **It was four fifths, and that was too low**: the design's figure was
+        // 82% and four fifths is the nearest round number *under* it, so the
+        // editor opened a screen's-worth of content into eight tenths of a
+        // screen and asked for a scroll on the first line. What the height is
+        // buying is the strip of board above it — a sheet is a thing you have
+        // come up *over*, and a page is not — and a tenth of the screen is
+        // enough to say so, which is the argument the Inbox settled already.
+        // Short of `.large`, which is the height that stops being a sheet.
         //
         // **It costs the touch targets 4%, knowingly.** A sheet held at any
         // detent below `.large` is laid out at the full screen width and then
         // transformed: inset 8pt each side and scaled by `(W - 16) / W`. So a
-        // 44pt control renders smaller than 44pt. Measured at both detents with
-        // the Close button, which is exactly 44pt as drawn:
+        // 44pt control renders smaller than 44pt. The factor is the inset over
+        // the screen *width*, so it is the same at any fraction and the numbers
+        // below — measured at four fifths, against `.large` — did not move when
+        // the sheet was raised to nine tenths. Measured with the Close button,
+        // which is exactly 44pt as drawn:
         //
         //   iPhone 17 Pro (402pt)   44.0 at `.large`   42.2487 here
         //   iPhone 17e    (390pt)   44.0 at `.large`   42.1949 here
@@ -69,7 +84,7 @@ struct PhoneDetailSheet: View {
         // neither of which is a smaller edit than this one.
         //
         // `UITests/DetailSheetHeightTests` pins the height itself.
-        .presentationDetents([.fraction(0.8)])
+        .presentationDetents([.fraction(0.9)])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(28)
         .presentationBackground(palette.windowFill)

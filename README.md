@@ -175,7 +175,7 @@ side, wrapped in mock chrome. Natively the OS supplies that chrome, so:
 | Light/Dark toggle in the page header | Follows the system appearance; both palettes come straight from the spec's theme blocks |
 | `--glass` tab bar + `backdrop-filter: blur(20px)` | `glassEffect` inside a `GlassEffectContainer` (the spec's light-mode `--glass` is a self-referential CSS variable and resolves to nothing — Liquid Glass replaces it) |
 | Absolutely-positioned label picker | Native `.popover` |
-| `animation: sheetUp`, `max-height: 82%` | Native `.sheet` at `.presentationDetents([.fraction(0.8)])` — four fifths, near enough the spec's figure. It shrinks every control inside it by 4%, which is a cost this app now takes deliberately; see **Touch targets** |
+| `animation: sheetUp`, `max-height: 82%` | Native `.sheet` at `.presentationDetents([.fraction(0.9)])` — nine tenths, a tenth more than the Inbox sheet takes: the editor is one card you want whole, and the Inbox is a list you file out of. It shrinks every control inside it by 4%, which is a cost this app now takes deliberately; see **Touch targets** |
 | HTML5 drag events | `.draggable` / `.dropDestination` with `onDragSessionUpdated`, over the app's own `TaskTransfer` type rather than loose text; see **Drag and drop** |
 | Due chips tinted by matching the strings `"Today"` / `"Thu"` / `"Fri"` | Real calendar days; `DueDate` derives both the chip text and its urgency from the day distance those literals encoded |
 | `min-width` on the status segments | Border-box, so the frame wraps the padding; `ViewThatFits` gives the spec's `flex: 1 0 auto` **and** its `overflow-x: auto` fallback |
@@ -404,17 +404,19 @@ then *transformed* — inset 8pt from each screen edge and scaled by
 `(width - 16) / width` — so its whole content renders smaller than it lays out.
 Measured with the Close button, which is exactly 44pt as drawn:
 
-| Device | Width | `.large` | `.fraction(0.8)` | Factor |
+| Device | Width | `.large` | a fraction detent | Factor |
 | --- | --- | --- | --- | --- |
 | iPhone 17 Pro | 402pt | 44.0000 | **42.2487** | 0.96019 |
 | iPhone 17e | 390pt | 44.0000 | **42.1949** | 0.95897 |
 
 `(width - 16) / width` to five places on both, so the arithmetic is the whole
 story and it holds for every control in there — Close, Add label, the checklist
-toggles, the Move-to chips, Due date and Priority.
+toggles, the Move-to chips, Due date and Priority. The factor is the inset over
+the *width*, so it is the same at any fraction: the numbers above were measured
+at four fifths and did not move when the sheet was raised to nine tenths.
 
 **The sheet was `.large` for exactly that reason and is not any more**, because
-four fifths is what it was asked for. The factor differs per device, so no
+a height short of the top is what it was asked for. The factor differs per device, so no
 constant inflation of the shared `.sheet` presets clears 44 everywhere; a preset
 that did would have to be `44 * width / (width - 16)`, which is 45.82pt on a
 402pt phone and 45.96pt on the narrowest iPhone this build runs on. Rounding all
@@ -2962,9 +2964,13 @@ These rules are the iPhone's alone:
   hand-rolling was measured and is still true: a sheet below `.large` floats
   inset and is *scaled* to compensate — 0.9602 on a 402pt-wide phone — so every
   44pt control in it lands at ~42.2, and the factor differs per device so no
-  padding buys it back (see **Touch targets**). The editor pays that knowingly
-  at four fifths; this pays it at nine tenths, because everything the
-  hand-rolled panel did was a worse copy of what the system already does.
+  padding buys it back (see **Touch targets**). Both sheets pay that knowingly:
+  the editor at nine tenths and this one at four fifths, a tenth shorter because
+  what an Inbox is filed *into* is the board behind it. They started the other
+  way round and swapped, which is the clearest sign the tenth is a real
+  difference rather than a number nobody revisited. It is paid here because
+  everything the hand-rolled panel did was a worse copy of what the system
+  already does.
 
   Four pieces of this file went away with the swap — the scrim and its fade, the
   insertion and removal transitions, the live drag offset with its
@@ -4183,6 +4189,68 @@ correctly and opened no gap on the way, which is a drag with its answer taken
 away. The board keeps its own answer under the same view, because a stand-in on
 a list whose rows are not the board's order would promise a move the drop
 cannot make.
+
+**A lift is not a drag, and the panes must not confuse the two.** The halves a
+card offers as insertion targets are clear, hit-testable views laid *over* the
+card — `BoardTaskCard.dropZones` — so a pane over a card nobody is dragging onto
+takes the tap that opens it. The settings sheet wrote that rule down for its
+column rows and the cards did not follow it far enough: they mounted their panes
+on `draggingID`, which on a build without `onDragSessionUpdated` is set by the
+*lift* and cleared by the *drop*. A long press released in place has a lift and
+no drop, so every card in the list went under a pane and stayed there for
+`liftExpiry` — twenty seconds in which nothing in that list would open. Which is
+the commonest thing a hand does by accident: holding a card is how a phone picks
+one up, and holding one a moment too long before letting go is not a gesture, it
+is a change of mind. It never showed in a saved view, because there is no drag
+offered there and so no pane, and that was the shape of the report.
+
+The panes hang on `isCardTravelling` now, and the difference is measured rather
+than argued: on the simulator a press-and-hold released in place reports **no**
+drop targeting anywhere — not one callback, from a list's ground or from a pane
+— while a drag of a few points has the ground reporting before the finger has
+crossed half a card. So a lift dims its card and does nothing else, and the
+panes wait for a destination to say the drag is real. Nothing a drop could reach
+is delayed by that: a list's ground is mounted whether or not anything is in the
+air, and it is what answers first every time, precisely because the panes it
+precedes are not there yet.
+
+**The same reports say when a drag is over**, which is the other half of the same
+gap. `onDragSessionUpdated` is macOS 26 but iOS **27**, so at this deployment
+target a card let go over nothing ends its session without telling anybody —
+which is the whole reason `liftExpiry` exists. Every destination letting go at
+once says it instead: `BoardStore.dragTargeting(_:)` is the line each
+`isTargeted` closure opens with, it counts who has the drag, and a count that
+reaches zero and stays there for `dragSettle` is a drag that has finished. A
+count rather than a flag because destinations nest — a card's half sits inside
+its list's ground — and crossing from one into the other is a `false` and a
+`true` whose order SwiftUI does not promise. Where the session does announce its
+own end this infers nothing and only keeps the count: a guess standing beside a
+fact is a second opinion nobody asked for.
+
+**And the phone's card had no reader at all**, which is why this reproduced on a
+simulator running 27 as readily as on a phone running 26. `CardDragSession` was
+the desk card's alone: `ReorderableCard` had `.draggable` and nothing listening,
+so on a build that *does* announce the end of a drag there was nobody on
+`PhoneTaskCard` to hear it, and a card let go without a drop stayed in the air
+until `liftExpiry` gave up on it. It carries the same modifier now, outside
+`.draggable` on both — which it has to be, a session being reported to the
+subtree it began in — and `lifted()` stays beside it for the haptic and for the
+builds that announce nothing, whichever speaks first taking the lift and
+`beginDrag`'s latch making the other a no-op.
+
+`UITests/HeldCardTests` holds a card, lets go, and taps it, on the board and in
+the Inbox. It has to be a UI test: nothing in the store knows a card is
+unreachable, because `sheetID` is simply never set by a tap that never arrived,
+and every unit test that opens a card by calling the store passes while the card
+on screen sits under something taking its taps.
+
+**The settings sheet's column rows are still on the old footing.** They carry
+the same panes on the same lift signal, and there is no ground behind them for a
+drag to report against — the rows are the only destinations in that list — so
+the discrimination above is not available to them as written. A column row held
+and let go leaves that list untappable for `liftExpiry`, exactly as the cards
+did. Closing it means giving the list a ground of its own, which is a change to
+a drag surface with its own tests, and it has not been made.
 
 Which rule a card asks is decided by the list drawing it rather than by the
 card, because the card cannot tell: an unfiled card appears in the Inbox *and*

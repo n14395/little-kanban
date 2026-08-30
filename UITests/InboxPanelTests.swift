@@ -83,6 +83,14 @@ final class InboxPanelTests: XCTestCase {
     /// A detent is a request to UIKit, not a value the app holds, so where the
     /// sheet's own chrome lands in the window is the only thing that knows how
     /// tall it ended up.
+    ///
+    /// **Four fifths, a tenth short of the editor's nine** — see
+    /// `PhoneInboxSheet.Metrics.heightFraction` for why the two differ. On an
+    /// iPhone 17 Pro (402x874) the × was measured at 235.8pt, which is 27% of
+    /// the way down; at nine tenths it was 17% and `.large` would be about 7%.
+    /// The band holds the one and rejects the others, and it has to be a band
+    /// rather than a number: the chrome above the × is a fixed *point* offset,
+    /// so it is a larger share of a short window than of a tall one.
     func testTheInboxRisesToMostOfTheScreenAndStopsShortOfTheTop() throws {
         try XCTSkipUnless(
             UIDevice.current.userInterfaceIdiom == .phone,
@@ -97,12 +105,12 @@ final class InboxPanelTests: XCTestCase {
         let window = app.windows.firstMatch.frame
         let top = close.frame.minY
         XCTAssertGreaterThan(
-            top, window.height * 0.05,
-            "the Inbox is going to the top of the screen — its header is \(top)pt down a \(window.height)pt window, and nothing of the board is left showing"
+            top, window.height * 0.22,
+            "the Inbox is rising too far — its header is \(top)pt down a \(window.height)pt window, and the board it was opened over has stopped showing"
         )
         XCTAssertLessThan(
-            top, window.height * 0.25,
-            "the Inbox is not rising far enough — its header is \(top)pt down a \(window.height)pt window, and it was asked for nine tenths"
+            top, window.height * 0.33,
+            "the Inbox is not rising far enough — its header is \(top)pt down a \(window.height)pt window, and it was asked for four fifths"
         )
     }
 

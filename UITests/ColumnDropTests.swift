@@ -156,7 +156,7 @@ final class ColumnDropTests: XCTestCase {
         // page up in portrait would find itself looking at Backlog.
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = launched()
-        XCTAssertTrue(app.buttons["Board"].waitForExistence(timeout: 20), "the app never came up")
+        XCTAssertTrue(app.buttons["New task"].waitForExistence(timeout: 20), "the app never came up")
 
         let empty = app.descendants(matching: .any)
             .matching(NSPredicate(format: "label CONTAINS %@", "Nothing in In Progress"))

@@ -19,7 +19,7 @@ import XCTest
 ///
 /// **The scroll half is not pinned here.** "Dragging over the cards scrolls
 /// them" needs a list with somewhere to scroll to, and the seeded Inbox is four
-/// cards in a sheet nine tenths of the screen tall — it fits, so there is
+/// cards in a sheet four fifths of the screen tall — it fits, so there is
 /// nothing to scroll and nothing to assert. Adding cards to force it would leave
 /// them behind for every other suite. What is checked is the half that was
 /// broken.
@@ -62,9 +62,12 @@ final class InboxSheetDragTests: XCTestCase {
     /// Dragged down through the given fraction of the window.
     ///
     /// Far enough to clear UIKit's own threshold, which is a share of the
-    /// sheet: at four tenths of an 874pt window this is 350pt against a 787pt
-    /// sheet. A 262pt drag measured as *not* enough, so the margin here is
-    /// deliberate rather than generous.
+    /// sheet: at four tenths of an 874pt window this is 350pt, against a sheet
+    /// that is 699pt at the four fifths this one is held at — and was 787pt at
+    /// the nine tenths it used to be, where the same drag already cleared it. A
+    /// 262pt drag measured as *not* enough against the taller sheet, so the
+    /// margin here is deliberate rather than generous, and it only grew when
+    /// the sheet came down.
     private func dragDown(_ app: XCUIApplication, from y: CGFloat) {
         let window = app.windows.firstMatch
         window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: y))

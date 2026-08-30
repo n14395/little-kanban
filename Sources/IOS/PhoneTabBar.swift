@@ -2,7 +2,7 @@
 
 import SwiftUI
 
-/// The tab pill and quick-capture button: Board, the Inbox, Search, and "+".
+/// The tab pill and quick-capture button: Search, the Inbox, and "+".
 ///
 /// The design asks for a blurred, tinted bar here (`--glass` + `backdrop-filter`),
 /// which is exactly what Liquid Glass provides natively. Both controls live in a
@@ -20,9 +20,9 @@ import SwiftUI
 /// **The words go with it.** Each slot is a glyph and a word along the foot and
 /// the glyph alone in the header, which is what a row already holding a serif
 /// title and two discs can actually take. The glyphs are the app's own — the
-/// board's, the tray the Inbox is drawn with everywhere else, and the header's
-/// magnifier — and each button keeps its name for VoiceOver, which never sees
-/// the difference between the two shapes.
+/// header's magnifier and the tray the Inbox is drawn with everywhere else —
+/// and each button keeps its name for VoiceOver, which never sees the
+/// difference between the two shapes.
 struct PhoneTabBar: View {
     /// Where the bar is drawn, which is the one value everything that differs
     /// between the two shapes reads off: what is in a slot, how big it is drawn
@@ -65,36 +65,42 @@ struct PhoneTabBar: View {
         .background(alignment: .bottom) { ground }
     }
 
-    /// Two destinations and a toggle, drawn as three equal slots.
+    /// One destination and one toggle, drawn as two equal slots.
     ///
-    /// **The Inbox is the toggle**, and it sits between them rather than at
-    /// either end because that is where it was when it was a tab and because it
-    /// is the one thing on this bar you reach for *while* on a board. It raises
-    /// ``PhoneInboxSheet`` over whatever is on screen instead of replacing it —
-    /// so unlike the other two it does not answer "where am I", and it reads as
-    /// current whenever the panel is up, over a saved view included.
+    /// **The Board slot is gone.** It named the surface you were already
+    /// looking at: the board *is* the phone's main surface, so the slot spent a
+    /// third of the bar being lit for doing nothing most of the time, and the
+    /// two ways off the board — a saved view and search — both have a way back
+    /// of their own. The drawer's board rows are that way back, and they select
+    /// the tab as well as the board (see `PhoneNavDrawer.show(_:)`), so nothing
+    /// is stranded by its going.
+    ///
+    /// **The Inbox is the toggle**, and it is in the middle of the bar: search
+    /// leads, the Inbox sits between it and the `+`, which puts the one thing
+    /// you reach for *while* looking at something else under the thumb that is
+    /// already on its way to capture. It raises ``PhoneInboxSheet`` over
+    /// whatever is on screen instead of replacing it — so unlike search it does
+    /// not answer "where am I", and it reads as current whenever the panel is
+    /// up, over a saved view included.
     ///
     /// The order is the same in both shapes, leading to trailing, which is where
     /// a reader coming from the other one looks.
     private var tabPill: some View {
         HStack(spacing: isHeader ? 0 : 4) {
-            slot(PhoneTab.board.label, symbol: PhoneTab.board.symbol, isCurrent: isCurrent(.board)) {
-                store.selectTab(.board)
+            slot(PhoneTab.search.label, symbol: PhoneTab.search.symbol, isCurrent: isCurrent(.search)) {
+                store.selectTab(.search)
             }
             // **The one slot that carries a number.** The Inbox is the only
             // thing on this bar that fills up while you are looking at
-            // something else — the board tab is wherever you left it and search
-            // is empty until you type — so it is the only one where "how much
-            // is in there" is worth the room. The desk's toolbar has said it
-            // this way since there was a toolbar: see `BoardToolbar.inboxToggle`.
+            // something else — search is empty until you type — so it is the
+            // only one where "how much is in there" is worth the room. The
+            // desk's toolbar has said it this way since there was a toolbar:
+            // see `BoardToolbar.inboxToggle`.
             slot(
                 Board.inboxName, symbol: SavedView.seeded(.inbox).symbol,
                 isCurrent: store.isInboxOpen, count: store.inboxCount
             ) {
                 store.toggleInbox()
-            }
-            slot(PhoneTab.search.label, symbol: PhoneTab.search.symbol, isCurrent: isCurrent(.search)) {
-                store.selectTab(.search)
             }
         }
         // None in the header: each slot pads its own glyph out to the 44pt
@@ -104,8 +110,8 @@ struct PhoneTabBar: View {
         .glassEffect(.regular, in: .rect(cornerRadius: isHeader ? 14 : 16))
     }
 
-    /// A saved view has replaced the list, so neither place the tabs name is
-    /// what is on screen; highlighting one anyway would be the drawer's inert
+    /// A saved view has replaced the list, so the place this slot names is not
+    /// what is on screen; highlighting it anyway would be the drawer's inert
     /// rows over again. The Inbox does not go through this — a panel over the
     /// top is showing whether or not a view is under it.
     private func isCurrent(_ tab: PhoneTab) -> Bool {
@@ -135,7 +141,7 @@ struct PhoneTabBar: View {
         }
         .buttonStyle(.bare)
         // Said rather than inferred, because in the header there is no word to
-        // infer it from: a reader meets the same three names in both shapes.
+        // infer it from: a reader meets the same names in both shapes.
         .accessibilityLabel(title)
         .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
 
@@ -167,13 +173,13 @@ struct PhoneTabBar: View {
 
         return Group {
             if isHeader {
-                // A square rather than a shrink-wrapped glyph, so three symbols
-                // of three different widths make three chips of one width.
+                // A square rather than a shrink-wrapped glyph, so symbols of
+                // different widths make chips of one width.
                 //
                 // The number rides *on* the glyph here rather than beside it,
-                // for that same reason: a pill in the row would make this one
-                // chip wider than the two next to it, and the run of three is
-                // the only thing telling the eye they are one control.
+                // for that same reason: a pill in the row would make this chip
+                // wider than the one next to it, and their being a matched pair
+                // is what tells the eye they are one control.
                 glyph
                     .frame(width: 34, height: 34)
                     .overlay(alignment: .topTrailing) {
@@ -185,12 +191,12 @@ struct PhoneTabBar: View {
                     Text(title)
                         .font(palette.ui(12, isCurrent ? .extraBold : .bold, relativeTo: .caption))
                         .foregroundStyle(tint)
-                        // Three single words in three equal thirds of a phone.
-                        // At an accessibility size they do not fit, and a word
-                        // has nowhere to break: the pill read "Boar / d",
-                        // "Inbo / x", "Sear / ch". Held to one line and allowed
-                        // to shrink, they still grow with the reader's text —
-                        // just not past the slot they sit in.
+                        // Single words in equal shares of a phone's width. At an
+                        // accessibility size they do not fit, and a word has
+                        // nowhere to break: the pill read "Inbo / x", "Sear /
+                        // ch". Held to one line and allowed to shrink, they
+                        // still grow with the reader's text — just not past the
+                        // slot they sit in.
                         .lineLimit(1)
                         .minimumScaleFactor(0.55)
                     // Beside the word, the way the desk's toolbar puts it beside

@@ -182,6 +182,12 @@ struct BoardTaskCard: View {
         }
     }
 
+    /// The board's rule or the Inbox's, whichever list this card is drawn in
+    /// — see ``BoardStore/allowsInboxCardDrag``.
+    private var allowsDrag: Bool {
+        isInboxList ? store.allowsInboxCardDrag : store.allowsCardDrag
+    }
+
     /// The card's two halves, as separate insertion targets: the top half means
     /// *above this card*, the bottom half means *below it*.
     ///
@@ -190,27 +196,25 @@ struct BoardTaskCard: View {
     /// which one — the direction the drag came from — could not name the top of
     /// a list at all. See `BoardStore.dropTargetCaret`.
     ///
-    /// **Over the card, and only while something is in the air.** They are plain
-    /// hit-testable views, so over a card nobody is dropping on they would take
-    /// the click that opens it — and during a drag there is no click to take,
-    /// which is the whole window they need to exist in. Behind the card was the
-    /// other spelling and it does not work: measured on an iPad, a drop whose
-    /// only target was a background zone landed nowhere, because the card's own
-    /// content is in front of it and a drop stops at what it lands on.
+    /// **Over the card, and only while a card is actually travelling.** They are
+    /// plain hit-testable views, so over a card nobody is dropping on they
+    /// would take the click that opens it — and during a drag there is no click
+    /// to take, which is the whole window they need to exist in. That window is
+    /// ``BoardStore/isCardTravelling`` and not `draggingID`, which is a *lift*:
+    /// a long press released in place set it, nothing cleared it, and every
+    /// card in the list sat under a pane and refused to open. Behind the card
+    /// was the other spelling and it does not work: measured on an iPad, a drop
+    /// whose only target was a background zone landed nowhere, because the
+    /// card's own content is in front of it and a drop stops at what it lands
+    /// on.
     ///
     /// They reach `dropReach` past the card at each end, so the two halves of
     /// one card and the halves of the next meet in the middle of the gap: a
     /// pointer between two cards is over one of them rather than over neither,
     /// which is what made the caret blink out and jump to the foot of the
     /// column.
-    /// The board's rule or the Inbox's, whichever list this card is drawn in
-    /// — see ``BoardStore/allowsInboxCardDrag``.
-    private var allowsDrag: Bool {
-        isInboxList ? store.allowsInboxCardDrag : store.allowsCardDrag
-    }
-
     @ViewBuilder private var dropZones: some View {
-        if allowsDrag, store.draggingID != nil {
+        if allowsDrag, store.isCardTravelling {
             VStack(spacing: 0) {
                 dropZone(.above(task.id))
                 dropZone(.below(task.id))
@@ -228,6 +232,10 @@ struct BoardTaskCard: View {
                 store.drop(dropped.id, at: caret)
                 return true
             } isTargeted: { targeted in
+                // Counted like every other destination: a pane that kept quiet
+                // would read as nobody holding the drag, and the store would
+                // call it over — see `BoardStore.dragTargeting`.
+                store.dragTargeting(targeted)
                 guard allowsDrag else { return }
                 if targeted { store.dropTargetColumnID = task.columnID }
                 // An unfiled card is in the Inbox panel, which is not a column
@@ -666,10 +674,20 @@ enum CardClick {
 /// has the long version.
 ///
 /// Behind an availability check rather than a `#if`: `onDragSessionUpdated` is
-/// macOS 26 but iOS **27**, and this app deploys to iOS 26. An iPad on 26 drags
-/// and drops exactly as it does now — the drop handlers clear both — and simply
-/// does not dim the card it is carrying.
-private struct CardDragSession: ViewModifier {
+/// macOS 26 but iOS **27**, and this app deploys to iOS 26. A device on 26
+/// drags and drops exactly as it does now — the drop handlers clear both, and
+/// `BoardStore.dragTargeting` reads the end of a drag off the destinations
+/// letting go of it — and simply does not dim the card it is carrying until one
+/// of them has seen it.
+///
+/// **Internal rather than private, because the phone's card carries it too**,
+/// and went without for as long as it was the desk's alone: `ReorderableCard`
+/// had `.draggable` and no reader, so on a build that *does* announce the end of
+/// a drag nothing here was listening, and a card let go without a drop stayed in
+/// the air until `BoardStore.liftExpiry` gave up on it. Applied outside
+/// `.draggable` on both, which it has to be — a session is reported to the
+/// subtree it began in.
+struct CardDragSession: ViewModifier {
     @Environment(BoardStore.self) private var store
 
     let id: TaskItem.ID

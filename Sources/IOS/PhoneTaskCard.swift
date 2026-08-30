@@ -232,6 +232,13 @@ struct ReorderableCard: ViewModifier {
                 .overlay(alignment: dropCaretEdge ?? .top) { dropCaret }
                 .overlay { dropZones }
                 .draggable(lifted())
+                // Where the system says when a drag has finished, this is what
+                // hears it — the same reader the desk's card has always had,
+                // and which this one was missing. `lifted()` stays for the
+                // haptic and for the builds that announce nothing; whichever of
+                // the two speaks first sets the lift, and `beginDrag`'s latch
+                // makes the other a no-op.
+                .modifier(CardDragSession(id: task.id))
                 .sensoryFeedback(.impact(weight: .light), trigger: jolts)
         } else {
             content
@@ -240,12 +247,17 @@ struct ReorderableCard: ViewModifier {
 
     /// The row's two halves, as separate insertion targets — the desk's
     /// ``BoardTaskCard/dropZones`` on a phone, and every word of that comment
-    /// applies here. The reach is `TaskListMetrics.sheet.rowSpacing` halved,
+    /// applies here, including the one about a pane over a card nobody is
+    /// dragging onto taking the tap that opens it. This is the surface that
+    /// found out: a finger holding a card is how a phone picks one up, and a
+    /// hold released in place is the commonest thing a hand does by accident.
+    ///
+    /// The reach is `TaskListMetrics.sheet.rowSpacing` halved,
     /// which is the gap on both of the containers a phone card is drawn in:
     /// ``PhoneColumnPage``'s stack on the board, and `TaskListView`'s `List` on
     /// the flat surfaces, which spends the same gap as two half-row insets.
     @ViewBuilder private var dropZones: some View {
-        if allowsDrag, store.draggingID != nil {
+        if allowsDrag, store.isCardTravelling {
             VStack(spacing: 0) {
                 dropZone(.above(task.id))
                 dropZone(.below(task.id))
@@ -264,6 +276,10 @@ struct ReorderableCard: ViewModifier {
                 jolts += 1
                 return true
             } isTargeted: { targeted in
+                // Counted like every other destination: a pane that kept quiet
+                // would read as nobody holding the drag, and the store would
+                // call it over — see `BoardStore.dragTargeting`.
+                store.dragTargeting(targeted)
                 // Claimed on the way in and not given up on the way out, for
                 // the reason `BoardStore.dropTargetCaret` gives — the stand-in
                 // that opens in this gap takes the finger off this half, and a

@@ -70,19 +70,27 @@ struct PhoneInboxSheet: View {
         /// anyway. The height wants the space around the cards regardless:
         /// that space is where a card arriving from elsewhere lands.
         ///
-        /// Most of the screen, with the board's own title row left showing: the
+        /// Most of the screen, with a strip of the board left showing: the
         /// Inbox is a list you work *through* — file this one, keep that one —
         /// and two thirds of a phone was four cards and a scroll for the rest.
         /// What the strip along the top buys is the thing a panel has over the
         /// page this used to be: you can still see what you left, and it is
         /// obvious that tapping it puts you back.
+        ///
+        /// **Four fifths, where the editor takes nine tenths**, and the tenth
+        /// between them is the difference between the two sheets rather than an
+        /// inconsistency in them. The editor is one card and you want the whole
+        /// of it at once — every field without a scroll — so it takes the
+        /// height. The Inbox is a list you are filing *out of*, and what you are
+        /// filing into is the board behind it, so it keeps more of that in
+        /// sight. `PhoneDetailSheet` says the same from its side.
         var heightFraction: CGFloat
         /// The sheet's own corner radius, which is the editor's — two sheets
         /// coming up over the same board should not be different shapes.
         var cornerRadius: CGFloat
         var titleSize: CGFloat
 
-        static let phone = Metrics(heightFraction: 0.90, cornerRadius: 28, titleSize: 19)
+        static let phone = Metrics(heightFraction: 0.80, cornerRadius: 28, titleSize: 19)
     }
 
     @Environment(\.palette) private var palette
@@ -154,8 +162,9 @@ struct PhoneInboxSheet: View {
                 panel
                     // The editor's presentation, to the point: same detent
                     // arithmetic, same indicator, same corner, same ground. The
-                    // height is this panel's own — the Inbox is a list to work
-                    // through and the editor is one card.
+                    // height is this panel's own and a tenth short of the
+                    // editor's — the Inbox is a list to work through and the
+                    // editor is one card. See ``Metrics/heightFraction``.
                     .presentationDetents([.fraction(metrics.heightFraction)])
                     .presentationDragIndicator(.visible)
                     .presentationCornerRadius(metrics.cornerRadius)
@@ -392,6 +401,10 @@ struct PhoneInboxSheet: View {
             store.drop(dropped.id, onGroundOf: .inbox)
             return true
         } isTargeted: { targeted in
+            // A lift is not a drag until a destination has seen it, and where
+            // the system never says the drag is over, every destination letting
+            // go at once is what does — see `BoardStore.dragTargeting`.
+            store.dragTargeting(targeted)
             guard store.allowsInboxCardDrag else { return }
             store.isInboxDropTarget = targeted
             // The panel's own ground, which is what a *true* here means: a

@@ -75,7 +75,7 @@ final class GroundDropFootTests: XCTestCase {
         // reason.
         app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES", "-SimpleKanbanTab", "board"]
         app.launch()
-        XCTAssertTrue(app.buttons["Board"].waitForExistence(timeout: 20), "the app never came up")
+        XCTAssertTrue(app.buttons["New task"].waitForExistence(timeout: 20), "the app never came up")
 
         // The dashed row under the leading column's cards: the target, and the
         // line that divides it from the columns beside it. On screen and this

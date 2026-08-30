@@ -102,13 +102,16 @@ final class RowSwipeTests: XCTestCase {
     func testTheBoardRevealsNothingWhenThePageTurns() throws {
         let app = try launched(on: "board")
 
-        // The tab bar's own slot, selected — the cheapest proof the launch
-        // argument took and the board is what is under the finger. Named by the
-        // tab rather than by anything on the board, for the reason the suite
-        // note gives: whatever this simulator's board holds, it is still Board.
-        let boardTab = app.buttons["Board"]
-        XCTAssertTrue(boardTab.waitForExistence(timeout: 15), "the app never came up")
-        XCTAssertTrue(boardTab.isSelected, "the board is not the tab on screen")
+        // **The bar no longer has a Board slot to ask.** It named the surface
+        // you were already on and was dropped; what is left is the proof from
+        // the other side — the bar is up, and the one slot that *would* be lit
+        // if this were the wrong surface is not. Named by the bar rather than
+        // by anything on the board, for the reason the suite note gives:
+        // whatever this simulator's board holds, the bar is the same.
+        XCTAssertTrue(app.buttons["New task"].waitForExistence(timeout: 15), "the app never came up")
+        let searchTab = app.buttons["Search"]
+        XCTAssertTrue(searchTab.exists, "no tab bar")
+        XCTAssertFalse(searchTab.isSelected, "search is on screen rather than the board")
 
         app.swipeLeft()
         assertNothingIsRevealed(in: app, after: "trailing", on: "the board")

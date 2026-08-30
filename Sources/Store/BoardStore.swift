@@ -3815,10 +3815,117 @@ final class BoardStore {
     /// it *fails*. See ``CardDragSession`` for which phase calls this.
     func endDrag() {
         draggingID = nil
+        dragHasBeenSeen = false
+        destinationsTargeted = 0
         dropTargetColumnID = nil
         dropTargetCaret = nil
         isInboxDropTarget = false
     }
+
+    /// Whether the card that was picked up is actually being **carried** — a
+    /// drag some destination has seen under it, rather than a finger that held
+    /// a card and let go of it without going anywhere.
+    ///
+    /// **What the insertion zones hang on, and why ``draggingID`` cannot.** A
+    /// card's two halves are clear panes laid over the card — see
+    /// `BoardTaskCard.dropZones` — and a pane over a card nobody is dragging
+    /// onto takes the tap that opens it. `BoardSettingsView` wrote that rule
+    /// down for its column rows and the cards did not follow it far enough:
+    /// they mounted their panes on `draggingID`, which on a build without
+    /// `onDragSessionUpdated` is set by the lift and cleared by the drop — so a
+    /// long press that lifted a card and put it straight back down left every
+    /// card in the list under a pane, and untappable, for the whole of
+    /// ``liftExpiry``. Which is exactly what a long press *is* to a hand that
+    /// has changed its mind, and what it is to a hand that meant to tap.
+    ///
+    /// **A lift is not a drag, and only a destination can tell them apart.**
+    /// Measured on the simulator: a press-and-hold released in place reports no
+    /// targeting anywhere — not one callback, from the ground or from a pane —
+    /// while a drag of even a few points has the list's ground reporting
+    /// before the finger has gone half a card. So the panes wait for that
+    /// report. Nothing is delayed by it that a drop could reach: the ground is
+    /// mounted whether or not anything is in the air, and it is what answers
+    /// first, every time, because the panes it precedes are not there yet.
+    var isCardTravelling: Bool { draggingID != nil && dragHasBeenSeen }
+
+    /// Whether any destination has reported the drag since the card was picked
+    /// up. Read through ``isCardTravelling`` and never on its own, which is
+    /// what makes that one *and* a card still in the air: `draggingID` is
+    /// cleared from several places that are not `endDrag` — a task discarded,
+    /// archived, or taken away wholesale by a restore — and a pane left over a
+    /// card by one of those is the very thing this was written to end.
+    private var dragHasBeenSeen: Bool {
+        get {
+            access(keyPath: \.dragHasBeenSeen)
+            return _dragHasBeenSeen
+        }
+        set {
+            guard newValue != _dragHasBeenSeen else { return }
+            withMutation(keyPath: \.dragHasBeenSeen) { _dragHasBeenSeen = newValue }
+        }
+    }
+    @ObservationIgnored private var _dragHasBeenSeen = false
+
+    /// How many destinations have the drag over them at this moment.
+    ///
+    /// A count rather than a flag because destinations nest — a card's half
+    /// sits inside its list's ground — and crossing from one into the other is
+    /// a `false` and a `true` whose order SwiftUI does not promise. Clamped at
+    /// zero so an unmatched report cannot take it negative and strand the drag
+    /// below the floor.
+    @ObservationIgnored private var destinationsTargeted = 0
+
+    /// Bumped by every pick-up, so a settle scheduled by one drag cannot end
+    /// the next one.
+    @ObservationIgnored private var lifts = 0
+
+    /// What every destination that takes a card says as the drag arrives over
+    /// it and as it leaves again — the line above whatever else its
+    /// `isTargeted` closure does.
+    ///
+    /// **Two facts come out of it.** That a lift has become a drag, which is
+    /// what puts the insertion zones on screen — see ``isCardTravelling``. And
+    /// that a drag is over, which is the harder one: a card let go over nothing
+    /// ends its session without telling anybody, and until iOS 27 there is no
+    /// `onDragSessionUpdated` to ask. Every destination letting go at once says
+    /// it instead. Not instantly — a finger crossing out of a pane and into the
+    /// ground behind it passes through nobody's hands — so the claim has to
+    /// survive ``dragSettle`` before it is believed.
+    ///
+    /// Where the session *does* announce its own end this infers nothing and
+    /// only keeps the count: `CardDragSession` has the answer from the system,
+    /// and a guess standing beside a fact is a second opinion nobody asked for.
+    func dragTargeting(_ targeted: Bool) {
+        destinationsTargeted = targeted ? destinationsTargeted + 1 : max(0, destinationsTargeted - 1)
+        guard draggingID != nil else { return }
+        if targeted { return dragHasBeenSeen = true }
+        guard !Self.announcesDragEnd, destinationsTargeted == 0 else { return }
+        let lift = lifts
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(Self.dragSettle))
+            guard let self, lifts == lift, destinationsTargeted == 0, draggingID != nil
+            else { return }
+            endDrag()
+        }
+    }
+
+    /// Whether the drag session says when it has finished — `onDragSessionUpdated`,
+    /// which ``CardDragSession`` reads and which is macOS 26 but iOS **27**.
+    /// Everywhere else the end of a drag is inferred from the destinations
+    /// letting go of it, which is ``dragTargeting(_:)``.
+    static var announcesDragEnd: Bool {
+        #if os(macOS)
+        true
+        #else
+        if #available(iOS 27.0, *) { true } else { false }
+        #endif
+    }
+
+    /// How long every destination has to stay let-go of before that counts as
+    /// the drag being over. Long enough to cover a finger crossing the gutter
+    /// between two columns, short enough that a card put back down is tappable
+    /// again before a hand can reach it.
+    static let dragSettle: TimeInterval = 0.75
 
     /// Says a card has been picked up, from the one signal a build without
     /// `onDragSessionUpdated` has: the moment `.draggable` is asked for its
@@ -3832,18 +3939,31 @@ final class BoardStore {
     /// **All of it deferred a turn**, because the ask can land inside a view
     /// update and this writes state the board is drawn from.
     ///
-    /// The expiry is for the case that has no callback at all before
-    /// `onDragSessionUpdated`: a card let go over nothing ends its session
-    /// without telling anybody, and without this the board would stay dimmed
-    /// and highlighted until the next pick-up. Every drop clears the lift on
-    /// the way through `endDrag`, so the ordinary case never reaches it.
+    /// **A lift, which is not yet a drag.** What this says is that a card has
+    /// been picked up — the card dims on it, and nothing else does. The
+    /// insertion zones wait for ``isCardTravelling``, because a hold released
+    /// in place is a lift with no drag anywhere in it, and panes over a card
+    /// nobody is dragging onto take the tap that opens it.
+    ///
+    /// The expiry is the last resort for the case that has no callback at all
+    /// before `onDragSessionUpdated`: a card let go over nothing ends its
+    /// session without telling anybody, and without this the board would stay
+    /// dimmed until the next pick-up. Every drop clears the lift on the way
+    /// through `endDrag`, and a drag that was seen and then let go of is
+    /// cleared by ``dragTargeting(_:)`` a ``dragSettle`` later, so what reaches
+    /// twenty seconds is a lift nothing ever saw — and that one costs a dimmed
+    /// card and nothing more.
     func beginDrag(_ id: TaskItem.ID, onLift: @escaping () -> Void = {}) {
         Task { @MainActor [weak self] in
             guard let self, draggingID != id else { return }
+            lifts += 1
+            let lift = lifts
+            destinationsTargeted = 0
+            dragHasBeenSeen = false
             draggingID = id
             onLift()
             try? await Task.sleep(for: .seconds(Self.liftExpiry))
-            if draggingID == id { endDrag() }
+            if lifts == lift, draggingID == id { endDrag() }
         }
     }
 

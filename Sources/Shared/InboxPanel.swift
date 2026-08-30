@@ -123,6 +123,10 @@ struct InboxPanel: View {
             store.drop(dropped.id, onGroundOf: .inbox)
             return true
         } isTargeted: { targeted in
+            // A lift is not a drag until a destination has seen it, and where
+            // the system never says the drag is over, every destination letting
+            // go at once is what does — see `BoardStore.dragTargeting`.
+            store.dragTargeting(targeted)
             guard store.allowsInboxCardDrag else { return }
             store.isInboxDropTarget = targeted
             // The panel's own ground, which is what a *true* here means: a

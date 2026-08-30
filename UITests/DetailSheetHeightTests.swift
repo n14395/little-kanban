@@ -1,6 +1,6 @@
 import XCTest
 
-/// The task detail sheet rises to about four fifths of the screen, not to the
+/// The task detail sheet rises to about nine tenths of the screen, not to the
 /// top of it.
 ///
 /// **A UI test because a detent is not a value the app holds.**
@@ -16,8 +16,10 @@ import XCTest
 /// lands *in the window* says where the sheet's top is. On an iPhone 17 Pro
 /// (402x874) it was measured at y=70 while the sheet was `.large` and y=243.5 at
 /// four fifths — 8% of the screen down against 28%. The band below is wide
-/// enough to hold every phone this build runs on and far too narrow to admit a
-/// full-height sheet.
+/// enough to hold every phone this build runs on and far too narrow to admit
+/// either a full-height sheet or the four fifths this used to be: the fixed
+/// chrome above the button is a *point* offset, so it is a larger share of a
+/// short window than of a tall one, and the band has to hold both ends.
 ///
 /// **iPhone simulator only.** The iPad presents the same view as a form sheet,
 /// which is centred and sized by the system; detents do not apply to it.
@@ -30,6 +32,23 @@ final class DetailSheetHeightTests: XCTestCase {
         continueAfterFailure = false
     }
 
+    /// A column chip by name: on this screen and on no other tab, so it is the
+    /// cheapest proof the board is up before tapping into it. Matched on the
+    /// opening of the label because the chip carries the column's count as well
+    /// as its name, the way `CardDropTargetTests` matches the same thing.
+    ///
+    /// **It was the pager's arrow**, `app.buttons["Next column"]`, and that
+    /// button is not in the app any more — the chip strip replaced it. Nothing
+    /// said so: the query simply never matched, both cases in here failed with
+    /// "the board never came up", and a suite that cannot reach the sheet
+    /// cannot say anything about how tall it is.
+    private func boardIsUp(_ app: XCUIApplication) -> Bool {
+        app.buttons
+            .matching(NSPredicate(format: "label BEGINSWITH %@", "Backlog"))
+            .firstMatch
+            .waitForExistence(timeout: 15)
+    }
+
     func testTheDetailSheetStopsShortOfTheTop() throws {
         try XCTSkipUnless(
             UIDevice.current.userInterfaceIdiom == .phone,
@@ -40,10 +59,7 @@ final class DetailSheetHeightTests: XCTestCase {
         app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES", "-SimpleKanbanTab", "board"]
         app.launch()
 
-        // The pager's arrow: on this screen in portrait and on no other tab, so
-        // it is the cheapest proof the board is up before tapping into it.
-        XCTAssertTrue(app.buttons["Next column"].waitForExistence(timeout: 15),
-                      "the board never came up")
+        XCTAssertTrue(boardIsUp(app), "the board never came up")
 
         // Tapped by coordinate rather than by card title: this simulator's board
         // is whatever the suites before it left behind, and the middle of the
@@ -58,12 +74,12 @@ final class DetailSheetHeightTests: XCTestCase {
         let top = close.frame.minY
 
         XCTAssertGreaterThan(
-            top, window.height * 0.15,
+            top, window.height * 0.12,
             "the detail sheet is going to the top of the screen again — its chrome is \(top)pt down a \(window.height)pt window, and a full-height sheet puts it at about 8%"
         )
         XCTAssertLessThan(
-            top, window.height * 0.35,
-            "the detail sheet is not rising far enough — its chrome is \(top)pt down a \(window.height)pt window"
+            top, window.height * 0.24,
+            "the detail sheet is not rising far enough — its chrome is \(top)pt down a \(window.height)pt window, and the four fifths this was raised from put it at about 28%"
         )
     }
 
@@ -87,8 +103,7 @@ final class DetailSheetHeightTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES", "-SimpleKanbanTab", "board"]
         app.launch()
-        XCTAssertTrue(app.buttons["Next column"].waitForExistence(timeout: 15),
-                      "the board never came up")
+        XCTAssertTrue(boardIsUp(app), "the board never came up")
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)).tap()
 
         let title = app.textFields["Title"]
@@ -102,10 +117,19 @@ final class DetailSheetHeightTests: XCTestCase {
         // keyboard. `ChecklistFocusTests` makes the same distinction.
         app.typeText("!")
 
+        // **Counted rather than appended**, because where the caret sits is not
+        // what this case is about: tapping a field puts the caret where the
+        // finger landed, and on this one that is the front of the title as
+        // readily as the end — measured, `!Task detail inspector`. The question
+        // is whether the keystroke arrived at all while the sheet resized under
+        // the keyboard.
+        let after = title.value as? String ?? ""
         XCTAssertEqual(
-            title.value as? String, before + "!",
-            "the title field did not take the keystroke — a sheet below `.large` resizes when the keyboard arrives, and this is where that goes wrong"
+            after.count, before.count + 1,
+            "the title field did not take the keystroke — a sheet below `.large` resizes when the keyboard arrives, and this is where that goes wrong; the field holds \"\(after)\""
         )
+        XCTAssertTrue(after.contains("!"),
+                      "the field changed by a character that was not the one typed: \"\(after)\"")
         XCTAssertTrue(app.buttons["Close"].exists,
                       "the sheet went away while the keyboard came up")
     }

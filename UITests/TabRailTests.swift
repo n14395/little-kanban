@@ -70,8 +70,10 @@ final class TabRailTests: XCTestCase {
         // on it with a label nothing else shares.
         let capture = app.buttons["New task"]
         XCTAssertTrue(capture.waitForExistence(timeout: 15), "no tab bar")
-        let board = app.buttons["Board"].firstMatch
-        XCTAssertTrue(board.exists, "no Board slot on the tab bar")
+        // The Search slot, which leads the pill now that the Board slot is
+        // gone — it named the surface you were already looking at.
+        let search = app.buttons["Search"].firstMatch
+        XCTAssertTrue(search.exists, "no Search slot on the tab bar")
 
         let portrait = app.frame
         XCTAssertGreaterThan(
@@ -79,8 +81,8 @@ final class TabRailTests: XCTestCase {
             "the quick-capture button is not at the foot of the screen in portrait"
         )
         XCTAssertGreaterThan(
-            board.frame.width, board.frame.height,
-            "the Board slot's word is not running across the bar in portrait"
+            search.frame.width, search.frame.height,
+            "the Search slot's word is not running across the bar in portrait"
         )
 
         turn(app, to: .landscapeLeft)
@@ -95,19 +97,19 @@ final class TabRailTests: XCTestCase {
             "the quick-capture button is not in the header in landscape"
         )
         XCTAssertLessThan(
-            board.frame.maxY, turned.height * 0.2,
-            "the Board slot is not in the header in landscape"
+            search.frame.maxY, turned.height * 0.2,
+            "the Search slot is not in the header in landscape"
         )
 
         // A word standing on end made the slot about 100pt long; a glyph in its
         // square is 44 by 44. This is what pins "only the icons remain".
         XCTAssertLessThan(
-            board.frame.height, 60,
-            "the Board slot still carries its word in the header"
+            search.frame.height, 60,
+            "the Search slot still carries its word in the header"
         )
         XCTAssertEqual(
-            board.frame.height, board.frame.width, accuracy: 12,
-            "the Board slot is not a glyph in a square"
+            search.frame.height, search.frame.width, accuracy: 12,
+            "the Search slot is not a glyph in a square"
         )
 
         // **Between the title and the ⋯**, which is the whole of where it went:
@@ -117,7 +119,7 @@ final class TabRailTests: XCTestCase {
         let drawer = app.buttons["Show boards"]
         XCTAssertTrue(drawer.exists, "no header in landscape")
         XCTAssertGreaterThan(
-            board.frame.minX, drawer.frame.maxX,
+            search.frame.minX, drawer.frame.maxX,
             "the tab bar is not after the drawer button in the header row"
         )
         let menu = app.buttons["Board actions"]

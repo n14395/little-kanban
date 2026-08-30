@@ -95,6 +95,12 @@ struct DropPreviewCard<Card: View>: View {
             .accessibilityHidden(true)
     }
 
+    /// The board's rule or the Inbox's, whichever list this gap is in — see
+    /// ``BoardStore/allowsInboxCardDrag``.
+    private var allowsDrag: Bool {
+        isInboxList ? store.allowsInboxCardDrag : store.allowsCardDrag
+    }
+
     /// The drop this stand-in has been promising for as long as it has been on
     /// screen, and the claim that keeps it here.
     ///
@@ -106,12 +112,6 @@ struct DropPreviewCard<Card: View>: View {
     /// It is also the shape `BoardTaskCard.dropZones` *sizes* — out past its
     /// row by ``reach`` at each end, so it meets the halves of the cards above
     /// and below it. See ``reach`` for what was in the gap before it did.
-    /// The board's rule or the Inbox's, whichever list this gap is in — see
-    /// ``BoardStore/allowsInboxCardDrag``.
-    private var allowsDrag: Bool {
-        isInboxList ? store.allowsInboxCardDrag : store.allowsCardDrag
-    }
-
     private func gap(at caret: DropCaret) -> some View {
         Color.clear
             .contentShape(.rect)
@@ -121,6 +121,10 @@ struct DropPreviewCard<Card: View>: View {
                 store.drop(dropped.id, at: caret)
                 return true
             } isTargeted: { targeted in
+                // Counted like every other destination: a pane that kept quiet
+                // would read as nobody holding the drag, and the store would
+                // call it over — see `BoardStore.dragTargeting`.
+                store.dragTargeting(targeted)
                 guard allowsDrag, targeted else { return }
                 // Re-asserted rather than merely kept: this is the zone the
                 // pointer is in now, and saying so is what stops the list's own

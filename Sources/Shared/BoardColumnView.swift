@@ -165,6 +165,10 @@ struct BoardColumnView: View {
             store.drop(dropped.id, onGroundOf: store.placement(forColumn: column.id))
             return true
         } isTargeted: { targeted in
+            // A lift is not a drag until a destination has seen it, and where
+            // the system never says the drag is over, every destination letting
+            // go at once is what does — see `BoardStore.dragTargeting`.
+            store.dragTargeting(targeted)
             if targeted, store.allowsCardDrag {
                 store.dropTargetColumnID = column.id
                 // On the column's *own ground* — a nested zone takes the hover
