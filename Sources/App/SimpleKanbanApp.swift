@@ -83,12 +83,12 @@ struct SimpleKanbanApp: App {
                 .environment(\.dayClock, dayClock)
         }
 
-        // About, and the update check with it. A scene rather than a sheet for
-        // the reason in `AboutView`, and because it is the app talking about
-        // itself rather than about this board. Like `Settings`, it inherits
-        // nothing from the window and resolves its own palette.
+        // About. A scene rather than a sheet for the reason in `AboutView`,
+        // and because it is the app talking about itself rather than about
+        // this board. Like `Settings`, it inherits nothing from the window and
+        // resolves its own palette.
         Window("About Simple Kanban", id: Self.aboutWindowID) {
-            AboutWindow(startsCheck: window.aboutStartsCheck)
+            AboutWindow()
                 .environment(store)
         }
         .defaultPosition(.center)
@@ -360,16 +360,13 @@ private struct AboutWindow: View {
     @Environment(BoardStore.self) private var store
     @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
 
-    /// Whether the item that opened the window was Check for Updates…
-    let startsCheck: Bool
-
     private var palette: Palette {
         Palette(theme: store.theme(for: (appearance.colorScheme ?? colorScheme).themeAppearance))
     }
 
     var body: some View {
         let palette = self.palette
-        return AboutView(metrics: .desk, startsCheck: startsCheck)
+        return AboutView(metrics: .desk)
             .environment(\.palette, palette)
             .tint(palette.accent)
             .foregroundStyle(palette.ink)
@@ -750,8 +747,8 @@ private struct FirstRunChoice: ViewModifier {
 ///
 /// The desk shows the version in the About panel the app menu opens; the phone
 /// has no menu bar, so the footer of the settings sheet is where the app says
-/// what it is — and it is a row rather than a label, because the update check
-/// has to be reachable from somewhere.
+/// what it is — and it is a row rather than a label, so the About sheet is
+/// reachable from somewhere.
 private struct SettingsWithAbout: View {
     @Environment(\.palette) private var palette
     @State private var isShowingAbout = false

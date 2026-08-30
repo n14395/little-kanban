@@ -5533,6 +5533,18 @@ leaves the current board reachable only through the undo stack, and an undo stac
 does not survive a quit. If that copy cannot be taken the restore still happens and
 `lastError` says so; it is a courtesy, not a gate.
 
+**Taken once per hunt, not once per look.** Finding the right backup is done by
+restoring one, looking at the board, and restoring the next — and a safety copy
+per attempt turned that against itself: every look grew the list being
+searched (three copies inside eleven seconds, on a real machine), each one
+nudging the history being hunted towards the "backups to keep" cap. So the
+copy is skipped when the board as it stands is in the list already — untouched
+since the last restore, or exactly what the safety pass last copied, which is
+where ⌘Z after an attempt lands. Only a board that exists nowhere else costs a
+row: the one the hunt started from, or one edited since an attempt. The memory
+is session state, so the first restore after a relaunch copies again — erring
+toward keeping. `BackupRestoreTests` holds the hunt, the edit and the undo.
+
 Nothing here defeats Phase A's per-URL write ordering, which exists for exactly
 this: `scheduleSave()` claims its generation when the restore is queued, so a
 debounced write armed before it is by definition older and is dropped rather than

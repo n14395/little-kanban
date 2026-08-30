@@ -107,8 +107,8 @@ struct ColorPickerPopover: View {
             // A saved colour is a finished choice: taken, and the picker closes
             // on it. The draft follows so the spectrum does not put the old
             // colour back on the way out.
-            draft = ColorMath.hsb(of: value(of: entry.swatch) ?? openingValue)
-            hexText = ColorMath.hexString(value(of: entry.swatch) ?? openingValue)
+            draft = ColorMath.hsb(of: entry.swatch.literalValue)
+            hexText = ColorMath.hexString(entry.swatch.literalValue)
             onSelect(entry.swatch)
             dismiss()
         } label: {
@@ -140,7 +140,7 @@ struct ColorPickerPopover: View {
             } else {
                 // Said rather than left out: an empty menu on one swatch and a
                 // full one on the next reads as a bug.
-                Text("The accent follows the app’s theme and stays in the palette")
+                Text("The accent is the app’s own colour and stays in the palette")
             }
         }
     }
@@ -304,19 +304,11 @@ struct ColorPickerPopover: View {
         store.savedColors.contains { $0.swatch == .hex(draftValue) }
     }
 
-    /// The colour the picker opens on. `.ink` has no literal — it is one colour
-    /// in light and another in dark — so the spectrum starts from what the theme
-    /// is drawing it as, which is the colour on screen.
+    /// The colour the picker opens on. Every swatch has a literal now that
+    /// `.accent` and `.ink` are pinned — see ``SwatchColor/literalValue`` — so
+    /// the spectrum starts exactly on the colour on screen.
     private var openingValue: UInt32 {
-        value(of: selection) ?? 0x8A8A8A
-    }
-
-    private func value(of swatch: SwatchColor) -> UInt32? {
-        switch swatch {
-        case .rgb(let value, _): value
-        case .accent: palette.accentValue
-        case .ink: nil
-        }
+        selection.literalValue
     }
 
     private func setDraft(hue: Double? = nil, saturation: Double? = nil, brightness: Double? = nil) {

@@ -84,16 +84,12 @@ extension Palette {
     /// about label chips is how a colour becomes a ground and a text. See
     /// ``ThemeChipRule``.
     ///
-    /// A colourless label — the palette's grey, which is the theme's own ink and
-    /// has no hue to derive from — gets ink at the two weights the `API` seed
-    /// label wears.
+    /// Every base is a literal now — `.accent` and `.ink` are pinned on
+    /// ``SwatchColor`` — so the grey label goes through the same recipe as any
+    /// other colour rather than borrowing the theme's ink, and no chip changes
+    /// hue when the theme does.
     func chipTone(for base: SwatchColor) -> (background: Color, foreground: Color) {
-        let value: UInt32
-        switch base {
-        case .rgb(let hex, _): value = hex
-        case .accent: value = accentValue
-        case .ink: return (ink(isDark ? 0.10 : 0.08), inkText(isDark ? 0.65 : 0.6))
-        }
+        let value = base.literalValue
         let rule = theme.labelChips
         return (
             Color(hex: ColorMath.shade(value, by: rule.backgroundLift), opacity: rule.backgroundOpacity),

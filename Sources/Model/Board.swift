@@ -183,13 +183,14 @@ extension Board {
     ///
     /// The last three are the accent themes' own hexes, so they take the accent
     /// themes' names: one vocabulary for one colour, whichever control is
-    /// offering it. The first is `.accent` itself — the one dot that follows the
-    /// theme instead of naming a colour, which is why it is the one called
-    /// "Accent" rather than whatever it currently resolves to.
+    /// offering it. The first is `.accent` — the app's own orange, pinned to
+    /// one literal now rather than following the theme (see
+    /// ``SwatchColor/accentHex``), and still spelled symbolically because every
+    /// board file ever written spells it that way.
     static var dots: [Dot] {
         [
             Dot(swatch: .accent,
-                name: String(localized: "Accent", comment: "Board dot colour that follows the accent theme")),
+                name: String(localized: "Accent", comment: "Board dot colour: the app's own fixed accent orange")),
             Dot(swatch: .hex(0xA8A29A),
                 name: String(localized: "Stone", comment: "Board dot colour: warm grey")),
             Dot(swatch: .hex(0xC98A16),

@@ -77,9 +77,10 @@ struct ResolvedAppIcon: Hashable, Sendable {
 
 enum AppIcon {
     /// The icon the app ships wearing, and the one `AppIcon.appiconset` holds:
-    /// `4f`, peach through rose to violet. It is the default because it is
-    /// already the app's face, not because it is the first of the ten.
-    static let defaultID = "4f"
+    /// `4g`, teal through jade to chartreuse. Changing this constant is not the
+    /// whole of changing the default — the bundled set is rasterised from it,
+    /// so `Tools/make-app-icons` has to be re-run to make the catalogue agree.
+    static let defaultID = "4g"
 
     /// The **Capped columns — 10 bold gradients** round, transcribed.
     ///
@@ -128,7 +129,7 @@ enum AppIcon {
     static func gradient(_ id: String) -> AppIconGradient? { byID[id] }
 
     /// The default, force-unwrapped against a constant in the same file: if
-    /// `4f` is not in the list above then the list is wrong, and an app with no
+    /// `4g` is not in the list above then the list is wrong, and an app with no
     /// icon is a worse way to find that out than a crash in the first test.
     static var fallback: AppIconGradient { byID[defaultID]! }
 
@@ -173,7 +174,7 @@ enum AppIcon {
 
     /// What one of the ten is called in the catalogue, or `nil` for the one the
     /// bundle already wears — `setAlternateIconName(nil)` is how iOS is asked
-    /// for the built-in icon, and `4f` *is* the built-in icon.
+    /// for the built-in icon, and `4g` *is* the built-in icon.
     static func assetName(gradient id: String) -> String? {
         id == defaultID ? nil : "AppIcon-\(id)"
     }
@@ -192,7 +193,7 @@ enum AppIcon {
     /// Every icon the asset catalogue holds, which is what
     /// `Tools/make-app-icon.swift` writes and what iOS can be asked for by name.
     ///
-    /// **Thirty sets, not thirty-one.** The built-in `AppIcon` *is* `4f`, so the
+    /// **Thirty sets, not thirty-one.** The built-in `AppIcon` *is* `4g`, so the
     /// ten grounds contribute nine alternates and the twenty presets twenty
     /// more. A theme the user made contributes none — see
     /// ``assetName(theme:)``.

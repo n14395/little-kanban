@@ -101,20 +101,17 @@ struct BoardCommands: Commands {
         }
 
         #if os(macOS)
-        // The two items that are about the *app* rather than about the board
-        // or a card. They are not in ``AppCommand`` because that vocabulary is
+        // The one item that is about the *app* rather than about the board
+        // or a card. It is not in ``AppCommand`` because that vocabulary is
         // the board's — everything in it is aimed at cards, counts them in its
         // title and goes dead when there are none — and because replacing
         // `.appInfo` is the only way to take the system's own About item away,
         // which has to happen for there to be one place the app talks about
-        // itself rather than two that disagree. The iPad reaches both through
+        // itself rather than two that disagree. The iPad reaches it through
         // Settings, which is where its own About row already lives.
         CommandGroup(replacing: .appInfo) {
             Button(String(localized: "About Simple Kanban", comment: "App menu item")) {
-                openAbout(checking: false)
-            }
-            Button(String(localized: "Check for Updates…", comment: "App menu item")) {
-                openAbout(checking: true)
+                openAbout()
             }
         }
         #endif
@@ -515,8 +512,7 @@ struct BoardCommands: Commands {
     }
 
     #if os(macOS)
-    private func openAbout(checking: Bool) {
-        window.aboutStartsCheck = checking
+    private func openAbout() {
         openWindow(id: SimpleKanbanApp.aboutWindowID)
     }
 

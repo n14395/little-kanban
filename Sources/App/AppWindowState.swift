@@ -52,12 +52,6 @@ final class AppWindowState {
     /// modal and the second ask cannot happen while the first is up.
     var isManagingLabels = false
 
-    /// Which of the two app-menu items opened the About window. Check for
-    /// Updates… promises a check, so the panel starts one rather than making the
-    /// user ask twice; About promises nothing and does nothing. Session state
-    /// like the rest of this, and none of it is saved.
-    var aboutStartsCheck = false
-
     /// The cards Set Due Date… was aimed at, handed to the sheet rather than
     /// worked out there a second time.
     ///

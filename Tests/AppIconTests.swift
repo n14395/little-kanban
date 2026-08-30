@@ -21,7 +21,7 @@ import Testing
     @Test func theTenAreTheDocumentsTenAndTheDefaultIsAmongThem() {
         #expect(AppIcon.all.count == 10)
         #expect(AppIcon.all.map(\.id) == ["4a", "4b", "4c", "4d", "4e", "4f", "4g", "4h", "4i", "4j"])
-        #expect(AppIcon.gradient(AppIcon.defaultID)?.name == "Peach → violet")
+        #expect(AppIcon.gradient(AppIcon.defaultID)?.name == "Teal → chartreuse")
         #expect(AppIcon.fallback.id == AppIcon.defaultID)
     }
 
@@ -121,7 +121,7 @@ import Testing
 
     // MARK: The asset catalogue
 
-    /// Thirty sets, not thirty-one: the built-in `AppIcon` *is* `4f`, so the ten
+    /// Thirty sets, not thirty-one: the built-in `AppIcon` *is* `4g`, so the ten
     /// contribute nine alternates. Every name is unique, because two sets of the
     /// same name is a catalogue that does not build.
     @Test func theCatalogueIsTheBuiltInOneAndTwentyNineAlternates() {
@@ -129,7 +129,7 @@ import Testing
         #expect(catalogue.count == 30)
         #expect(catalogue.filter(\.isDefault).map(\.assetName) == ["AppIcon"])
         #expect(Set(catalogue.map(\.assetName)).count == catalogue.count)
-        #expect(catalogue.first?.art == AppIcon.fallback.art, "the built-in set is not 4f")
+        #expect(catalogue.first?.art == AppIcon.fallback.art, "the built-in set is not 4g")
         // One per preset, none for anything else.
         let themed = catalogue.filter { $0.assetName.hasPrefix("AppIcon-theme-") }
         #expect(themed.count == ThemePresets.all.count)
@@ -200,18 +200,18 @@ import Testing
         let image = try #require(renderer.cgImage)
         #expect(image.width == 100 && image.height == 100)
 
-        // Corner to corner, which is where 4f's three stops are anchored.
-        expect(image, at: (2, 2), isNear: 0xFFB48A, "the ground does not start at the peach")
-        expect(image, at: (50, 50), isNear: 0xE0559B, "the ground's middle stop is not the rose")
-        expect(image, at: (97, 97), isNear: 0x7B2CD9, "the ground does not end at the violet")
+        // Corner to corner, which is where 4g's three stops are anchored.
+        expect(image, at: (2, 2), isNear: 0x00696E, "the ground does not start at the teal")
+        expect(image, at: (50, 50), isNear: 0x00B39A, "the ground's middle stop is not the jade")
+        expect(image, at: (97, 97), isNear: 0xC3F53C, "the ground does not end at the chartreuse")
         // The middle of the first column's first card (x 20…38, y 35…48), and a
         // gap between two cards, which has to be ground and not mark.
-        expect(image, at: (29, 41), isNear: 0xFFFFFF, "the cards are not being drawn")
+        expect(image, at: (29, 41), isNear: 0x04231F, "the cards are not being drawn")
         // And the 3-unit gap between two cards is ground rather than mark. Its
         // exact colour is a point part-way along a gradient interpolated in a
         // space this test has no business restating, so what is asserted is the
         // thing that matters: it is nowhere near the card.
-        expect(image, at: (29, 49), isFarFrom: 0xFFFFFF, "the gap between two cards is filled in")
+        expect(image, at: (29, 49), isFarFrom: 0x04231F, "the gap between two cards is filled in")
     }
 
     /// A pixel, nowhere near a colour — for the places whose exact value is not

@@ -21,7 +21,7 @@ struct ThemeSettings: Hashable, Codable, Sendable {
     var custom: [Theme]
 
     static let seed = ThemeSettings(
-        lightID: ThemePresets.porcelainID, darkID: ThemePresets.emberID, custom: []
+        lightID: ThemePresets.porcelainID, darkID: ThemePresets.auroraID, custom: []
     )
 
     init(lightID: Theme.ID, darkID: Theme.ID, custom: [Theme] = []) {

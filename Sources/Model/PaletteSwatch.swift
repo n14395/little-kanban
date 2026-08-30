@@ -42,16 +42,16 @@ struct PaletteSwatch: Identifiable, Hashable, Codable, Sendable {
         }
         switch swatch {
         case .rgb(let value, _): return ColorMath.hexString(value)
-        case .ink: return String(localized: "Grey", comment: "Palette colour that follows the ink of the theme")
-        case .accent: return String(localized: "Accent", comment: "Board dot colour that follows the accent theme")
+        case .ink: return String(localized: "Grey", comment: "Palette colour: the app's fixed mid grey")
+        case .accent: return String(localized: "Accent", comment: "Board dot colour: the app's own fixed accent orange")
         }
     }
 
-    /// **The accent is not a colour and cannot be thrown away.** Every other
-    /// entry names a fixed hex; this one means "whatever the accent theme is",
-    /// so a board wearing it re-colours itself when the theme changes. There is
-    /// no hex to put back if it were deleted, and nothing else in the palette
-    /// can say what it says.
+    /// **The accent is the palette's anchor and cannot be thrown away.** It is
+    /// pinned to one literal now — see ``SwatchColor/accentHex`` — rather than
+    /// following the theme, but it is still stored as `.accent` in every board
+    /// file ever written, and deleting it here would leave those files ringing
+    /// a swatch no picker offers.
     var isRemovable: Bool { swatch != .accent }
 
     /// What a board file that has never seen a palette gets, and what a fresh

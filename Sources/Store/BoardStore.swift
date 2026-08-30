@@ -1866,6 +1866,19 @@ final class BoardStore {
     /// restore is the one action here that leaves the current board reachable
     /// only through the undo stack, and an undo stack does not survive a quit.
     ///
+    /// **First, not every time.** Finding the right backup is a hunt — restore
+    /// one, look at the board, restore the next — and a safety copy taken per
+    /// attempt turned the hunt against itself: every look grew the list being
+    /// searched, three copies in eleven seconds on a real machine, each one
+    /// pushing the history the person was hunting through towards the
+    /// "backups to keep" cap. So the copy is skipped when the board as it
+    /// stands *is* a backup already — untouched since the last restore, or
+    /// byte-for-byte what the safety pass last copied (which is where an undo
+    /// of the first attempt lands). Only the board that exists nowhere else —
+    /// the one the hunt started from, or one edited since an attempt — costs
+    /// the list a row. The memory is session state on purpose: after a
+    /// relaunch the first restore copies again, which errs toward keeping.
+    ///
     /// Nothing here defeats the file's write ordering: `scheduleSave()` claims
     /// its generation when the restore is queued, so a debounced write issued
     /// before it is by definition the older one and is dropped rather than
@@ -1875,13 +1888,24 @@ final class BoardStore {
         // Before anything is disturbed: a backup that cannot be read must leave
         // the board exactly as it was.
         let restored = try file.restore(from: url)
-        saveNow()
-        keepACopy(with: file)
+        let standing = snapshot
+        if standing != boardAfterLastRestore && standing != boardLastCopied {
+            saveNow()
+            keepACopy(with: file)
+            boardLastCopied = standing
+        }
         undoable(String(localized: "Restore Backup",
                         comment: "Undo action name for putting a backup of the board back")) {
             adoptContent(restored)
         }
+        boardAfterLastRestore = snapshot
     }
+
+    /// What the last restore left on the board, and what the safety pass last
+    /// copied into `backups/` — the two boards already in the list, which a
+    /// further restore need not copy again. See ``restore(fromBackup:)``.
+    @ObservationIgnored private var boardAfterLastRestore: BoardSnapshot?
+    @ObservationIgnored private var boardLastCopied: BoardSnapshot?
 
     /// Throws the whole board away and starts again from `template`, keeping a
     /// backup of what was there.
@@ -5542,9 +5566,9 @@ final class BoardStore {
     /// What is stored is the *colour the label was given* — what a picker has to
     /// ring, and what ``Palette/chipTone(for:)`` derives the chip from at render
     /// time through the theme's rule. A label painted `.accent` keeps saying
-    /// accent rather than freezing to the accent of the day, exactly as a board
-    /// dot painted accent does, so it follows the theme like everything else
-    /// wearing that colour.
+    /// accent rather than being rewritten to a hex, exactly as a board dot
+    /// painted accent does — one spelling for one colour wherever it is worn,
+    /// and the symbol is pinned to one literal (``SwatchColor/accentHex``).
     func labelTones(for swatch: SwatchColor) -> (light: LabelTone, dark: LabelTone) {
         switch swatch {
         case .rgb(let value, _): LabelTone.pair(from: value)

@@ -7,7 +7,7 @@ import Synchronization
 /// Session state — selection, drafts, the search query, which tab is showing,
 /// drag state — is deliberately absent. It belongs to a sitting, not to the
 /// board, and restoring it would be more surprising than helpful.
-struct BoardSnapshot: Codable, Sendable {
+struct BoardSnapshot: Codable, Sendable, Equatable {
     /// Bumped when the shape changes so an older file can be migrated rather
     /// than silently mis-decoded. See `BoardMigration.swift`.
     var version: Int = BoardSnapshot.currentVersion

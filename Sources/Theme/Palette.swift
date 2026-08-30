@@ -157,11 +157,16 @@ struct Palette: Equatable, Sendable {
 
     // MARK: Resolution
 
+    /// A swatch to a colour — and *not* a question put to the theme. `.accent`
+    /// and `.ink` resolve to the pinned literals on ``SwatchColor``, so a board
+    /// or a label wearing either keeps its colour when the theme changes; the
+    /// theme's own accent and ink stay ``accent`` and ``ink`` and are for the
+    /// app's chrome, not for anything the user painted.
     func resolve(_ swatch: SwatchColor) -> Color {
         switch swatch {
         case .rgb(let hex, let opacity): Color(hex: hex, opacity: opacity)
-        case .ink(let opacity): ink(opacity)
-        case .accent: accent
+        case .ink(let opacity): Color(hex: SwatchColor.inkHex, opacity: opacity)
+        case .accent: Color(hex: SwatchColor.accentHex)
         }
     }
 

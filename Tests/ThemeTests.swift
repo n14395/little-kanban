@@ -44,7 +44,7 @@ import Testing
         let dark = ThemePresets.all.filter { $0.appearance == .dark }
         #expect(dark.count == 11)
         #expect(ThemePresets.all.count - dark.count == 9)
-        #expect(ThemePresets.fallback(for: .dark).id == ThemePresets.emberID)
+        #expect(ThemePresets.fallback(for: .dark).id == ThemePresets.auroraID)
         #expect(ThemePresets.fallback(for: .light).id == ThemePresets.porcelainID)
         #expect(ThemePresets.fallback(for: .light).appearance == .light)
     }
@@ -217,17 +217,17 @@ import Testing
 
     @Test func aThemeGoesInTheSlotItsOwnKindNames() throws {
         var settings = ThemeSettings.seed
-        let aurora = try #require(ThemePresets.theme("1b"))   // dark
+        let ember = try #require(ThemePresets.theme("1a"))    // dark, not the seed's
         let daybreak = try #require(ThemePresets.theme("1c")) // light
 
-        settings.select(aurora)
-        #expect(settings.darkID == "1b")
+        settings.select(ember)
+        #expect(settings.darkID == "1a")
         #expect(settings.lightID == ThemePresets.porcelainID, "a dark theme moved the light slot")
 
         settings.select(daybreak)
         #expect(settings.lightID == "1c")
-        #expect(settings.darkID == "1b")
-        #expect(settings.theme(for: .dark) == aurora)
+        #expect(settings.darkID == "1a")
+        #expect(settings.theme(for: .dark) == ember)
         #expect(settings.theme(for: .light) == daybreak)
     }
 
@@ -237,7 +237,7 @@ import Testing
     @Test func aSlotNamingNothingFallsBack() {
         var settings = ThemeSettings(lightID: "gone", darkID: "also-gone")
         #expect(settings.theme(for: .light).id == ThemePresets.porcelainID)
-        #expect(settings.theme(for: .dark).id == ThemePresets.emberID)
+        #expect(settings.theme(for: .dark).id == ThemePresets.auroraID)
 
         // And a slot naming a theme that has since been flipped to the other
         // kind, which is the same hole reached from inside.
@@ -245,18 +245,18 @@ import Testing
         settings.select(flipped)
         flipped.appearance = .light
         settings.save(flipped)
-        #expect(settings.theme(for: .dark).id == ThemePresets.emberID)
+        #expect(settings.theme(for: .dark).id == ThemePresets.auroraID)
     }
 
     /// A reference point that can be overwritten is not one.
     @Test func aPresetCannotBeSavedOverOrDeleted() throws {
         var settings = ThemeSettings.seed
-        var ember = try #require(ThemePresets.theme("1a"))
-        ember.name = "Not Ember"
-        #expect(settings.save(ember) == false)
+        var aurora = try #require(ThemePresets.theme("1b"))
+        aurora.name = "Not Aurora"
+        #expect(settings.save(aurora) == false)
         #expect(settings.custom.isEmpty)
-        #expect(settings.theme(for: .dark).name == "Ember")
-        #expect(settings.delete("1a") == false)
+        #expect(settings.theme(for: .dark).name == "Aurora")
+        #expect(settings.delete("1b") == false)
     }
 
     @Test func savingTwiceReplacesRatherThanDuplicates() {
@@ -286,15 +286,17 @@ import Testing
 
     // MARK: What a theme paints
 
-    /// The accent comes from the theme now, so a board dot painted "Accent"
-    /// repaints when the theme changes. That is the whole of what retiring the
-    /// accent picker meant.
-    @Test func theAccentIsTheThemes() throws {
+    /// The accent *swatch* is pinned: a board dot painted "Accent" is the same
+    /// colour on every theme, while the themes' own accents — the app's chrome —
+    /// still differ underneath it.
+    @Test func theAccentSwatchIsPinned() throws {
         let ember = Palette(theme: try #require(ThemePresets.theme("1a")))
         let aurora = Palette(theme: try #require(ThemePresets.theme("1b")))
         #expect(ember.accentValue == 0xE8703F)
         #expect(aurora.accentValue == 0x4FE3C1)
-        #expect(ember.resolve(.accent) != aurora.resolve(.accent))
+        #expect(ember.resolve(.accent) == aurora.resolve(.accent))
+        #expect(ember.resolve(.accent) == Color(hex: SwatchColor.accentHex))
+        #expect(aurora.resolve(.ink(opacity: 0.35)) == Color(hex: SwatchColor.inkHex, opacity: 0.35))
     }
 
     /// Max priority takes the overdue chip's own hue rather than a fifth tone of
@@ -339,8 +341,10 @@ import Testing
                 > ColorMath.luminance(of: 0x1F6F63))
         #expect(light.theme.labelChips.backgroundLift == 0)
 
-        // A colourless label has no hue to derive from and takes ink.
-        #expect(dark.chipTone(for: .ink(opacity: 0.35)).background == dark.ink(0.10))
+        // The grey label goes through the same rule as any other colour, from
+        // the pinned grey rather than the theme's ink.
+        #expect(dark.chipTone(for: .ink(opacity: 0.35)).background
+                == dark.chipTone(for: .hex(SwatchColor.inkHex)).background)
     }
 
     /// A theme cannot make text unreadable, however low it sets its ink tiers.

@@ -5,8 +5,7 @@ import AppKit
 import UIKit
 #endif
 
-/// What the app is, which version of it this is, and the one button that goes
-/// looking for a newer one.
+/// What the app is and which version of it this is.
 ///
 /// The version was set in `project.yml` and shown nowhere; it is here, and the
 /// copyright beside it is the string the macOS About panel would have shown if
@@ -25,39 +24,26 @@ struct AboutView: View {
         var icon: CGFloat
         var title: CGFloat
         var version: CGFloat
-        var body: CGFloat
         var note: CGFloat
-        var buttonFont: CGFloat
-        var buttonRadius: CGFloat
         var rowHit: CGFloat
-        var panelRadius: CGFloat
         /// Whether the surface draws its own header. The desk's window has a
         /// title bar with a close button in it already; a sheet has neither.
         var showsHeader: Bool
 
         static let desk = Metrics(
             width: 380, padding: 24, spacing: 16, icon: 88, title: 26, version: 12,
-            body: 12, note: 11, buttonFont: 12, buttonRadius: 8, rowHit: 0,
-            panelRadius: 12, showsHeader: false
+            note: 11, rowHit: 0, showsHeader: false
         )
         static let sheet = Metrics(
             width: nil, padding: 22, spacing: 20, icon: 76, title: 32, version: 14.5,
-            body: 14.5, note: 12.5, buttonFont: 15, buttonRadius: 11, rowHit: 44,
-            panelRadius: 14, showsHeader: true
+            note: 12.5, rowHit: 44, showsHeader: true
         )
     }
 
     @Environment(\.palette) private var palette
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
 
     var metrics: Metrics = .desk
-    /// True when the surface was opened by Check for Updates… rather than by
-    /// About. The check still only ever runs because somebody asked for one —
-    /// this is which of the two ways they asked.
-    var startsCheck: Bool = false
-
-    @State private var checker = UpdateChecker()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -67,7 +53,6 @@ struct AboutView: View {
             ScrollView {
                 VStack(spacing: metrics.spacing) {
                     identity
-                    updates
                 }
                 .padding(metrics.padding)
                 .frame(maxWidth: .infinity)
@@ -77,10 +62,6 @@ struct AboutView: View {
         .frame(width: metrics.width)
         .background(palette.windowFill)
         .presentationBackground(palette.windowFill)
-        .task {
-            guard startsCheck, checker.state == .idle else { return }
-            await checker.check()
-        }
     }
 
     private var header: some View {
@@ -139,98 +120,6 @@ struct AboutView: View {
                comment: "Marketing version and build number, shown in About")
     }
 
-    // MARK: Updates
-
-    private var updates: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            checkButton
-            statusLine
-            Text(UpdateChecker.disclosure)
-                .font(palette.ui(metrics.note, .medium, relativeTo: .caption))
-                .foregroundStyle(palette.ink(0.4))
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background {
-            RoundedRectangle(cornerRadius: metrics.panelRadius)
-                .fill(palette.card)
-                .shadow(color: palette.shadow(0.05), radius: 6, y: 2)
-        }
-    }
-
-    private var checkButton: some View {
-        Button {
-            Task { await checker.check() }
-        } label: {
-            HStack(spacing: 7) {
-                if checker.state == .checking {
-                    ProgressView().controlSize(.small)
-                }
-                Text("Check for Updates", comment: "Button that asks GitHub for the newest release")
-                    .font(palette.ui(metrics.buttonFont, .bold, relativeTo: .subheadline))
-                    .foregroundStyle(palette.accent)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(palette.accentSoft, in: .rect(cornerRadius: metrics.buttonRadius))
-            .frame(minHeight: metrics.rowHit)
-        }
-        .buttonStyle(.bare)
-        .disabled(checker.state == .checking)
-    }
-
-    @ViewBuilder
-    private var statusLine: some View {
-        switch checker.state {
-        case .idle:
-            EmptyView()
-        case .checking:
-            status(String(localized: "Asking GitHub…", comment: "Update check is in flight"))
-        case .current:
-            status(String(localized: "This is the newest release.",
-                          comment: "Update check found nothing newer"))
-        case .failed(let message):
-            status(message, tone: 0.6)
-        case .available(let release):
-            VStack(alignment: .leading, spacing: 8) {
-                status(Self.availableText(release), tone: 0.8)
-                Button { openURL(release.page) } label: {
-                    HStack(spacing: 5) {
-                        Text("Open the download page", comment: "Opens the GitHub release in a browser")
-                            .font(palette.ui(metrics.buttonFont, .bold, relativeTo: .subheadline))
-                        Image(systemName: "arrow.up.forward")
-                            .imageScale(.small)
-                            .accessibilityHidden(true)
-                    }
-                    .foregroundStyle(palette.accent)
-                    .frame(minHeight: metrics.rowHit, alignment: .leading)
-                }
-                .buttonStyle(.bare)
-            }
-        }
-    }
-
-    private func status(_ text: String, tone: Double = 0.5) -> some View {
-        Text(text)
-            .font(palette.ui(metrics.body, .medium, relativeTo: .footnote))
-            .foregroundStyle(palette.ink(tone))
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// Says what was found and leaves the fetching to the person: the app does
-    /// not download, install or restart anything.
-    static func availableText(_ release: UpdateChecker.Release) -> String {
-        guard let published = release.publishedAt else {
-            return String(localized: "Version \(release.version) is available.",
-                          comment: "Update check found a newer release")
-        }
-        return String(
-            localized: "Version \(release.version) is available, published \(published.formatted(date: .abbreviated, time: .omitted)).",
-            comment: "Update check found a newer release, with the date it went out"
-        )
-    }
 }
 
 /// The app's own icon, read back out of the bundle rather than redrawn — which

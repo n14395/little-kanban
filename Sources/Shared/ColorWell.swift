@@ -84,21 +84,11 @@ struct ColorWell: View {
     /// see ``ColorMath/prefersDarkText(on:)``. Not `palette.ink`: the button's
     /// ground is the *chosen* colour rather than the theme's, so a light theme
     /// with a near-black swatch on it needs light text, which the theme's ink
-    /// is not.
+    /// is not. Every selection has a literal now that `.accent` and `.ink` are
+    /// pinned — see ``SwatchColor/literalValue``.
     private var readableInk: Color {
-        guard let value = resolvedValue else { return palette.onAccent }
-        return ColorMath.prefersDarkText(on: value) ? Color(hex: 0x141211) : Color(hex: 0xFCFBF9)
-    }
-
-    /// The selection as a literal, where it is one. `.accent` resolves through
-    /// the theme; `.ink` cannot, being one colour in light and another in dark,
-    /// so it falls back to the theme's own answer for text on accent.
-    private var resolvedValue: UInt32? {
-        switch selection {
-        case .rgb(let value, _): value
-        case .accent: palette.accentValue
-        case .ink: nil
-        }
+        ColorMath.prefersDarkText(on: selection.literalValue)
+            ? Color(hex: 0x141211) : Color(hex: 0xFCFBF9)
     }
 
     private var name: String { PaletteSwatch(selection).displayName }

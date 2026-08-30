@@ -74,6 +74,8 @@ struct ThemeBrowserView: View {
     @State private var deleting: Theme?
     @State private var isImporting = false
     @State private var importFailure: String?
+    /// The width the grid actually has, for ``tileScale``. Zero until measured.
+    @State private var gridWidth: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -247,14 +249,43 @@ struct ThemeBrowserView: View {
     private var showing: ThemeAppearance { chosenSlot ?? palette.theme.appearance }
 
     private var grid: some View {
-        LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: metrics.columnWidth), spacing: 14, alignment: .top)],
-            spacing: 16
-        ) {
+        LazyVGrid(columns: gridColumns, spacing: 16) {
             ForEach(store.themes.all.filter { $0.appearance == showing }) { theme in
                 tile(theme)
             }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gridWidth = $0 }
+    }
+
+    /// Two tiles abreast on the phone, one column of full-size tiles at the
+    /// desk-tile minimum everywhere else the width runs out.
+    ///
+    /// The phone's grid is two *fixed* columns rather than the adaptive row the
+    /// other surfaces use, because adaptive fits full-size tiles and a 248pt
+    /// tile fills a phone on its own — a single column of pictures is most of a
+    /// screen per theme, and comparing two grounds meant scrolling between
+    /// them. The tiles shrink to make the pair fit instead: see ``tileScale``.
+    private var gridColumns: [GridItem] {
+        isPhone
+            ? Array(repeating: GridItem(.flexible(), spacing: 14, alignment: .topLeading), count: 2)
+            : [GridItem(.adaptive(minimum: metrics.columnWidth), spacing: 14, alignment: .top)]
+    }
+
+    /// How far the phone's tiles shrink so two of them and their gutter span
+    /// the grid exactly — capped at full size, which a landscape phone reaches.
+    /// Until the width is measured the tiles draw at full size for one frame;
+    /// the grid is already two columns, so nothing jumps between layouts.
+    private var tileScale: CGFloat {
+        guard isPhone, gridWidth > 0 else { return metrics.tileScale }
+        return min(metrics.tileScale, (gridWidth - 14) / 2 / 248)
+    }
+
+    private var isPhone: Bool {
+        #if os(iOS)
+        UIDevice.current.userInterfaceIdiom == .phone
+        #else
+        false
+        #endif
     }
 
     private func tile(_ theme: Theme) -> some View {
@@ -263,7 +294,7 @@ struct ThemeBrowserView: View {
             Button {
                 store.selectTheme(theme)
             } label: {
-                ThemePreviewTile(theme: theme, scale: metrics.tileScale)
+                ThemePreviewTile(theme: theme, scale: tileScale)
                     .overlay {
                         RoundedRectangle(cornerRadius: 10)
                             .strokeBorder(isCurrent ? palette.accent : .clear, lineWidth: 2.5)
@@ -298,7 +329,7 @@ struct ThemeBrowserView: View {
                 menu(for: theme)
             }
         }
-        .frame(width: 248 * metrics.tileScale, alignment: .leading)
+        .frame(width: 248 * tileScale, alignment: .leading)
     }
 
     private func menu(for theme: Theme) -> some View {
@@ -341,8 +372,8 @@ struct ThemeBrowserView: View {
     /// A new theme starts from the preset for its slot rather than from black.
     ///
     /// A form of thirty empty fields is not a starting point — the first thing
-    /// anybody does with one is fill it in with something that works, and Ember
-    /// and Porcelain already do.
+    /// anybody does with one is fill it in with something that works, and
+    /// Aurora and Porcelain already do.
     private func blank(_ appearance: ThemeAppearance) -> Theme {
         var theme = ThemePresets.fallback(for: appearance)
             .duplicated(named: store.themes.unusedName(

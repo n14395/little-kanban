@@ -8,19 +8,22 @@ import Foundation
 /// are the document's references, kept so that a conversation about "1e" and a
 /// theme in the picker are the same thing.
 ///
-/// **``ember`` is the reference point.** It is the shipping theme, tuned — the
-/// flat charcoal opened out into a slow warm gradient and the accent taken a
-/// little hotter — so it is the one to read against the app to see what a
-/// parameter does. ``porcelain`` is the quietest of the light ten and stands in
-/// the light slot for the same reason.
+/// **``ember`` is the reference point.** It is the tuned original — the flat
+/// charcoal opened out into a slow warm gradient and the accent taken a little
+/// hotter — so it is the one to read against the app to see what a parameter
+/// does, even though ``aurora`` now ships in the dark slot. ``porcelain`` is
+/// the quietest of the light ten and stands in the light slot.
 ///
 /// Nothing here is editable. A preset the user changes becomes a copy of their
 /// own — see ``Theme/duplicated(named:)`` — because a reference point that can
 /// be overwritten is not one.
 enum ThemePresets {
-    /// The default dark slot: the theme this app has always worn.
+    /// Ember, the theme the app originally shipped wearing — still the tuned
+    /// reference point, no longer the default dark slot.
     static let emberID = "1a"
-    /// The default light slot. There is no light twin of Ember in the twenty,
+    /// The default dark slot: Aurora's deep blues under a mint accent.
+    static let auroraID = "1b"
+    /// The default light slot. There is no light twin of Aurora in the twenty,
     /// and Porcelain is the document's own light control — warm whites, ink
     /// text, one vermilion accent.
     static let porcelainID = "2h"
@@ -36,8 +39,8 @@ enum ThemePresets {
     /// installed — an import from a machine that had a custom theme this one has
     /// never seen, most likely — and by a board that has never chosen one.
     static func fallback(for appearance: ThemeAppearance) -> Theme {
-        let id = appearance == .dark ? emberID : porcelainID
-        // Force-unwrapped against a constant in the same file: if `1a` is not in
+        let id = appearance == .dark ? auroraID : porcelainID
+        // Force-unwrapped against a constant in the same file: if `1b` is not in
         // the list the list is wrong, and a silent grey app is a worse way to
         // find that out than a crash in the first test that runs.
         return byID[id]!

@@ -167,14 +167,13 @@ import Testing
         }
     }
 
-    /// The palette's grey has no hue to derive from, so it gets the ink pair the
-    /// `API` seed label wears rather than a tint of nothing.
+    /// The symbolic swatches keep their symbolic pairs on disk — `.ink` and
+    /// `.accent` are how board files have always spelled them — and both are
+    /// pinned to one literal each at render time. See ``SwatchColor/inkHex``.
     @MainActor
     @Test func aColourlessSwatchGetsTheInkPair() {
         let store = TestBoard.store()
         #expect(store.labelTones(for: .ink(opacity: 0.35)).light == LabelTone.inkPair.light)
-        // The accent is resolved against the theme in force: a chip's ground is
-        // a tint, and `.accent` carries no opacity to tint with.
         #expect(store.labelTones(for: .accent).light == LabelTone.accentPair.light)
     }
 }

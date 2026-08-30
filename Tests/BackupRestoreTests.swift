@@ -151,6 +151,69 @@ import Testing
                 == "About to be replaced")
     }
 
+    /// Finding the right backup is a hunt — restore, look, restore the next —
+    /// and a copy per attempt turned the hunt against itself: every look grew
+    /// the list being searched, and pushed the history being hunted towards
+    /// the "backups to keep" cap. Only the board the hunt started from is not
+    /// in the list already, so only it earns a row.
+    @MainActor
+    @Test func huntingThroughBackupsCostsOneSafetyCopyNotOnePerLook() throws {
+        let temp = TempBoard()
+        let store = TestBoard.store(file: temp.file)
+        let first = try aged(temp, secondsAgo: 120, nextSerial: 111)
+        let second = try aged(temp, secondsAgo: 60, nextSerial: 222)
+        store.setText("The board the hunt starts from", field: .title, on: TestBoard.cafe)
+
+        try store.restore(fromBackup: first)
+        let afterFirst = temp.file.backups().count
+        try store.restore(fromBackup: second)
+        try store.restore(fromBackup: first)
+
+        #expect(temp.file.backups().count == afterFirst,
+                "every look at a backup grew the list being searched")
+    }
+
+    /// An edit between attempts makes the standing board unique again, and a
+    /// unique board is exactly what the safety copy exists for.
+    @MainActor
+    @Test func anEditBetweenRestoresEarnsAFreshSafetyCopy() throws {
+        let temp = TempBoard()
+        let store = TestBoard.store(file: temp.file)
+        let first = try aged(temp, secondsAgo: 120, nextSerial: 111)
+        let second = try aged(temp, secondsAgo: 60, nextSerial: 222)
+
+        try store.restore(fromBackup: first)
+        let afterFirst = temp.file.backups().count
+        store.setText("Edited after looking", field: .title, on: TestBoard.cafe)
+        try store.restore(fromBackup: second)
+
+        #expect(temp.file.backups().count == afterFirst + 1,
+                "the edit made after a restore was replaced without being kept")
+    }
+
+    /// ⌘Z after an attempt lands the board back on the copy the first attempt
+    /// took — which is in the list already, and must not be copied again by
+    /// the next attempt.
+    @MainActor
+    @Test func undoingAnAttemptDoesNotMakeTheNextOneCopyAgain() throws {
+        let temp = TempBoard()
+        let (store, undo) = TestBoard.undoing(file: temp.file)
+        let first = try aged(temp, secondsAgo: 120, nextSerial: 111)
+        let second = try aged(temp, secondsAgo: 60, nextSerial: 222)
+        step(undo) { store.setText("The original", field: .title, on: TestBoard.cafe) }
+
+        var failure: (any Error)?
+        step(undo) { do { try store.restore(fromBackup: first) } catch { failure = error } }
+        #expect(failure == nil)
+        let afterFirst = temp.file.backups().count
+
+        undo.undo()
+        step(undo) { do { try store.restore(fromBackup: second) } catch { failure = error } }
+        #expect(failure == nil)
+        #expect(temp.file.backups().count == afterFirst,
+                "the board the undo restored was copied again, though the first attempt kept it")
+    }
+
     @MainActor
     @Test func aBackupThatCannotBeReadLeavesTheBoardExactlyAsItWas() throws {
         let temp = TempBoard()
