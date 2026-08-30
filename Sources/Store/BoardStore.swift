@@ -1731,13 +1731,18 @@ final class BoardStore {
     /// A pull past the top of a list of cards, which is how iPhone and iPad ask
     /// for a sync. See ``PullToSync``.
     ///
-    /// **It is not a fetch, because there is nothing to call.** The mirroring
-    /// container schedules its own trips to CloudKit and takes no instruction
-    /// about when one happens; what a pull can do is the half that belongs to
-    /// this device, and it does both parts of it. Whatever has not been pushed
-    /// goes now — the push rides the save debounce, so a card ticked a moment
-    /// ago may still be sitting here — and whatever has already come down is
-    /// adopted.
+    /// **There is no fetch to call — but there is one lever, and this pulls
+    /// it.** The mirroring container schedules its own trips to CloudKit and
+    /// takes no instruction about when one happens, with the single exception
+    /// it does not know it offers: opening the store runs its import at once,
+    /// which is why relaunching the app always "synced" when this button did
+    /// not. So the sync store reopens its container first — see
+    /// ``BoardSyncStore/reconnect()`` — and then this does the half that
+    /// belongs to this device: whatever has not been pushed goes now — the
+    /// push rides the save debounce, so a card ticked a moment ago may still
+    /// be sitting here — and whatever has come down is adopted, once before
+    /// the settling pause for what was already here, and once after it for
+    /// what the fresh mirror brought.
     ///
     /// Then it holds the spinner a beat, which is not decoration. The board is
     /// mirrored asynchronously, so a change provoked by that push lands through
@@ -1751,9 +1756,17 @@ final class BoardStore {
     /// same gesture from the user's end and the list says which it was.
     @discardableResult
     func syncNow(settling: Duration = .milliseconds(800)) async -> Bool {
-        guard sync != nil else { return false }
-        let arrived = mergeRemoteChanges()
+        guard let sync else { return false }
+        // The fetch first, such as it is: reopening the container is the one
+        // way to make the mirror go to CloudKit rather than wait to be told —
+        // see ``BoardSyncStore/reconnect()``. Then the merge picks up whatever
+        // is already here, the settling pause gives a fast import its chance,
+        // and the second merge picks up what the pause let land; anything
+        // slower arrives through the remote-change notifications like always.
+        sync.reconnect()
+        var arrived = mergeRemoteChanges()
         try? await Task.sleep(for: settling)
+        arrived = mergeRemoteChanges() || arrived
         // Raised *after* the wait, so the sentence lands as the spinner leaves
         // rather than under it — and only for a check somebody asked for. A
         // merge arriving on its own says what it has to say by changing the

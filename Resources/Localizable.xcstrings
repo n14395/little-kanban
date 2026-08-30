@@ -1412,7 +1412,7 @@
       }
     },
     "Archive %lld Completed" : {
-      "comment" : "Menu item that files completed Inbox tasks away\nMenu item that files every finished task in the Done column away",
+      "comment" : "Menu item on a column that files every finished task away\nMenu item that files completed Inbox tasks away\nMenu item that files every finished task in the Done column away\nMenu item that files every finished task on the active board away",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4542,7 +4542,7 @@
       }
     },
     "Labels" : {
-      "comment" : "Accessibility name of the sidebar row that opens the label manager\nSettings group heading",
+      "comment" : "Accessibility name of the drawer row that opens the label manager\nAccessibility name of the sidebar row that opens the label manager\nSettings group heading",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5189,7 +5189,7 @@
       }
     },
     "New view" : {
-      "comment" : "Accessibility name of the sidebar row that creates a saved view",
+      "comment" : "Accessibility name of the drawer row that creates a saved view\nAccessibility name of the sidebar row that creates a saved view",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5466,7 +5466,7 @@
       }
     },
     "Not syncing right now — sign in to iCloud and relaunch. Your board is saved on this device either way." : {
-      "comment" : "Settings note when sync is on but iCloud is unavailable\nStatus bar tooltip on the sync button while iCloud is unavailable",
+      "comment" : "Settings note when sync is on but iCloud is unavailable",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5598,7 +5598,7 @@
       }
     },
     "Nothing in %@" : {
-      "comment" : "Empty state headline for a board column with no cards\nWidget: the saved view it is showing has no cards in it",
+      "comment" : "Empty state headline for a board column with no cards\nEmpty state headline for the column the iOS pager is on\nWidget: the saved view it is showing has no cards in it",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7962,7 +7962,7 @@
       }
     },
     "Sync Now" : {
-      "comment" : "File menu item that sends this device's changes to iCloud and takes in the other devices'\nStatus bar button that sends this device's changes to iCloud and takes in the other devices'",
+      "comment" : "File menu item that sends this device's changes to iCloud and takes in the other devices'",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8890,7 +8890,7 @@
       }
     },
     "Trash" : {
-      "comment" : "Accessibility name of the sidebar row that opens the Trash",
+      "comment" : "Accessibility name of the drawer row that opens the Trash\nAccessibility name of the sidebar row that opens the Trash\nPhone board menu item that opens the Trash",
       "localizations" : {
         "en" : {
           "stringUnit" : {

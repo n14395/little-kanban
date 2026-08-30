@@ -124,6 +124,7 @@ protocol SyncStoring: AnyObject {
     func hasStoredTaskOrder() throws -> Bool
     func backfillTaskPositions(from taskIDs: [TaskItem.ID]) throws
     func apply(_ snapshot: BoardSnapshot, deleting: SyncIDs) throws
+    func reconnect()
 }
 
 extension SyncStoring {
@@ -138,8 +139,17 @@ extension SyncStoring {
 final class BoardSyncStore: SyncStoring {
     private static let logger = Logger(subsystem: "com.n14395.SimpleKanban", category: "sync")
 
-    let container: ModelContainer
+    private(set) var container: ModelContainer
     private var context: ModelContext { container.mainContext }
+
+    /// How the container was opened, kept so ``reconnect()`` can open it the
+    /// same way again. `nil` for a store handed a ready-made container — the
+    /// in-memory ones every test uses — which therefore cannot reconnect.
+    private var opening: (url: URL, cloudKit: ModelConfiguration.CloudKitDatabase)?
+
+    /// When ``reconnect()`` last rebuilt the container, so a pull repeated in
+    /// frustration does not churn out a mirror per tug.
+    private var lastReconnectedAt: Date?
 
     /// What the last write left in the store, so the next one can tell which
     /// records actually changed without reading them all back.
@@ -230,12 +240,66 @@ final class BoardSyncStore: SyncStoring {
     private static func opened(
         at url: URL, cloudKit: ModelConfiguration.CloudKitDatabase, isSyncing: Bool
     ) throws -> BoardSyncStore {
+        let store = BoardSyncStore(container: try openedContainer(at: url, cloudKit: cloudKit),
+                                   isSyncing: isSyncing)
+        store.opening = (url, cloudKit)
+        return store
+    }
+
+    private static func openedContainer(
+        at url: URL, cloudKit: ModelConfiguration.CloudKitDatabase
+    ) throws -> ModelContainer {
         let configuration = ModelConfiguration(
             schema: Schema(SyncSchema.models), url: url, cloudKitDatabase: cloudKit
         )
-        let container = try ModelContainer(for: Schema(SyncSchema.models), configurations: configuration)
-        return BoardSyncStore(container: container, isSyncing: isSyncing)
+        return try ModelContainer(for: Schema(SyncSchema.models), configurations: configuration)
     }
+
+    // MARK: Fetching, by the only lever there is
+
+    /// Reopens the container, which is the one way to ask the mirror to fetch.
+    ///
+    /// The mirror schedules its own trips to CloudKit and takes no instruction
+    /// about when one happens — with a single exception it does not know it
+    /// offers: **opening the store runs its setup-and-import immediately.**
+    /// That is why quitting and relaunching the app always "synced" when the
+    /// Sync Now button did not: the button read a store the mirror had not
+    /// refilled, while the relaunch made it fetch. So the button now does what
+    /// the relaunch did. The rebuilt container holds the same records — the
+    /// store file does not move — and the fresh mirror imports what the old
+    /// one was waiting to be pushed about; each import lands as an ordinary
+    /// remote-change notification and is merged the ordinary way.
+    ///
+    /// Throttled, because the gesture invites repetition: a pull tugged five
+    /// times in frustration should not stand up five mirrors. Within the
+    /// window the pull still pushes and re-reads; it just does not reopen.
+    ///
+    /// A store with no mirror has nothing to wake: local-only and in-memory
+    /// stores keep their container, and a rebuild that fails keeps the old
+    /// one too — a working stale mirror beats a broken fresh one.
+    func reconnect() {
+        guard isSyncing else { return }
+        if let last = lastReconnectedAt, Date.now.timeIntervalSince(last) < Self.reconnectWindow {
+            return
+        }
+        rebuild()
+        lastReconnectedAt = .now
+    }
+
+    /// The rebuild itself, unthrottled and mirror-or-not — the seam
+    /// `SyncMaintenanceTests` drives, since a test can hold no real mirror.
+    func rebuild() {
+        guard let opening else { return }
+        do {
+            container = try Self.openedContainer(at: opening.url, cloudKit: opening.cloudKit)
+            // The diff base survives on purpose: it is what this device has
+            // seen of the *records*, and the records did not move.
+        } catch {
+            Self.logger.error("The container could not be reopened; the old one stands: \(error.localizedDescription)")
+        }
+    }
+
+    static let reconnectWindow: TimeInterval = 10
 
     /// Beside `board.json`, in the same Application Support folder, so a
     /// person looking for their data finds both halves in one place — and so

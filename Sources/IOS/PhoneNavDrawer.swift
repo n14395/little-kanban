@@ -119,7 +119,28 @@ struct PhoneNavDrawer: View {
         return layoutDirection == .rightToLeft ? hidden : -hidden
     }
 
+    /// One proxy for the two halves of the same fact.
+    ///
+    /// **The strip at the foot is the device's, and it was being paid for
+    /// twice.** The drawer is an overlay, so its frame already stops at the
+    /// safe area — 34pt above the glass on a home-indicator phone — and the
+    /// panel then took another 34 of its own as a hand-written bottom padding.
+    /// The ground never showed it, because that ignores the safe area and ran
+    /// to the glass either way; what stopped short was the rows, 68pt up an
+    /// 874pt screen, which reads as a list cut off rather than a short panel.
+    ///
+    /// So the panel reclaims the strip — the negative padding of
+    /// ``HomeIndicatorFoot``, spelled here because the same number is wanted
+    /// twice — and the scroll view hands it straight back as a content margin,
+    /// so the rows *run* to the bottom of the screen while the last of them
+    /// still comes to rest above the pill.
     private var panel: some View {
+        GeometryReader { proxy in
+            panelBody(homeIndicator: proxy.safeAreaInsets.bottom)
+        }
+    }
+
+    private func panelBody(homeIndicator: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
                 // The product's own name, read off the bundle and shown
@@ -165,10 +186,10 @@ struct PhoneNavDrawer: View {
                 }
             }
             .scrollBounceBehavior(.basedOnSize)
-            .contentMargins(.bottom, 12, for: .scrollContent)
+            .contentMargins(.bottom, 12 + homeIndicator, for: .scrollContent)
         }
         .padding(.top, 20)
-        .padding(.bottom, 34)
+        .padding(.bottom, -homeIndicator)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background {
             Rectangle()

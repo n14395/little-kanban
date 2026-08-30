@@ -141,18 +141,18 @@ final class BoardSettingsSheetTests: XCTestCase {
 
         short.tap()
         short.typeText("Blk")
-        // **This measures the well and does not press it**, which is a scar
-        // rather than a choice. Pressing it opens `ColorPickerPopover`, and on
-        // the phone that popover cannot be driven: XCUITest finds its swatches
-        // at x≈744, y≈−124 on a 402pt screen — outside the window — cannot
-        // scroll to them, and cannot reach its Done button to put it away
-        // either. Adapting it to a sheet at compact width changed nothing, so
-        // the cause is not the adaptation and is not yet known.
+        // **This measures the well and does not press it**, which is now a
+        // scope line rather than a scar. The claim this test is *for* is the
+        // keyboard, and the well is the control the keyboard could cover.
         //
-        // The claim this test is *for* is the keyboard, and the well is the
-        // control the keyboard could cover. The picker's placement on the phone
-        // wants a test of its own once somebody has understood it — see
-        // `ColorPickerPopover`, which carries the same note.
+        // It used to be a scar: pressing the well opened a popover XCUITest
+        // found at x≈744, y≈−124 on a 402pt screen, could not scroll to and
+        // could not close. The cause was the well naming an arrow edge, which
+        // on iOS is the only placement UIKit may use rather than the one it
+        // prefers — see ``ColorWell/arrowEdge``. Touch leaves it unnamed now
+        // and the picker scrolls when it is squeezed, so pressing through it
+        // is a test somebody can write; it belongs to the picker rather than
+        // to the keyboard, which is why it is not written here.
 
         confirm.tap()
         XCTAssertTrue(name.waitForNonExistence(timeout: 5), "the composer stayed open")

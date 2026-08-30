@@ -75,3 +75,67 @@ import Testing
                 "the sweep created the store it was meant to be sweeping")
     }
 }
+
+/// The reopen that stands in for a fetch — see `BoardSyncStore.reconnect()`.
+///
+/// A test can hold no real mirror, so what these pin is the half a test can
+/// reach: the rebuild swaps the container without losing a record or the diff
+/// base, stores with no opening to repeat refuse politely, and the throttle
+/// keeps a frustrated pull from standing up a mirror per tug.
+@MainActor
+@Suite struct SyncReconnectTests {
+    private func filed() throws -> (TempBoard, BoardSyncStore) {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.app(
+            syncing: false, at: temp.directory.appending(path: "board.store"))
+        try sync.apply(BoardSnapshot(
+            tasks: TestBoard.tasks(on: SeedData.defaultBoard), boards: SeedData.boards,
+            labels: LabelDef.seed, nextSerial: 100
+        ))
+        return (temp, sync)
+    }
+
+    @Test func theRebuildSwapsTheContainerAndKeepsEveryRecord() throws {
+        let (temp, sync) = try filed()
+        let before = try #require(try sync.load())
+        let old = sync.container
+
+        sync.rebuild()
+
+        #expect(sync.container !== old, "the rebuild kept the old container")
+        let after = try #require(try sync.load())
+        #expect(after.boards == before.boards)
+        #expect(after.tasks == before.tasks)
+        _ = temp
+    }
+
+    /// The diff base survives the swap: the records did not move, so what this
+    /// device has seen of them is still true — and forgetting it would turn
+    /// the next push into a full rewrite, which is the churn the diff exists
+    /// to prevent.
+    @Test func theRebuildDoesNotTurnTheNextPushIntoARewrite() throws {
+        let (temp, sync) = try filed()
+        _ = try sync.load()
+
+        sync.rebuild()
+        var edited = try #require(try sync.load())
+        edited.tasks[0].title = "One edit"
+        edited.tasks[0].updatedAt = .now
+        try sync.apply(edited)
+
+        let read = try #require(try sync.load())
+        #expect(read.tasks[0].title == "One edit")
+        _ = temp
+    }
+
+    /// A ready-made container has no opening to repeat — the in-memory stores
+    /// every suite runs on — and a local store has no mirror to wake.
+    @Test func aStoreWithNothingToReconnectKeepsItsContainer() throws {
+        let sync = try BoardSyncStore.inMemory()
+        let old = sync.container
+        sync.rebuild()
+        #expect(sync.container === old, "an in-memory store rebuilt its container")
+        sync.reconnect()
+        #expect(sync.container === old, "a mirrorless store reconnected anyway")
+    }
+}

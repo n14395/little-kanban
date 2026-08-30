@@ -6459,18 +6459,25 @@ hand, so **iPhone and iPad ask for a sync by pulling a list of cards past its
 top** — `PullToSync`, applied to the board's columns, the Inbox, a saved view and
 Search. It is `refreshable`, so the gesture and the spinner are the system's own.
 
-**It is not a fetch, because there is nothing to call.**
-`NSPersistentCloudKitContainer` schedules its own trips and takes no instruction
-about when one happens. What a pull can do is the half that belongs to this
-device, and
-`syncNow(settling:)` does both parts of it: whatever has not been pushed goes now
-— the push rides the save debounce, so a card ticked a moment ago may still be
-sitting here — and whatever has already come down is adopted, through the same
-`mergeRemoteChanges` a change notification arrives on. Then the spinner is held a
-beat, which is not decoration: the board is mirrored asynchronously, so a change
-that push provokes lands shortly after, and the beat is the difference between
-the other device's card appearing under the spinner and appearing a moment after
-the user has decided the pull did nothing.
+**There is no fetch to call — but there is one lever, and the pull pulls it.**
+The mirror schedules its own trips and takes no instruction about when one
+happens, with a single exception it does not know it offers: **opening the
+store runs its setup-and-import immediately.** That exception explained a
+maddening symptom — Sync Now showed nothing while quit-and-relaunch "synced
+almost instantly", because the relaunch was not syncing faster, it was making
+the mirror fetch at all. So `syncNow(settling:)` now begins by doing what the
+relaunch did: `BoardSyncStore.reconnect()` reopens the container (same file,
+same records, fresh mirror), throttled to one reopen per ten seconds so a pull
+tugged in frustration does not stand up a mirror per tug. Then the two halves
+that always belonged to this device: whatever has not been pushed goes now —
+the push rides the save debounce, so a card ticked a moment ago may still be
+sitting here — and whatever has come down is adopted through the same
+`mergeRemoteChanges` a change notification arrives on, once before the settling
+beat for what was already here and once after it for what the fresh mirror
+brought. Anything slower than the beat still lands through the remote-change
+notifications, like always. `SyncReconnectTests` pins the half a test can hold:
+the rebuild swaps the container without losing a record or the diff base, and
+mirrorless stores decline.
 
 **Nothing is attached where there is nothing to ask.** A spinner is a promise
 that something is being checked, and a device with sync switched off, no iCloud

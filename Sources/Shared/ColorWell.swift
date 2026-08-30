@@ -38,7 +38,37 @@ struct ColorWell: View {
         )
     }
 
+    /// Which side of the well the picker hangs off, or `nil` to let the system
+    /// place it — ``BoardColumnView/ColumnEditorMetrics/arrowEdge`` and
+    /// ``BoardSidebar/Metrics/trashArrowEdge`` exactly, and for the third time
+    /// for the same measured reason.
+    ///
+    /// A named edge is not a preference on iOS, it is the *only* placement
+    /// UIKit is permitted, and `.bottom` permits only "above the button". The
+    /// wells that matter have nothing above them: Board Settings draws one
+    /// about 220pt down an 874pt screen, so the picker was clamped into the
+    /// ~150pt between it and the status bar with the saved row cut off the top
+    /// and the two buttons off the bottom, while the whole lower half of the
+    /// screen sat empty. Left to choose, UIKit hangs it below the well, which
+    /// is where the room is.
+    ///
+    /// A platform rather than a metric, because ``Metrics/compact`` is worn by
+    /// the theme editor on *both* — one field on it cannot want a different
+    /// answer from the same field on a phone.
+    static let arrowEdge: Edge? = {
+        #if os(macOS)
+        // A window has room on every side of a well, and AppKit treats the edge
+        // as a preference it may overrule rather than the only door.
+        .bottom
+        #else
+        nil
+        #endif
+    }()
+
     @Environment(\.palette) private var palette
+    #if os(iOS)
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    #endif
 
     /// The colour the button wears, and the one the picker opens on.
     let selection: SwatchColor
@@ -72,12 +102,35 @@ struct ColorWell: View {
         .buttonStyle(.bare)
         .accessibilityLabel(title)
         .accessibilityValue(name)
-        .popover(isPresented: $isPicking, arrowEdge: .bottom) {
-            ColorPickerPopover(selection: selection, metrics: metrics.picker) { picked in
+        .popover(isPresented: $isPicking, arrowEdge: Self.arrowEdge) {
+            ColorPickerPopover(
+                selection: selection, metrics: metrics.picker, adaptation: adaptation
+            ) { picked in
                 onSelect(picked)
             }
             .environment(\.palette, palette)
         }
+    }
+
+    /// What the popover becomes where a popover will not fit — read here rather
+    /// than inside it, because once presented its own environment describes the
+    /// popover and not the screen the popover has to live on.
+    ///
+    /// **A landscape phone is the one place it cannot stay a popover.** 402pt of
+    /// screen leaves about 180 above the well and 180 below, and the picker is
+    /// 425 — and a popover asked for more height than it can have is *clipped*
+    /// rather than resized: UIKit shrinks the box and lays the picker out at
+    /// full size inside it, so the hex field and both buttons were drawn 100pt
+    /// below the bottom edge with no way to scroll to them. A sheet is given
+    /// the height it asks for, and is the only container on that screen that
+    /// can hold this. Everywhere else — a phone stood up, an iPad, a Mac — the
+    /// popover has room and stays one.
+    private var adaptation: PresentationAdaptation {
+        #if os(iOS)
+        verticalSizeClass == .compact ? .sheet : .popover
+        #else
+        .popover
+        #endif
     }
 
     /// Black or white, whichever the colour underneath can be read against —

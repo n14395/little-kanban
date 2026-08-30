@@ -41,6 +41,9 @@ struct ColorPickerPopover: View {
 
     let selection: SwatchColor
     var metrics: Metrics = .desk
+    /// Popover or sheet where iOS insists on adapting one of them — the well
+    /// decides, because it can still see the screen. See ``ColorWell/adaptation``.
+    var adaptation: PresentationAdaptation = .popover
     let onSelect: (SwatchColor) -> Void
 
     /// The colour the spectrum and the hex field are moving, which is not the
@@ -52,15 +55,39 @@ struct ColorPickerPopover: View {
     @State private var hexText = ""
     @State private var hasLoaded = false
     @FocusState private var isHexFocused: Bool
+    /// The height the picker wants, and the height the popover gave it. Kept
+    /// only to answer ``needsScroll``.
+    @State private var contentHeight: CGFloat = 0
+    @State private var viewportHeight: CGFloat = 0
 
     var body: some View {
-        VStack(alignment: .leading, spacing: metrics.spacing) {
-            saved
-            spectrum
-            hexRow
-            buttons
+        // **A popover is handed a height, not asked for one.** It gets whatever
+        // there is between its well and the edge of the screen, and when the
+        // picker wants more it is cut rather than shrunk — and what falls off
+        // is the saved row at the top and the two buttons at the bottom, which
+        // are the parts a picker is *for*. A scroll view asks for exactly the
+        // same natural height and simply scrolls whatever it is not given.
+        //
+        // Placement is the first half of that answer and lives on the well —
+        // see ``ColorWell/arrowEdge``. This is the half that holds when even the
+        // roomier side is not roomy enough: a phone in landscape, or a keyboard
+        // up under the add-column composer.
+        ScrollView {
+            VStack(alignment: .leading, spacing: metrics.spacing) {
+                saved
+                spectrum
+                hexRow
+                buttons
+            }
+            .padding(metrics.spacing)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
         }
-        .padding(metrics.spacing)
+        .scrollBounceBehavior(.basedOnSize)
+        // Off unless it is needed, which is nearly always. The spectrum and the
+        // hue bar are both driven by a vertical drag, and a live scroll under
+        // them is one more gesture wanting the same finger.
+        .scrollDisabled(!needsScroll)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { viewportHeight = $0 }
         .frame(width: metrics.width)
         .background(palette.card)
         .presentationBackground(palette.card)
@@ -68,16 +95,18 @@ struct ColorPickerPopover: View {
         // A popover on the phone too, rather than the sheet iOS would adapt it
         // into: this is a control hanging off a button, and a sheet that covers
         // the surface the colour is being chosen *for* hides the thing being
-        // decided about.
+        // decided about. The one screen that will not hold one — a phone lying
+        // down — gives the sheet back, because there a popover hides that
+        // surface *and* cannot be read. The well works out which; see
+        // ``ColorWell/adaptation``.
         //
-        // **Known open problem.** Opened from the add-column composer inside
-        // Board Settings with the keyboard up, XCUITest reports this popover's
-        // swatches at x≈744, y≈−124 on a 402pt screen — outside the window.
-        // Adapting to a sheet at compact width was tried and changed nothing,
-        // so the cause is not the adaptation and has not been found. See
-        // `BoardSettingsSheetTests`, which stops short of pressing through the
-        // picker for this reason.
-        .presentationCompactAdaptation(.popover)
+        // The adaptation was long suspected of a placement bug it did not cause:
+        // opened from the add-column composer inside Board Settings, XCUITest
+        // reported this popover's swatches at x≈744, y≈−124 on a 402pt screen.
+        // Adapting to a sheet instead changed nothing, which was the clue — the
+        // cause was the well naming an arrow edge, and so permitting UIKit one
+        // placement that did not fit. See ``ColorWell/arrowEdge``.
+        .presentationCompactAdaptation(adaptation)
         #endif
         .onAppear {
             guard !hasLoaded else { return }
@@ -297,6 +326,12 @@ struct ColorPickerPopover: View {
     }
 
     // MARK: What the draft is
+
+    /// Whether the popover is shorter than the picker in it. Half a point of
+    /// slack because the two heights are measured from different views and a
+    /// rounding of one against the other must not turn scrolling on under a
+    /// picker that fits.
+    private var needsScroll: Bool { contentHeight > viewportHeight + 0.5 }
 
     private var draftValue: UInt32 { ColorMath.value(of: draft) }
 

@@ -748,6 +748,7 @@ private final class FlakySyncStore: SyncStoring {
         applyCount += 1
         try wrapped.apply(snapshot, deleting: deleting)
     }
+    func reconnect() { wrapped.reconnect() }
 }
 
 /// What a read failure at launch must and must not do.
