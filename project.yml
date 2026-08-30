@@ -58,8 +58,7 @@ targets:
         CFBundleDisplayName: Simple Kanban
         # Both come from the build settings below rather than being written
         # twice: a literal here drifts from MARKETING_VERSION the first time
-        # anyone bumps it, and the About panel and the update check both read
-        # the plist.
+        # anyone bumps it, and the About panel reads the plist.
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         NSHumanReadableCopyright: "Copyright © 2026 Nicholas Fay. All rights reserved."
@@ -142,12 +141,6 @@ targets:
         # frame lands on.
         UILaunchScreen:
           UIColorName: LaunchBackground
-        # Where "Check for Updates" looks (7.6). In the bundle rather than in
-        # code so a fork changes one line, and `./build.sh --publish` refuses to
-        # release when this and the `origin` remote disagree — an installed copy
-        # that polls the wrong repository never finds its own updates.
-        SKUpdateRepository: n14395/simple-kanban
-        SKReleasesPage: https://github.com/n14395/simple-kanban/releases/latest
         # Landscape is unlocked on the phone (5.5): a two-up board is
         # genuinely useful, and PhoneRootView lays one out for the compact
         # vertical size class. No upside-down, matching Apple's own phone apps.

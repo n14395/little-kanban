@@ -62,10 +62,6 @@
 	<array>
 		<string>com.n14395.SimpleKanban.task</string>
 	</array>
-	<key>SKReleasesPage</key>
-	<string>https://github.com/n14395/simple-kanban/releases/latest</string>
-	<key>SKUpdateRepository</key>
-	<string>n14395/simple-kanban</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

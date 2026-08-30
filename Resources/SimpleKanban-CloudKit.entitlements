@@ -6,10 +6,9 @@
 	<true/>
 	<key>com.apple.security.files.user-selected.read-write</key>
 	<true/>
-	<!-- The one outbound call the app makes: the update check reads
-	     api.github.com when the user presses the button, and nothing else. A
-	     sandboxed app with no client entitlement gets a connection refused it
-	     cannot explain. -->
+	<!-- For sync, and nothing else: CloudKit is the one thing here that goes
+	     out on the network. A sandboxed app with no client entitlement gets a
+	     connection refused it cannot explain. -->
 	<key>com.apple.security.network.client</key>
 	<true/>
 	<!-- Sync. SwiftData finds its database through the ubiquity container

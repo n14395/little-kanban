@@ -96,7 +96,7 @@ struct AboutView: View {
                 .font(palette.ui(metrics.version, .semibold, relativeTo: .footnote))
                 .foregroundStyle(palette.ink(0.45))
                 .textSelection(.enabled)
-            if let copyright = UpdateChecker.copyright {
+            if let copyright = AppInfo.copyright {
                 Text(copyright)
                     .font(palette.ui(metrics.note, .medium, relativeTo: .caption))
                     .foregroundStyle(palette.ink(0.35))
@@ -116,7 +116,7 @@ struct AboutView: View {
     /// "Version 1.0 (1)" — the marketing version people quote, and the build
     /// number that tells two builds of it apart in a bug report.
     static var versionLine: String {
-        String(localized: "Version \(UpdateChecker.currentVersion) (\(UpdateChecker.buildNumber))",
+        String(localized: "Version \(AppInfo.currentVersion) (\(AppInfo.buildNumber))",
                comment: "Marketing version and build number, shown in About")
     }
 

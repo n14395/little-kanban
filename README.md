@@ -70,7 +70,7 @@ Sources/
   App/                 SimpleKanbanApp scene, RootView's size-class switch and undo-manager
                        handover; BoardCommands — the menu bar, on both platforms, and AppWindowState;
                        FirstRunView — the starter picker a first launch comes up on;
-                       AboutView and UpdateChecker — the macOS About window's panel;
+                       AboutView and AppInfo — the macOS About window's panel;
                        AppIconInstaller and WidgetKeeper — the two facts about the app
                        that are kept in step from the one place that can see the store,
                        the clock and the appearance at once
@@ -153,8 +153,8 @@ Resources/
                        the colour UILaunchScreen names, in both schemes
   Localizable.xcstrings  the String Catalog every user-facing string extracts into
   PrivacyInfo.xcprivacy  the required-reason API declarations a submission is read for
-  SimpleKanban.entitlements  sandbox, user-selected files, the network client the
-                       update check needs, and the App Group the widgets read through —
+  SimpleKanban.entitlements  sandbox, user-selected files, the network client
+                       sync needs, and the App Group the widgets read through —
                        spelled with the team id on macOS and without it on iOS, which is
                        why there are five of these files and not one
 ```
@@ -5204,9 +5204,7 @@ marker is picked from a group its pane holds alone, so a marker two panes could
 show cannot pass the suite while the strip does nothing.
 
 The version is at the bottom of the iOS sheet, in a 44pt row reading
-"Simple Kanban · Version 1.0 (1)"; macOS has the app menu's About window instead,
-which is where **Check for Updates…** lives — see **Packaging, the icon and the
-update check**.
+"Simple Kanban · Version 1.0 (1)"; macOS has the app menu's About window instead.
 
 macOS reaches it through ⌘, and nothing else has to be built. **iOS has three
 doors, all of which had to be added**: a Settings row at the foot of the phone's
@@ -6644,7 +6642,7 @@ bundle identifier, so an entitled build would otherwise hand the fixtures to
 whatever iCloud account the machine is signed in to — and then to every device on
 it. Same rule as `BoardFile.default`, with more at stake.
 
-## Packaging, the icon and the update check
+## Packaging and the icon
 
 **The icon** is drawn rather than drawn *in*: `swift Tools/make-app-icon.swift`
 writes all eleven PNGs and the appiconset's `Contents.json` together, so a slot
@@ -6688,23 +6686,10 @@ first frame is the board's own background rather than a white flash.
 data, and a reason for each required-reason API the app touches — `UserDefaults`
 (`CA92.1`) and file timestamps (`C617.1`, which `BoardFile.recentBackups` reads).
 
-**The update check is a `GET` and nothing else.** `UpdateChecker` reads
-`/repos/{SKUpdateRepository}/releases/latest` from api.github.com, compares the
-tag numerically (so 1.10 is newer than 1.9, and a tag it cannot parse is never
-newer), and offers a link. It has no timer, no launch check and no auto-update:
-the only thing that starts it is the About panel's **Check for Updates…**, and
-the panel says what pressing it does before it is pressed
-(`UpdateChecker.disclosure`). That is the whole reason it is not Sparkle — a
-framework, a signing key, an appcast to host and an auto-updater to be trusted,
-for one unauthenticated request for public JSON. The sandbox entitlement it needs
-is `com.apple.security.network.client`; without it the request fails in a way
-nothing on screen can explain.
-
-`SKUpdateRepository` and `SKReleasesPage` live in the plist so a fork changes one
-line — and **`./build.sh --publish` refuses to cut a release when the built app's
-`SKUpdateRepository` and the `origin` remote disagree**, because a release
-published from a repository the installed copies do not poll is a silent,
-permanent failure.
+**There is no update mechanism.** Distribution is the App Store, which owns
+updating; the app has no timer, no launch check and nothing that reads a release
+feed. The one thing that goes out on the network is sync's CloudKit traffic,
+which is what the `com.apple.security.network.client` entitlement is for.
 
 ## Tests
 
@@ -6805,9 +6790,9 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `TrashSurfaceTests` | where the Trash is now that it is not a settings tab: the flag being session state that starts shut and changes nothing about the board, `SettingsView` building no `TrashView` and holding no trash pane, each of the two door-bearing surfaces — the source list on macOS and iPad, the board menu on the phone — raising `isShowingTrash`, and the phone's sheet being presented by the root rather than by the header that opens it, which is a thing a menu cannot do |
 | `ScaleTests` | 7.4 — five hundred cards on six boards, thirty columns, twenty-four labels and eleven thousand activity entries, and what each hot path costs on it. Nothing asserts a wall-clock time: every bound is a *ratio* between two timings taken in the same process on the same data, which cancels the machine out and leaves the shape of the algorithm. See **Scale** |
 | `FirstRunTests` | 7.5 — a first launch starting on nothing at all rather than on the sample; the picker never standing in front of the test host; the sample offered rather than first; the three starters carrying none of the sample's cards; and then the property over all five templates — folded into the empty board a first launch actually builds, each one satisfies the placement invariant, resolves every label key it wears, mints no duplicate code, has a landing column and a Done column, survives a relaunch card for card, and takes a card added, dated, completed and archived on it. Choosing is one ⌘Z |
-| `PackagingTests` | 7.6 — what the *built* bundle carries, read off `Bundle.main`, which under `xcodebuild test` is the app: a marketing version and a numeric build; the version the About panel shows being the one in the plist rather than a second copy of it; `PrivacyInfo.xcprivacy` present, declaring no tracking and no collection, and naming a reason for each required-reason API it touches; the copyright line the macOS About panel reads; `UILaunchScreen` naming a colour rather than being the empty dict that flashes white; every UTI, document type, URL scheme and activity type the code assumes; and the update check's repository, releases page and version comparison |
+| `PackagingTests` | 7.6 — what the *built* bundle carries, read off `Bundle.main`, which under `xcodebuild test` is the app: a marketing version and a numeric build; the version the About panel shows being the one in the plist rather than a second copy of it; `PrivacyInfo.xcprivacy` present, declaring no tracking and no collection, and naming a reason for each required-reason API it touches; the copyright line the macOS About panel reads; `UILaunchScreen` naming a colour rather than being the empty dict that flashes white; and every UTI, document type, URL scheme and activity type the code assumes |
 | `LocalizationTests` | 7.2 — mostly the one property with nothing to observe at runtime, so it reads the source (`SourceTree.swift`, anchored on `#filePath`). Three narrow rules rather than one broad one: every `String(localized:)` carries a translator comment, `Text(verbatim:)` never carries typed words, and the model and store layers — which have no `LocalizedStringKey` position to sit in — hold no prose that is not going into the catalogue. `Text("Delete Task")` is not a violation and is not flagged; a check that flagged two hundred correct call sites would be switched off within the week. Then two that read the *build* instead: the catalogue is compiled into the app at all, and the words that reach `Text` through a view helper are in it — which is the one thing no source scan can see, and is exactly how seven helpers came to take their title as `String` and put five English words on every screen in every language |
-| `StarterTemplateTests` | 7.5 from the template's side — five starters offered with the sample among them rather than first; each with a column work can start in and one it finishes in; no two sharing a column id; every card on its own board under a unique code with that board's prefix; every label a card wears shipped by the template that wears it; choosing one filling an empty board with exactly it; and the picker never standing in front of a test host. `UpdateVersionTests` sits beside it: 1.10 newer than 1.9, a `v` prefix that is part of the tag and not of the version, a pre-release suffix ignored, an unparseable tag never newer, and the releases page declared in the bundle |
+| `StarterTemplateTests` | 7.5 from the template's side — five starters offered with the sample among them rather than first; each with a column work can start in and one it finishes in; no two sharing a column id; every card on its own board under a unique code with that board's prefix; every label a card wears shipped by the template that wears it; choosing one filling an empty board with exactly it; and the picker never standing in front of a test host |
 | `AccessibilityContrastTests` / `AccessibilityAdaptationTests` | 7.1 as arithmetic — every secondary tone's contrast on every surface it is drawn on, the due chip at each urgency in both schemes, each priority's mark being a *shape* of its own, counted off `allCases`, one glyph per tint the chip distinguishes and none for the neutral one, Reduce Motion taking the animation and not the change, and the chrome scale never shrinking anything. Plus the one rule about how the code reads the setting: Differentiate Without Colour is never read negated, because which way round that flag is tested lives in a view body where no value test can reach it. See **Accessibility** |
 
 `SaveContractTests` and `UndoHarnessTests` are hand-written registries, not

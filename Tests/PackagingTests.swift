@@ -102,38 +102,12 @@ import UniformTypeIdentifiers
         let marketing = try #require(string("CFBundleShortVersionString"))
         let build = try #require(string("CFBundleVersion"))
 
-        #expect(UpdateChecker.currentVersion == marketing)
-        #expect(UpdateChecker.buildNumber == build)
+        #expect(AppInfo.currentVersion == marketing)
+        #expect(AppInfo.buildNumber == build)
 
         let line = AboutView.versionLine
         #expect(line.contains(marketing), "About shows \(line), the bundle says \(marketing)")
         #expect(line.contains(build), "About does not show the build number: \(line)")
-    }
-
-    /// The update check has somewhere to check. `build.sh --publish` cuts the
-    /// release these two name, so a bundle that carries neither is a build with
-    /// no way to learn it is out of date.
-    @Test func theBundleSaysWhereItsReleasesLive() throws {
-        let repository = try #require(UpdateChecker.repository,
-                                      "SKUpdateRepository is missing from the built plist")
-        #expect(repository.split(separator: "/").count == 2, "\(repository) is not owner/name")
-
-        let page = try #require(UpdateChecker.releasesPage,
-                                "SKReleasesPage is missing from the built plist")
-        #expect(page.host() == "github.com")
-        #expect(page.path().contains(repository), "the releases page is not this repository's")
-    }
-
-    /// And the comparison behind it: a build only offers an update for a
-    /// version that is genuinely newer than the one in the bundle.
-    @Test func theUpdateCheckComparesVersionsNumerically() {
-        #expect(UpdateChecker.isNewer("1.10", than: "1.9"), "1.10 compared as a string")
-        #expect(UpdateChecker.isNewer("1.2.0", than: "1.2") == false, "1.2.0 is the same release as 1.2")
-        #expect(UpdateChecker.isNewer("1.0", than: UpdateChecker.currentVersion) == false,
-                "this build offers itself as an update")
-        #expect(UpdateChecker.number(from: "v1.4") == "1.4")
-        #expect(UpdateChecker.isNewer("not-a-version", than: "1.0") == false,
-                "an unparseable tag was read as newer")
     }
 
     // MARK: The App Store's and the notary's requirements
@@ -177,6 +151,7 @@ import UniformTypeIdentifiers
                                      "NSHumanReadableCopyright is missing from the built plist")
         #expect(copyright.contains("©") || copyright.lowercased().contains("copyright"))
         #expect(copyright.contains("20"), "the copyright line names no year: \(copyright)")
+        #expect(AppInfo.copyright == copyright, "About shows a different line than the plist carries")
     }
 
     /// An empty `UILaunchScreen` is legal and gives a white flash on a dark
