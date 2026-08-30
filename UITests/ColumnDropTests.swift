@@ -25,7 +25,13 @@ import XCTest
 ///     xcodebuild test -scheme SimpleKanbanUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 final class ColumnDropTests: XCTestCase {
-    private func launched() -> XCUIApplication {
+    /// - Parameter showingTicks: whether the cards draw their completion
+    ///   circle. It is a preference and it is **off** by default — see
+    ///   `Preferences.cardTickKey`, which explains why — so a case that
+    ///   finishes cards by pressing them has to ask for it. Off for everything
+    ///   else, because the tick is a control the board does not normally carry
+    ///   and a suite should measure the board people have.
+    private func launched(showingTicks: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
             "-SimpleKanbanSkipFirstRun", "YES",
@@ -37,7 +43,9 @@ final class ColumnDropTests: XCTestCase {
             // column has to name the surface the columns are on. Only visible
             // on a fresh install, which is exactly how this suite should be run.
             "-SimpleKanbanTab", "board",
-        ]
+        // The key is `Preferences.cardTickKey`, spelled out because a UI test
+        // runs out of process and cannot import the app to ask.
+        ] + (showingTicks ? ["-SimpleKanbanShowsCardTick", "YES"] : [])
         app.launch()
         return app
     }
@@ -155,7 +163,9 @@ final class ColumnDropTests: XCTestCase {
         // and a rotation resets it to the first column, so a test that set the
         // page up in portrait would find itself looking at Backlog.
         XCUIDevice.shared.orientation = .landscapeLeft
-        let app = launched()
+        // The ticks below are how this case empties the column, and the tick
+        // is a preference that arrives off.
+        let app = launched(showingTicks: true)
         XCTAssertTrue(app.buttons["New task"].waitForExistence(timeout: 20), "the app never came up")
 
         let empty = app.descendants(matching: .any)
@@ -178,19 +188,30 @@ final class ColumnDropTests: XCTestCase {
                 .first { app.frame.contains($0.frame) },
             "In Progress is not one of the columns on screen"
         ).frame
-        // Its first card's leading edge — the far side of that gutter. Measured
-        // once, while the column still has cards in it: the pages do not move,
-        // and every tick this loop should press is between these two numbers
-        // while the ones either side are 250pt away.
-        let cardEdge = try XCTUnwrap(
-            app.buttons.allElementsBoundByIndex
-                .filter {
-                    $0.frame.width > 100 && app.frame.contains($0.frame)
-                        && $0.frame.minX > heading.minX
-                }
-                .map { $0.frame.minX }.min(),
-            "In Progress has no cards on screen to empty"
-        )
+        // **The strip this column occupies**, as the two card edges either side
+        // of it: the nearest one to the right of the heading is this column's
+        // own, and the next distinct one is where the column after it starts.
+        // Everything drawn in this column is between them, and the columns
+        // either side are 250pt away.
+        //
+        // **It used to be the gutter between the heading and the first card**,
+        // which is where the tick was drawn — a leading gutter in front of
+        // everything the card had to say. It is in the card's *trailing* corner
+        // now, so the strip that used to hold it holds nothing: measured, In
+        // Progress's ticks sit at x=515 while the old band was 332 to 347, so
+        // the loop found none, pressed none, and the column it was to empty
+        // stayed full. Nothing said so — a `first` that matches nothing is a
+        // `break`, and the failure landed on the assertion after it.
+        let edges = app.buttons.allElementsBoundByIndex
+            .filter {
+                $0.frame.width > 100 && app.frame.contains($0.frame)
+                    && $0.frame.minX > heading.minX
+            }
+            .map { $0.frame.minX }
+            .sorted()
+        let cardEdge = try XCTUnwrap(edges.first, "In Progress has no cards on screen to empty")
+        // Past the duplicates: a column's cards all share a left edge.
+        let nextEdge = edges.first { $0 > cardEdge + 1 } ?? app.frame.maxX
 
         // Picked by frame rather than by `isHittable`: the pager builds the
         // pages either side as well, and asking a tick two columns away whether
@@ -202,7 +223,7 @@ final class ColumnDropTests: XCTestCase {
                 .allElementsBoundByIndex
             let onScreen = ticks.first {
                 $0.frame.width > 0 && app.frame.contains($0.frame)
-                    && $0.frame.midX > heading.minX && $0.frame.midX < cardEdge
+                    && $0.frame.midX > cardEdge && $0.frame.midX < nextEdge
             }
             guard let tick = onScreen else { break }
             tick.tap()
@@ -212,22 +233,31 @@ final class ColumnDropTests: XCTestCase {
         let page = empty.frame
         XCTAssertTrue(app.frame.contains(page), "the empty column is not the one on screen")
 
-        // A card from the column beside it, found by the tick in its gutter
-        // rather than by the words on it: which card is in which column depends
-        // on what the last run left behind, and this claim is about the ground
-        // rather than about any particular card. Every card in Done is done, so
-        // "Mark as not done" is what its ticks say.
-        let ticks = app.buttons.matching(identifier: "Mark as not done").allElementsBoundByIndex
-        let neighbour = ticks.first {
-            $0.frame.width > 0 && app.frame.contains($0.frame) && $0.frame.midX > page.maxX
+        // A card from the column beside it, found by its size rather than by the
+        // words on it: which card is in which column depends on what the last
+        // run left behind, and this claim is about the ground rather than about
+        // any particular card. A card is the only thing on a board wide enough
+        // to be one — the ticks and the dashed row are told apart by the labels
+        // they carry.
+        //
+        // **The card itself, rather than the tick beside it.** This found a
+        // tick and stepped 110pt to its *right* to reach the card it belonged
+        // to, which was the arithmetic of a tick drawn in a leading gutter. The
+        // tick is in the card's trailing corner now, so the same step lands in
+        // the column after it — and the press that should have lifted a card
+        // would have landed on empty page. Asking for the card directly has no
+        // arithmetic in it to go stale.
+        let neighbour = app.buttons.allElementsBoundByIndex.first {
+            let frame = $0.frame
+            guard frame.width > 100, app.frame.contains(frame), frame.midX > page.maxX
+            else { return false }
+            return !$0.label.hasPrefix("Mark as") && !$0.label.contains("Add task to")
         }
         guard let row = neighbour?.frame else {
             return XCTFail("no card in the column beside In Progress")
         }
-        // The card, not the tick: the tick is a button in the card's gutter and
-        // the press has to land on the card itself to pick it up.
         let moving = app.coordinate(withNormalizedOffset: .zero)
-            .withOffset(CGVector(dx: row.midX + 110, dy: row.midY + 20))
+            .withOffset(CGVector(dx: row.midX, dy: row.midY))
 
         // Deep in the empty part of the page: below everything drawn in it, and
         // as far down as the column goes.

@@ -48,7 +48,17 @@ final class CardDropTargetTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
 
         let app = XCUIApplication()
-        app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES"]
+        // **The board, said out loud.** A phone lands on **Today** on a cold
+        // launch — `BoardStore.landingSurface` — and Today is a flat list with
+        // no columns in it, so without this the Backlog chip below never
+        // arrives and the case fails at "no board" without reaching a drag.
+        // `ColumnDropTests` and `GroundDropFootTests` name the tab for the same
+        // reason; this one was written before the phone landed anywhere else
+        // and was left behind when it did.
+        app.launchArguments = [
+            "-SimpleKanbanSkipFirstRun", "YES",
+            "-SimpleKanbanTab", "board",
+        ]
         app.launch()
         // Backlog by name, which both idioms draw: a chip on the phone, a column
         // heading on the iPad. The phone opens on In Progress and has to be

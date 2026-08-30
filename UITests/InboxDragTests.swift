@@ -15,12 +15,21 @@ import XCTest
 /// another card never reached the panel's drop destination behind it. Dragging
 /// *out* of the panel worked the whole time, which is what made it look fine.
 ///
-/// **iOS simulator only.** Driving the host Mac's pointer is not a
-/// verification, it is a fight with whoever is using the machine.
+/// **iPad simulator only**, which is where the arrangement it is about exists:
+/// the Inbox is a panel standing *beside* the board there, so a card can be
+/// dragged from one to the other without either going away. On the phone the
+/// Inbox is a sheet drawn *over* the board — there is no column on screen to
+/// drag onto, and the toolbar's Inbox toggle is a tab-bar slot instead — so
+/// every case in here failed on an iPhone for want of the thing it is testing,
+/// and read as three broken drags rather than as a suite on the wrong device.
+/// The desk is skipped for its own reason: driving the host Mac's pointer is
+/// not a verification, it is a fight with whoever is using the machine.
 ///
 /// The board is seeded on first launch, so a fresh install is the fixture:
 ///
 ///     xcrun simctl uninstall <device> com.n14395.SimpleKanban
+///     xcodebuild test -scheme SimpleKanbanUITests \
+///       -destination 'platform=iOS Simulator,name=iPad Air 13-inch (M4)'
 ///
 /// Without that the second run measures the board the first run left behind —
 /// which is how these two first "failed" while the drags were working
@@ -37,7 +46,11 @@ final class InboxDragTests: XCTestCase {
     /// rather than settled back a few points from where it was picked up.
     private let moved: CGFloat = 40
 
-    private func launched() -> XCUIApplication {
+    private func launched() throws -> XCUIApplication {
+        try XCTSkipUnless(
+            UIDevice.current.userInterfaceIdiom == .pad,
+            "the phone draws the Inbox as a sheet over the board, so there is no column beside it to drag to"
+        )
         let app = XCUIApplication()
         app.launchArguments = [
             "-SimpleKanbanSkipFirstRun", "YES",
@@ -70,8 +83,8 @@ final class InboxDragTests: XCTestCase {
 
     /// Catch something in the Inbox, then put it on the board without leaving
     /// the board — which is the whole reason the Inbox is a panel.
-    func testACardDragsFromTheInboxOntoAColumn() {
-        let app = launched()
+    func testACardDragsFromTheInboxOntoAColumn() throws {
+        let app = try launched()
 
         let inboxCard = card("Widget on the iOS home screen", in: app)
         XCTAssertTrue(inboxCard.waitForExistence(timeout: 10), "no Inbox card on screen")
@@ -92,8 +105,8 @@ final class InboxDragTests: XCTestCase {
     /// The button is only beside a board. Picking Today takes the board away,
     /// and with it the thing the button opens — a toggle for a panel that
     /// cannot appear is a control that does nothing when clicked.
-    func testTheInboxButtonGoesAwayOnASavedView() {
-        let app = launched()
+    func testTheInboxButtonGoesAwayOnASavedView() throws {
+        let app = try launched()
 
         let inbox = app.buttons[inboxButton]
         XCTAssertTrue(inbox.waitForExistence(timeout: 10), "no Inbox button in the toolbar")
@@ -120,8 +133,8 @@ final class InboxDragTests: XCTestCase {
     /// empty space rather than onto another card**, on purpose: that is the
     /// case a `List` used to swallow, and dropping onto a card would have
     /// passed throughout.
-    func testACardDragsFromAColumnBackIntoTheInbox() {
-        let app = launched()
+    func testACardDragsFromAColumnBackIntoTheInbox() throws {
+        let app = try launched()
 
         let boardCard = card("Board templates", in: app)
         XCTAssertTrue(boardCard.waitForExistence(timeout: 10), "no board card on screen")

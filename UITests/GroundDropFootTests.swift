@@ -107,7 +107,13 @@ final class GroundDropFootTests: XCTestCase {
         )
         let row = dashed.frame
 
-        let landing = cards(in: app, leadingOf: row.maxX)
+        // **The dashed row's own column, bounded on both sides.** `leadingOf`
+        // alone is everything to the *left* of it, which with three columns
+        // sharing a landscape screen is two of them — so the "last card in the
+        // column being dropped on" was the last card in either of two columns,
+        // whichever the sort happened to end on. It was the right one by luck
+        // here and would not have been on a board arranged differently.
+        let landing = cards(in: app, trailingOf: row.minX - 5, leadingOf: row.maxX + 5)
         let beside = cards(in: app, trailingOf: row.maxX)
         let foot = try XCTUnwrap(landing.last?.frame, "no cards in the column being dropped on")
         XCTAssertGreaterThan(row.minY, foot.maxY, "the add row is not below that column's cards")
@@ -144,13 +150,24 @@ final class GroundDropFootTests: XCTestCase {
         // become a lift — the retry `ColumnDropTests` explains.
         if card(carried).frame.midX > row.maxX { drag() }
 
-        // In the column it was dropped on, and under everything that was already
-        // in it — polled, because the drop lands a beat after the finger lifts.
+        // In the column it was dropped on, and last in it — polled, because the
+        // drop lands a beat after the finger lifts.
+        //
+        // **Read as an order, not as a height.** This compared the landed card's
+        // `minY` with the `foot` frame measured *before* the drag, and a drag
+        // that ends near the bottom of a column scrolls it: measured, the column
+        // moved up 154pt while the card was held over the dashed row, so the
+        // card arrived at the foot and read as 44pt *above* where the old foot
+        // used to be. Both numbers were true and neither was comparable with the
+        // other. What the case is about is which card is at the bottom, and that
+        // survives a scroll — so it asks the column, after the drop, for its
+        // last card. The count guards the moment mid-animation when the column
+        // holds one card and anything is trivially last in it.
         let settled = expectation(description: "the card landed at the foot")
         let poll = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { timer in
-            let moved = card(carried).frame
-            guard moved.width > 0 else { return }
-            if abs(moved.midX - foot.midX) < 30, moved.minY > foot.minY {
+            let column = self.cards(in: app, trailingOf: row.minX - 5, leadingOf: row.maxX + 5)
+            guard column.count >= 2, let last = column.last else { return }
+            if last.label == carried {
                 timer.invalidate()
                 settled.fulfill()
             }
