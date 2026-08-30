@@ -81,7 +81,16 @@ struct PhoneTabBar: View {
             slot(PhoneTab.board.label, symbol: PhoneTab.board.symbol, isCurrent: isCurrent(.board)) {
                 store.selectTab(.board)
             }
-            slot(Board.inboxName, symbol: SavedView.seeded(.inbox).symbol, isCurrent: store.isInboxOpen) {
+            // **The one slot that carries a number.** The Inbox is the only
+            // thing on this bar that fills up while you are looking at
+            // something else — the board tab is wherever you left it and search
+            // is empty until you type — so it is the only one where "how much
+            // is in there" is worth the room. The desk's toolbar has said it
+            // this way since there was a toolbar: see `BoardToolbar.inboxToggle`.
+            slot(
+                Board.inboxName, symbol: SavedView.seeded(.inbox).symbol,
+                isCurrent: store.isInboxOpen, count: store.inboxCount
+            ) {
                 store.toggleInbox()
             }
             slot(PhoneTab.search.label, symbol: PhoneTab.search.symbol, isCurrent: isCurrent(.search)) {
@@ -103,11 +112,13 @@ struct PhoneTabBar: View {
         store.activeView == nil && store.tab == tab
     }
 
+    @ViewBuilder
     private func slot(
-        _ title: String, symbol: String, isCurrent: Bool, perform: @escaping () -> Void
+        _ title: String, symbol: String, isCurrent: Bool, count: Int = 0,
+        perform: @escaping () -> Void
     ) -> some View {
-        Button(action: perform) {
-            label(title, symbol: symbol, isCurrent: isCurrent)
+        let button = Button(action: perform) {
+            label(title, symbol: symbol, isCurrent: isCurrent, count: count)
                 .background(isCurrent ? palette.accentSoft : .clear, in: .rect(cornerRadius: 11))
                 // **The header's slot draws smaller than it claims.** The chip
                 // is 34pt — the size of the two discs it sits between, so the
@@ -127,11 +138,28 @@ struct PhoneTabBar: View {
         // infer it from: a reader meets the same three names in both shapes.
         .accessibilityLabel(title)
         .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
+
+        // The count is a **value** rather than part of the name, for
+        // `BoardToolbar.inboxToggle`'s reason: folded into the label it reads
+        // out as "Inbox 4", a control whose *name* changes every time a card is
+        // captured. Attached only where there is one, rather than handed an
+        // empty string — the two slots that count nothing have no value to
+        // report, and an empty literal is a key in the string catalogue that
+        // localizes nothing.
+        if count > 0 {
+            button.accessibilityValue(Text(verbatim: "\(count)"))
+        } else {
+            button
+        }
     }
 
     /// What is in a slot: a glyph and a word along the foot, the glyph alone in
-    /// the header.
-    private func label(_ title: String, symbol: String, isCurrent: Bool) -> some View {
+    /// the header — and, where there is something to count, the number.
+    ///
+    /// **Nothing in it is worth a badge saying nought**, which is the desk's
+    /// rule for the same control. A nought on a bar that is on screen at all
+    /// times is a permanent mark that never means anything.
+    private func label(_ title: String, symbol: String, isCurrent: Bool, count: Int) -> some View {
         let tint = isCurrent ? palette.accent : palette.inkText(0.45)
         let glyph = Image(systemName: symbol)
             .symbolSize(isHeader ? 15 : 13, weight: .semibold, relativeTo: .caption)
@@ -141,7 +169,16 @@ struct PhoneTabBar: View {
             if isHeader {
                 // A square rather than a shrink-wrapped glyph, so three symbols
                 // of three different widths make three chips of one width.
-                glyph.frame(width: 34, height: 34)
+                //
+                // The number rides *on* the glyph here rather than beside it,
+                // for that same reason: a pill in the row would make this one
+                // chip wider than the two next to it, and the run of three is
+                // the only thing telling the eye they are one control.
+                glyph
+                    .frame(width: 34, height: 34)
+                    .overlay(alignment: .topTrailing) {
+                        if count > 0 { headerBadge(count) }
+                    }
             } else {
                 HStack(spacing: 5) {
                     if showsGlyphBesideWord { glyph }
@@ -156,11 +193,45 @@ struct PhoneTabBar: View {
                         // just not past the slot they sit in.
                         .lineLimit(1)
                         .minimumScaleFactor(0.55)
+                    // Beside the word, the way the desk's toolbar puts it beside
+                    // the tray. It stays at an accessibility size where the
+                    // *glyph* is dropped: the glyph is company for the word,
+                    // and this is the one part of the slot the word does not
+                    // already say.
+                    if count > 0 {
+                        CountPill(count: count, font: 10.5, horizontalPadding: 5)
+                            .layoutPriority(1)
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 9)
             }
         }
+    }
+
+    /// The number on a header chip: small, and capped.
+    ///
+    /// **Capped because this chip cannot grow.** Along the foot a slot is a
+    /// third of the screen and a four-figure count simply makes the pill wider;
+    /// here the chip is 34pt by construction, and a badge that kept growing
+    /// would run out over the chip beside it. Past 99 the exact number is not
+    /// what anybody is reading it for — VoiceOver still gets the true count off
+    /// the slot's `accessibilityValue`.
+    private func headerBadge(_ count: Int) -> some View {
+        Text(count > 99
+             ? String(localized: "99+", comment: "A count too large to fit the tab bar's badge")
+             : "\(count)")
+            .font(palette.ui(9, .bold, relativeTo: .caption2))
+            .foregroundStyle(palette.onAccent)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .background(palette.accent, in: .capsule)
+            // Out over the glyph's corner rather than inside it, so the digits
+            // sit clear of the tray's own outline.
+            .offset(x: 6, y: -3)
+            // The slot says the count as its value; read here as well it is a
+            // loose number in the middle of a row of buttons.
+            .accessibilityHidden(true)
     }
 
     /// Whether the word gets a glyph beside it.

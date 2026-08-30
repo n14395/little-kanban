@@ -217,10 +217,12 @@ struct SavedViewEditor: View {
         if let draft {
             VStack(alignment: .leading, spacing: metrics.rowSpacing) {
                 Text("Order").sectionLabelStyle(size: 10, opacity: Palette.readableInk)
-                Picker("", selection: Binding(
+                Picker(selection: Binding(
                     get: { draft.sort }, set: { next in change { $0.sort = next } }
                 )) {
                     ForEach(ViewSort.allCases) { Text($0.label).tag($0) }
+                } label: {
+                    Text("Order", comment: "Accessibility label of the picker choosing a saved view's card order")
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
@@ -320,7 +322,7 @@ private struct RuleGroupView: View {
             Text(depth == 0 ? "Match" : "and")
                 .font(palette.ui(13, .semibold, relativeTo: .subheadline))
                 .foregroundStyle(palette.ink(0.7))
-            Picker("", selection: Binding(
+            Picker(selection: Binding(
                 get: { rule.joiner ?? .all },
                 set: { next in
                     change { tree in
@@ -331,6 +333,12 @@ private struct RuleGroupView: View {
                 }
             )) {
                 ForEach(ViewRule.Joiner.allCases) { Text($0.label).tag($0) }
+            } label: {
+                // Self-contained rather than the row's own "Match" / "and",
+                // which is a `Text` of its own and reads out separately — and
+                // which is not the same word at every depth.
+                Text("Match all or any",
+                     comment: "Accessibility label of the picker joining a view's criteria")
             }
             .labelsHidden()
             .pickerStyle(.menu)
@@ -405,21 +413,25 @@ private struct CriterionRow: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Picker("", selection: Binding(
+            Picker(selection: Binding(
                 get: { criterion.field },
                 set: { next in write { $0.field(next) } }
             )) {
                 ForEach(ViewField.allCases) { Text($0.label).tag($0) }
+            } label: {
+                Text("Field", comment: "Accessibility label of the picker choosing what a view criterion tests")
             }
             .labelsHidden()
             .pickerStyle(.menu)
             .fixedSize()
 
-            Picker("", selection: Binding(
+            Picker(selection: Binding(
                 get: { criterion.comparator },
                 set: { next in write { $0.comparator(next) } }
             )) {
                 ForEach(criterion.field.comparators) { Text($0.label).tag($0) }
+            } label: {
+                Text("Condition", comment: "Accessibility label of the picker choosing how a view criterion tests its field")
             }
             .labelsHidden()
             .pickerStyle(.menu)
@@ -448,10 +460,13 @@ private struct CriterionRow: View {
             EmptyView()
         case .days:
             HStack(spacing: 4) {
-                TextField("", value: Binding(
+                TextField(value: Binding(
                     get: { criterion.value.days ?? 0 },
                     set: { next in write { $0.value(.days(next)) } }
-                ), format: .number)
+                ), format: .number) {
+                    Text("Days", comment: "Accessibility label of the number of days in a view criterion")
+                }
+                .labelsHidden()
                 .textFieldStyle(.plain)
                 .frame(width: 44)
                 .padding(.horizontal, 6)
@@ -464,23 +479,34 @@ private struct CriterionRow: View {
                     .foregroundStyle(palette.inkText(0.5))
             }
         case .priority:
-            Picker("", selection: Binding(
+            Picker(selection: Binding(
                 get: { criterion.value.priority ?? .high },
                 set: { next in write { $0.value(.priority(next)) } }
             )) {
                 ForEach(Priority.leastFirst) { Text($0.displayName).tag($0) }
+            } label: {
+                Text("Priority", comment: "Accessibility label of the priority a view criterion compares against")
             }
             .labelsHidden()
             .pickerStyle(.menu)
             .fixedSize()
         case .board:
-            idPicker(store.boards.map { ($0.id.uuidString, $0.name) })
+            idPicker(
+                store.boards.map { ($0.id.uuidString, $0.name) },
+                label: Text("Board", comment: "Accessibility label of the board a view criterion names")
+            )
         case .column:
-            idPicker(store.boards.flatMap { board in
-                board.columns.map { ($0.id.uuidString, "\(board.name) ▸ \($0.name)") }
-            })
+            idPicker(
+                store.boards.flatMap { board in
+                    board.columns.map { ($0.id.uuidString, "\(board.name) ▸ \($0.name)") }
+                },
+                label: Text("Column", comment: "Accessibility label of the column a view criterion names")
+            )
         case .label:
-            idPicker(store.labels.map { ($0.key, $0.key) })
+            idPicker(
+                store.labels.map { ($0.key, $0.key) },
+                label: Text("Label", comment: "Accessibility label of the label a view criterion names")
+            )
         case .text:
             TextField(
                 String(localized: "text", comment: "Placeholder for a view criterion's text value"),
@@ -503,13 +529,19 @@ private struct CriterionRow: View {
     /// deleted still has a selection to show: without it the picker draws blank
     /// and the first change silently re-points the rule at whatever happened to
     /// be first.
-    private func idPicker(_ options: [(String, String)]) -> some View {
-        Picker("", selection: Binding(
+    ///
+    /// The label is the caller's because the three uses are three different
+    /// words, and the control draws none of them: a shared "Item" would name
+    /// every one of them wrongly, which is barely better than naming none.
+    private func idPicker(_ options: [(String, String)], label: Text) -> some View {
+        Picker(selection: Binding(
             get: { criterion.value.text ?? "" },
             set: { next in write { $0.value(.text(next)) } }
         )) {
             Text("—").tag("")
             ForEach(options, id: \.0) { Text($0.1).tag($0.0) }
+        } label: {
+            label
         }
         .labelsHidden()
         .pickerStyle(.menu)

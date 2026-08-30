@@ -144,5 +144,45 @@ final class TabRailTests: XCTestCase {
         shot.lifetime = .keepAlways
         add(shot)
     }
+
+    /// **The Inbox slot carries its count, in both shapes.**
+    ///
+    /// A UI test for this suite's own reason: the number is drawn two different
+    /// ways — a pill beside the word along the foot, a badge on the glyph in
+    /// the header — and which one is on screen answers to the shape of the
+    /// screen, which no store can be asked. What is pinned here is the part
+    /// that has to be true of both: the control reports the count as its
+    /// accessibility *value*, so a reader hears "Inbox, 15" rather than meeting
+    /// a button whose name changes every time a card is captured.
+    ///
+    /// The exact number is the seed board's and is not asserted — what matters
+    /// is that it is the Inbox's number and that it survives the rotation.
+    func testTheInboxSlotCarriesItsCountInBothShapes() throws {
+        try XCTSkipUnless(
+            UIDevice.current.userInterfaceIdiom == .phone,
+            "the tab bar is the phone's — the iPad has a source list"
+        )
+        XCUIDevice.shared.orientation = .portrait
+
+        let app = XCUIApplication()
+        app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES", "-SimpleKanbanTab", "board"]
+        app.launch()
+
+        let inbox = app.buttons["Inbox"].firstMatch
+        XCTAssertTrue(inbox.waitForExistence(timeout: 15), "no Inbox slot on the tab bar")
+
+        let spoken = try XCTUnwrap(inbox.value as? String, "the Inbox slot says nothing about its count")
+        let count = try XCTUnwrap(Int(spoken), "the Inbox slot's value is not a number: \(spoken)")
+        XCTAssertGreaterThan(count, 0, "the seed board has an Inbox, so there is a count to show")
+
+        // The same number on its side, where it is drawn as a badge instead.
+        turn(app, to: .landscapeLeft)
+        let turnedInbox = app.buttons["Inbox"].firstMatch
+        XCTAssertTrue(turnedInbox.waitForExistence(timeout: 10), "no Inbox slot in the header")
+        XCTAssertEqual(
+            turnedInbox.value as? String, spoken,
+            "the Inbox count did not survive the rotation"
+        )
+    }
 }
 

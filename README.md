@@ -570,6 +570,36 @@ button count drops from 84 to 39 — the 36 in the sheet plus three — `New tas
 and the column menus are gone from the tree, the sheet keeps all 55 of its
 elements, and the audit over that state falls from 37 findings to 4.
 
+### A control titled with the empty string has no name
+
+`Picker("", selection:)` and `TextField("", text:)` read as "no label wanted",
+and they are not: for these controls the title *is* the accessibility name, so
+an empty one publishes a control VoiceOver can only call "pop up button". The
+`.labelsHidden()` sitting under every one of them then hides a label that was
+never there rather than the name it was meant to keep.
+
+Nine had accumulated — the seven pickers and the days field that make up the
+saved-view rule builder, which is the most involved control surface in the app,
+plus the theme editor's slot picker and its one shared number field. The whole
+of the rule builder was therefore unnameable: *Field*, *Condition*, *Priority*,
+*Board*, *Column*, *Label* and the joiner all read out as bare pop-up buttons.
+
+The fix at each is the pattern `DueDateSheet` had already written down beside
+its calendar — take the `label:` overload, give it a real `Text` with a
+translator comment, keep `.labelsHidden()` so nothing new is drawn. Three of
+them go through `SavedViewEditor.idPicker`, whose label is now the caller's,
+because a board, a column and a label are three different words and one shared
+"Item" would name all three wrongly. `ThemeNumberField.label` has **no default**
+for the same reason: there are nine of them editing nine different numbers, and
+a default would be a label that is wrong at eight.
+
+This is checked by source scan — `LocalizationTests/noControlIsTitledWithTheEmptyString`
+— and not by the audit, because a missing name changes nothing on screen. The
+control looks right in every screenshot, which is exactly how nine of them
+lasted. The same shape also put an empty key in `Localizable.xcstrings`, which
+is what made them visible at all: `StringCatalogueTests` was failing on a key
+that localized nothing, and the key was the symptom rather than the defect.
+
 ### What the audit still says
 
 `performAccessibilityAudit` from a UI-test bundle is the same check the

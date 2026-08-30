@@ -85,6 +85,8 @@ struct ThemeColorField: View {
             .frame(width: 108)
             if showsOpacity {
                 ThemeNumberField(
+                    label: String(localized: "Opacity",
+                                  comment: "Accessibility label of the strength field beside a theme colour"),
                     value: Binding(
                         get: { color.opacity * 100 },
                         set: { color = color.withOpacity($0 / 100) }
@@ -106,6 +108,14 @@ struct ThemeColorField: View {
 struct ThemeNumberField: View {
     @Environment(\.palette) private var palette
 
+    /// What VoiceOver calls this field, since the control draws no label of
+    /// its own — the name is in the ``ThemeFieldRow`` beside it, which is a
+    /// separate element and is read out separately.
+    ///
+    /// No default. There are nine of these and each one edits a different
+    /// number; a default would be a label that is wrong at eight of them, and
+    /// the whole defect this parameter exists for is a field nobody can name.
+    let label: String
     @Binding var value: Double
     var range: ClosedRange<Double>
     var suffix: String = ""
@@ -117,7 +127,8 @@ struct ThemeNumberField: View {
 
     var body: some View {
         HStack(spacing: 3) {
-            TextField("", text: $text)
+            TextField(text: $text) { Text(label) }
+                .labelsHidden()
                 .textFieldStyle(.plain)
                 .multilineTextAlignment(.trailing)
                 .focused($isFocused)
@@ -296,6 +307,8 @@ struct ThemeGradientField: View {
                 metrics: metrics
             ) {
                 ThemeNumberField(
+                    label: String(localized: "Angle",
+                                  comment: "Accessibility label of the window gradient's angle field"),
                     value: $gradient.angle, range: 0...360, suffix: "°", metrics: metrics
                 )
             }
@@ -318,6 +331,8 @@ struct ThemeGradientField: View {
                         metrics: metrics
                     )
                     ThemeNumberField(
+                        label: String(localized: "Position",
+                                      comment: "Accessibility label of how far along the gradient a stop sits"),
                         value: Binding(
                             get: { gradient.stops[index].location * 100 },
                             set: { gradient.stops[index].location = $0 / 100 }

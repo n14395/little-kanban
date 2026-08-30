@@ -174,10 +174,12 @@ struct ThemeEditorView: View {
                              comment: "Explains that a theme fills either the light slot or the dark one"),
                 metrics: metrics.field
             ) {
-                Picker("", selection: $draft.appearance) {
+                Picker(selection: $draft.appearance) {
                     ForEach(ThemeAppearance.allCases) { option in
                         Text(option.label).tag(option)
                     }
+                } label: {
+                    Text("Slot", comment: "Accessibility label of the picker choosing which appearance a theme fills")
                 }
                 .labelsHidden()
                 .pickerStyle(.segmented)
@@ -244,7 +246,11 @@ struct ThemeEditorView: View {
                                  comment: "Note under the card radius field"),
                     metrics: metrics.field
                 ) {
-                    ThemeNumberField(value: $draft.card.radius, range: 0...28, suffix: "pt", metrics: metrics.field)
+                    ThemeNumberField(
+                        label: String(localized: "Radius",
+                                      comment: "Accessibility label of the card corner radius field"),
+                        value: $draft.card.radius, range: 0...28, suffix: "pt", metrics: metrics.field
+                    )
                 }
             }
         }
@@ -261,6 +267,8 @@ struct ThemeEditorView: View {
                     metrics: metrics.field
                 ) {
                     ThemeNumberField(
+                        label: String(localized: "Muted",
+                                      comment: "Accessibility label of the middle ink tier's strength field"),
                         value: Binding(get: { draft.ink.muted * 100 }, set: { draft.ink.muted = $0 / 100 }),
                         range: 0...100, suffix: "%", metrics: metrics.field
                     )
@@ -272,6 +280,8 @@ struct ThemeEditorView: View {
                     metrics: metrics.field
                 ) {
                     ThemeNumberField(
+                        label: String(localized: "Faint",
+                                      comment: "Accessibility label of the quietest ink tier's strength field"),
                         value: Binding(get: { draft.ink.faint * 100 }, set: { draft.ink.faint = $0 / 100 }),
                         range: 0...100, suffix: "%", metrics: metrics.field
                     )
@@ -349,6 +359,8 @@ struct ThemeEditorView: View {
                     metrics: metrics.field
                 ) {
                     ThemeNumberField(
+                        label: String(localized: "Ground lift",
+                                      comment: "Accessibility label of how far a label chip's ground is lifted"),
                         value: Binding(get: { draft.labelChips.backgroundLift * 100 },
                                        set: { draft.labelChips.backgroundLift = $0 / 100 }),
                         range: -100...100, suffix: "%", metrics: metrics.field
@@ -359,6 +371,8 @@ struct ThemeEditorView: View {
                     metrics: metrics.field
                 ) {
                     ThemeNumberField(
+                        label: String(localized: "Ground strength",
+                                      comment: "Accessibility label of a label chip ground's opacity"),
                         value: Binding(get: { draft.labelChips.backgroundOpacity * 100 },
                                        set: { draft.labelChips.backgroundOpacity = $0 / 100 }),
                         range: 0...100, suffix: "%", metrics: metrics.field
@@ -371,6 +385,8 @@ struct ThemeEditorView: View {
                     metrics: metrics.field
                 ) {
                     ThemeNumberField(
+                        label: String(localized: "Text shade",
+                                      comment: "Accessibility label of how far a label chip's text is shaded"),
                         value: Binding(get: { draft.labelChips.foregroundShade * 100 },
                                        set: { draft.labelChips.foregroundShade = $0 / 100 }),
                         range: -100...100, suffix: "%", metrics: metrics.field

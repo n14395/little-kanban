@@ -14,11 +14,13 @@ import Testing
 /// `Label("Move Up", systemImage:)` and `Button("Add column")` all take a
 /// `LocalizedStringKey`, so their literals *are* extracted and are not
 /// violations; a check that flagged them would flag two hundred correct call
-/// sites and be turned off within the week. What is checked is the three shapes
+/// sites and be turned off within the week. What is checked is the four shapes
 /// that genuinely leak: a `String(localized:)` with no comment for the
-/// translator, an explicit `Text(verbatim:)` opt-out carrying real words, and
-/// prose written as a bare literal in the model and store layers, where there is
-/// no `LocalizedStringKey` position for it to be sitting in.
+/// translator, an explicit `Text(verbatim:)` opt-out carrying real words, prose
+/// written as a bare literal in the model and store layers, where there is no
+/// `LocalizedStringKey` position for it to be sitting in, and a control titled
+/// with the empty string — which is a catalogue entry nobody can translate at
+/// one end and a control VoiceOver cannot name at the other.
 @MainActor
 @Suite struct LocalizationTests {
     /// The call heads whose string arguments are on their way into the
@@ -133,6 +135,41 @@ import Testing
             }
         }
         #expect(offenders.isEmpty, "Text(verbatim:) carries untranslatable words at \(offenders)")
+    }
+
+    // MARK: The name a control is read out by
+
+    /// No control is titled with the empty string.
+    ///
+    /// `Picker("", …)` and `TextField("", …)` are the shape that puts the empty
+    /// key in the catalogue, and the key is only the half you can see. The
+    /// title of one of these controls is *also* what VoiceOver reads it out as,
+    /// so an empty one is a control with no name — and `.labelsHidden()` beside
+    /// it, which is what these all carry, hides a label that was never there
+    /// rather than the name it was supposed to keep. Nine of them had
+    /// accumulated: seven pickers and a field in the saved-view rule builder,
+    /// which is the most involved control surface in the app, and two more in
+    /// the theme editor.
+    ///
+    /// The fix at every one is the pattern `DueDateSheet` already documents:
+    /// take the `label:` overload, give it a real `Text`, and keep
+    /// `.labelsHidden()` so nothing is drawn. Checked here rather than in a UI
+    /// test because a missing name changes nothing on screen — the control
+    /// looks right in every screenshot, which is exactly why these lasted.
+    @Test func noControlIsTitledWithTheEmptyString() {
+        guard SourceTree.isReachable else { return }
+        let heads = ["Picker", "TextField", "SecureField", "TextEditor",
+                     "DatePicker", "Toggle", "Stepper", "Slider", "Link", "Label"]
+        var unnamed: [String] = []
+        for file in SourceTree.files() {
+            for head in heads {
+                for call in file.calls(headed: #"\b\#(head)\(\s*"""#) {
+                    unnamed.append("\(file.path):\(file.line(of: call.offset)) — \(head)")
+                }
+            }
+        }
+        #expect(unnamed.isEmpty,
+                "\(unnamed.count) controls are titled with the empty string, so VoiceOver cannot name them: \(unnamed)")
     }
 
     // MARK: Prose below the view layer
