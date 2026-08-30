@@ -156,7 +156,7 @@ struct AppIconPickerView: View {
         LazyVGrid(
             columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 5), spacing: 14
         ) {
-            ForEach(AppIcon.all) { icon in
+            ForEach(iconsOnOffer) { icon in
                 Button { gradientID = icon.id } label: {
                     AppIconTile(
                         art: icon.art, size: metrics.tileSize,
@@ -177,6 +177,15 @@ struct AppIconPickerView: View {
         .opacity(followsTheme ? 0.35 : 1)
         .disabled(followsTheme)
         .accessibilityHidden(followsTheme)
+    }
+
+    /// The ten with the one the app ships wearing first, the rest in the
+    /// document's order — the way back to the default should be the first tile,
+    /// not a memory test. ``AppIcon/all`` itself keeps the document's order,
+    /// the same way the theme browser leaves ``ThemePresets/all`` alone.
+    private var iconsOnOffer: [AppIconGradient] {
+        AppIcon.all.filter { $0.id == AppIcon.defaultID }
+            + AppIcon.all.filter { $0.id != AppIcon.defaultID }
     }
 
     // MARK: The switch

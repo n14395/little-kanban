@@ -736,7 +736,18 @@ private struct FirstRunChoice: ViewModifier {
     }
 
     func body(content: Content) -> some View {
-        content.starterPicker(isPresented: isPresented, occasion: .firstLaunch, palette: palette) { template in
+        content.starterPicker(
+            isPresented: isPresented, occasion: .firstLaunch, palette: palette,
+            // The account's own answer, offered only when the build can hear
+            // it. Choosing it imports nothing — bare is the starting state —
+            // and nudges a merge so anything the mirror has already brought
+            // down lands now rather than at the next notification; the rest
+            // arrives the way every remote change does.
+            syncFromICloud: store.isSyncing ? {
+                hasChosen = true
+                store.mergeRemoteChanges()
+            } : nil
+        ) { template in
             store.importBoard(template.snapshot)
             hasChosen = true
         }

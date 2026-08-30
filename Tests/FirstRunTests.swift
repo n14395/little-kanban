@@ -56,7 +56,7 @@ import Testing
         let ids = SeedData.starters.map(\.id)
         #expect(ids.contains("sample"), "the sample board is no longer reachable at all")
         #expect(ids.first != "sample", "the sample is the first row of the picker")
-        #expect(ids.contains("blank"), "there is no way to start with an empty board")
+        #expect(ids.contains("blank"), "there is no way to start bare")
         #expect(SeedData.starters.count >= 4, "7.5 asks for three starters plus the sample")
         #expect(Set(ids).count == ids.count, "two templates share an id")
 
@@ -85,7 +85,11 @@ import Testing
             #expect(!template.blurb.isEmpty, "\(template.id) has no blurb")
             #expect(!template.symbol.isEmpty, "\(template.id) has no symbol")
             #expect(!FirstRunView.summary(template).isEmpty, "\(template.id) summarises to nothing")
-            #expect(template.columns.count >= 3, "\(template.id) is not a board")
+            // The bare starter is not a board, and its row says so instead of
+            // drawing dots.
+            if !template.boards.isEmpty {
+                #expect(template.columns.count >= 3, "\(template.id) is not a board")
+            }
         }
         let names = SeedData.starters.map(\.name)
         #expect(Set(names).count == names.count, "two templates are called the same thing")
@@ -100,7 +104,7 @@ import Testing
     /// every card silently renumbered on the way in, and every store-side
     /// assertion passes.
     @Test func everyTemplateMintsItsOwnCodes() throws {
-        for template in SeedData.starters {
+        for template in SeedData.starters where !template.boards.isEmpty {
             let board = try #require(template.boards.first)
             var codes: Set<String> = []
             for task in template.tasks {
@@ -122,6 +126,13 @@ import Testing
             let temp = TempBoard()
             let store = FirstRun.emptyStore(file: temp.file)
             store.importBoard(template.snapshot)
+            // The bare starter's promise is the opposite one — see
+            // `theNoContentStarterLeavesTheAppCompletelyBare`.
+            guard !template.boards.isEmpty else {
+                #expect(store.boards.isEmpty, "the bare start put a board on the app")
+                #expect(store.labels.isEmpty, "the bare start put labels on the app")
+                continue
+            }
             expectStarterIsUsable(store, template.id)
         }
     }
@@ -139,6 +150,15 @@ import Testing
             store.saveNow()
 
             let reopened = BoardStore.restored(file: temp.file)
+            // The bare starter's relaunch guarantee is its own: still bare —
+            // not seeded, not repaired into a board. Only the *absence of a
+            // file* seeds, and this launch has one.
+            guard !template.boards.isEmpty else {
+                #expect(reopened.boards.isEmpty, "the bare start grew a board across a relaunch")
+                #expect(reopened.labels.isEmpty, "the bare start grew labels across a relaunch")
+                #expect(reopened.tasks.isEmpty)
+                continue
+            }
             expectStarterIsUsable(reopened, "\(template.id) after a relaunch")
             #expect(reopened.tasks.count == store.tasks.count,
                     "\(template.id) lost a card across a relaunch")
@@ -158,6 +178,17 @@ import Testing
             let store = FirstRun.emptyStore(file: temp.file)
             store.importBoard(template.snapshot)
 
+            // The bare starter's first session is making a board by hand —
+            // which starts life as a Done column waiting for working columns,
+            // so the starter invariant deliberately does not apply to it.
+            guard !template.boards.isEmpty else {
+                let made = try #require(store.createBoard(named: "Built from nothing"),
+                                        "a bare app could not make its first board")
+                #expect(store.activeBoardID == made, "the first board made from bare is not active")
+                let built = try #require(store.boards.first { $0.id == made })
+                #expect(built.doneColumn != nil, "the first board has nowhere to finish")
+                continue
+            }
             let board = try #require(store.boards.first, "\(template.id) has no board")
             let landing = try #require(board.landingColumn, "\(template.id) has nowhere to land a card")
             let done = try #require(board.doneColumn, "\(template.id) has no Done column")

@@ -897,7 +897,7 @@
       }
     },
     "Accent" : {
-      "comment" : "Board dot colour that follows the accent theme\nTheme parameter: the app's highlight colour",
+      "comment" : "Board dot colour: the app's own fixed accent orange\nTheme parameter: the app's highlight colour",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1412,7 +1412,7 @@
       }
     },
     "Archive %lld Completed" : {
-      "comment" : "Menu item on a column that files every finished task away\nMenu item that files completed Inbox tasks away\nMenu item that files every finished task in the Done column away\nMenu item that files every finished task on the active board away",
+      "comment" : "Menu item that files completed Inbox tasks away\nMenu item that files every finished task in the Done column away",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3309,17 +3309,6 @@
         }
       }
     },
-    "Empty Board" : {
-      "comment" : "Starter template name",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Empty Board"
-          }
-        }
-      }
-    },
     "Empty the trash?" : {
       "localizations" : {
         "en" : {
@@ -3691,17 +3680,6 @@
     "Follows the theme, and changes with it." : {
       "comment" : "Note under the app icon when it is theme-matched"
     },
-    "Four columns and nothing in them. Bring your own work." : {
-      "comment" : "One-line description of the empty starter",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Four columns and nothing in them. Bring your own work."
-          }
-        }
-      }
-    },
     "Frame the new prints" : {
       "comment" : "Sample task in the widget gallery",
       "localizations" : {
@@ -3769,7 +3747,7 @@
       }
     },
     "Grey" : {
-      "comment" : "Palette colour that follows the ink of the theme",
+      "comment" : "Palette colour: the app's fixed mid grey",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4564,7 +4542,7 @@
       }
     },
     "Labels" : {
-      "comment" : "Accessibility name of the drawer row that opens the label manager\nAccessibility name of the sidebar row that opens the label manager\nSettings group heading",
+      "comment" : "Accessibility name of the sidebar row that opens the label manager\nSettings group heading",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5093,17 +5071,6 @@
         }
       }
     },
-    "My Board" : {
-      "comment" : "Name of the empty starter board",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "My Board"
-          }
-        }
-      }
-    },
     "My Theme" : {
       "comment" : "Default name for a newly made theme",
       "localizations" : {
@@ -5222,7 +5189,7 @@
       }
     },
     "New view" : {
-      "comment" : "Accessibility name of the drawer row that creates a saved view\nAccessibility name of the sidebar row that creates a saved view",
+      "comment" : "Accessibility name of the sidebar row that creates a saved view",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5347,6 +5314,17 @@
         }
       }
     },
+    "No Content" : {
+      "comment" : "Starter template name for starting completely bare",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Content"
+          }
+        }
+      }
+    },
     "No date" : {
       "comment" : "Setting: new tasks have no due date",
       "localizations" : {
@@ -5454,6 +5432,17 @@
         }
       }
     },
+    "Not even a board. The app completely bare, to build up from nothing." : {
+      "comment" : "One-line description of the no-content starter",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not even a board. The app completely bare, to build up from nothing."
+          }
+        }
+      }
+    },
     "Not saved to a file" : {
       "comment" : "Settings value for an in-memory board",
       "localizations" : {
@@ -5477,7 +5466,7 @@
       }
     },
     "Not syncing right now — sign in to iCloud and relaunch. Your board is saved on this device either way." : {
-      "comment" : "Settings note when sync is on but iCloud is unavailable",
+      "comment" : "Settings note when sync is on but iCloud is unavailable\nStatus bar tooltip on the sync button while iCloud is unavailable",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5505,6 +5494,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nothing archived"
+          }
+        }
+      }
+    },
+    "Nothing at all" : {
+      "comment" : "First-run picker: the no-content template's summary line",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing at all"
           }
         }
       }
@@ -5598,7 +5598,7 @@
       }
     },
     "Nothing in %@" : {
-      "comment" : "Empty state headline for a board column with no cards\nEmpty state headline for the column the iOS pager is on\nWidget: the saved view it is showing has no cards in it",
+      "comment" : "Empty state headline for a board column with no cards\nWidget: the saved view it is showing has no cards in it",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7743,6 +7743,17 @@
         }
       }
     },
+    "Start with nothing here and bring down the boards this iCloud account already has." : {
+      "comment" : "One-line description of the sync-from-iCloud first-run row",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start with nothing here and bring down the boards this iCloud account already has."
+          }
+        }
+      }
+    },
     "Start with one thing you have to do today. Cards move between columns by dragging." : {
       "comment" : "Empty state body copy for a board with no tasks at all",
       "localizations" : {
@@ -7783,6 +7794,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Starts a board from this template"
+          }
+        }
+      }
+    },
+    "Starts empty and downloads the boards already in iCloud" : {
+      "comment" : "First-run picker iCloud row hint",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starts empty and downloads the boards already in iCloud"
           }
         }
       }
@@ -7917,6 +7939,17 @@
         }
       }
     },
+    "Sync from iCloud" : {
+      "comment" : "First-run picker row that starts bare and downloads the account's boards",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync from iCloud"
+          }
+        }
+      }
+    },
     "Sync is off. Your board stays on this device — turn sync on in Settings." : {
       "comment" : "Status bar tooltip on the sync button while sync is switched off",
       "localizations" : {
@@ -7929,7 +7962,7 @@
       }
     },
     "Sync Now" : {
-      "comment" : "File menu item that sends this device's changes to iCloud and takes in the other devices'",
+      "comment" : "File menu item that sends this device's changes to iCloud and takes in the other devices'\nStatus bar button that sends this device's changes to iCloud and takes in the other devices'",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8298,6 +8331,7 @@
       }
     },
     "The accent follows the app’s theme and stays in the palette" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8306,6 +8340,10 @@
           }
         }
       }
+    },
+    "The accent is the app’s own colour and stays in the palette" : {
+      "comment" : "A description of the colour that is the app's accent.",
+      "isCommentAutoGenerated" : true
     },
     "The board could not be exported." : {
       "comment" : "Alert title when the blocked-session export fails",
@@ -8852,7 +8890,7 @@
       }
     },
     "Trash" : {
-      "comment" : "Accessibility name of the drawer row that opens the Trash\nAccessibility name of the sidebar row that opens the Trash\nPhone board menu item that opens the Trash",
+      "comment" : "Accessibility name of the sidebar row that opens the Trash",
       "localizations" : {
         "en" : {
           "stringUnit" : {

@@ -77,11 +77,16 @@ enum FirstRun {
     }
 }
 
-/// The picker: five boards to start from, one of which is empty.
+/// The picker: four boards to start from, a bare start — and, when the iCloud
+/// account already has boards, the offer to simply bring those down instead.
 ///
 /// A first launch opens on it, and **Settings ▸ Delete everything** opens it
-/// again — the same five rows, because "what should be on this board" has one
-/// answer whether it is being asked for the first time or the second.
+/// again — the same rows, because "what should be on this board" has one
+/// answer whether it is being asked for the first time or the second. The
+/// iCloud row is the exception, and it is only ever on the first launch: a
+/// fresh install on a device whose account has a board is not really a first
+/// run, and the row says out loud what the auto-dismissing cover only did
+/// silently.
 ///
 /// A modal with no way past it that is not a choice. There is no Skip, because
 /// the empty board *is* the skip and saying so is more honest than a link in
@@ -137,6 +142,11 @@ struct FirstRunView: View {
     var occasion: Occasion = .firstLaunch
     let templates: [BoardTemplate]
     let choose: (BoardTemplate) -> Void
+    /// Offered above the templates when the account can answer the question
+    /// instead. `nil` when sync is off, when the build is not signed for it,
+    /// and when the picker is replacing a board rather than greeting one —
+    /// see `FirstRunChoice`, the only caller that passes it.
+    var syncFromICloud: (() -> Void)? = nil
     /// Present only when there is something to keep. Its absence is what makes
     /// a first launch inescapable, so it doubles as the flag for that.
     var cancel: (() -> Void)?
@@ -145,6 +155,9 @@ struct FirstRunView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: metrics.padding) {
                 header
+                if let syncFromICloud {
+                    syncRow(syncFromICloud)
+                }
                 VStack(spacing: metrics.rowSpacing) {
                     ForEach(Array(templates.enumerated()), id: \.element.id) { index, template in
                         if index > 0 { rule }
@@ -209,6 +222,54 @@ struct FirstRunView: View {
 
     private var rule: some View {
         Rectangle().fill(palette.ink(0.06)).frame(height: 1)
+    }
+
+    /// The account's own answer, in a panel of its own above the templates: it
+    /// is not a board to start from, it is the reason not to start one.
+    private func syncRow(_ choose: @escaping () -> Void) -> some View {
+        Button(action: choose) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "icloud.and.arrow.down")
+                    .imageScale(.medium)
+                    .foregroundStyle(palette.accent)
+                    .frame(width: metrics.rowTitle + 8)
+                    .padding(.top, 1)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Sync from iCloud",
+                         comment: "First-run picker row that starts bare and downloads the account's boards")
+                        .font(palette.ui(metrics.rowTitle, .bold, relativeTo: .headline))
+                        .foregroundStyle(palette.ink)
+                    Text("Start with nothing here and bring down the boards this iCloud account already has.",
+                         comment: "One-line description of the sync-from-iCloud first-run row")
+                        .font(palette.ui(metrics.rowNote, .medium, relativeTo: .footnote))
+                        .foregroundStyle(palette.ink(0.5))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "chevron.right")
+                    .imageScale(.small)
+                    .foregroundStyle(palette.ink(0.3))
+                    .padding(.top, 2)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(minHeight: metrics.rowHit)
+            .hoverBackground(palette.ink(0.05), radius: metrics.panelRadius)
+        }
+        .buttonStyle(.bare)
+        .background {
+            RoundedRectangle(cornerRadius: metrics.panelRadius)
+                .fill(palette.card)
+                .shadow(color: palette.shadow(0.06), radius: 8, y: 2)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Sync from iCloud",
+                                 comment: "First-run picker row that starts bare and downloads the account's boards"))
+        .accessibilityHint(Text("Starts empty and downloads the boards already in iCloud",
+                                comment: "First-run picker iCloud row hint"))
     }
 
     private func row(_ template: BoardTemplate) -> some View {
@@ -288,6 +349,12 @@ struct FirstRunView: View {
     /// counting those beside the columns promises cards the board does not
     /// show, so they get their own clause.
     static func summary(_ template: BoardTemplate) -> String {
+        // The no-content starter has nothing to count, and "0 columns" would
+        // be counting it anyway.
+        guard !template.boards.isEmpty else {
+            return String(localized: "Nothing at all",
+                          comment: "First-run picker: the no-content template's summary line")
+        }
         let columns = String(
             localized: "\(template.columns.count) columns",
             comment: "First-run picker: how many columns a template has"
@@ -373,11 +440,12 @@ extension View {
         isPresented: Binding<Bool>,
         occasion: FirstRunView.Occasion,
         palette: Palette,
+        syncFromICloud: (() -> Void)? = nil,
         choose: @escaping (BoardTemplate) -> Void,
         cancel: (() -> Void)? = nil
     ) -> some View {
-        modifier(StarterPicker(isPresented: isPresented, occasion: occasion,
-                               palette: palette, choose: choose, cancel: cancel))
+        modifier(StarterPicker(isPresented: isPresented, occasion: occasion, palette: palette,
+                               syncFromICloud: syncFromICloud, choose: choose, cancel: cancel))
     }
 }
 
@@ -385,6 +453,7 @@ private struct StarterPicker: ViewModifier {
     @Binding var isPresented: Bool
     let occasion: FirstRunView.Occasion
     let palette: Palette
+    let syncFromICloud: (() -> Void)?
     let choose: (BoardTemplate) -> Void
     let cancel: (() -> Void)?
 
@@ -407,7 +476,7 @@ private struct StarterPicker: ViewModifier {
     private var picker: some View {
         FirstRunView(
             metrics: Self.metrics, occasion: occasion, templates: SeedData.starters,
-            choose: choose, cancel: cancel
+            choose: choose, syncFromICloud: syncFromICloud, cancel: cancel
         )
         .environment(\.palette, palette)
         .tint(palette.accent)

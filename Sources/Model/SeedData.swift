@@ -548,20 +548,19 @@ extension SeedData {
         nextSerial: BoardSnapshot.baseSerial
     )
 
-    static let blank: BoardTemplate = {
-        let board = Board(
-            name: String(localized: "My Board", comment: "Name of the empty starter board"),
-            dot: .accent, columns: BoardColumn.workflow.map(BoardTemplate.column(like:)),
-            codePrefix: "MB"
-        )
-        return BoardTemplate(
-            id: "blank",
-            name: String(localized: "Empty Board", comment: "Starter template name"),
-            blurb: String(localized: "Four columns and nothing in them. Bring your own work.",
-                          comment: "One-line description of the empty starter"),
-            symbol: "square.dashed",
-            boards: [board], labels: LabelDef.seed, tasks: [],
-            nextSerial: BoardSnapshot.baseSerial
-        )
-    }()
+    /// Literally nothing: no boards, no labels, no cards. It used to seed one
+    /// empty board ("a sidebar with nothing to click" was the worry), and that
+    /// was still content — a board named by the app, wearing the app's six
+    /// labels. The person who picks this row asked for bare, and bare is a
+    /// state the app already stands in happily: it is what deleting the last
+    /// board leaves.
+    static let blank = BoardTemplate(
+        id: "blank",
+        name: String(localized: "No Content", comment: "Starter template name for starting completely bare"),
+        blurb: String(localized: "Not even a board. The app completely bare, to build up from nothing.",
+                      comment: "One-line description of the no-content starter"),
+        symbol: "square.dashed",
+        boards: [], labels: [], tasks: [],
+        nextSerial: BoardSnapshot.baseSerial
+    )
 }

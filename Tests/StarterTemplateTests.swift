@@ -6,14 +6,16 @@ import Testing
 /// be in for `BoardStore.importBoard` to be able to take it.
 @MainActor
 struct StarterTemplateTests {
-    @Test func offersTheThreeStartersPlusTheSampleAndAnEmptyBoard() {
+    @Test func offersTheThreeStartersPlusTheSampleAndABareStart() {
         #expect(SeedData.starters.map(\.id) == ["personal", "sprint", "content", "sample", "blank"])
         // Seed task t6 asks for Personal, Sprint and Content calendar by name.
         #expect(SeedData.starters.count { $0.tasks.isEmpty } == 1)
     }
 
     @Test func everyTemplateHasABoardWithAColumnWorkCanStartInAndOneItFinishesIn() throws {
-        for template in SeedData.starters {
+        // Except the no-content starter, whose whole promise is the absence
+        // of a board — see `theNoContentStarterLeavesTheAppCompletelyBare`.
+        for template in SeedData.starters where !template.boards.isEmpty {
             let board = try #require(template.boards.first, "\(template.id) has no board")
             #expect(board.columns.count >= 4)
             #expect(board.landingColumn != nil)
@@ -40,7 +42,7 @@ struct StarterTemplateTests {
     }
 
     @Test func everyCardLandsOnItsOwnBoardAndCarriesAUniqueCodeUnderItsPrefix() throws {
-        for template in SeedData.starters where template.id != "sample" {
+        for template in SeedData.starters where template.id != "sample" && !template.boards.isEmpty {
             let board = try #require(template.boards.first)
             let columns = Set(board.columns.map(\.id))
             var codes: Set<String> = []
@@ -88,14 +90,27 @@ struct StarterTemplateTests {
         }
     }
 
-    /// The empty board is a real board rather than the absence of one: an app
-    /// with no boards at all shows a sidebar with nothing to click.
-    @Test func theEmptyStarterStillLeavesABoardToTypeInto() {
+    /// "No Content" means it: not a board named by the app, not the app's six
+    /// labels — nothing. The absence of a board is a state the app already
+    /// stands in (it is what deleting the last board leaves), and the person
+    /// who picked this row asked for exactly that.
+    @Test func theNoContentStarterLeavesTheAppCompletelyBare() {
         let store = BoardStore(tasks: [], boards: [], labels: [], file: nil)
         store.importBoard(SeedData.blank.snapshot)
-        #expect(store.boards.count == 1)
+        #expect(store.boards.isEmpty, "No Content seeded a board")
+        #expect(store.labels.isEmpty, "No Content seeded labels")
         #expect(store.tasks.isEmpty)
-        #expect(store.columns.count == 4)
+    }
+
+    /// And through Settings ▸ Delete everything, the same row is the way to a
+    /// truly bare app — replacing, not merging, so nothing survives it.
+    @Test func startingOverWithNoContentBaresTheWholeApp() {
+        let store = TestBoard.store()
+        store.startOver(with: SeedData.blank.snapshot)
+        #expect(store.boards.isEmpty)
+        #expect(store.labels.isEmpty)
+        #expect(store.tasks.isEmpty)
+        #expect(store.activeBoardID == nil)
     }
 
     @Test func theSampleStarterIsTheBoardTheAppHasAlwaysShipped() {
@@ -110,7 +125,9 @@ struct StarterTemplateTests {
         let summary = FirstRunView.summary(SeedData.sprint)
         #expect(summary.contains("\(SeedData.sprint.columns.count)"))
         #expect(summary.contains("\(SeedData.sprint.tasks.count)"))
-        #expect(!FirstRunView.summary(SeedData.blank).contains("0 cards"))
+        // The no-content row counts nothing, not "0" of anything.
+        let bare = FirstRunView.summary(SeedData.blank)
+        #expect(!bare.contains("0"), "the bare row is counting absences: \(bare)")
     }
 
     /// The suite launches the app as its test host. A host that stopped at a

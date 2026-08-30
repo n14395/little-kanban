@@ -250,11 +250,26 @@ struct ThemeBrowserView: View {
 
     private var grid: some View {
         LazyVGrid(columns: gridColumns, spacing: 16) {
-            ForEach(store.themes.all.filter { $0.appearance == showing }) { theme in
+            ForEach(themesOnShow) { theme in
                 tile(theme)
             }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gridWidth = $0 }
+    }
+
+    /// The half of the catalogue the grid draws: the slot's default first, then
+    /// the rest in the document's order, then the user's own.
+    ///
+    /// **The default leads because it is the way back.** It is what a fresh
+    /// install is wearing and the ground every other tile is implicitly
+    /// compared against, and somebody who has wandered the grid should not have
+    /// to remember which of twenty tiles undoes the wandering. The *model's*
+    /// order is untouched — ``ThemePresets/all`` stays the document's, which is
+    /// how the user counts them off the page — this is presentation only.
+    private var themesOnShow: [Theme] {
+        let half = store.themes.all.filter { $0.appearance == showing }
+        let defaultID = ThemePresets.fallback(for: showing).id
+        return half.filter { $0.id == defaultID } + half.filter { $0.id != defaultID }
     }
 
     /// Two tiles abreast on the phone, one column of full-size tiles at the

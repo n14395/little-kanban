@@ -6022,17 +6022,33 @@ not the test host. When all three hold, `SimpleKanbanApp.init()` builds
 and the root covers it with `FirstRunView`: a `fullScreenCover` on iOS, a `sheet`
 on macOS, `interactiveDismissDisabled` and no Skip button.
 
-There is no Skip because the empty board *is* the skip: **Empty Board** is one of
-the five rows. The others are **Personal** (4 columns, 7 cards), **Sprint** (5,
-with In Review), **Content Calendar** (5) and **Sample Board** — the seed this
-app has always shipped, now offered rather than imposed.
+There is no Skip because the bare app *is* the skip: **No Content** is one of
+the five rows, and it means it — no boards, no labels, no cards, the state
+deleting the last board leaves. (It used to be *Empty Board*, which seeded a
+board named by the app wearing the app's six labels; the person who picks this
+row asked for bare, and got content anyway.) The others are **Personal** (4
+columns, 7 cards), **Sprint** (5, with In Review), **Content Calendar** (5) and
+**Sample Board** — the seed this app has always shipped, now offered rather
+than imposed.
 
-Choosing one calls `store.importBoard(template.snapshot)`. Merging a template
-into a board with nothing on it reproduces the template exactly, which is why
-first run needed no new `BoardStore` API and why the choice costs exactly one
-⌘Z: it is an import like any other. `SeedData.starters` is the list, and
-`BoardTemplate` is a board, its columns, its labels and its cards in the shape
-`importBoard` already takes.
+And above the templates, when the build is actually syncing, sits **Sync from
+iCloud**: start with nothing here and bring down the boards the account already
+has. It is the row for the question the picker cannot otherwise ask — a fresh
+install on a second device is not really a first run, only the first minutes of
+an import — and it says out loud what the cover previously did silently, by
+dismissing itself when boards arrived (that still happens, for the person who
+never taps anything). Choosing it imports nothing, marks the choice made, and
+nudges a merge so whatever the mirror has already brought down lands at once;
+the rest arrives the way every remote change does. The row is absent when sync
+is off, when the build is not signed for it, and always from **Start over** —
+"wipe my board and re-download" is not a sentence that picker should offer.
+
+Choosing a template calls `store.importBoard(template.snapshot)`. Merging a
+template into a board with nothing on it reproduces the template exactly, which
+is why first run needed no new `BoardStore` API and why the choice costs
+exactly one ⌘Z: it is an import like any other. `SeedData.starters` is the
+list, and `BoardTemplate` is a board, its columns, its labels and its cards in
+the shape `importBoard` already takes.
 
 Both hooks a harness needs are `DEBUG`-only launch arguments —
 `-SimpleKanbanFirstRun YES` forces the picker, `-SimpleKanbanSkipFirstRun YES`
@@ -6047,7 +6063,8 @@ over it on the next flush, which it did once before the file was redirected.
 somebody who wanted rid of their board got the demo whether they wanted it or
 not, and the only way to an empty one was to delete fifteen cards by hand.
 
-Both sites present through `starterPicker(isPresented:occasion:palette:choose:cancel:)`,
+Both sites present through
+`starterPicker(isPresented:occasion:palette:syncFromICloud:choose:cancel:)`,
 so the cover-on-iOS/sheet-on-macOS choice and the metrics that go with it cannot
 drift apart. `FirstRunView.Occasion` carries the three strings that differ, on
 the enum rather than in the view so `StartingOverTests` can read them — a picker
