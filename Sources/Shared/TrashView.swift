@@ -17,8 +17,14 @@ import SwiftUI
 /// the reverse of the rest of the app. Everywhere else a delete happens and ⌘Z
 /// is the safety net; here there is nothing behind it, and "Delete" in a window
 /// whose whole subject is second chances is the one press that has to mean it.
-/// So Delete asks, and it is the only confirmation in the app that is not about
-/// throwing away the entire board.
+/// So Delete asks. The app's only other confirmations are the two in front of
+/// throwing away a whole column or a whole board — the acts that take somebody
+/// else's cards with them.
+///
+/// **A board's row is the board and everything that was on it.** Restoring one
+/// brings back its columns and its tasks, in the places they were; deleting one
+/// from here takes the lot. The row says how many, because Restore and Delete
+/// are both promises about them — see ``subtitle(_:)``.
 struct TrashView: View {
     struct Metrics {
         var rowFont: CGFloat
@@ -168,6 +174,14 @@ struct TrashView: View {
     /// What kind of thing it was, and how long is left. Both halves matter: the
     /// kind because a board and a card can carry the same name, and the countdown
     /// because it is the promise the trash makes.
+    ///
+    /// A board also says **how many tasks came with it**, because that is what
+    /// its Restore is offering back and what its Delete would take for good. A
+    /// row reading "Board · 30 days left" beside one reading "Board · 24 tasks ·
+    /// 30 days left" is the difference between an empty board and a quarter of
+    /// somebody's work. Boards trashed before the cards travelled with them say
+    /// nothing, which is true of them: their cards went to the Inbox at the time
+    /// and are not in here. See ``TrashedItem/taskCount``.
     private func subtitle(_ item: TrashedItem) -> String {
         let days = item.daysLeft()
         // The singular is the catalogue's, not a ternary's: "%lld days left"
@@ -177,6 +191,13 @@ struct TrashView: View {
             : String(localized: "\(days) days left", comment: "Trash row: how long is left before something is thrown away for good")
         if let code = item.code {
             return "\(item.kind.label) · \(code) · \(left)"
+        }
+        if item.taskCount > 0 {
+            let carried = String(
+                localized: "\(item.taskCount) tasks",
+                comment: "Trash row: how many tasks went into the trash inside a board"
+            )
+            return "\(item.kind.label) · \(carried) · \(left)"
         }
         return "\(item.kind.label) · \(left)"
     }
@@ -210,7 +231,7 @@ struct TrashView: View {
             Text("The trash is empty")
                 .font(palette.ui(metrics.rowFont, .bold, relativeTo: .subheadline))
                 .foregroundStyle(palette.ink(0.66))
-            Text("Tasks, columns and boards you throw away are kept here for 30 days, then deleted.")
+            Text("Tasks, columns and boards you throw away are kept here for 30 days, then deleted. A board keeps its tasks with it.")
                 .font(palette.ui(metrics.noteFont, .medium, relativeTo: .caption))
                 .foregroundStyle(palette.inkText(0.45))
                 .fixedSize(horizontal: false, vertical: true)

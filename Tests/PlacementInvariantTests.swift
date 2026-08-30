@@ -253,19 +253,20 @@ import Testing
 
     // MARK: What the invariant is for
 
-    @Test func deletingABoardUnfilesItsCardsAndKeepsEveryOneOfThem() {
+    /// Deleting a board takes its cards off the board file with it — and every
+    /// card that was *not* on it is untouched, which is the half of this the
+    /// invariant is actually for: a card left pointing at a board that has gone
+    /// is the state that makes cards unfindable.
+    @Test func deletingABoardTakesItsOwnCardsAndLeavesEveryOtherAlone() {
         let (store, undo) = Self.undoing()
-        let codes = store.tasks.map(\.code)
         let onAlpha = store.tasks.filter { $0.boardID == Self.alphaID }.map(\.id)
+        let elsewhere = store.tasks.filter { $0.boardID != Self.alphaID }.map(\.code)
+        #expect(!onAlpha.isEmpty)
 
         step(undo) { store.deleteBoard(Self.alphaID) }
 
-        #expect(store.tasks.map(\.code) == codes, "a card went missing with the board")
-        for id in onAlpha {
-            #expect(store[id]?.isUnfiled == true)
-            #expect(store[id]?.columnID == nil)
-            #expect(store[id]?.activity.first?.kind == .unfiled)
-        }
+        for id in onAlpha { #expect(store[id] == nil, "a card stayed behind after its board went") }
+        #expect(store.tasks.map(\.code) == elsewhere, "a card that was on another board went too")
         expectInvariant(store, "after deleting a board")
 
         undo.undo()
@@ -467,11 +468,13 @@ import Testing
         expectStillCalled("IN-147", "archiving")
         step(undo) { store.unarchive(id) }
         expectStillCalled("IN-147", "restoring")
+        // The board it was on takes it with it now, so the card's own code has
+        // to survive the round trip through the delete and back out of ⌘Z.
         step(undo) { store.deleteBoard(Self.betaID) }
-        expectStillCalled("IN-147", "deleting the board it was on")
-        #expect(store[id]?.isUnfiled == true)
+        #expect(store[id] == nil, "the card outlived the board it was on")
         undo.undo()
         expectStillCalled("IN-147", "undoing the board delete")
+        #expect(store[id]?.boardID == Self.betaID)
     }
 
     /// The prefix is the *destination's*, not the board the user is looking at

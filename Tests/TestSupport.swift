@@ -256,9 +256,15 @@ enum TestBoard {
 
     /// A theme that is not the default in its slot, for the tests whose subject
     /// is "the appearance was changed" rather than which appearance it was
-    /// changed to. Aurora is dark where Ember is, Daybreak is light where
+    /// changed to. Ember is dark where Aurora is, Daybreak is light where
     /// Porcelain is, so selecting either moves exactly one of the two slots.
-    static let otherDarkTheme = ThemePresets.theme("1b")!
+    ///
+    /// **It has to not be the default**, or the tests that watch for a *change*
+    /// watch a no-op: `selectTheme` writes nothing when the slot already names
+    /// that theme, and the two suites that assert a write then fail for a
+    /// reason that has nothing to do with what they are testing. This was
+    /// Aurora until Aurora became the default dark theme.
+    static let otherDarkTheme = ThemePresets.theme(ThemePresets.emberID)!
     static let otherLightTheme = ThemePresets.theme("1c")!
 
     /// Both slots moved off their defaults, for a snapshot that has to differ

@@ -232,8 +232,9 @@ struct BoardSidebar: View {
     /// Renaming still has a fast path where a board's name is actually on
     /// screen — the title in `BoardToolbar` is editable in place. Deleting
     /// deliberately has none: it is the one act here that takes a board away
-    /// from under the pointer, and the sheet's version says what becomes of the
-    /// cards, which a menu item cannot.
+    /// from under the pointer, and it now takes every card on it as well. The
+    /// sheet's version asks first and counts them — see ``BoardTrashWarning`` —
+    /// which is the whole of why it is worth the extra press.
     @ViewBuilder
     private func boardMenu(_ board: Board, index: Int) -> some View {
         // **Everything a board is**, which is more than this menu can hold: its

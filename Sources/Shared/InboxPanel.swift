@@ -114,7 +114,7 @@ struct InboxPanel: View {
         // one is the only route when the panel is shut.
         .dropDestination(for: TaskTransfer.self) { items, _ in
             store.isInboxDropTarget = false
-            guard store.allowsCardDrag, let dropped = items.first, store[dropped.id] != nil
+            guard store.allowsInboxCardDrag, let dropped = items.first, store[dropped.id] != nil
             else { return false }
             // A card already in the Inbox has landed on empty panel rather
             // than on one of its neighbours, which is not a move — and one
@@ -123,7 +123,7 @@ struct InboxPanel: View {
             store.drop(dropped.id, onGroundOf: .inbox)
             return true
         } isTargeted: { targeted in
-            guard store.allowsCardDrag else { return }
+            guard store.allowsInboxCardDrag else { return }
             store.isInboxDropTarget = targeted
             // The panel's own ground, which is what a *true* here means: a
             // nested zone takes the hover from its parent, so one of the rows
@@ -167,6 +167,9 @@ struct InboxPanel: View {
                 // The stand-in is the insertion point while a card is in the
                 // air, so the cards beside it do not draw a second edge caret.
                 .environment(\.drawsDropCaret, false)
+                // The panel is the Inbox whatever is open beside it — see
+                // ``BoardStore/allowsInboxCardDrag``.
+                .environment(\.isInboxList, true)
             }
             // The panel is a column and pulls like one — see ``PullToSync``.
             .pullToSync(bounce: .basedOnSize)

@@ -126,6 +126,57 @@ import Testing
         #expect(store.dropPreview(in: place(store, backlog)) == nil)
     }
 
+    /// **The Inbox keeps its stand-in with a saved view open behind it**, which
+    /// is the other half of the Inbox keeping its drops: a drop that lands and
+    /// says nothing on the way about where it will land is a drag with its
+    /// answer taken away. The caret and the stand-in are drawn by the list a
+    /// drop is *aimed at*, so both ask that list's rule — see
+    /// ``BoardStore/allowsCardDrag(into:)``.
+    @Test func theInboxKeepsItsStandInUnderASavedView() throws {
+        // `widget` is the seeded board's Inbox card; `tail` joins it, so the
+        // caret names a gap between two cards that are both in the Inbox —
+        // which is the reorder the phone could not see itself doing.
+        let tail = TaskItem(id: TestBoard.taskID(90), code: "IN-190", title: "Inbox tail")
+        for view in SavedView.allCases {
+            let store = TestBoard.store(tasks: TestBoard.tasks + [tail])
+            store.draggingID = tail.id
+            store.dropTargetCaret = .above(TestBoard.widget)
+            store.activeView = view
+
+            #expect(store.dropCaret == .above(TestBoard.widget),
+                    "\(view.rawValue): the Inbox lost its caret")
+            let preview = try #require(store.dropPreview(in: .inbox),
+                                       "\(view.rawValue): the Inbox lost its stand-in")
+            #expect(preview.task.id == tail.id)
+            #expect(preview.index == 0)
+            #expect(preview.placement == .inbox)
+        }
+    }
+
+    /// And the board does not, under the same view — the rule it was written
+    /// for is untouched, and a stand-in on a list whose rows are not the
+    /// board's order would promise a move the drop cannot make.
+    @Test func theBoardStillHasNoStandInUnderASavedView() {
+        let store = carrying(TestBoard.dragDrop, over: .above(TestBoard.cafe))
+        store.activeView = .today
+
+        #expect(store.dropCaret == nil, "a board caret survived a saved view")
+        #expect(store.dropPreview(in: place(store, backlog)) == nil)
+    }
+
+    /// A non-manual sort takes the Inbox's marks too, for the reason it takes
+    /// the board's: the rows on screen are not the order a drop rearranges.
+    @Test func theInboxLosesItsStandInUnderASortItDidNotChoose() {
+        let tail = TaskItem(id: TestBoard.taskID(90), code: "IN-190", title: "Inbox tail")
+        let store = TestBoard.store(tasks: TestBoard.tasks + [tail])
+        store.draggingID = tail.id
+        store.dropTargetCaret = .above(TestBoard.widget)
+        store.sortOrder = .dueDate
+
+        #expect(store.dropCaret == nil)
+        #expect(store.dropPreview(in: .inbox) == nil)
+    }
+
     @Test func bothInboxSurfacesDrawTheSharedPreviewInsteadOfAnEdgeCaret() {
         guard SourceTree.isReachable else { return }
         let expected = [

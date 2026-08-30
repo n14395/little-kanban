@@ -12,11 +12,17 @@ import Foundation
 ///
 /// **The three things that can be thrown away are not the same shape**, which is
 /// what the payload is for. A task is the whole card and comes back whole. A
-/// column and a board are containers, and deleting either has never taken its
-/// cards with it — a column's cards move to the first column left and a board's
-/// go to the global Inbox, each saying so in its own history. So what is kept
-/// here is the container, and restoring one brings back the container. The cards
-/// were never in danger and are not waiting in here for anybody.
+/// *column* is a container whose cards are not thrown away with it — they move
+/// to the first column left, saying so in their own history — so what is kept
+/// is the column alone. A **board** takes its cards with it: throwing one away
+/// is throwing away the work on it, and the cards ride inside the entry so that
+/// one Restore brings back the board, its columns and everything that was on
+/// them.
+///
+/// **The board used to scatter its cards into the Inbox** and keep only itself
+/// in here. That made "Trash Board" a move dressed as a delete: a board with
+/// forty cards on it left forty loose cards behind, and Restore could not put
+/// the board back the way it was because the cards were no longer its to give.
 struct TrashedItem: Identifiable, Hashable, Codable, Sendable {
     /// What was thrown away, and enough about where it was to put it back.
     ///
@@ -24,16 +30,18 @@ struct TrashedItem: Identifiable, Hashable, Codable, Sendable {
     /// restored to the end of the list has visibly moved, and the user did not
     /// move it. They are a *hope* rather than a guarantee — the list will have
     /// changed shape in thirty days — so restoring clamps them.
-    enum Contents: Hashable, Codable, Sendable {
+    enum Contents: Hashable, Sendable {
         /// A card, with the placement it had. `TaskItem` carries its own board
         /// and column, so there is nothing extra to keep.
         case task(TaskItem)
         /// A column, the board it was on, and where it sat among that board's
-        /// columns.
+        /// columns. Its cards are not in here — see the note above.
         case column(BoardColumn, boardID: Board.ID, position: Int)
-        /// A board and where it sat in the sidebar. Its columns travel inside
-        /// it, the way they do everywhere else.
-        case board(Board, position: Int)
+        /// A board, where it sat in the sidebar, and every card that was on it —
+        /// archived ones included. Its columns travel inside it, the way they do
+        /// everywhere else; the cards travel beside it because they are stored
+        /// beside it, in `BoardStore.tasks`, rather than within.
+        case board(Board, position: Int, tasks: [TaskItem])
     }
 
     /// Which kind of thing this is, without unwrapping the payload — the row
@@ -89,7 +97,7 @@ struct TrashedItem: Identifiable, Hashable, Codable, Sendable {
         switch contents {
         case .task(let task): task.displayTitle
         case .column(let column, _, _): column.name
-        case .board(let board, _): board.name
+        case .board(let board, _, _): board.name
         }
     }
 
@@ -98,6 +106,18 @@ struct TrashedItem: Identifiable, Hashable, Codable, Sendable {
     var code: String? {
         if case .task(let task) = contents { return task.code }
         return nil
+    }
+
+    /// How many cards come back with this row, which is only ever a board's.
+    ///
+    /// The row says it because Restore is a promise about them: a board that
+    /// went in with forty cards has to be visibly the thing that brings forty
+    /// back, and a person deciding whether to empty the trash is deciding about
+    /// the cards rather than about the board's name. Zero for the other two
+    /// kinds, and for a board trashed before the cards travelled with it.
+    var taskCount: Int {
+        if case .board(_, _, let tasks) = contents { return tasks.count }
+        return 0
     }
 
     /// When this is thrown away for good, counted in *days* off the calendar
@@ -145,5 +165,77 @@ struct TrashedItem: Identifiable, Hashable, Codable, Sendable {
         let today = calendar.startOfDay(for: now)
         let last = calendar.startOfDay(for: expiry(from: calendar, days: days))
         return max(0, calendar.dateComponents([.day], from: today, to: last).day ?? 0)
+    }
+}
+
+/// Written out rather than synthesised, for one key.
+///
+/// **Board files already on disk carry boards with no cards beside them.** The
+/// synthesised conformance spelled this enum as `{"board": {"_0": …,
+/// "position": 3}}`, and adding an associated value to a case adds a key the
+/// synthesised *decoder* then demands — so every board trashed before the cards
+/// travelled with it would fail to read, and a board file is quarantined whole
+/// when any part of it will not. What is below is byte for byte what the
+/// compiler was writing, `tasks` apart.
+///
+/// **Only `tasks` is lenient**, and its absence says something true about those
+/// older entries rather than papering over them: that board's cards went to the
+/// Inbox when it was trashed, they are still there, and restoring it now brings
+/// back the board alone. Everything else stays strict, for the reason
+/// `BoardSnapshot` gives about its own keys — a `position` that has gone
+/// missing is not a zero, it is a damaged file, and reading it as a zero would
+/// put a board at the top of somebody's sidebar and call that a restore.
+extension TrashedItem.Contents: Codable {
+    private enum CodingKeys: String, CodingKey { case task, column, board }
+    private enum TaskKeys: String, CodingKey { case _0 }
+    private enum ColumnKeys: String, CodingKey { case _0, boardID, position }
+    private enum BoardKeys: String, CodingKey { case _0, position, tasks }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if container.contains(.task) {
+            let nested = try container.nestedContainer(keyedBy: TaskKeys.self, forKey: .task)
+            self = .task(try nested.decode(TaskItem.self, forKey: ._0))
+        } else if container.contains(.column) {
+            let nested = try container.nestedContainer(keyedBy: ColumnKeys.self, forKey: .column)
+            self = .column(
+                try nested.decode(BoardColumn.self, forKey: ._0),
+                boardID: try nested.decode(Board.ID.self, forKey: .boardID),
+                position: try nested.decode(Int.self, forKey: .position)
+            )
+        } else if container.contains(.board) {
+            let nested = try container.nestedContainer(keyedBy: BoardKeys.self, forKey: .board)
+            self = .board(
+                try nested.decode(Board.self, forKey: ._0),
+                position: try nested.decode(Int.self, forKey: .position),
+                tasks: try nested.decodeIfPresent([TaskItem].self, forKey: .tasks) ?? []
+            )
+        } else {
+            throw DecodingError.dataCorrupted(
+                DecodingError.Context(
+                    codingPath: decoder.codingPath,
+                    debugDescription: "a trashed item that is not a task, a column or a board"
+                )
+            )
+        }
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .task(let task):
+            var nested = container.nestedContainer(keyedBy: TaskKeys.self, forKey: .task)
+            try nested.encode(task, forKey: ._0)
+        case .column(let column, let boardID, let position):
+            var nested = container.nestedContainer(keyedBy: ColumnKeys.self, forKey: .column)
+            try nested.encode(column, forKey: ._0)
+            try nested.encode(boardID, forKey: .boardID)
+            try nested.encode(position, forKey: .position)
+        case .board(let board, let position, let tasks):
+            var nested = container.nestedContainer(keyedBy: BoardKeys.self, forKey: .board)
+            try nested.encode(board, forKey: ._0)
+            try nested.encode(position, forKey: .position)
+            try nested.encode(tasks, forKey: .tasks)
+        }
     }
 }

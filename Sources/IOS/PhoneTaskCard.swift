@@ -203,6 +203,9 @@ struct ReorderableCard: ViewModifier {
     @Environment(BoardStore.self) private var store
     /// False in the lists that draw a ``DropPreviewCard`` in the gap instead.
     @Environment(\.drawsDropCaret) private var drawsDropCaret
+    /// Which list this card is in, which is what decides whether it can be
+    /// dragged at all — see ``allowsDrag``.
+    @Environment(\.isInboxList) private var isInboxList
 
     let task: TaskItem
 
@@ -211,9 +214,16 @@ struct ReorderableCard: ViewModifier {
     /// things it counts happen to *this* card.
     @State private var jolts = 0
 
+    /// The board's rule or the Inbox's, whichever list this card is drawn in.
+    /// The Inbox keeps its drag while a saved view is open behind it; the
+    /// board's own cards do not, because the board is not what is on screen.
+    private var allowsDrag: Bool {
+        isInboxList ? store.allowsInboxCardDrag : store.allowsCardDrag
+    }
+
     @ViewBuilder
     func body(content: Content) -> some View {
-        if store.allowsCardDrag {
+        if allowsDrag {
             content
                 // The same insertion point the desk draws, for the same reason
                 // and by the same rule — see `BoardStore.dropCaret`. A finger
@@ -235,7 +245,7 @@ struct ReorderableCard: ViewModifier {
     /// ``PhoneColumnPage``'s stack on the board, and `TaskListView`'s `List` on
     /// the flat surfaces, which spends the same gap as two half-row insets.
     @ViewBuilder private var dropZones: some View {
-        if store.allowsCardDrag, store.draggingID != nil {
+        if allowsDrag, store.draggingID != nil {
             VStack(spacing: 0) {
                 dropZone(.above(task.id))
                 dropZone(.below(task.id))
@@ -248,7 +258,8 @@ struct ReorderableCard: ViewModifier {
         Color.clear
             .contentShape(.rect)
             .dropDestination(for: TaskTransfer.self) { items, _ in
-                guard let dropped = items.first, store[dropped.id] != nil else { return false }
+                guard allowsDrag, let dropped = items.first, store[dropped.id] != nil
+                else { return false }
                 store.drop(dropped.id, at: caret)
                 jolts += 1
                 return true

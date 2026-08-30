@@ -94,6 +94,9 @@ struct BoardTaskCard: View {
     /// which is every list a card can be dropped into — see the environment
     /// value for why one insertion point must not be stated twice.
     @Environment(\.drawsDropCaret) private var drawsDropCaret
+    /// Which list this card is in, which is what decides whether it can be
+    /// dragged — see ``allowsDrag``.
+    @Environment(\.isInboxList) private var isInboxList
 
     let task: TaskItem
     var metrics: Metrics = .desk
@@ -200,8 +203,14 @@ struct BoardTaskCard: View {
     /// pointer between two cards is over one of them rather than over neither,
     /// which is what made the caret blink out and jump to the foot of the
     /// column.
+    /// The board's rule or the Inbox's, whichever list this card is drawn in
+    /// — see ``BoardStore/allowsInboxCardDrag``.
+    private var allowsDrag: Bool {
+        isInboxList ? store.allowsInboxCardDrag : store.allowsCardDrag
+    }
+
     @ViewBuilder private var dropZones: some View {
-        if store.allowsCardDrag, store.draggingID != nil {
+        if allowsDrag, store.draggingID != nil {
             VStack(spacing: 0) {
                 dropZone(.above(task.id))
                 dropZone(.below(task.id))
@@ -214,12 +223,12 @@ struct BoardTaskCard: View {
         Color.clear
             .contentShape(.rect)
             .dropDestination(for: TaskTransfer.self) { items, _ in
-                guard store.allowsCardDrag, let dropped = items.first, store[dropped.id] != nil
+                guard allowsDrag, let dropped = items.first, store[dropped.id] != nil
                 else { return false }
                 store.drop(dropped.id, at: caret)
                 return true
             } isTargeted: { targeted in
-                guard store.allowsCardDrag else { return }
+                guard allowsDrag else { return }
                 if targeted { store.dropTargetColumnID = task.columnID }
                 // An unfiled card is in the Inbox panel, which is not a column
                 // and so cannot be named by the line above. Without this the
@@ -305,7 +314,7 @@ struct BoardTaskCard: View {
         .motionAnimation(.easeOut(duration: 0.16), value: isSelected)
         .onHover { isHovering = $0 }
         .modifier(DraggableWhenOrdered(
-            isEnabled: store.allowsCardDrag, transfer: TaskTransfer(task)
+            isEnabled: allowsDrag, transfer: TaskTransfer(task)
         ))
         .modifier(CardDragSession(id: task.id))
         .overlay { dropZones }

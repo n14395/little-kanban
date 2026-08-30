@@ -2847,6 +2847,18 @@ final class BoardStore {
         tasks.count { $0.columnID == id }
     }
 
+    /// How many cards a board holds, **archived ones included** — the number the
+    /// warning in front of Trash Board puts in front of the user, and the number
+    /// that will actually go.
+    ///
+    /// Deliberately not ``taskCount(for:)``, which is the *sidebar's* count and
+    /// leaves archived cards out because the board does not draw them. Trashing
+    /// takes them all, so a warning built on that number would promise to bin
+    /// four cards and bin nine — and the trash row would then offer nine back.
+    func cardCount(onBoard id: Board.ID) -> Int {
+        tasks.count { $0.boardID == id }
+    }
+
     /// Tasks in the active board's Done column, unfiltered — what the archive
     /// affordances count and act on. Scoped to the board on screen: "archive
     /// completed" tidies the board the user is looking at, not every board.
@@ -3043,6 +3055,35 @@ final class BoardStore {
     /// the query any more — see ``searchResults`` — so a card stays draggable
     /// while the results panel is open above it.
     var allowsCardDrag: Bool { activeView == nil && sortOrder == .manual }
+
+    /// The same question for the Inbox's own list, which answers it differently
+    /// — and the difference is `activeView`.
+    ///
+    /// A saved view is a reason not to drag *the board*, because the board is
+    /// not what is on screen. It is not a reason not to drag the Inbox: the
+    /// Inbox is drawn from ``inboxTasks`` whatever else is open, its order is
+    /// the board's own `tasks` order, and a drop in it resolves against that
+    /// array exactly as it does with no view open. The panel does not change
+    /// when a view is opened beside it, so neither should what can be done in
+    /// it — and on the phone, where the Inbox comes up over whichever surface
+    /// you were on, the old answer meant the Inbox stopped being re-orderable
+    /// depending on the screen behind it.
+    ///
+    /// `sortOrder` still counts, and for the reason it counts on the board: a
+    /// list showing cards by date is not showing them in the order a drop would
+    /// rearrange, so there is nothing a drop could mean.
+    var allowsInboxCardDrag: Bool { sortOrder == .manual }
+
+    /// The rule for the list a drop would **land in**, which is the form the
+    /// marks need: a caret and a stand-in are drawn by the destination, so the
+    /// question they have to ask is the destination's.
+    ///
+    /// The two views that draw a card ask this through the environment instead
+    /// — see `\.isInboxList` — because a card knows which list it is *in*, not
+    /// which list a drop is heading for. Same rule, asked from the two ends.
+    func allowsCardDrag(into placement: TaskPlacement) -> Bool {
+        placement.isInbox ? allowsInboxCardDrag : allowsCardDrag
+    }
 
     /// The board's own cards, grouped by column.
     ///
@@ -3826,8 +3867,17 @@ final class BoardStore {
     /// exception: dropping a non-final Inbox card on its ground means moving it
     /// to the foot, just as the final card's lower half does.
     var dropCaret: DropCaret? {
-        guard allowsCardDrag else { return nil }
         if let caret = dropTargetCaret {
+            // The rule for the list the caret is *in*, not for the board: the
+            // Inbox keeps its marks while a saved view is open behind it, the
+            // same way it keeps its drops. Asking `allowsCardDrag` flatly here
+            // was why the Inbox opened no gap under a card in flight on the
+            // phone — the drop worked and nothing on screen said where it
+            // would land, which is the half of a drag that tells you what you
+            // are about to do.
+            guard let target = self[caret.card],
+                  allowsCardDrag(into: target.placement)
+            else { return nil }
             // Not on the card in the air: it is about to leave, and a line
             // against a card that is going says nothing about where anything
             // lands. `draggingID` is *not* required for the rest — a caret is a
@@ -3838,7 +3888,7 @@ final class BoardStore {
         // The pointer is on a list's own ground rather than on a gap it has
         // named, and a drop there lands at the foot — see ``groundCaret(in:)``.
         guard let dragging = draggingID, let destination = hoveredDropPlacement,
-              let task = self[dragging]
+              allowsCardDrag(into: destination), let task = self[dragging]
         else { return nil }
         let inboxReorder = destination.isInbox && task.placement == destination
             && tasks(in: destination).last?.id != dragging
@@ -3910,7 +3960,7 @@ final class BoardStore {
         // anchor, not because the drop would go nowhere — so the rest of what
         // it would have checked is asked again: the board is in its own order,
         // the pointer is over *this* list, and the card is not already in it.
-        guard allowsCardDrag, rows.isEmpty,
+        guard allowsCardDrag(into: placement), rows.isEmpty,
               hoveredDropPlacement == placement, task.placement != placement
         else { return nil }
         return DropPreview(task: task, index: 0, caret: nil, placement: placement)
@@ -4474,15 +4524,22 @@ final class BoardStore {
         return refusal
     }
 
-    /// Throws a board away. Its cards go to the global Inbox as they always
-    /// have; what goes in the trash is the board, with its columns inside it.
+    /// Throws a board away **with everything on it**: the board, its columns
+    /// inside it, and every card that was on it — archived ones included — all
+    /// in one trash entry, so one Restore brings back the board exactly as it
+    /// was rather than an empty shell.
+    ///
+    /// The cards used to be left behind in the Inbox. See `deleteBoard` for why
+    /// that was the wrong promise, and ``TrashedItem`` for what an entry
+    /// written before this change means when it is restored today.
     @discardableResult
     func trashBoard(_ id: Board.ID) -> Board? {
         guard let position = boards.firstIndex(where: { $0.id == id }) else { return nil }
         var removed: Board?
         undoable(String(localized: "Trash Board", comment: "Undo action name for putting a board in the trash")) {
-            removed = deleteBoard(id)
-            if let removed { keep(.board(removed, position: position)) }
+            guard let gone = deleteBoard(id) else { return }
+            removed = gone.board
+            keep(.board(gone.board, position: position, tasks: gone.tasks))
         }
         if let removed { announce(Announcement(name: removed.name)) }
         return removed
@@ -4510,7 +4567,10 @@ final class BoardStore {
     /// answer `placed(_:on:)` gives every card whose column cannot be found, and
     /// better than refusing to give the user their card back over a column. A
     /// column and a board go back where they sat, clamped to a list that has
-    /// changed length since.
+    /// changed length since. A **board brings its cards with it**, by the same
+    /// placement rule and in the order it had them; a board trashed before the
+    /// cards travelled with it carries none, and comes back alone because its
+    /// cards were never taken — they are still in the Inbox where it left them.
     ///
     /// `nil` means it happened. A column whose board is gone is the one case
     /// that cannot be honoured, because there is nowhere to put it and inventing
@@ -4540,12 +4600,27 @@ final class BoardStore {
                 boards[boardIndex].columns.insert(
                     column, at: min(position, boards[boardIndex].columns.count)
                 )
-            case .board(let board, let position):
+            case .board(let board, let position, let cards):
                 guard !boards.contains(where: { $0.id == board.id }) else {
                     refusal = .alreadyThere
                     return
                 }
                 boards.insert(board, at: min(position, boards.count))
+                // After the board is back, so `isPlaceable` is asked of a
+                // sidebar that already holds the columns these cards name.
+                //
+                // A card whose id is somehow already on the board is skipped
+                // rather than added twice: restoring must not be a way to end
+                // up with one card wearing one code in two places. Nothing in
+                // the app produces that — a trashed card is a removed card —
+                // but a sync merge that adopted the same card from another
+                // device could, and the cheap guard is better than the cure.
+                for card in cards where !tasks.contains(where: { $0.id == card.id }) {
+                    var restored = card
+                    if !isPlaceable(restored.placement) { restored.placement = .inbox }
+                    restored.activity.insert(ActivityEntry(.restoredFromTrash), at: 0)
+                    tasks.append(restored)
+                }
             }
             trash.remove(at: index)
             scheduleSave()
@@ -6114,20 +6189,34 @@ final class BoardStore {
         }
     }
 
-    /// Deletes a board and sends every card that was on it — archived ones
-    /// included — to the Inbox. Nothing is thrown away silently, and each card
-    /// says in its own history where it went.
+    /// Deletes a board and takes every card that was on it — archived ones
+    /// included — off the board with it.
+    ///
+    /// **The cards used to be scattered into the Inbox instead**, each with an
+    /// `.unfiled` line in its own history. That made deleting a board a *move*
+    /// wearing a delete's clothes: a board with forty cards on it left forty
+    /// loose cards behind, in the one list that is meant to be short, and the
+    /// user who wanted rid of the board had to find and delete them one at a
+    /// time. It also made the trash's promise unkeepable — see `trashBoard`,
+    /// which is the only caller and which cannot put a board back the way it
+    /// was if the cards are no longer the board's to give.
+    ///
+    /// Nothing is thrown away silently even so: this is what the *trash* calls,
+    /// so the cards handed back here go into the trash entry beside the board
+    /// and come out of it together. ⌘Z puts the lot back either way.
     ///
     /// Deleting the last board is allowed. What is left is the Inbox, which is
-    /// global and was never one board's, plus the affordance to make another —
-    /// so it is a state the user can both reach and leave, and refusing it
-    /// would be inventing a rule to protect them from a reversible act. It also
-    /// survives a relaunch: `restored` adopts an empty board list rather than
-    /// seeding over it.
+    /// global and was never one board's — cards captured straight to it are not
+    /// on any board and are untouched by this — plus the affordance to make
+    /// another. So it is a state the user can both reach and leave, and
+    /// refusing it would be inventing a rule to protect them from a reversible
+    /// act. It also survives a relaunch: `restored` adopts an empty board list
+    /// rather than seeding over it.
     ///
-    /// The board comes back so a caller can say what went.
+    /// The board and its cards come back so a caller can keep them, and say
+    /// what went.
     @discardableResult
-    func deleteBoard(_ id: Board.ID) -> Board? {
+    func deleteBoard(_ id: Board.ID) -> (board: Board, tasks: [TaskItem])? {
         guard let index = boards.firstIndex(where: { $0.id == id }) else { return nil }
         let removed = boards[index]
         // The next board down, else the one above, else none — the rule the
@@ -6135,18 +6224,26 @@ final class BoardStore {
         let successor = boards.count > 1
             ? boards[index + 1 < boards.count ? index + 1 : index - 1].id
             : nil
+        // The board's order, so a board that goes into the trash with forty
+        // cards on it comes back out with them in the order it had them.
+        let doomed = tasks.filter { $0.boardID == id }.map(\.id)
+        var taken: [TaskItem] = []
         undoable(String(localized: "Delete Board", comment: "Undo action name for deleting a board")) {
             boards.remove(at: index)
-            for taskIndex in tasks.indices where tasks[taskIndex].boardID == id {
-                tasks[taskIndex].placement = .inbox
-                tasks[taskIndex].activity.insert(ActivityEntry(.unfiled), at: 0)
-                touch(taskIndex)
+            // Through `discard` rather than a bulk `removeAll`, for the reason
+            // `trashTasks` goes through it: a card leaving the board has to
+            // take the session's hold on it with it — the selection, a
+            // half-typed sub-task, an open editing session — and a card removed
+            // out from under those leaves them pointing at nothing.
+            for card in doomed {
+                restoreEmptiedFields(on: card)
+                if let gone = discard(card) { taken.append(gone) }
             }
             if activeBoardID == id { activeBoardID = successor }
             detachSurfacesFromMissingColumns()
             scheduleSave()
         }
-        return removed
+        return (removed, taken)
     }
 
     // MARK: - Drafts

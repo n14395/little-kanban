@@ -503,19 +503,30 @@ import Testing
         #expect(store[added]?.code.hasPrefix("WR-") == true)
     }
 
-    @Test func deletingABoardSendsItsCardsToTheInboxRatherThanDeletingThem() {
+    /// **The cards go with the board.** They used to be tipped into the Inbox,
+    /// which made deleting a board a move rather than a delete and left the
+    /// user to clear up after it one card at a time. They are handed back to
+    /// the caller instead, which is how `trashBoard` puts the whole board — its
+    /// columns and its cards — into one trash row that restores as one thing.
+    @Test func deletingABoardTakesItsCardsWithItAndHandsThemBack() throws {
         let store = Self.store()
         store.archive(Self.onBeta)                      // archived cards come too
-        store.deleteBoard(Self.betaID)
+        let onBeta = store.tasks.filter { $0.boardID == Self.betaID }.map(\.id)
+        #expect(onBeta.contains(Self.onBeta))
+
+        let gone = try #require(store.deleteBoard(Self.betaID))
 
         #expect(store.boards.map(\.name) == ["Alpha"])
-        #expect(store.tasks.count == 3)                 // nothing was thrown away
-        let moved = store[Self.onBeta]
-        #expect(moved?.isUnfiled == true)
-        #expect(moved?.columnID == nil)
-        #expect(moved?.isArchived == true)              // and it is still filed away
-        // The card's own history says where it went.
-        #expect(moved?.activity.first?.kind == .unfiled)
+        #expect(gone.board.id == Self.betaID)
+        // Off the board file, and not loose in the Inbox.
+        #expect(store[Self.onBeta] == nil)
+        #expect(store.tasks.count == 3 - onBeta.count)
+        // Handed back whole, still filed away, still knowing where it sat — so
+        // the trash can put it back exactly there.
+        #expect(gone.tasks.map(\.id) == onBeta)
+        let kept = try #require(gone.tasks.first { $0.id == Self.onBeta })
+        #expect(kept.isArchived)
+        #expect(kept.columnID == Self.betaTodo.id)
     }
 
     @Test func deletingTheActiveBoardMovesToItsNeighbour() {
@@ -527,6 +538,11 @@ import Testing
 
     /// The Inbox is global and was never one board's, so deleting the last
     /// board leaves somewhere to be rather than nowhere.
+    ///
+    /// **A card captured to the Inbox is the proof of that**, and is the one
+    /// card here that survives every board going away: the two that were *on*
+    /// boards go with them now, which is what makes this a delete rather than a
+    /// mass move into the list that is meant to stay short.
     @Test func theLastBoardCanBeDeletedAndTheInboxSurvivesIt() {
         let store = Self.store()
         store.deleteBoard(Self.alphaID)
@@ -535,7 +551,8 @@ import Testing
         #expect(store.activeBoardID == nil)
         #expect(store.activeBoard == nil)
         #expect(store.columns.isEmpty)
-        #expect(store.inboxCount == 3)
+        #expect(store.inboxCount == 1, "the Inbox's own card went with a board it was never on")
+        #expect(store[Self.captured] != nil)
         #expect(store.createBoard(named: "Again") != nil)
     }
 
@@ -690,7 +707,9 @@ import Testing
         let relaunched = BoardStore.restored(file: temp.file)
         #expect(relaunched.boards.isEmpty)
         #expect(relaunched.activeBoardID == nil)
-        #expect(relaunched.inboxTasks.count == 3, "a card went missing with the last board")
+        // The card captured straight to the Inbox, which was on no board and so
+        // went with none of them. The other two left with theirs.
+        #expect(relaunched.inboxTasks.count == 1, "the Inbox's own card went missing with a board")
 
         let made = relaunched.createBoard(named: "Fresh", dot: .accent)
         #expect(relaunched.boards.map(\.name) == ["Fresh"])

@@ -4132,6 +4132,39 @@ timestamps, so a drop would move the card into a column that is nowhere on
 screen, at a position bearing no relation to the row it was aimed at — silently,
 and to an archived card as readily as a live one.
 
+**The Inbox answers separately, because it is a separate list.**
+`allowsInboxCardDrag` is `sortOrder == .manual` and nothing about `activeView`,
+and the difference is not a loosening — it is the same test applied to the
+right array. The Inbox is drawn from `inboxTasks` whatever else is open, in the
+board's own order, so a drop in it resolves against `tasks` exactly as it does
+with no view open. The desk and iPad panel does not change when a view opens
+beside it, and neither should what can be done in it; on the phone, where the
+Inbox comes up *over* whichever surface you were on, the old shared answer made
+the panel re-orderable or not depending on the screen behind it, which is a
+list that stops working because of something you cannot see.
+
+**The marks follow the destination, not the drawer.** A caret and a stand-in
+are drawn by the list a drop is *aimed at*, so `dropCaret` and
+`dropPreview(in:)` ask `allowsCardDrag(into:)` — the same two rules, keyed on
+the placement the drop would land in. Missing that half left the Inbox in the
+worst state of the two: with the drops fixed but the marks still asking the
+board's question, a card dragged over the panel under a saved view landed
+correctly and opened no gap on the way, which is a drag with its answer taken
+away. The board keeps its own answer under the same view, because a stand-in on
+a list whose rows are not the board's order would promise a move the drop
+cannot make.
+
+Which rule a card asks is decided by the list drawing it rather than by the
+card, because the card cannot tell: an unfiled card appears in the Inbox *and*
+in any saved view whose rule it matches, and those two answer differently. So
+the Inbox's two faces set `\.isInboxList` in the environment — the same shape
+`drawsDropCaret` already had, and for the same reason: the card is two wrappers
+below the list that knows — and the three views drawn in either list
+(`BoardTaskCard`, `PhoneTaskCard`, `DropPreviewCard`) read it into a local
+`allowsDrag`. `DragReorderTests` names, per file, which of the two guards its
+drop closure has to ask, so a copy-paste between the board's lists and the
+Inbox's cannot quietly take the wrong one.
+
 **A query used to be the other reason, and is not any more.** While the board was
 drawn from the search's answer it had to be: the cards in between were hidden, so
 a card dropped between two of the few left lands somewhere nobody can see and

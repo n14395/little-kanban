@@ -200,10 +200,18 @@ import Testing
         let image = try #require(renderer.cgImage)
         #expect(image.width == 100 && image.height == 100)
 
-        // Corner to corner, which is where 4g's three stops are anchored.
-        expect(image, at: (2, 2), isNear: 0x00696E, "the ground does not start at the teal")
+        // Corner to corner, which is where 4g's three stops are anchored — so
+        // the first and last are sampled at the actual corner pixels rather
+        // than a few in. An inset sample is not the stop, it is a point a few
+        // per cent short of it along the ramp, and how far short that lands in
+        // colour depends on how steep that particular ground is: 4g climbs
+        // 195 levels of red across its second half, so three pixels in from the
+        // corner is 9 levels off the stop — a real miss that the tolerance for
+        // *rasteriser* differences should never have been absorbing. `AppIconMark`
+        // is full bleed and unclipped, so the corner pixel is the ground.
+        expect(image, at: (0, 0), isNear: 0x00696E, "the ground does not start at the teal")
         expect(image, at: (50, 50), isNear: 0x00B39A, "the ground's middle stop is not the jade")
-        expect(image, at: (97, 97), isNear: 0xC3F53C, "the ground does not end at the chartreuse")
+        expect(image, at: (99, 99), isNear: 0xC3F53C, "the ground does not end at the chartreuse")
         // The middle of the first column's first card (x 20…38, y 35…48), and a
         // gap between two cards, which has to be ground and not mark.
         expect(image, at: (29, 41), isNear: 0x04231F, "the cards are not being drawn")

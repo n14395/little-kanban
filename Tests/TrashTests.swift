@@ -5,8 +5,9 @@ import Testing
 /// The trash: what goes in, what comes back out, and what the thirty days do.
 ///
 /// The three kinds are not one kind with three names — a card comes back whole,
-/// a column and a board come back as containers whose cards were never in danger
-/// — so almost everything here is asked three times.
+/// a column comes back as a container whose cards were never in danger, and a
+/// board comes back with every card that was on it — so almost everything here
+/// is asked three times.
 @MainActor
 @Suite struct TrashTests {
     private static let backlog = BoardColumn.backlog.id
@@ -136,34 +137,76 @@ import Testing
 
     // MARK: A board
 
-    @Test func trashingABoardUnfilesItsCardsAndTrashesTheBoardWithItsColumns() throws {
+    /// **The cards go with it.** They used to be scattered into the Inbox and
+    /// the board went into the trash on its own, which made Trash Board a move
+    /// wearing a delete's clothes — and made Restore unable to give the board
+    /// back the way it was.
+    @Test func trashingABoardTakesItsCardsWithItAndTrashesTheBoardWithItsColumns() throws {
         let store = store()
         let boardID = try #require(store.activeBoardID)
         let onIt = store.tasks.filter { $0.boardID == boardID }.map(\.id)
         #expect(!onIt.isEmpty)
+        let inbox = store.inboxCount
 
         store.trashBoard(boardID)
 
         #expect(store.board(id: boardID) == nil)
-        for id in onIt { #expect(store[id]?.isUnfiled == true) }
+        // Gone from the board file entirely, rather than loose in the Inbox.
+        for id in onIt { #expect(store[id] == nil) }
+        // The Inbox is global and was never this board's: its own cards are
+        // untouched, and none of the board's were tipped into it.
+        #expect(store.inboxCount == inbox, "the board's cards were left behind in the Inbox")
+
         let item = try #require(store.trashedItems.first)
-        guard case .board(let board, _) = item.contents else {
+        guard case .board(let board, _, let cards) = item.contents else {
             Issue.record("expected a board in the trash, got \(item.contents)")
             return
         }
-        // Its columns travel inside it, the way they do everywhere else.
+        // Its columns travel inside it, the way they do everywhere else, and
+        // its cards travel beside it.
         #expect(board.columns.count == BoardColumn.workflow.count)
+        #expect(cards.map(\.id) == onIt, "the cards did not go in with the board, in its order")
+        #expect(item.taskCount == onIt.count, "the row cannot say how many came with it")
     }
 
-    @Test func restoringABoardPutsItBackInTheSidebarWhereItSat() throws {
+    /// Archived cards are on the board too, and a restore that left them out
+    /// would quietly lose the work somebody filed away rather than finished.
+    @Test func trashingABoardTakesItsArchivedCardsTooAndGivesThemBack() throws {
+        let store = store()
+        let boardID = try #require(store.activeBoardID)
+        let filed = try #require(store.tasks.first { $0.boardID == boardID })
+        store.archive(filed.id)
+        #expect(store[filed.id]?.isArchived == true)
+
+        store.trashBoard(boardID)
+        #expect(store[filed.id] == nil)
+
+        let item = try #require(store.trashedItems.first)
+        #expect(store.restoreFromTrash(item.id) == nil)
+        // Back, and still filed away: restoring is not unarchiving.
+        #expect(store[filed.id]?.isArchived == true)
+        #expect(store[filed.id]?.boardID == boardID)
+    }
+
+    @Test func restoringABoardPutsItBackInTheSidebarWhereItSatWithItsCards() throws {
         let store = store()
         let boardID = try #require(store.activeBoardID)
         let position = try #require(store.boards.firstIndex { $0.id == boardID })
+        let before = store.tasks.filter { $0.boardID == boardID }
+        #expect(!before.isEmpty)
         store.trashBoard(boardID)
 
         let item = try #require(store.trashedItems.first)
         #expect(store.restoreFromTrash(item.id) == nil)
         #expect(store.boards.firstIndex { $0.id == boardID } == position)
+
+        // Every card back, in the column it was in rather than in the Inbox.
+        for card in before {
+            let now = store[card.id]
+            #expect(now?.placement == card.placement, "\(card.code) did not come back where it was")
+            #expect(now?.activity.first?.kind == .restoredFromTrash)
+        }
+        #expect(store.trashCount == 0, "the row outlived the restore")
     }
 
     // MARK: Undo
@@ -415,5 +458,83 @@ import Testing
         #expect(result.migratedFromVersion == 6)
         #expect(snapshot.version == BoardSnapshot.currentVersion)
         #expect(snapshot.trash.isEmpty)
+    }
+
+    // MARK: The shape on disk
+
+    /// **A board trashed before the cards travelled with it still reads.**
+    ///
+    /// The `.board` case grew a third associated value, and the synthesised
+    /// decoder demands every key it knows about — so without the hand-written
+    /// one in `TrashedItem`, every board already sitting in somebody's trash
+    /// would fail to decode and take the whole board file down as corrupt with
+    /// it. This is that entry, in the exact shape the compiler used to write.
+    ///
+    /// It comes back with no cards, which is the truth about it: those cards
+    /// went to the Inbox when it was trashed and are still there.
+    @Test func aBoardTrashedBeforeItsCardsTravelledWithItStillReads() throws {
+        let board = TestBoard.support
+        let old = """
+        {"board":{"_0":\(String(data: try JSONEncoder().encode(board), encoding: .utf8)!),"position":2}}
+        """
+        let decoded = try JSONDecoder().decode(
+            TrashedItem.Contents.self, from: Data(old.utf8)
+        )
+        guard case .board(let read, let position, let cards) = decoded else {
+            Issue.record("an old board entry did not read back as a board: \(decoded)")
+            return
+        }
+        #expect(read.id == board.id)
+        #expect(read.columns.count == board.columns.count)
+        #expect(position == 2)
+        #expect(cards.isEmpty, "cards were invented for an entry that never had any")
+    }
+
+    /// And the shape written today is the same one, plus the cards — so a board
+    /// file stays readable by the decoder that wrote it.
+    @Test func theShapeOnDiskIsTheOneTheCompilerUsedToWriteWithTheCardsAdded() throws {
+        let contents = TrashedItem.Contents.board(
+            TestBoard.support, position: 1, tasks: [TestBoard.tasks[0]]
+        )
+        let data = try JSONEncoder().encode(contents)
+        let json = try #require(
+            try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        let board = try #require(json["board"] as? [String: Any])
+        // `_0` is the synthesised spelling for an unlabelled associated value,
+        // and the reason this is asserted rather than assumed: rename it and
+        // every trash entry on disk stops reading.
+        #expect(board["_0"] != nil, "the board is no longer under the key the old files use")
+        #expect(board["position"] as? Int == 1)
+        #expect((board["tasks"] as? [Any])?.count == 1)
+
+        // And it round-trips.
+        let back = try JSONDecoder().decode(TrashedItem.Contents.self, from: data)
+        #expect(back == contents)
+    }
+
+    /// The other two cases are on disk too, and are just as easy to break by
+    /// hand-writing the coder: their keys are asserted for the same reason.
+    @Test func theTaskAndColumnShapesOnDiskAreUnchanged() throws {
+        let task = TrashedItem.Contents.task(TestBoard.tasks[0])
+        let taskJSON = try #require(
+            try JSONSerialization.jsonObject(with: JSONEncoder().encode(task)) as? [String: Any]
+        )
+        #expect((taskJSON["task"] as? [String: Any])?["_0"] != nil)
+        #expect(try JSONDecoder().decode(
+            TrashedItem.Contents.self, from: JSONEncoder().encode(task)) == task)
+
+        let column = TrashedItem.Contents.column(
+            BoardColumn.backlog, boardID: TestBoard.support.id, position: 3
+        )
+        let columnJSON = try #require(
+            try JSONSerialization.jsonObject(with: JSONEncoder().encode(column)) as? [String: Any]
+        )
+        let nested = try #require(columnJSON["column"] as? [String: Any])
+        #expect(nested["_0"] != nil)
+        #expect(nested["boardID"] != nil)
+        #expect(nested["position"] as? Int == 3)
+        #expect(try JSONDecoder().decode(
+            TrashedItem.Contents.self, from: JSONEncoder().encode(column)) == column)
     }
 }

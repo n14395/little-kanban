@@ -36,6 +36,10 @@ struct PhoneNavDrawer: View {
 
     @State private var isManagingLabels = false
     @State private var isCreatingBoard = false
+    /// The board a context menu's Trash Board has asked about, and what it would
+    /// cost — see ``BoardTrashWarning``. A menu item cannot present an alert of
+    /// its own, so the question is raised here, on the panel that hosts the row.
+    @State private var boardWarning: BoardTrashWarning?
     /// The board whose editor is open. A snapshot only names which one — the
     /// editor reads the board back out of the store, so a rename inside it does
     /// not leave the sheet holding the old one.
@@ -103,6 +107,22 @@ struct PhoneNavDrawer: View {
         // take the presentation down with it. The board editor and the new-board
         // prompt are here for the same reason.
         .labelManagerSheet(isPresented: $isManagingLabels, metrics: .sheet)
+        // The drawer stays open behind it, the way the sheets above do: the
+        // panel is what presents this, and the board being asked about is the
+        // row the finger is still on.
+        .alert(
+            boardWarning?.title ?? "",
+            isPresented: Binding(get: { boardWarning != nil }, set: { if !$0 { boardWarning = nil } }),
+            presenting: boardWarning
+        ) { warning in
+            Button("Trash Board", role: .destructive) {
+                boardWarning = nil
+                store.trashBoard(warning.board)
+            }
+            Button("Cancel", role: .cancel) { boardWarning = nil }
+        } message: { warning in
+            Text(warning.detail)
+        }
         .newBoardAlert(isPresented: $isCreatingBoard) { _ in
             // A new board is the one the user is now on, and the drawer is over
             // it. The prompt has already dismissed itself by the time this runs,
@@ -398,7 +418,13 @@ struct PhoneNavDrawer: View {
                 Label("Board Settings…", systemImage: "slider.horizontal.3")
             }
             reorderButtons(for: board)
-            Button(role: .destructive) { store.trashBoard(board.id) } label: {
+            Button(role: .destructive) {
+                boardWarning = BoardTrashWarning(
+                    board: board.id,
+                    name: board.name,
+                    tasks: store.cardCount(onBoard: board.id)
+                )
+            } label: {
                 Label("Trash Board", systemImage: "trash")
             }
         }

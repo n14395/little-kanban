@@ -282,13 +282,23 @@ import Testing
             "Shared/InboxPanel.swift": "store.drop(dropped.id, onGroundOf: .inbox)",
             "IOS/PhoneInboxSheet.swift": "store.drop(dropped.id, onGroundOf: .inbox)",
         ]
-        // The phone's *card* asks `allowsCardDrag` outside its closure — the
-        // whole destination is behind the guard — so the question is put to the
-        // five that ask it inside, which is where a copy-paste would lose it.
-        let guardedInside: Set<String> = [
-            "Shared/BoardTaskCard.swift", "Shared/BoardColumnView.swift",
-            "IOS/PhoneColumnPage.swift", "Shared/InboxPanel.swift",
-            "IOS/PhoneInboxSheet.swift", "Shared/DropPreviewCard.swift",
+        // The phone's *card* asks its guard outside the closure — the whole
+        // destination is behind it — so the question is put to the ones that
+        // ask inside, which is where a copy-paste would lose it. **Which**
+        // guard depends on the list the file draws: the Inbox's two faces ask
+        // `allowsInboxCardDrag`, because a saved view open elsewhere is no
+        // reason the Inbox cannot be rearranged, and everything drawing the
+        // board itself asks `allowsCardDrag`.
+        // The three drawn in *either* list read the answer off the environment
+        // and ask their own `allowsDrag`; the ones that are only ever one list
+        // name the store's rule for that list outright.
+        let guardedInside: [String: String] = [
+            "Shared/BoardTaskCard.swift": "allowsDrag",
+            "Shared/DropPreviewCard.swift": "allowsDrag",
+            "Shared/BoardColumnView.swift": "store.allowsCardDrag",
+            "IOS/PhoneColumnPage.swift": "store.allowsCardDrag",
+            "Shared/InboxPanel.swift": "store.allowsInboxCardDrag",
+            "IOS/PhoneInboxSheet.swift": "store.allowsInboxCardDrag",
         ]
         var seen: Set<String> = []
         for file in SourceTree.files() {
@@ -298,9 +308,9 @@ import Testing
             guard let drop = drops.first else { continue }
             let body = file.block(after: drop.offset + drop.text.count)
             #expect(body.contains(call), "\(file.path)'s drop does not call \(call): \(body)")
-            if guardedInside.contains(file.path) {
-                #expect(body.contains("store.allowsCardDrag"),
-                        "\(file.path) accepts a card while the board is not in its own order")
+            if let guard_ = guardedInside[file.path] {
+                #expect(body.contains(guard_),
+                        "\(file.path) accepts a card without asking \(guard_)")
             }
             seen.insert(file.path)
         }

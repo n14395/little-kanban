@@ -155,6 +155,10 @@ struct BoardSettingsView: View {
     /// cost — see ``ColumnTrashWarning``. Held rather than acted on: this is the
     /// one control in here that moves other people's cards.
     @State private var trashWarning: ColumnTrashWarning?
+    /// The same for the board itself — see ``BoardTrashWarning``. Trashing a
+    /// board now takes every card on it, which is the most destructive thing
+    /// this sheet can do and the one act in it that has to be agreed to.
+    @State private var boardWarning: BoardTrashWarning?
 
     private var board: Board? { store.board(id: boardID) }
 
@@ -234,6 +238,23 @@ struct BoardSettingsView: View {
         ) { warning in
             Button("Trash Column", role: .destructive) { trash(warning.column) }
             Button("Cancel", role: .cancel) { trashWarning = nil }
+        } message: { warning in
+            Text(warning.detail)
+        }
+        // The sheet is dismissed by the confirm rather than by the button that
+        // raises this, or it would close out from under its own alert and take
+        // the question with it.
+        .alert(
+            boardWarning?.title ?? "",
+            isPresented: Binding(get: { boardWarning != nil }, set: { if !$0 { boardWarning = nil } }),
+            presenting: boardWarning
+        ) { warning in
+            Button("Trash Board", role: .destructive) {
+                boardWarning = nil
+                store.trashBoard(warning.board)
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) { boardWarning = nil }
         } message: { warning in
             Text(warning.detail)
         }
@@ -1000,14 +1021,22 @@ struct BoardSettingsView: View {
         if refusal == nil { expandedColumnID = nil }
     }
 
-    /// No confirmation, matching the task row's Trash: the act is undoable, and
-    /// the line under the button says the one thing a person would want a
-    /// confirmation for — that the cards on it are not going with it.
+    /// **It asks now, because the answer changed.** This used to go straight
+    /// through, on the grounds that the act was undoable and that the line under
+    /// the button already said the one thing worth warning about — that the
+    /// cards were staying. They are not staying any more: the board takes every
+    /// card on it, which is the largest amount of work any one press in this app
+    /// can move, and a press that big is one to be asked about rather than one
+    /// to be explained after the fact. See ``BoardTrashWarning``, which puts the
+    /// number in the title.
     private var deleteRow: some View {
         VStack(alignment: .leading, spacing: 7) {
             Button(role: .destructive) {
-                store.trashBoard(boardID)
-                dismiss()
+                boardWarning = BoardTrashWarning(
+                    board: boardID,
+                    name: board?.name ?? "",
+                    tasks: store.cardCount(onBoard: boardID)
+                )
             } label: {
                 HStack(spacing: 7) {
                     Image(systemName: "trash")
@@ -1021,7 +1050,7 @@ struct BoardSettingsView: View {
             }
             .buttonStyle(.bare)
 
-            Text("Its cards move to the Inbox rather than being deleted.")
+            Text("Its tasks go with it and can be restored with it for 30 days.")
                 .font(palette.ui(12.5, .medium, relativeTo: .footnote))
                 .foregroundStyle(palette.inkText(0.45))
         }
@@ -1098,6 +1127,62 @@ struct ColumnTrashWarning: Identifiable, Equatable {
             comment: "Alert body: how many cards a trashed column holds and which column they move to"
         )
         return moved + " " + recovery
+    }
+}
+
+/// What trashing a *board* would cost, held while the alert asks.
+///
+/// **The count is in the title.** Trashing a board takes everything on it now —
+/// see `BoardStore.deleteBoard` — so the one fact that decides the answer is how
+/// much work is on it, and a person dismissing a dialog reads the title and not
+/// always the line under it. "Trash “Northwind iOS 3.0” and its 24 tasks?" is a
+/// question somebody can answer from the title alone; "Trash this board?" is one
+/// they can only answer by remembering what was on it.
+///
+/// The numbers are taken when the button is pressed rather than read again in
+/// the alert, for ``ColumnTrashWarning``'s reason: what the user agrees to is
+/// what they were shown, and a sync can land under a presented alert.
+///
+/// A shared type rather than one per surface: the sheet and the phone's drawer
+/// both ask this question, and two spellings of one warning is how two surfaces
+/// start promising different things about the same act.
+struct BoardTrashWarning: Identifiable, Equatable {
+    var board: Board.ID
+    var name: String
+    /// Archived cards included — `deleteBoard` takes those too. See
+    /// ``BoardStore/cardCount(onBoard:)``, which is deliberately not the
+    /// sidebar's count.
+    var tasks: Int
+
+    var id: Board.ID { board }
+
+    var title: String {
+        guard tasks > 0 else {
+            return String(
+                localized: "Trash “\(name)”?",
+                comment: "Alert title before an empty board is thrown away; the placeholder is the board's name"
+            )
+        }
+        return String(
+            localized: "Trash “\(name)” and its \(tasks) tasks?",
+            comment: "Alert title before a board is thrown away; the placeholders are the board's name and how many tasks are on it"
+        )
+    }
+
+    /// Two facts: that the cards go *with* the board rather than being left
+    /// loose, and that the whole lot comes back together. An empty board has no
+    /// cards to say anything about and says only the second.
+    var detail: String {
+        let recovery = String(
+            localized: "The board goes to the Trash, where it can be restored for thirty days.",
+            comment: "Alert body explaining that a trashed board can be restored"
+        )
+        guard tasks > 0 else { return recovery }
+        let taken = String(
+            localized: "Its \(tasks) tasks go with it, archived ones included, and come back with it if you restore it.",
+            comment: "Alert body: how many tasks a trashed board takes with it and that restoring returns them"
+        )
+        return taken + " " + recovery
     }
 }
 

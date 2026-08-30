@@ -263,6 +263,40 @@ import Testing
         #expect(store.allowsCardDrag)
     }
 
+    /// **And the Inbox is not the board.** It is drawn from `inboxTasks`
+    /// whatever else is open, its order is the board's own, and a drop in it
+    /// resolves against that array exactly as it does with no view open — so a
+    /// saved view is no reason it cannot be rearranged. On the phone, where the
+    /// Inbox comes up over whichever surface you were on, the old answer meant
+    /// the panel stopped being re-orderable depending on the screen behind it.
+    @Test func theInboxDragsWhateverIsOpenBehindIt() {
+        let store = TestBoard.store()
+        #expect(store.allowsInboxCardDrag)
+
+        for view in SavedView.allCases {
+            store.activeView = view
+            #expect(store.allowsInboxCardDrag, "the Inbox stopped dragging under \(view.rawValue)")
+            #expect(store.allowsCardDrag == false, "the board kept dragging under \(view.rawValue)")
+        }
+
+        store.activeView = nil
+        store.query = "cafe"
+        #expect(store.allowsInboxCardDrag, "a query stopped the Inbox dragging")
+    }
+
+    /// What the two rules still agree on: an ordering the board did not choose
+    /// is an ordering a drop cannot mean, in either list.
+    @Test func neitherListDragsWhenTheSortIsNotTheBoardsOwn() {
+        let store = TestBoard.store()
+        for order in BoardSortOrder.allCases where order != .manual {
+            store.sortOrder = order
+            #expect(store.allowsCardDrag == false, "\(order.rawValue)")
+            #expect(store.allowsInboxCardDrag == false, "\(order.rawValue): the Inbox")
+        }
+        store.sortOrder = .manual
+        #expect(store.allowsInboxCardDrag)
+    }
+
     /// The defect this whole change is for, at the store: **no board narrows
     /// itself for a query, on any platform**.
     ///

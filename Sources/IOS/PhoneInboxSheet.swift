@@ -387,12 +387,12 @@ struct PhoneInboxSheet: View {
         // spending a ⌘Z on a card that has not gone anywhere.
         .dropDestination(for: TaskTransfer.self) { items, _ in
             store.isInboxDropTarget = false
-            guard store.allowsCardDrag, let dropped = items.first, store[dropped.id] != nil
+            guard store.allowsInboxCardDrag, let dropped = items.first, store[dropped.id] != nil
             else { return false }
             store.drop(dropped.id, onGroundOf: .inbox)
             return true
         } isTargeted: { targeted in
-            guard store.allowsCardDrag else { return }
+            guard store.allowsInboxCardDrag else { return }
             store.isInboxDropTarget = targeted
             // The panel's own ground, which is what a *true* here means: a
             // nested zone takes the hover from its parent, so one of the rows
@@ -462,6 +462,10 @@ struct PhoneInboxSheet: View {
         // The stand-in is the insertion point while a card is in the air, so
         // the rows beside it do not draw a second edge caret.
         .environment(\.drawsDropCaret, false)
+        // And this is the Inbox, whatever is on the screen behind it — which
+        // is what keeps these rows re-orderable when the sheet comes up over a
+        // saved view. See ``BoardStore/allowsInboxCardDrag``.
+        .environment(\.isInboxList, true)
     }
 
     private var preview: DropPreview? { store.dropPreview(in: .inbox) }

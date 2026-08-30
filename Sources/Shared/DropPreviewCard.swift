@@ -32,6 +32,9 @@ import SwiftUI
 struct DropPreviewCard<Card: View>: View {
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
+    /// The stand-in is drawn in both lists a card can be dropped into, so it
+    /// asks the same question they do — see ``allowsDrag``.
+    @Environment(\.isInboxList) private var isInboxList
 
     /// What is landing, and where "here" is — see ``DropPreview``.
     let preview: DropPreview
@@ -103,16 +106,22 @@ struct DropPreviewCard<Card: View>: View {
     /// It is also the shape `BoardTaskCard.dropZones` *sizes* — out past its
     /// row by ``reach`` at each end, so it meets the halves of the cards above
     /// and below it. See ``reach`` for what was in the gap before it did.
+    /// The board's rule or the Inbox's, whichever list this gap is in — see
+    /// ``BoardStore/allowsInboxCardDrag``.
+    private var allowsDrag: Bool {
+        isInboxList ? store.allowsInboxCardDrag : store.allowsCardDrag
+    }
+
     private func gap(at caret: DropCaret) -> some View {
         Color.clear
             .contentShape(.rect)
             .dropDestination(for: TaskTransfer.self) { items, _ in
-                guard store.allowsCardDrag, let dropped = items.first, store[dropped.id] != nil
+                guard allowsDrag, let dropped = items.first, store[dropped.id] != nil
                 else { return false }
                 store.drop(dropped.id, at: caret)
                 return true
             } isTargeted: { targeted in
-                guard store.allowsCardDrag, targeted else { return }
+                guard allowsDrag, targeted else { return }
                 // Re-asserted rather than merely kept: this is the zone the
                 // pointer is in now, and saying so is what stops the list's own
                 // ground from retiring the gap out from under it.
@@ -138,4 +147,17 @@ extension EnvironmentValues {
     /// board and `PlatformTaskCard` on the phone — and neither has any other
     /// reason to carry it.
     @Entry var drawsDropCaret = true
+
+    /// True inside the Inbox's own list — the phone's sheet and the panel the
+    /// desk and iPad draw beside the board.
+    ///
+    /// Which list a card is in is the whole of whether it can be dragged, and
+    /// the card cannot tell from the card: an unfiled card appears in the Inbox
+    /// *and* in any saved view whose rule it matches, and those two answer
+    /// differently. So the list says. See ``BoardStore/allowsCardDrag`` for the
+    /// board's rule and ``BoardStore/allowsInboxCardDrag`` for this one.
+    ///
+    /// An environment value for `drawsDropCaret`'s reason: the card is two
+    /// wrappers below the list that knows.
+    @Entry var isInboxList = false
 }
