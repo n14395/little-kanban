@@ -377,6 +377,34 @@ import Testing
         #expect(completed.code == "NW-120")
     }
 
+    /// The v15 step's fixture: a real v14 file, written by a build that had
+    /// nowhere to record *when* its views, its palette or its themes were last
+    /// changed. All three have to arrive **undated** — `nil` rather than a date
+    /// this step invented — because that is what makes the first merge between
+    /// two upgraded devices keep both sides' work instead of picking one. A
+    /// step that stamped `.now` here would hand whichever device launched first
+    /// the right to overwrite the other. See ``SharedList``.
+    ///
+    /// Its WIP limit is carried through as well: v14's own furniture, and a
+    /// bare stamp is exactly the kind of step that can quietly drop a field
+    /// added by the version before it.
+    @Test func aV14FileArrivesWithItsThreeListsUndated() throws {
+        let v14 = try snapshot("board-v14")
+        #expect(v14.version == BoardSnapshot.currentVersion)
+
+        #expect(v14.viewsChangedAt == nil, "the step invented a date for the saved views")
+        #expect(v14.paletteChangedAt == nil, "the step invented a date for the palette")
+        #expect(v14.themesChangedAt == nil, "the step invented a date for the themes")
+
+        // And the three lists themselves came across whole, which is what the
+        // dates are about in the first place.
+        #expect(v14.views.count == 7)
+        #expect(v14.palette.count == 6)
+
+        let board = try #require(v14.boards.first)
+        #expect(board.columns.contains { $0.limit == 3 }, "v14's own WIP limit was dropped")
+    }
+
     /// `legacyAccent(in:)` had no test at all — and it is the whole of what
     /// keeps a v11 user's chosen colour across the upgrade that removes the
     /// field it lives in.

@@ -707,6 +707,25 @@ extension BoardSnapshot {
     /// trash, and the reason a purely additive field still costs a version.
     static func migrate(v13: BoardSnapshot) -> BoardSnapshot {
         var snapshot = v13
+        snapshot.version = 14
+        return snapshot
+    }
+
+    /// v15 dates the three lists CloudKit cannot merge — the saved views, the
+    /// palette and the themes. All three arrive `nil`, and that is not a
+    /// placeholder for a date this step could not work out: a v14 file's lists
+    /// were last changed at some moment nothing wrote down, and `nil` is the
+    /// word for that. What it buys is the merge rule — an undated list is
+    /// merged rather than overwritten, so nobody's views are lost the first
+    /// time two upgraded devices meet. See ``SharedList``.
+    ///
+    /// **The bump is for the other direction**, as ever, and here it is sharper
+    /// than most: a v14 build reads a v15 file perfectly, drops three keys it
+    /// has never heard of, and writes it back undated — which is a board that
+    /// has quietly lost its place in every future merge. Refusing the file is
+    /// the kinder failure.
+    static func migrate(v14: BoardSnapshot) -> BoardSnapshot {
+        var snapshot = v14
         snapshot.version = BoardSnapshot.currentVersion
         return snapshot
     }

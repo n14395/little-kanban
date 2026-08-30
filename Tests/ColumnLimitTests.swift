@@ -218,9 +218,12 @@ import Testing
         #expect(board.columns.first { $0.id == Self.doing.id }?.limit == 4)
         #expect(board.columns.first { $0.id == Self.queue.id }?.limit == nil)
         // The file is written at the version that knows about limits, so a
-        // build that does not will refuse it rather than drop them.
+        // build that does not will refuse it rather than drop them. The floor
+        // rather than the exact number: limits landed in v14 and every version
+        // after it still carries them, so pinning the equality made the next
+        // bump — v15's dated lists — look like a limits regression.
         #expect(reloaded.version == BoardSnapshot.currentVersion)
-        #expect(BoardSnapshot.currentVersion == 14)
+        #expect(BoardSnapshot.currentVersion >= 14)
     }
 
     /// A column with no limit encodes no key at all, which is what makes a v14

@@ -4971,6 +4971,21 @@ is untouched by it. If sync ever matters, this is the layer to replace.
     back if it edits it, exactly as `Priority.max` does. The board *file* is
     where the guarantee lives.
 
+  - **v14 → v15** — the three lists CloudKit cannot merge gain a date apiece:
+    `viewsChangedAt`, `paletteChangedAt`, `themesChangedAt`, saying when the
+    *user* last changed each one. All three arrive `nil` from a v14 file, and
+    that is the value rather than a placeholder — those lists were last changed
+    at some moment nothing wrote down, and an undated list is merged rather than
+    overwritten, which is what keeps two upgraded devices from each throwing
+    away the other's work. See **The three lists CloudKit cannot merge**.
+    `board-v14.json` is the fixture that says so, and it carries v14's own WIP
+    limit so the bare stamp cannot quietly drop the version before it.
+
+    The bump is the usual argument, and unusually sharp here: a v14 build reads
+    a v15 file perfectly, drops three keys it has never heard of, and writes it
+    back undated — a board that has quietly lost its place in every future
+    merge.
+
   Those last two were planned as **one** step to v4 — "boards and columns" was a
   single item — and shipped as two because each half is separately verifiable and
   a half-migrated file is not: v3 → v4 turns the compiled-in columns into data
@@ -4996,7 +5011,7 @@ is untouched by it. If sync ever matters, this is the layer to replace.
   same shape one stamp further on, which is what makes the "reads a file with no
   `trash` key" claim a test rather than a sentence. Every later era has one too
   — `board-v7.json`, `board-v8-done-adrift.json` above, and `board-v9.json`
-  through `board-v13.json` — so no step of the chain is exercised only by a
+  through `board-v14.json` — so no step of the chain is exercised only by a
   synthetic value: each is the bytes a build of that era would have written, and
   each carries whatever its own version was *for*, which is what makes a bare
   stamp a step that can fail. Drop a newer one in and `MigrationChainTests`
@@ -6076,6 +6091,92 @@ board is folded into them once — and when the store cannot be opened at all,
 which is the failure the quarantine machinery exists for and must never look
 like an empty board.
 
+### What crosses to another device, and what does not
+
+| | crosses | where it lives |
+| --- | --- | --- |
+| Cards, sub-tasks, activity | yes | `StoredTask`, `StoredSubtask`, `StoredActivity` |
+| Boards and columns — name, short name, dot, order, code prefix, WIP limit | yes | `StoredBoard`, `StoredColumn` |
+| The labels | yes | `StoredLabel` |
+| The serial and the active board | yes | `StoredMeta`, the singleton |
+| **The themes, the saved views, the palette** | yes, one blob each | `StoredMeta`, with a date apiece |
+| The trash | **no** | `board.json` only, on purpose |
+| Every preference | **no** | `UserDefaults`, per device |
+
+The trash stays behind by design: an import is somebody else's file and their
+thrown-away boards are not things to offer this user back, and a backup is this
+user's own file from before they deleted something permanently. Every
+*preference* stays behind because there is no `NSUbiquitousKeyValueStore`
+anywhere in the app — see **Where each setting lives** for the rule that puts
+them there.
+
+### The three lists CloudKit cannot merge
+
+Themes, saved views and the palette are each **one blob in one record**, so
+there is nothing for CloudKit to reconcile element by element the way it does
+cards. Somebody has to choose, and two facts make the choosing sharp:
+
+**No answer is not the seeded answer.** `BoardSyncStore.load()` hands back a
+`BoardSnapshot`, whose lists are not optional — so a record written before one
+of these attributes existed comes back wearing the seeded seven views and the
+seed six colours, indistinguishable from another device reporting the defaults.
+Reading the one as the other cost a user their work: the records-won branch of
+`restored(file:sync:)` adopted the silence, `brings(somethingNew:)` compared
+against it so every pull looked like news, and the save that followed wrote the
+defaults into `board.json`. A view made on Monday was gone by Tuesday's launch.
+`carriedLists()` is the question that separates them — *which lists does this
+record set actually hold* — and it is asked at the launch and at every pull.
+
+**And a blob has no clock of its own.** `StoredMeta.updatedAt` moves whenever
+anything in the record is written, so it says nothing about who last edited a
+view; without a date the winner is whichever device saved last, which need not
+be the device that did the editing. A laptop that has not touched its views
+since March could overwrite this morning's iPad edit just by saving something
+unrelated. So `BoardSnapshot` carries `viewsChangedAt`, `paletteChangedAt` and
+`themesChangedAt` — **when the user changed the list**, not when the file was
+written — and `SharedList` is the whole of the rule:
+
+| this device | the records | what stands |
+| --- | --- | --- |
+| anything | never written | this device's |
+| dated | dated | the newer of the two |
+| undated | anything, or the reverse | **both**, merged by id |
+
+The last row is why the dates were worth a document migration. An undated list
+is one nobody *could* date — a board file from before v15, and every list
+nobody has touched since — and two of those meeting for the first time is
+exactly the case where picking a winner means throwing away somebody's
+afternoon. Merging by id keeps both, costs one oddity (a view deleted before any
+of this existed can come back the first time two devices meet, which is the safe
+direction), and settles for good the moment anybody edits either list. Order is
+this device's first, so a merge never reshuffles a sidebar somebody has
+arranged. Themes are a list *and* two scalars: the custom themes merge, while
+which theme is showing in each slot stays this machine's unless a dated edit
+says otherwise — what the app looks like belongs to the screen in front of you.
+
+Three details that are easy to get backwards, and all three are tests:
+
+- **A board arriving from a file is dated now**, whatever the bytes say. An
+  import, a restore and a starter template are decisions somebody is making this
+  afternoon; carrying a backup's three-month-old stamp would let any other
+  device overrule the restore the moment it synced. That is the whole difference
+  between `adoptContent` and `adoptSyncedBoard`.
+- **An undated list stays undated on the way through the records.** Stamping
+  `.now` on a push would have every device claim an edit nobody made, and the
+  first one to launch after upgrading would win everybody else's views.
+- **Undo restores the date with the list.** A board wound back to Tuesday's
+  views while still claiming Thursday's date would win a merge it has no
+  business winning, so `BoardMutation` carries both. The stamps are written by a
+  `didSet` on the three properties rather than by each mutator — a method added
+  next year cannot forget to date what it changed — and the three paths that must
+  *not* stamp (undo, and a board arriving from a file or the records) assign the
+  date explicitly straight after the list.
+
+`SharedListTests` pins the rule as arithmetic, one row of that table at a time;
+`SyncWiringTests` drives it through real records — the upgrade guard, a view and
+a colour arriving from another device, the newer edit winning from either side,
+and two undated lists being merged rather than chosen between.
+
 ### A store that opened and then failed to read is not an empty one
 
 Three things can come back from that first ask, and the third used to be
@@ -6118,6 +6219,66 @@ guard too: a row whose kind this build cannot *decode* — a newer build's entry
 — is left out of the value, and the orphan sweep no longer deletes it for
 being absent, which is the round-trip promise `StoredActivity.kind`'s comment
 was already making.
+
+### A store that has not been filled yet is not an empty one either
+
+The sibling of the failure above, and the more expensive one: a store that
+opened, read cleanly, and **held nothing yet**. On a device installing the app
+for the first time that is not a fact about the board — it is a fact about the
+clock. `NSPersistentCloudKitContainer` fills the store asynchronously after it
+opens, in batches, over seconds or minutes; for that whole window the account
+holds a board and this device has read none of it.
+
+`apply` used to answer every question in that window the same wrong way. It
+wrote the board it had and then swept: every label record, every board record
+and — on the first write of a launch, where there is no diff to trust — every
+task record that the snapshot did not name was deleted as an orphan. On a device
+that has read the records, that sweep is how a deletion travels. On one that has
+not, *the snapshot does not name it* means only **it has not arrived yet** — and
+CloudKit replays the deletions it produces onto every device the account owns.
+A first launch emptied two other machines. That is the bug this section exists
+for.
+
+So the diff base is now evidence and not only economy. `lastWritten` is what
+this device has actually seen — what `load()` last read back, or what the last
+write left — and the rule on `apply` is one sentence:
+
+> **A record the diff base does not name is not this device's to delete or to
+> overwrite.**
+
+Which makes an apply with no base at all *additive*: it inserts what is missing,
+leaves what it finds, and deletes nothing, because a device that has never read
+the records knows nothing about them. Two exceptions, both because there is
+something better than ignorance to go on:
+
+- **A task carries a clock.** An unseen record older than the value in hand is
+  one this device is genuinely ahead of, and it is written — the same
+  last-writer-wins `deduplicated(_:by:newest:)` settles duplicate records with.
+  Boards and labels have no timestamp to argue with, so they are simply left.
+- **`StoredMeta` has a fixed id**, so a device that has read nothing still lands
+  on the record every other device shares. With no base it may move exactly one
+  field, `nextSerial`, and only forward: two devices handing out one task code
+  is the single disagreement no later merge can undo. The themes and the active
+  board stay as they are and are adopted by the next read.
+
+A deletion made *after* a read is unaffected — the base names what was read, so
+it is the user's deletion and it still travels. `FreshDeviceTests` holds the
+whole window: the launch race, a board and a label made while the import is
+still landing, the serial, the timestamp exception, and that a deletion after
+the read still deletes.
+
+**The first launch is where all of this meets**, because it is the one session
+that used to run without records at all. `FirstRun.emptyStore()` was handed
+`sync: nil` — sensible-looking, since the picker is about to fold a template
+into an empty board — and the consequence was that nothing chosen or typed in
+that session was ever written to the records. The launch after it goes through
+`restored(file:sync:)`, where the records win outright, and threw the entire
+first session away; on a device that already has a board in iCloud, that is
+*every* first launch. It gets the records now, like any other launch. Nothing is
+written over on the way in: the empty board it starts on says nothing at all,
+which is exactly what the rule above makes safe. A forced first run (the DEBUG
+launch argument) still gets neither the real file nor the real records — it is a
+rehearsal, and a rehearsal must not reach somebody's account.
 
 ### Pull to sync
 
@@ -6258,7 +6419,11 @@ the account; the App ID could go, the container cannot.
 
 What is left is the CloudKit dashboard: the development schema initialises itself
 on first run, and **promoting it to production is a separate, one-way step** to
-take before shipping. After that the schema is additive only — see above. The
+take before shipping. Which is why v15's five new `StoredMeta` attributes —
+`viewsJSON`, `paletteJSON` and the three dates — cost nothing to add: the
+development schema re-initialises itself, and nothing has been promoted yet.
+After promotion the same two columns would still be legal (attributes may be
+added) but permanent, so this was the cheap moment to widen the record. After that the schema is additive only — see above. The
 step before *that* is the one the suite cannot take: a real two-device merge,
 which `Tools/sync-merge-checklist.md` scripts scenario by scenario — run it,
 record the result here, then promote (the dashboard steps are at the end of the

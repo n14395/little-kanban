@@ -408,6 +408,12 @@ struct BoardMutation: Equatable, Sendable {
     /// against a store the user has added a colour to reads as a deletion
     /// nobody asked for.
     var savedColors: [PaletteSwatch]
+    /// When the two above were last changed — restored with them, so undoing an
+    /// edit puts back the date it was made under as well as the list. A board
+    /// wound back to Tuesday's views and still claiming Thursday's date would
+    /// win a merge it has no business winning. See ``BoardSnapshot/viewsChangedAt``.
+    var viewsChangedAt: Date?
+    var paletteChangedAt: Date?
 }
 
 /// Which edge of which card a dragged one would land against.
@@ -554,7 +560,7 @@ final class BoardStore {
     private(set) var labels: [LabelDef] { didSet { labelsByKey = nil } }
     /// The saved views, in sidebar order — the seeded seven plus whatever the
     /// user has made. Board data since v10; see ``SavedView``.
-    private(set) var views: [SavedView]
+    private(set) var views: [SavedView] { didSet { viewsChangedAt = .now } }
     /// **The colours every picker in the app offers**, in the order they are
     /// drawn — see ``PaletteSwatch``.
     ///
@@ -562,7 +568,9 @@ final class BoardStore {
     /// because that is the whole of what makes a colour saved in a column's
     /// picker appear in a board's. Deliberately not called `palette`: views
     /// already have a `palette` in the environment and it is the *theme*.
-    private(set) var savedColors: [PaletteSwatch] = PaletteSwatch.seed
+    private(set) var savedColors: [PaletteSwatch] = PaletteSwatch.seed {
+        didSet { paletteChangedAt = .now }
+    }
     /// **What the app looks like**: which theme fills the light slot, which
     /// fills the dark one, and the themes the user has built.
     ///
@@ -572,7 +580,20 @@ final class BoardStore {
     /// in a preference that stays behind on the old machine. Which of the two
     /// slots is showing is *not* here: that follows the system appearance and
     /// the `AppAppearance` override, both of which belong to the machine.
-    private(set) var themes: ThemeSettings
+    private(set) var themes: ThemeSettings { didSet { themesChangedAt = .now } }
+
+    /// When this device last changed each of those three, or `nil` for a list
+    /// nobody could date — see ``BoardSnapshot/viewsChangedAt``, which is where
+    /// they are written down, and ``SharedList``, which is what they are for.
+    ///
+    /// Stamped by a `didSet` rather than by each mutator, so a method added to
+    /// this file next year cannot forget to date what it changed. The three
+    /// paths that must *not* stamp — undo, and a board arriving from a file or
+    /// from the records — assign the stamp explicitly straight after the list,
+    /// which lands on top of what the observer wrote. See ``apply(_:)``.
+    private(set) var viewsChangedAt: Date?
+    private(set) var paletteChangedAt: Date?
+    private(set) var themesChangedAt: Date?
 
     // MARK: Selection
 
@@ -1024,6 +1045,9 @@ final class BoardStore {
                     nextSerial: local?.nextSerial ?? loaded.nextSerial,
                     trash: local?.trash ?? [], views: local?.views ?? SavedView.seededAll,
                     savedColors: local?.palette ?? PaletteSwatch.seed,
+                    viewsChangedAt: local?.viewsChangedAt,
+                    paletteChangedAt: local?.paletteChangedAt,
+                    themesChangedAt: local?.themesChangedAt,
                     file: file, sync: sync
                 )
                 store.isAwaitingCompleteSync = true
@@ -1041,15 +1065,31 @@ final class BoardStore {
                 try? sync.backfillTaskPositions(from: local.tasks.map(\.id))
                 if let positioned = try? sync.load() { synced = positioned }
             }
+            // The board came from the records. The trash did not and never
+            // does — see `BoardStore.trash` — so it is read back off the file,
+            // which is written on every save whether sync is on or not.
+            //
+            // The other three are the ones with two possible answers: the saved
+            // views, the palette and the themes are one blob apiece in one
+            // record, so CloudKit cannot merge them and somebody has to choose.
+            // `SharedList` is that choice, and the reason it is asked here
+            // rather than assumed is the record that has *no* answer — written
+            // before the attribute existed — which `load()` alone cannot tell
+            // from a device reporting the defaults.
+            let local = file.load().snapshot
+            let shared = SharedList.resolve(
+                local: local, remote: synced, carried: (try? sync.carriedLists()) ?? []
+            )
             let store = BoardStore(
                 tasks: synced.tasks, boards: synced.boards, activeBoardID: synced.activeBoardID,
-                labels: synced.labels, themes: synced.themes,
+                labels: synced.labels, themes: shared.themes,
                 nextSerial: synced.nextSerial,
-                // The board came from the records; the trash is this device's
-                // and only ever lived in the file — see `BoardStore.trash`. The
-                // file is written on every save whether sync is on or not, so it
-                // is there to be read even on the path where the records won.
-                trash: file.load().snapshot?.trash ?? [],
+                trash: local?.trash ?? [],
+                views: shared.views,
+                savedColors: shared.palette,
+                viewsChangedAt: shared.viewsChangedAt,
+                paletteChangedAt: shared.paletteChangedAt,
+                themesChangedAt: shared.themesChangedAt,
                 file: file, sync: sync
             )
             store.applyStoredPreferences()
@@ -1077,6 +1117,9 @@ final class BoardStore {
                 trash: snapshot.trash,
                 views: snapshot.views,
                 savedColors: snapshot.palette,
+                viewsChangedAt: snapshot.viewsChangedAt,
+                paletteChangedAt: snapshot.paletteChangedAt,
+                themesChangedAt: snapshot.themesChangedAt,
                 file: file,
                 sync: sync
             )
@@ -1196,6 +1239,9 @@ final class BoardStore {
         trash: [TrashedItem] = [],
         views: [SavedView] = SavedView.seededAll,
         savedColors: [PaletteSwatch] = PaletteSwatch.seed,
+        viewsChangedAt: Date? = nil,
+        paletteChangedAt: Date? = nil,
+        themesChangedAt: Date? = nil,
         file: BoardFile? = nil,
         sync: (any SyncStoring)? = nil
     ) {
@@ -1221,6 +1267,13 @@ final class BoardStore {
         // there, which is a corner the interface cannot climb out of.
         self.savedColors = savedColors.isEmpty ? PaletteSwatch.seed : savedColors
         self.themes = themes
+        // Straight from the file, and `nil` where it had none to give: a board
+        // written before v15 carries three lists nobody dated, and saying so is
+        // what makes the first merge keep both sides. A `didSet` cannot fire
+        // during an initialiser, so these are exactly what was handed over.
+        self.viewsChangedAt = viewsChangedAt
+        self.paletteChangedAt = paletteChangedAt
+        self.themesChangedAt = themesChangedAt
         self.nextSerial = nextSerial
         self.file = file
         let picked = tasks.first { $0.id == SeedData.dragAndDropTaskID }?.id ?? tasks.first?.id
@@ -1308,7 +1361,9 @@ final class BoardStore {
     private var snapshot: BoardSnapshot {
         BoardSnapshot(tasks: tasks, boards: boards, labels: labels, nextSerial: nextSerial,
                       activeBoardID: activeBoardID, trash: trash,
-                      views: views, palette: savedColors, themes: themes)
+                      views: views, palette: savedColors, themes: themes,
+                      viewsChangedAt: viewsChangedAt, paletteChangedAt: paletteChangedAt,
+                      themesChangedAt: themesChangedAt)
     }
 
     /// Takes on what the load found: a failure to show, and whether saving has
@@ -1510,8 +1565,9 @@ final class BoardStore {
         guard let incoming = try? sync.load() else { return false }
         guard !Self.hasUnresolvedTaskPlacements(in: incoming) else { return false }
         isAwaitingCompleteSync = false
-        guard brings(somethingNew: incoming) else { return false }
-        adoptContent(incoming)
+        let shared = resolvingSharedLists(with: incoming, in: sync)
+        guard brings(somethingNew: incoming, resolvedTo: shared) else { return false }
+        adoptSyncedBoard(incoming, sharing: shared)
         lastSyncedAt = .now
         return true
     }
@@ -1528,16 +1584,40 @@ final class BoardStore {
     /// prints as "last change from another device". A board with nothing to say
     /// would have been saying it in the present tense, once per pull.
     ///
-    /// Compared against exactly what `adoptContent` takes and nothing else: the
-    /// trash, the themes and the active board stay this device's own across a
-    /// merge, so a difference in one of them is not something arriving.
-    private func brings(somethingNew incoming: BoardSnapshot) -> Bool {
+    /// Compared against exactly what `adoptSyncedBoard` takes and nothing else:
+    /// the trash and the active board stay this device's own across a merge, so
+    /// a difference in one of them is not something arriving.
+    ///
+    /// **The two shared lists are compared after the merge rule has run, not
+    /// before.** What arrives from the records is one of two answers rather
+    /// than the answer — see ``SharedList`` — so the question here is whether
+    /// what *stands* differs from what this board holds. Asking it of the raw
+    /// read instead reported news on every single pull to anybody whose views
+    /// were not the seeded seven, which is a stamp in Settings saying another
+    /// device had changed something when none had.
+    ///
+    /// The themes are left out on purpose, as they always have been: they are
+    /// resolved at launch — see `restored(file:sync:)` — because repainting the
+    /// window under somebody mid-sentence is worse than showing them yesterday's
+    /// palette until they next open the app.
+    private func brings(somethingNew incoming: BoardSnapshot, resolvedTo shared: SharedList.Outcome) -> Bool {
         Self.placed(incoming.tasks, on: incoming.boards) != tasks
             || incoming.boards != boards
             || incoming.labels != labels
-            || incoming.views != views
-            || incoming.palette != savedColors
             || incoming.nextSerial != nextSerial
+            || shared.views != views
+            || shared.palette != savedColors
+    }
+
+    /// What the records' answer about the three shared lists comes to, against
+    /// this board's own. One call for the pull and the blocked-read recovery
+    /// alike; the launch asks the same question of the same function.
+    private func resolvingSharedLists(
+        with incoming: BoardSnapshot, in sync: any SyncStoring
+    ) -> SharedList.Outcome {
+        SharedList.resolve(
+            local: snapshot, remote: incoming, carried: (try? sync.carriedLists()) ?? []
+        )
     }
 
     /// The read the launch could not make, tried again.
@@ -1576,8 +1656,9 @@ final class BoardStore {
             )
             isSyncReadBlocked = false
             syncReadBlockedSince = nil
-            if brings(somethingNew: merged) {
-                adoptContent(merged)
+            let shared = resolvingSharedLists(with: merged, in: sync)
+            if brings(somethingNew: merged, resolvedTo: shared) {
+                adoptSyncedBoard(merged, sharing: shared)
                 lastSyncedAt = .now
                 adopted = true
             }
@@ -1849,18 +1930,57 @@ final class BoardStore {
     /// since, which is the one act in the app that is meant to stick. Either way
     /// what is carried across is the *board*; the trash stays this session's.
     private func adoptContent(_ content: BoardSnapshot) {
+        adopt(
+            content,
+            views: content.views,
+            // Dated now rather than carried across from the file. An import, a
+            // restore and a starter template are all edits somebody is making
+            // on this device at this moment, whatever date the bytes were
+            // written on — and the merge rule reads the date as "when was this
+            // decided", so carrying a backup's three-month-old stamp would let
+            // any other device overrule a restore the moment it synced.
+            viewsChangedAt: .now,
+            // Somebody else's file brings their palette with it: it is board
+            // content like the labels, and an import that kept this board's six
+            // would leave every imported label wearing a colour the picker no
+            // longer offers.
+            savedColors: content.palette,
+            paletteChangedAt: .now
+        )
+    }
+
+    /// The same board arriving from the **records**, where two of those lists
+    /// have already been through the merge rule.
+    ///
+    /// That is what separates this from ``adoptContent(_:)``. A *file* is a
+    /// whole document, and its views and palette are the arriving work, adopted
+    /// whole and dated now. A *record set* is one of two live answers, and
+    /// which one stands — or whether both do, merged — is ``SharedList``'s to
+    /// say; by the time it reaches here the question has been asked, so this
+    /// takes the outcome rather than the read.
+    private func adoptSyncedBoard(_ content: BoardSnapshot, sharing shared: SharedList.Outcome) {
+        adopt(
+            content,
+            views: shared.views, viewsChangedAt: shared.viewsChangedAt,
+            savedColors: shared.palette, paletteChangedAt: shared.paletteChangedAt
+        )
+    }
+
+    private func adopt(
+        _ content: BoardSnapshot,
+        views: [SavedView], viewsChangedAt: Date?,
+        savedColors: [PaletteSwatch], paletteChangedAt: Date?
+    ) {
         apply(BoardMutation(
             tasks: Self.placed(content.tasks, on: content.boards),
             labels: content.labels,
             nextSerial: content.nextSerial,
             boards: content.boards,
             trash: trash,
-            views: content.views,
-            // Somebody else's file brings their palette with it: it is board
-            // content like the labels, and an import that kept this board's six
-            // would leave every imported label wearing a colour the picker no
-            // longer offers.
-            savedColors: content.palette
+            views: views,
+            savedColors: savedColors,
+            viewsChangedAt: viewsChangedAt,
+            paletteChangedAt: paletteChangedAt
         ))
         scheduleSave()
     }
@@ -1885,7 +2005,8 @@ final class BoardStore {
 
     private var mutation: BoardMutation {
         BoardMutation(tasks: tasks, labels: labels, nextSerial: nextSerial, boards: boards,
-                      trash: trash, views: views, savedColors: savedColors)
+                      trash: trash, views: views, savedColors: savedColors,
+                      viewsChangedAt: viewsChangedAt, paletteChangedAt: paletteChangedAt)
     }
 
     /// Runs `body` as one undoable step named `name`.
@@ -2103,6 +2224,12 @@ final class BoardStore {
         trash = state.trash
         views = state.views
         savedColors = state.savedColors
+        // *After* the two above, deliberately: assigning a list runs its
+        // `didSet`, which stamps `.now`, and this is the one path where that is
+        // wrong — a restored board is dated when it was made, not when it was
+        // put back.
+        viewsChangedAt = state.viewsChangedAt
+        paletteChangedAt = state.paletteChangedAt
         // See `announcement`: the message describes an act this is reversing,
         // so it goes with it. A sync's message is not reversed by anything, but
         // an undo landing on top of one is a good moment to take it down too.

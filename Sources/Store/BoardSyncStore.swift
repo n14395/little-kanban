@@ -49,6 +49,18 @@ enum SyncPreference {
     }
 }
 
+/// Which of the three lists a record set actually carries — see
+/// ``BoardSyncStore/carriedLists()``.
+///
+/// Deliberately not `@MainActor`, unlike the protocol below: ``SharedList``
+/// reads these from a `nonisolated` context.
+struct SyncedLists: OptionSet, Sendable {
+    let rawValue: Int
+    static let themes = SyncedLists(rawValue: 1 << 0)
+    static let views = SyncedLists(rawValue: 1 << 1)
+    static let palette = SyncedLists(rawValue: 1 << 2)
+}
+
 /// What ``BoardStore`` asks of its record store, as a seam.
 ///
 /// `BoardSyncStore` is the only conformer the app ships. The protocol exists
@@ -62,6 +74,7 @@ enum SyncPreference {
 protocol SyncStoring: AnyObject {
     var isSyncing: Bool { get }
     func load() throws -> BoardSnapshot?
+    func carriedLists() throws -> SyncedLists
     func hasStoredTaskOrder() throws -> Bool
     func backfillTaskPositions(from taskIDs: [TaskItem.ID]) throws
     func apply(_ snapshot: BoardSnapshot) throws
@@ -215,12 +228,49 @@ final class BoardSyncStore: SyncStoring {
                 .map(Self.value(of:)),
             nextSerial: meta?.nextSerial ?? BoardSnapshot.baseSerial,
             activeBoardID: meta?.activeBoardID,
-            themes: meta?.themesJSON.flatMap {
-                try? JSONDecoder().decode(ThemeSettings.self, from: $0)
-            } ?? .seed
+            // Each of the three falls back to what a board with none of them
+            // means, and each is *also* reported as absent by ``carriedLists``
+            // — because the caller has to tell "nobody has written one" from
+            // "somebody wrote this one", and a fallback cannot say which it is.
+            themes: Self.decoded(ThemeSettings.self, from: meta?.themesJSON) ?? .seed,
+            viewsChangedAt: meta?.viewsChangedAt,
+            paletteChangedAt: meta?.paletteChangedAt,
+            themesChangedAt: meta?.themesChangedAt
         )
-        lastWritten = snapshot
-        return snapshot
+        var carried = snapshot
+        carried.views = Self.decoded([SavedView].self, from: meta?.viewsJSON) ?? snapshot.views
+        carried.palette = Self.decoded([PaletteSwatch].self, from: meta?.paletteJSON) ?? snapshot.palette
+        lastWritten = carried
+        return carried
+    }
+
+    /// Which of the three shared lists the records actually hold, as opposed to
+    /// which ones ``load()`` had to invent an answer for.
+    ///
+    /// The distinction is the whole of the upgrade guard. `load()` hands back a
+    /// ``BoardSnapshot``, whose lists are not optional, so a record written
+    /// before these attributes existed comes back wearing the seeded seven and
+    /// the seed six — indistinguishable, from the outside, from another device
+    /// saying "I have exactly the defaults". Reading the one as the other is
+    /// how a view somebody made was lost on the launch after they made it.
+    /// This is the question that separates them, and ``SharedList`` is what
+    /// does the separating.
+    ///
+    /// Its own call rather than a field on the snapshot, for `hasStoredTaskOrder`'s
+    /// reason: the snapshot is the *document* shape and is written to disk, and
+    /// what one particular record set happens to carry is not a fact about the
+    /// board.
+    func carriedLists() throws -> SyncedLists {
+        guard let meta = try settled(context.fetch(FetchDescriptor<StoredMeta>())) else { return [] }
+        var carried: SyncedLists = []
+        if meta.themesJSON != nil { carried.insert(.themes) }
+        if meta.viewsJSON != nil { carried.insert(.views) }
+        if meta.paletteJSON != nil { carried.insert(.palette) }
+        return carried
+    }
+
+    private static func decoded<T: Decodable>(_ type: T.Type, from data: Data?) -> T? {
+        data.flatMap { try? JSONDecoder().decode(type, from: $0) }
     }
 
     /// Whether every task record already carries its manual board-order rank.
@@ -263,6 +313,28 @@ final class BoardSyncStore: SyncStoring {
     /// undo the granularity the schema was designed for, so each record is
     /// compared against what the last write left and touched only if it
     /// differs.
+    ///
+    /// **And the diff is evidence, not only economy.** `lastWritten` is
+    /// everything this device has actually seen: what `load()` last read back,
+    /// or what the last write left. A record in the store it does not name is
+    /// not one the person deleted — on a device whose CloudKit import is still
+    /// landing, which is every fresh install for its first minutes, it is
+    /// somebody else's board arriving. So the writers below insert freely, and
+    /// overwrite or delete **only what the diff base names**. An apply with no
+    /// base at all adds and disturbs nothing, because a device that has never
+    /// read the records knows nothing about them.
+    ///
+    /// Tasks are the one exception, and only where there is a clock to argue
+    /// with: an unseen record older than the value in hand is one this device
+    /// is genuinely ahead of, so it is written. That is the last-writer-wins
+    /// ``deduplicated(_:by:newest:)`` already settles duplicate records with.
+    ///
+    /// The sequence this rule exists for: a fresh install reads the store,
+    /// finds it empty because nothing has arrived yet, pushes its seeded or
+    /// first-run board — and sweeps every record the import has delivered
+    /// since as an orphan. CloudKit then replays those deletions onto every
+    /// other device, which is the whole board on all of them. `FreshDeviceTests`
+    /// is that sequence, device by device.
     func apply(_ snapshot: BoardSnapshot) throws {
         let previous = lastWritten
         try applyMeta(snapshot, changedFrom: previous)
@@ -273,35 +345,60 @@ final class BoardSyncStore: SyncStoring {
         lastWritten = snapshot
     }
 
-    /// Forgets what the last write left, so the next `apply` writes everything.
-    /// Called after a remote change has been merged in, when the store no
-    /// longer matches what this device last wrote.
+    /// Forgets what the last write left, so the next `apply` reconsiders every
+    /// record instead of trusting the diff. It does not make that write
+    /// authoritative: with no base there is nothing this device has seen, so
+    /// the apply may add and must not sweep — see the rule on ``apply(_:)``.
     func invalidateDiff() { lastWritten = nil }
 
     private func applyMeta(_ snapshot: BoardSnapshot, changedFrom previous: BoardSnapshot?) throws {
         let unchanged = previous.map {
             $0.nextSerial == snapshot.nextSerial
                 && $0.themes == snapshot.themes
+                && $0.views == snapshot.views
+                && $0.palette == snapshot.palette
+                && $0.viewsChangedAt == snapshot.viewsChangedAt
+                && $0.paletteChangedAt == snapshot.paletteChangedAt
+                && $0.themesChangedAt == snapshot.themesChangedAt
                 && $0.activeBoardID == snapshot.activeBoardID
         } ?? false
         guard !unchanged else { return }
 
-        let meta = try settled(context.fetch(FetchDescriptor<StoredMeta>())) ?? {
+        let stored = try settled(context.fetch(FetchDescriptor<StoredMeta>()))
+        // The one record with a fixed id, so a device that has never read the
+        // records still lands on the one they hold. With no diff base to argue
+        // from, the themes and the active board are left exactly as they are —
+        // the next read adopts them — and only `nextSerial` moves, to whichever
+        // side is further on: two devices handing out one task code is the one
+        // disagreement no later merge can undo.
+        if previous == nil, let stored {
+            guard snapshot.nextSerial > stored.nextSerial else { return }
+            stored.nextSerial = snapshot.nextSerial
+            stored.updatedAt = .now
+            return
+        }
+        let meta = stored ?? {
             let fresh = StoredMeta()
             context.insert(fresh)
             return fresh
         }()
         meta.nextSerial = snapshot.nextSerial
         // On an encode failure the previous value stands. `nil` is what a
-        // fresh install reads as "no themes yet" and decodes to `.seed`, so
-        // writing it on error would quietly reset another device's themes.
-        // Stale-until-the-themes-next-change is the accepted cost; the log
-        // line is what keeps it from being a silent one.
-        if let themes = encodedThemes(snapshot.themes) {
-            meta.themesJSON = themes
-        } else {
-            Self.logger.error("The themes failed to encode; the previously synced themes stand.")
-        }
+        // record written before these attributes existed says, and what the
+        // reader is required to treat as "ask the other device" — so writing
+        // it on error would hand another device's work back to it as a
+        // question. Stale-until-the-list-next-changes is the accepted cost;
+        // the log line is what keeps it from being a silent one.
+        write(encoded(snapshot.themes), to: \.themesJSON, on: meta, called: "themes")
+        write(encoded(snapshot.views), to: \.viewsJSON, on: meta, called: "saved views")
+        write(encoded(snapshot.palette), to: \.paletteJSON, on: meta, called: "palette")
+        // The stamps ride with them, `nil` included: an undated list stays
+        // undated on the way through, so the device that reads it merges rather
+        // than replaces. Writing `.now` here instead would have every push
+        // claim an edit nobody made — see ``SharedList``.
+        meta.themesChangedAt = snapshot.themesChangedAt
+        meta.viewsChangedAt = snapshot.viewsChangedAt
+        meta.paletteChangedAt = snapshot.paletteChangedAt
         meta.activeBoardID = snapshot.activeBoardID
         meta.updatedAt = .now
     }
@@ -313,8 +410,13 @@ final class BoardSyncStore: SyncStoring {
                               newest: { _ in Date.distantPast }).map { ($0.key, $0) },
             uniquingKeysWith: { first, _ in first }
         )
+        let seen = Set((previous?.labels ?? []).map(\.key))
         for (index, label) in snapshot.labels.enumerated() {
-            let record = existing.removeValue(forKey: label.key) ?? {
+            let found = existing.removeValue(forKey: label.key)
+            // A record under a key the diff base never carried is one this
+            // device has not seen. See ``apply(_:)``.
+            if found != nil, !seen.contains(label.key) { continue }
+            let record = found ?? {
                 let fresh = StoredLabel(key: label.key)
                 context.insert(fresh)
                 return fresh
@@ -324,7 +426,7 @@ final class BoardSyncStore: SyncStoring {
             record.dark = Self.encoded(label.dark)
             record.position = index
         }
-        for orphan in existing.values { context.delete(orphan) }
+        for (key, orphan) in existing where seen.contains(key) { context.delete(orphan) }
     }
 
     private func applyBoards(_ snapshot: BoardSnapshot, changedFrom previous: BoardSnapshot?) throws {
@@ -334,8 +436,15 @@ final class BoardSyncStore: SyncStoring {
                               newest: \.createdAt).map { ($0.id, $0) },
             uniquingKeysWith: { first, _ in first }
         )
+        let seen = Dictionary((previous?.boards ?? []).map { ($0.id, $0) },
+                              uniquingKeysWith: { first, _ in first })
         for (index, board) in snapshot.boards.enumerated() {
-            let record = existing.removeValue(forKey: board.id) ?? {
+            let found = existing.removeValue(forKey: board.id)
+            // A board record the diff base never carried is one this device has
+            // not seen, and a board has no timestamp to argue with. See
+            // ``apply(_:)``.
+            if found != nil, seen[board.id] == nil { continue }
+            let record = found ?? {
                 let fresh = StoredBoard(id: board.id)
                 context.insert(fresh)
                 return fresh
@@ -345,17 +454,23 @@ final class BoardSyncStore: SyncStoring {
             record.createdAt = board.createdAt
             record.codePrefix = board.codePrefix
             record.position = index
-            applyColumns(board.columns, to: record)
+            applyColumns(board.columns, to: record,
+                         seen: Set((seen[board.id]?.columns ?? []).map(\.id)))
         }
-        for orphan in existing.values { context.delete(orphan) }
+        for (id, orphan) in existing where seen[id] != nil { context.delete(orphan) }
     }
 
-    private func applyColumns(_ columns: [BoardColumn], to board: StoredBoard) {
+    /// `seen` is the columns the diff base gave this board — the ones this
+    /// device may speak for. See ``apply(_:)``.
+    private func applyColumns(_ columns: [BoardColumn], to board: StoredBoard,
+                              seen: Set<BoardColumn.ID>) {
         var existing = Dictionary(
             (board.columns ?? []).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }
         )
         for (index, column) in columns.enumerated() {
-            let record = existing.removeValue(forKey: column.id) ?? {
+            let found = existing.removeValue(forKey: column.id)
+            if found != nil, !seen.contains(column.id) { continue }
+            let record = found ?? {
                 let fresh = StoredColumn(id: column.id)
                 context.insert(fresh)
                 fresh.board = board
@@ -371,7 +486,7 @@ final class BoardSyncStore: SyncStoring {
             record.position = index
             record.limit = column.limit
         }
-        for orphan in existing.values { context.delete(orphan) }
+        for (id, orphan) in existing where seen.contains(id) { context.delete(orphan) }
     }
 
     private func applyTasks(_ snapshot: BoardSnapshot, changedFrom previous: BoardSnapshot?) throws {
@@ -415,20 +530,31 @@ final class BoardSyncStore: SyncStoring {
             uniquingKeysWith: { first, _ in first }
         )
         // A first write, or one after a remote merge, has no diff to trust.
+        let seen = Set((previous?.tasks ?? []).map(\.id))
         let writing = previous == nil ? snapshot.tasks : snapshot.tasks.filter { changedIDs.contains($0.id) }
         for task in writing {
             guard let position = positions[task.id] else { continue }
-            let record = existing[task.id] ?? {
+            let record: StoredTask
+            if let found = existing[task.id] {
+                // An unseen record is another device's — but a task carries the
+                // clock a board and a label do not, so one older than the value
+                // in hand is one this device is ahead of. See ``apply(_:)``.
+                guard seen.contains(task.id) || task.updatedAt >= found.updatedAt else { continue }
+                record = found
+            } else {
                 let fresh = StoredTask(id: task.id)
                 context.insert(fresh)
                 existing[task.id] = fresh
-                return fresh
-            }()
+                record = fresh
+            }
             Self.write(task, at: position, into: record, context: context,
                        encodingFails: encodingFailsForTesting)
         }
-        let live = Set(snapshot.tasks.map(\.id))
-        for (id, record) in existing where !live.contains(id) {
+        // `removed` and not "everything the snapshot no longer names": an id
+        // the diff base never carried is one this device has never seen, and
+        // its absence from the snapshot is ignorance rather than a deletion.
+        for id in removed {
+            guard let record = existing[id] else { continue }
             context.delete(record)
         }
     }
@@ -512,9 +638,21 @@ final class BoardSyncStore: SyncStoring {
         return try? kindEncoder.encode(kind)
     }
 
-    private func encodedThemes(_ themes: ThemeSettings) -> Data? {
+    /// Puts an encoded list on the record, or leaves what is there and says so.
+    private func write(
+        _ encoded: Data?, to field: ReferenceWritableKeyPath<StoredMeta, Data?>,
+        on meta: StoredMeta, called name: String
+    ) {
+        guard let encoded else {
+            Self.logger.error("The \(name, privacy: .public) failed to encode; the previously synced copy stands.")
+            return
+        }
+        meta[keyPath: field] = encoded
+    }
+
+    private func encoded(_ value: some Encodable) -> Data? {
         guard !encodingFailsForTesting else { return nil }
-        return try? JSONEncoder().encode(themes)
+        return try? JSONEncoder().encode(value)
     }
 
     /// One coder each way rather than one per activity row: a fresh

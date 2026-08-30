@@ -52,10 +52,34 @@ struct BoardSnapshot: Codable, Sendable {
     /// written before them means: a build whose sidebar offered exactly those.
     var views: [SavedView] = SavedView.seededAll
 
-    static let currentVersion = 14
+    /// When the user last changed the saved views, the palette and the themes —
+    /// **not** when the file was last written.
+    ///
+    /// These three are the lists two devices can both hold an opinion about and
+    /// that CloudKit cannot merge for them: each is one blob in one record, so
+    /// without a clock the winner is whichever device saved last, which need
+    /// not be the device that did the editing. A laptop that has not touched
+    /// its views since March could overwrite this morning's iPad edit just by
+    /// saving something unrelated.
+    ///
+    /// `nil` means **undated**, which is a real answer rather than a missing
+    /// one: every file written before v15, and every list nobody has touched
+    /// since. An undated list is never overwritten by a dated one — it is
+    /// merged with it, see ``SharedList/resolve(local:changedAt:remote:changedAt:)``
+    /// — because the alternative is deciding that work nobody can date is work
+    /// nobody did.
+    ///
+    /// Since v15. The tasks need none of this: a card carries its own
+    /// `updatedAt` and CloudKit merges two devices card by card.
+    var viewsChangedAt: Date?
+    var paletteChangedAt: Date?
+    var themesChangedAt: Date?
+
+    static let currentVersion = 15
 
     enum CodingKeys: String, CodingKey {
         case version, tasks, boards, labels, nextSerial, activeBoardID, trash, palette, views, themes
+        case viewsChangedAt, paletteChangedAt, themesChangedAt
     }
 
     /// Written out rather than synthesised, for one field.
@@ -102,6 +126,12 @@ struct BoardSnapshot: Codable, Sendable {
         // rather than this decoder's — it needs the bytes, which are gone by
         // the time this runs.
         themes = try container.decodeIfPresent(ThemeSettings.self, forKey: .themes) ?? .seed
+        // Lenient a fourth time, and here the absence *is* the value: a file
+        // written before v15 carries three lists nobody could date, which is
+        // exactly what `nil` says. See the properties.
+        viewsChangedAt = try container.decodeIfPresent(Date.self, forKey: .viewsChangedAt)
+        paletteChangedAt = try container.decodeIfPresent(Date.self, forKey: .paletteChangedAt)
+        themesChangedAt = try container.decodeIfPresent(Date.self, forKey: .themesChangedAt)
     }
 
     init(
@@ -114,7 +144,10 @@ struct BoardSnapshot: Codable, Sendable {
         trash: [TrashedItem] = [],
         views: [SavedView] = SavedView.seededAll,
         palette: [PaletteSwatch] = PaletteSwatch.seed,
-        themes: ThemeSettings = .seed
+        themes: ThemeSettings = .seed,
+        viewsChangedAt: Date? = nil,
+        paletteChangedAt: Date? = nil,
+        themesChangedAt: Date? = nil
     ) {
         self.version = version
         self.tasks = tasks
@@ -126,6 +159,9 @@ struct BoardSnapshot: Codable, Sendable {
         self.views = views
         self.palette = palette
         self.themes = themes
+        self.viewsChangedAt = viewsChangedAt
+        self.paletteChangedAt = paletteChangedAt
+        self.themesChangedAt = themesChangedAt
     }
 
     /// The serial a fresh board starts minting from.
@@ -323,7 +359,8 @@ struct BoardFile: Sendable {
             ? BoardSnapshot.migrate(v11: atV11, accent: legacyAccent(in: data))
             : atV11
         let atV13 = migratedFrom < 13 ? BoardSnapshot.migrate(v12: atV12) : atV12
-        return (migratedFrom < 14 ? BoardSnapshot.migrate(v13: atV13) : atV13, migratedFrom)
+        let atV14 = migratedFrom < 14 ? BoardSnapshot.migrate(v13: atV13) : atV13
+        return (migratedFrom < 15 ? BoardSnapshot.migrate(v14: atV14) : atV14, migratedFrom)
     }
 
     /// Every version up to and including v8, decoded and walked forward to the
@@ -333,6 +370,13 @@ struct BoardFile: Sendable {
         switch try version(of: data) {
         case BoardSnapshot.currentVersion:
             return (try decoder.decode(BoardSnapshot.self, from: data), nil)
+        case 14:
+            // v14 and v15 are the same shape: v15 only *adds* the three dates,
+            // and `init(from:)` reads each of them leniently — an absent one is
+            // an undated list, which is the truth about every file written
+            // before there was anywhere to write a date. The bump is for the
+            // other direction, as ever — see `migrate(v14:)`.
+            return (try decoder.decode(BoardSnapshot.self, from: data), 14)
         case 13:
             // v13 and v14 are the same shape: v14 only *adds*
             // `BoardColumn.limit`, and a synthesised decoder reads an absent
@@ -971,5 +1015,131 @@ extension BoardSnapshot {
         probe.id = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
         probe.code = ""
         return probe
+    }
+}
+
+
+/// Which of two answers about a shared list stands, when two devices both have
+/// one and CloudKit cannot merge them.
+///
+/// The saved views, the palette and a theme collection are each stored as one
+/// blob in one record — see ``SyncSchema`` — so there is nothing for CloudKit
+/// to reconcile element by element the way it does cards. Somebody has to
+/// choose, and this is the whole of the choosing:
+///
+/// | this device | the records | what stands |
+/// | --- | --- | --- |
+/// | anything | never written | this device's |
+/// | dated | dated | the newer of the two |
+/// | undated | anything, or the reverse | **both**, merged by id |
+///
+/// **The last row is the one that matters**, and it is why the dates were added
+/// at all. An undated list is one nobody could date — a board file from before
+/// v15, or a list nobody has touched since — and the honest thing to do with two
+/// of those is to keep everything in either. It costs one oddity: a view deleted
+/// before any of this existed can come back the first time two devices meet.
+/// That is the safe direction, it happens once, and any edit afterwards dates
+/// the list and settles it for good.
+///
+/// Order is this device's first, then whatever the other side has that this one
+/// has not — so a merge never reshuffles a sidebar somebody has arranged.
+enum SharedList {
+    /// `remote` is `nil` where the records carry no such list at all, which is
+    /// not the same fact as an empty one: it is what every record written
+    /// before the field existed says, and what it means is "ask this device".
+    static func resolve<Element: Identifiable>(
+        local: [Element], changedAt localStamp: Date?,
+        remote: [Element]?, changedAt remoteStamp: Date?
+    ) -> (list: [Element], changedAt: Date?) {
+        guard let remote else { return (local, localStamp) }
+        if let localStamp, let remoteStamp {
+            return remoteStamp > localStamp ? (remote, remoteStamp) : (local, localStamp)
+        }
+        let known = Set(local.map(\.id))
+        return (local + remote.filter { !known.contains($0.id) }, localStamp ?? remoteStamp)
+    }
+
+    /// The same question asked of a whole ``ThemeSettings``.
+    ///
+    /// The custom themes are a list and merge as one. **The two slots do not**:
+    /// which theme is showing in light and which in dark is a scalar, and a
+    /// merge of two scalars is just a choice — so an undated pair keeps this
+    /// machine's, on the same principle that puts the light/dark override in
+    /// `UserDefaults`. What the app looks like belongs to the machine you are
+    /// looking at; the themes themselves are work and travel.
+    static func resolve(
+        local: ThemeSettings, changedAt localStamp: Date?,
+        remote: ThemeSettings?, changedAt remoteStamp: Date?
+    ) -> (themes: ThemeSettings, changedAt: Date?) {
+        guard let remote else { return (local, localStamp) }
+        let merged = resolve(
+            local: local.custom, changedAt: localStamp,
+            remote: remote.custom, changedAt: remoteStamp
+        )
+        let slots: ThemeSettings = {
+            guard let localStamp, let remoteStamp, remoteStamp > localStamp else { return local }
+            return remote
+        }()
+        return (
+            ThemeSettings(lightID: slots.lightID, darkID: slots.darkID, custom: merged.list),
+            merged.changedAt
+        )
+    }
+}
+
+extension SharedList {
+    /// The three lists after this device's answer and the records' have been
+    /// put to the rule above — the one place both the launch and a pull ask,
+    /// so the two cannot come to different conclusions.
+    struct Outcome: Equatable, Sendable {
+        var views: [SavedView]
+        var viewsChangedAt: Date?
+        var palette: [PaletteSwatch]
+        var paletteChangedAt: Date?
+        var themes: ThemeSettings
+        var themesChangedAt: Date?
+    }
+
+    /// `local` is `nil` on a device with no board file at all — a fresh
+    /// install, where there is nothing to defend and the records are simply
+    /// the answer.
+    ///
+    /// `carried` is what the record set actually holds, as opposed to what
+    /// ``BoardSyncStore/load()`` had to fill in: a list it does not carry is
+    /// passed down as `nil`, which is what stops "nobody has written one" from
+    /// being read as "somebody wrote the defaults".
+    static func resolve(
+        local: BoardSnapshot?, remote: BoardSnapshot, carried: SyncedLists
+    ) -> Outcome {
+        let remoteViews = carried.contains(.views) ? remote.views : nil
+        let remotePalette = carried.contains(.palette) ? remote.palette : nil
+        let remoteThemes = carried.contains(.themes) ? remote.themes : nil
+        guard let local else {
+            return Outcome(
+                views: remoteViews ?? SavedView.seededAll,
+                viewsChangedAt: remoteViews == nil ? nil : remote.viewsChangedAt,
+                palette: remotePalette ?? PaletteSwatch.seed,
+                paletteChangedAt: remotePalette == nil ? nil : remote.paletteChangedAt,
+                themes: remoteThemes ?? .seed,
+                themesChangedAt: remoteThemes == nil ? nil : remote.themesChangedAt
+            )
+        }
+        let views = resolve(
+            local: local.views, changedAt: local.viewsChangedAt,
+            remote: remoteViews, changedAt: remote.viewsChangedAt
+        )
+        let palette = resolve(
+            local: local.palette, changedAt: local.paletteChangedAt,
+            remote: remotePalette, changedAt: remote.paletteChangedAt
+        )
+        let themes = resolve(
+            local: local.themes, changedAt: local.themesChangedAt,
+            remote: remoteThemes, changedAt: remote.themesChangedAt
+        )
+        return Outcome(
+            views: views.list, viewsChangedAt: views.changedAt,
+            palette: palette.list, paletteChangedAt: palette.changedAt,
+            themes: themes.themes, themesChangedAt: themes.changedAt
+        )
     }
 }

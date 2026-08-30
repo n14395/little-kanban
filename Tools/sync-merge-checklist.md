@@ -35,8 +35,13 @@ failure log lines — none of them should appear in a clean run.
 | 8 | Column reorder | A and B reorder the same board's columns differently, then sync | Both devices converge on the same order | |
 | 9 | Offline batch | B in Airplane Mode: add two tasks, complete one, retitle another. A edits meanwhile. Reconnect B | The union: all of B's edits and all of A's, nothing dumped into the Inbox | |
 | 10 | Sub-tasks merge by id | A ticks one sub-task of X; B adds a new sub-task to X | X carries both — the tick and the new row — on both devices | |
-| 11 | Labels and views | A makes a label and applies it; B makes a saved view | Both arrive on the other device; the label keeps its colour, the view its rule | |
+| 11 | Labels and views | A makes a label and applies it; B makes a saved view | Both arrive on the other device; the label keeps its colour, the view its rule. **The view half of this row did not work until v15** — the records had nowhere to put a saved view, and the read handed back the seeded seven, which the launch then adopted over the user's own | |
 | 12 | Fresh device import | Delete the app from B, reinstall, launch | The whole board arrives; while it is arriving nothing is shown unfiled, and after it settles nothing is in the Inbox that was not before (the `isAwaitingCompleteSync` path) | |
+| 13 | **Fresh device does not empty A** | As 12, and while B is still filling: choose a starter at the first-run picker, make a board, make a label. Then check **A** | A still has every board, card and label it had. This is the regression that emptied two machines from one install — see README § *A store that has not been filled yet is not an empty one either* | |
+| 14 | The first session survives | As 12: choose a starter on B, add a card to it, quit B, relaunch B | The card and the chosen board are both still there, and both reach A. B's first session used to be written to `board.json` alone and thrown away by its own second launch | |
+| 15 | **The upgrade keeps what was there** | Before updating either device: make a saved view and save a colour on A, and a *different* view and colour on B. Update both to this build. Launch A, sync, then launch B and sync | Both devices end up with **all four** — two views and two colours. This is the undated merge: neither list has a date, so neither is allowed to win. Losing either half is the failure this row exists for | |
+| 16 | The newer edit wins | After 15, with both devices settled: rename a view on A, sync; then rename the *same* view on B, sync; then sync A again | B's name stands on both, because B's edit is the later one. Then do it the other way round and check the answer flips | |
+| 17 | A theme travels | A: make a theme in the editor and put it in the light slot. Sync, then **quit and relaunch B** | B has the theme in its list. Which slot B is *showing* stays B's own — a device does not repaint because another one did — and the theme arrives at the launch rather than live | |
 
 Then the sanity pass, on both devices: every board's column counts match the
 other device, no duplicate cards anywhere, the Inbox holds exactly what it held
@@ -48,7 +53,13 @@ single most important line on this page.
 unprompted (macOS remote-change notifications can be slow); anything Settings ▸
 Sync said that surprised you; and scenario 5's winner. Themes are expected to
 arrive **at the next launch**, not live — a merge deliberately does not repaint
-the device it lands on.
+the device it lands on. Saved views and colours do arrive live, on a pull.
+
+Rows 15 to 17 are the three shared lists, which CloudKit cannot merge for us
+because each is one blob in one record — see README § *The three lists CloudKit
+cannot merge*. They are the rows most worth running twice, in both directions:
+every other scenario here has a per-record clock behind it, and these three have
+only the rule.
 
 ## Recording the result
 

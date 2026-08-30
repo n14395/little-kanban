@@ -33,14 +33,16 @@ struct SimpleKanbanApp: App {
     init() {
         // A first launch starts on nothing rather than on the seed: `FirstRunView`
         // asks which board to start from, and folds the answer in. `restored()`
-        // would have seeded the sample before anybody was asked (7.5).
+        // would have seeded the sample before anybody was asked (7.5). It gets
+        // the records all the same — a first session that could not write them
+        // was a first session the next launch threw away.
         // The records the board syncs through. Local-only until the build
         // carries the iCloud entitlement — see `project.yml` — and `nil` if the
         // store cannot be opened at all, which leaves `board.json` in charge
         // rather than handing anybody an empty board.
         let sync = try? BoardSyncStore.app(syncing: SyncPreference.isOn, at: BoardSyncStore.defaultURL)
         let store = FirstRun.isPending
-            ? FirstRun.emptyStore()
+            ? FirstRun.emptyStore(sync: sync)
             : BoardStore.restored(sync: sync)
         _store = State(initialValue: store)
         TaskIntentBridge.adopt(store)

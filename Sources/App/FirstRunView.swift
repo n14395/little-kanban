@@ -20,9 +20,10 @@ enum FirstRun {
     ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanSkipFirstRun YES
     ///
     /// A *forced* first run is not one: there is a board on this machine, and
-    /// `emptyStore` hands the session a throwaway file rather than the real one
-    /// — an empty store pointed at somebody's board would write over it the
-    /// moment the app was quit.
+    /// `emptyStore` hands the session a throwaway file and no records rather
+    /// than the real ones — an empty store pointed at somebody's board would
+    /// write over it the moment the app was quit, and pointed at their iCloud
+    /// it would rehearse on every device they own.
     #if DEBUG
     static let isForced = UserDefaults.standard.bool(forKey: "SimpleKanbanFirstRun")
     #endif
@@ -45,16 +46,34 @@ enum FirstRun {
     /// picker then folds a template into. Deliberately not the seed — the whole
     /// point of the picker is that nobody is handed the sample without asking
     /// for it — and deliberately not `restored()`, which would seed.
+    ///
+    /// **The records are handed over like any other launch's**, and that is not
+    /// a detail. This session used to run with `sync: nil`, so nothing chosen or
+    /// typed in it was ever written to the records — and the *next* launch went
+    /// through `restored(file:sync:)`, where the records win outright, and threw
+    /// the whole first session away. A first launch on a device that already has
+    /// a board in iCloud is exactly the launch where that happens.
+    ///
+    /// Nothing is written over on the way in: an empty board pushed against
+    /// records this device has never read adds nothing and deletes nothing —
+    /// see ``BoardSyncStore/apply(_:)`` — and what the picker folds in is
+    /// pushed like any other edit.
+    ///
+    /// A *forced* first run keeps `nil`, for the reason it keeps a throwaway
+    /// file: there is a real board on this machine and in this account, and a
+    /// rehearsal must not reach either.
     @MainActor
-    static func emptyStore(file: BoardFile = .default) -> BoardStore {
+    static func emptyStore(file: BoardFile = .default, sync: (any SyncStoring)? = nil) -> BoardStore {
         var file = file
+        var sync = sync
         #if DEBUG
         if isForced {
             file = BoardFile(url: URL.temporaryDirectory
                 .appending(path: "SimpleKanbanFirstRun-\(UUID().uuidString)/board.json"))
+            sync = nil
         }
         #endif
-        return BoardStore(tasks: [], boards: [], labels: [], file: file)
+        return BoardStore(tasks: [], boards: [], labels: [], file: file, sync: sync)
     }
 }
 

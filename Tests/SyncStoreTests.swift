@@ -533,6 +533,168 @@ import Testing
         #expect(undo.canUndo == false, "a remote change put a step on the undo stack")
     }
 
+    // MARK: The three lists CloudKit cannot merge
+
+    /// **The upgrade guard.** A record set written before there was anywhere to
+    /// put the views, the palette or the themes carries none of them, and
+    /// `load()` cannot say so: it hands back a `BoardSnapshot`, whose lists are
+    /// not optional, so what comes out is the seeded seven and the seed six.
+    /// Adopting that is adopting a silence — and it is what used to take a
+    /// saved view away on the launch after it was made.
+    @Test func aRecordSetFromBeforeTheseFieldsExistedTakesNothingAway() throws {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.inMemory()
+        let mine = Self.boardOfItsOwn()
+        try temp.file.write(mine, generation: temp.file.nextWriteGeneration())
+        try sync.apply(mine)
+        try Self.forgetTheNewFields(in: sync)
+
+        let store = BoardStore.restored(file: temp.file, sync: sync)
+        #expect(store.views == mine.views, "the launch dropped the views the file carried")
+        #expect(store.savedColors == mine.palette, "the launch dropped the saved colours")
+        #expect(store.themes == mine.themes, "the launch dropped the themes")
+        #expect(store.mergeRemoteChanges() == false, "a silence read as news from another device")
+        #expect(store.views == mine.views, "a pull dropped the views")
+        #expect(store.savedColors == mine.palette, "a pull dropped the saved colours")
+    }
+
+    /// And they do travel now. A view made on another device arrives — which is
+    /// the whole feature, and what `SyncSchema` had no room for until
+    /// `StoredMeta` grew `viewsJSON` and `paletteJSON`.
+    @Test func aViewAndAColourMadeOnAnotherDeviceArrive() throws {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.inMemory()
+        try sync.apply(Self.boardOfItsOwn(changedAt: TestBoard.epoch))
+        let store = BoardStore.restored(file: temp.file, sync: sync)
+
+        #expect(store.views.contains { $0.name == "Ship this week" },
+                "a view made on another device did not arrive")
+        #expect(store.savedColors.contains { $0.swatch == .hex(0x123456) },
+                "a colour saved on another device did not arrive")
+        #expect(store.themes.custom.contains { $0.id == Self.theirTheme.id },
+                "a theme made on another device did not arrive")
+    }
+
+    /// Every field of all three, through the records and back.
+    @Test func theThreeListsSurviveTheRoundTrip() throws {
+        let sync = try BoardSyncStore.inMemory()
+        let written = Self.boardOfItsOwn(changedAt: TestBoard.epoch)
+        try sync.apply(written)
+
+        let read = try #require(try sync.load())
+        #expect(read.views == written.views)
+        #expect(read.palette == written.palette)
+        #expect(read.themes == written.themes)
+        #expect(read.viewsChangedAt == TestBoard.epoch)
+        #expect(read.paletteChangedAt == TestBoard.epoch)
+        #expect(read.themesChangedAt == TestBoard.epoch)
+        #expect(try sync.carriedLists() == [.themes, .views, .palette])
+    }
+
+    /// The dated case: the records were edited after this device was, so the
+    /// records win — and the reverse holds too, which is the half a clock buys
+    /// that last-writer-wins never did.
+    @Test func theNewerEditWinsWhicheverSideMadeIt() throws {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.inMemory()
+        var mine = Self.boardOfItsOwn(changedAt: TestBoard.epoch)
+        mine.views = SavedView.seededAll + [SavedView.blank(named: "Mine")]
+        try temp.file.write(mine, generation: temp.file.nextWriteGeneration())
+        try sync.apply(Self.boardOfItsOwn(changedAt: TestBoard.epoch.addingTimeInterval(60)))
+
+        let later = BoardStore.restored(file: temp.file, sync: sync)
+        #expect(later.views.contains { $0.name == "Ship this week" },
+                "the newer list did not win")
+        #expect(later.views.contains { $0.name == "Mine" } == false,
+                "the older list survived a merge it should have lost")
+
+        // The same two boards with the dates the other way round.
+        let other = TempBoard()
+        let secondSync = try BoardSyncStore.inMemory()
+        mine.viewsChangedAt = TestBoard.epoch.addingTimeInterval(120)
+        try other.file.write(mine, generation: other.file.nextWriteGeneration())
+        try secondSync.apply(Self.boardOfItsOwn(changedAt: TestBoard.epoch.addingTimeInterval(60)))
+
+        let earlier = BoardStore.restored(file: other.file, sync: secondSync)
+        #expect(earlier.views.contains { $0.name == "Mine" }, "this device's newer list lost")
+    }
+
+    /// The undated case, and the reason the dates were worth a migration: two
+    /// devices that both made views before there was a date to make them under
+    /// **keep both lists**, because picking between two things nobody can date
+    /// is picking whose afternoon to throw away.
+    @Test func twoUndatedListsAreMergedRatherThanChosenBetween() throws {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.inMemory()
+        var mine = Self.boardOfItsOwn()
+        mine.views = SavedView.seededAll + [SavedView.blank(named: "Mine")]
+        try temp.file.write(mine, generation: temp.file.nextWriteGeneration())
+        try sync.apply(Self.boardOfItsOwn())
+
+        let store = BoardStore.restored(file: temp.file, sync: sync)
+        #expect(store.views.contains { $0.name == "Mine" }, "this device's undated view was thrown away")
+        #expect(store.views.contains { $0.name == "Ship this week" },
+                "the other device's undated view was thrown away")
+        #expect(store.viewsChangedAt == nil, "a merge of two undated lists invented a date")
+    }
+
+    /// A board that arrives from a **file** is dated now, whatever the bytes
+    /// say. A restored backup is a decision somebody is making this afternoon,
+    /// and carrying the backup's own three-month-old stamp would let any other
+    /// device overrule it the moment it synced.
+    @Test func anImportedBoardIsDatedNowRatherThanWhenItWasWritten() throws {
+        let store = TestBoard.store()
+        var arriving = Self.boardOfItsOwn(changedAt: TestBoard.epoch)
+        // One card this board has not got, so the import has something to do:
+        // an import that changes nothing files no step and adopts nothing.
+        arriving.tasks = [TaskItem(code: "IM-400", title: "Arrived in the import")]
+        store.importBoard(arriving)
+
+        let stamped = try #require(store.viewsChangedAt)
+        #expect(stamped > TestBoard.epoch, "the import carried the file's own date across")
+    }
+
+    /// A theme somebody made, a view and a colour, on a board that is otherwise
+    /// the fixture's. `changedAt` dates all three; `nil` is a board from before
+    /// there were dates.
+    private static func boardOfItsOwn(changedAt: Date? = nil) -> BoardSnapshot {
+        BoardSnapshot(
+            tasks: TestBoard.tasks(on: SeedData.defaultBoard), boards: SeedData.boards,
+            labels: LabelDef.seed, nextSerial: 340,
+            activeBoardID: SeedData.defaultBoard.id,
+            views: SavedView.seededAll + [SavedView.blank(named: "Ship this week")],
+            palette: PaletteSwatch.seed + [PaletteSwatch(.hex(0x123456), name: "Slate")],
+            themes: ThemeSettings(
+                lightID: ThemePresets.porcelainID, darkID: ThemePresets.emberID,
+                custom: [theirTheme]
+            ),
+            viewsChangedAt: changedAt, paletteChangedAt: changedAt, themesChangedAt: changedAt
+        )
+    }
+
+    private static let theirTheme: Theme = {
+        var theme = ThemePresets.fallback(for: .light)
+        theme.id = "theirs"
+        theme.name = "Theirs"
+        return theme
+    }()
+
+    /// Turns a record set into one written by a build that had never heard of
+    /// these three attributes, which is what every device's records look like
+    /// the first time it runs this version.
+    private static func forgetTheNewFields(in sync: BoardSyncStore) throws {
+        let meta = try #require(
+            sync.container.mainContext.fetch(FetchDescriptor<StoredMeta>()).first
+        )
+        meta.themesJSON = nil
+        meta.viewsJSON = nil
+        meta.paletteJSON = nil
+        meta.themesChangedAt = nil
+        meta.viewsChangedAt = nil
+        meta.paletteChangedAt = nil
+        try sync.container.mainContext.save()
+    }
+
     /// The race the debounce opened, which is what made a just-made board
     /// flash into the sidebar and vanish: the push to the records rides the
     /// save debounce, so a change notification processed inside that window
@@ -572,6 +734,7 @@ private final class FlakySyncStore: SyncStoring {
         if loadFails { throw CocoaError(.fileReadUnknown) }
         return try wrapped.load()
     }
+    func carriedLists() throws -> SyncedLists { try wrapped.carriedLists() }
     func hasStoredTaskOrder() throws -> Bool { try wrapped.hasStoredTaskOrder() }
     func backfillTaskPositions(from taskIDs: [TaskItem.ID]) throws {
         try wrapped.backfillTaskPositions(from: taskIDs)
@@ -834,5 +997,104 @@ private final class FlakySyncStore: SyncStoring {
         try other.apply(snapshot(tasks: [task]))
         let rows = try sync.container.mainContext.fetch(FetchDescriptor<StoredActivity>())
         #expect(rows.count == 2, "the apply deleted a newer build's activity record")
+    }
+}
+
+
+/// The rule that settles the three lists CloudKit cannot merge, asked as
+/// arithmetic rather than through a store.
+///
+/// `SyncStoreTests` and `SyncWiringTests` drive it through real records, which
+/// is what proves it is *wired up*; this is where the rule itself is pinned,
+/// one row of the table in ``SharedList`` at a time. A rule this small is
+/// cheap to state and expensive to get wrong: every branch of it is somebody's
+/// afternoon of work either kept or thrown away.
+@MainActor
+@Suite struct SharedListTests {
+    private let mine = [SavedView.blank(named: "Mine")]
+    private let theirs = [SavedView.blank(named: "Theirs")]
+    private let monday = TestBoard.epoch
+    private var tuesday: Date { monday.addingTimeInterval(86_400) }
+
+    private func resolve(
+        _ local: [SavedView], _ localStamp: Date?,
+        _ remote: [SavedView]?, _ remoteStamp: Date?
+    ) -> (list: [SavedView], changedAt: Date?) {
+        SharedList.resolve(local: local, changedAt: localStamp, remote: remote, changedAt: remoteStamp)
+    }
+
+    /// Row one: the records have never been written with one. Not an empty
+    /// list, not the defaults — no answer, which is what every record set
+    /// written before the field existed says.
+    @Test func nothingWrittenLeavesThisDeviceAlone() {
+        #expect(resolve(mine, tuesday, nil, nil).list == mine)
+        #expect(resolve(mine, tuesday, nil, nil).changedAt == tuesday)
+        // And with nothing on this side either, still nothing invented.
+        #expect(resolve([], nil, nil, nil).changedAt == nil)
+    }
+
+    /// Row two, both directions.
+    @Test func betweenTwoDatedListsTheNewerStands() {
+        #expect(resolve(mine, monday, theirs, tuesday).list == theirs)
+        #expect(resolve(mine, monday, theirs, tuesday).changedAt == tuesday)
+        #expect(resolve(mine, tuesday, theirs, monday).list == mine)
+        #expect(resolve(mine, tuesday, theirs, monday).changedAt == tuesday)
+    }
+
+    /// A tie between two dated lists keeps this device's, which is the answer
+    /// that changes nothing — two lists stamped at the same instant are the
+    /// same edit arriving twice far more often than they are two.
+    @Test func aTieOnTheDateChangesNothing() {
+        #expect(resolve(mine, monday, theirs, monday).list == mine)
+    }
+
+    /// Row three, and the reason the dates were worth a migration: where either
+    /// side is undated, **both** lists stand. Order is this device's first, so
+    /// a merge never reshuffles a sidebar somebody has arranged.
+    @Test func anUndatedListIsMergedRatherThanOverwritten() {
+        #expect(resolve(mine, nil, theirs, tuesday).list == mine + theirs)
+        #expect(resolve(mine, tuesday, theirs, nil).list == mine + theirs)
+        #expect(resolve(mine, nil, theirs, nil).list == mine + theirs)
+    }
+
+    /// The merge is by id, so the same view held by both devices is not doubled
+    /// — which is every one of the seeded seven, on every pair of devices.
+    @Test func aMergeDoesNotDoubleWhatBothSidesHold() {
+        let shared = SavedView.seededAll
+        #expect(resolve(shared + mine, nil, shared + theirs, nil).list == shared + mine + theirs)
+    }
+
+    /// A merge carries whichever date there was, and invents none where there
+    /// was none: the pair stays undated until somebody actually edits it, and
+    /// only then does the clock start deciding.
+    @Test func aMergeKeepsTheDateItWasGiven() {
+        #expect(resolve(mine, nil, theirs, tuesday).changedAt == tuesday)
+        #expect(resolve(mine, tuesday, theirs, nil).changedAt == tuesday)
+        #expect(resolve(mine, nil, theirs, nil).changedAt == nil)
+    }
+
+    /// Themes are a list *and* two scalars. The custom themes merge like any
+    /// other list; the two slots do not — an undated pair keeps this machine's,
+    /// because which theme is showing is a fact about the screen in front of
+    /// you rather than about the work.
+    @Test func themesMergeTheirCustomsAndKeepThisMachinesSlots() {
+        let local = ThemeSettings(lightID: "a", darkID: "b", custom: [Self.theme("mine")])
+        let remote = ThemeSettings(lightID: "c", darkID: "d", custom: [Self.theme("theirs")])
+
+        let undated = SharedList.resolve(local: local, changedAt: nil, remote: remote, changedAt: nil)
+        #expect(undated.themes.custom.map(\.id) == ["mine", "theirs"], "a theme somebody made was lost")
+        #expect(undated.themes.lightID == "a", "an undated merge repainted the window")
+        #expect(undated.themes.darkID == "b")
+
+        // Dated, and theirs is newer: the slots travel with the decision.
+        let dated = SharedList.resolve(local: local, changedAt: monday, remote: remote, changedAt: tuesday)
+        #expect(dated.themes.lightID == "c")
+        #expect(dated.themes.custom.map(\.id) == ["theirs"])
+    }
+
+    private static func theme(_ id: Theme.ID) -> Theme {
+        var theme = ThemePresets.fallback(for: .light)
+        theme.id = id
+        return theme
     }
 }

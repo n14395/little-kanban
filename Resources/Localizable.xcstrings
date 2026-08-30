@@ -1,16 +1,8 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Status" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Status"
-          }
-        }
-      }
+    "" : {
+
     },
     "—" : {
       "localizations" : {
@@ -199,6 +191,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ priority"
+          }
+        }
+      }
+    },
+    "%@ was already done." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ was already done."
+          }
+        }
+      }
+    },
+    "%@ was not finished." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ was not finished."
+          }
+        }
+      }
+    },
+    "%@, %lld" : {
+      "comment" : "VoiceOver label for a column chip: the column's name and how many cards are in it",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$lld"
+          }
+        }
+      }
+    },
+    "%@, %lld of %lld" : {
+      "comment" : "VoiceOver label for a column chip below its WIP limit",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$lld of %3$lld"
+          }
+        }
+      }
+    },
+    "%@, %lld of %lld, at the column limit" : {
+      "comment" : "VoiceOver label for a column chip exactly at its WIP limit",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$lld of %3$lld, at the column limit"
+          }
+        }
+      }
+    },
+    "%@, %lld of %lld, over the column limit" : {
+      "comment" : "VoiceOver label for a column chip past its WIP limit",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$lld of %3$lld, over the column limit"
           }
         }
       }
@@ -418,6 +474,39 @@
         }
       }
     },
+    "%lld of %lld" : {
+      "comment" : "VoiceOver label for a column count pill below its WIP limit",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "%lld of %lld, at the column limit" : {
+      "comment" : "VoiceOver label for a column count pill exactly at its WIP limit",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld of %2$lld, at the column limit"
+          }
+        }
+      }
+    },
+    "%lld of %lld, over the column limit" : {
+      "comment" : "VoiceOver label for a column count pill past its WIP limit",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld of %2$lld, over the column limit"
+          }
+        }
+      }
+    },
     "%lld sub-tasks completed" : {
       "comment" : "Activity feed: several sub-tasks ticked off by the move to Done",
       "localizations" : {
@@ -556,7 +645,7 @@
       }
     },
     "%lld/%lld" : {
-      "comment" : "Sub-task progress on a card: completed over total\nA column's card count against its WIP limit, as in 4/3",
+      "comment" : "A column's card count against its WIP limit, as in 4/3\nSub-task progress on a card: completed over total",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -618,6 +707,16 @@
         }
       }
     },
+    "${change} ${label} on ${task}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${change} ${label} on ${task}"
+          }
+        }
+      }
+    },
     "0° runs upwards, and the angle turns clockwise." : {
       "comment" : "Explains how the gradient angle is measured",
       "localizations" : {
@@ -625,17 +724,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "0° runs upwards, and the angle turns clockwise."
-          }
-        }
-      }
-    },
-    "1 day left" : {
-      "comment" : "Trash row: how long is left before something is thrown away for good",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1 day left"
           }
         }
       }
@@ -728,7 +816,9 @@
         }
       }
     },
-    "A short chime when a card reaches Done, however it got there. The haptic tap stays either way, on hardware that has one." : {},
+    "A short chime when a card reaches Done, however it got there. The haptic tap stays either way, on hardware that has one." : {
+
+    },
     "A theme sets the recipe rather than the colours — each label carries its own. The ground is the label's colour lifted this far towards white, then drawn at the strength below." : {
       "comment" : "Explains that the theme carries the chip rule, not the chip colours",
       "localizations" : {
@@ -839,7 +929,7 @@
       }
     },
     "Add" : {
-      "comment" : "Menu button: new or imported theme",
+      "comment" : "Captures the shared item into the Inbox\nMenu button: new or imported theme\nPuts a label on a card, in Shortcuts",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -974,6 +1064,17 @@
         }
       }
     },
+    "Add Shared Tasks" : {
+      "comment" : "Undo action name for taking shared items into the Inbox",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Shared Tasks"
+          }
+        }
+      }
+    },
     "Add Stop" : {
       "comment" : "Button: adds a colour stop to the window gradient",
       "localizations" : {
@@ -1037,6 +1138,17 @@
         }
       }
     },
+    "Add to Inbox" : {
+      "comment" : "Title of the share sheet that captures into Simple Kanban",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to Inbox"
+          }
+        }
+      }
+    },
     "Add View" : {
       "comment" : "Undo action name for creating a saved view",
       "localizations" : {
@@ -1065,6 +1177,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Added %@."
+          }
+        }
+      }
+    },
+    "Added to the Inbox" : {
+      "comment" : "Toast after things shared from another app are taken into the Inbox",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added to the Inbox"
           }
         }
       }
@@ -1267,7 +1390,7 @@
       }
     },
     "Appearance" : {
-      "comment" : "Settings group heading\nSettings row: light, dark or system",
+      "comment" : "Settings group heading\nSettings row: light, dark or system\nView submenu listing light, dark and system",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1452,6 +1575,17 @@
         }
       }
     },
+    "At most %lld at a time" : {
+      "comment" : "How many cards a column is meant to hold at once — its WIP limit",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "At most %lld at a time"
+          }
+        }
+      }
+    },
     "Backlog" : {
       "comment" : "Seed column: work not started",
       "localizations" : {
@@ -1497,7 +1631,7 @@
       }
     },
     "Board" : {
-      "comment" : "Heading in the shortcuts sheet for the keys the board itself handles\nPhone tab showing the active board\nSettings section heading\nView criterion field\nWhat a board is called in the Shortcuts editor\nWhat a board is called when configuring a widget\nWhat kind of thing a trashed item is",
+      "comment" : "Heading in the shortcuts sheet for the keys the board itself handles\nPhone tab showing the active board\nSettings section heading\nView criterion field\nView menu item for the column board\nWhat a board is called in the Shortcuts editor\nWhat a board is called when configuring a widget\nWhat kind of thing a trashed item is",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1594,6 +1728,7 @@
       }
     },
     "Board Settings…" : {
+      "comment" : "File menu item that opens this board's columns and name",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1695,7 +1830,7 @@
       }
     },
     "Cancel" : {
-      "comment" : "Alert button: leaves the theme alone\nButton that closes the starter picker leaving the board alone",
+      "comment" : "Alert button: leaves the theme alone\nButton that closes the due-date sheet without setting a date\nButton that closes the starter picker leaving the board alone\nDismisses the share sheet without capturing",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1824,6 +1959,9 @@
         }
       }
     },
+    "Card Size" : {
+      "comment" : "View submenu listing the card densities"
+    },
     "Cards" : {
       "comment" : "Settings group heading",
       "localizations" : {
@@ -1857,6 +1995,16 @@
         }
       }
     },
+    "Change" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change"
+          }
+        }
+      }
+    },
     "Change Board Colour" : {
       "comment" : "Undo action name for recolouring a board",
       "localizations" : {
@@ -1875,6 +2023,27 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Change Column Colour"
+          }
+        }
+      }
+    },
+    "Change Column Limit" : {
+      "comment" : "Undo action name for setting or clearing a board column's WIP limit",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change Column Limit"
+          }
+        }
+      }
+    },
+    "Change Label" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change Label"
           }
         }
       }
@@ -2250,6 +2419,16 @@
         }
       }
     },
+    "Complete ${task}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complete ${task}"
+          }
+        }
+      }
+    },
     "Complete Sub-task" : {
       "comment" : "Undo action name for ticking a sub-task",
       "localizations" : {
@@ -2300,6 +2479,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Completed"
+          }
+        }
+      }
+    },
+    "Completed %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completed %@."
           }
         }
       }
@@ -2795,7 +2984,7 @@
       }
     },
     "Done" : {
-      "comment" : "Closes the About surface\nPersonal template column: finished\nSeed column: finished work\nTheme parameter: the colour finished work reads as",
+      "comment" : "Button that closes the shortcuts reference\nCloses the About surface\nPersonal template column: finished\nSeed column: finished work\nTheme parameter: the colour finished work reads as",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2903,7 +3092,7 @@
       }
     },
     "Due date" : {
-      "comment" : "Sort order: soonest due first\nView criterion field",
+      "comment" : "Accessibility label of the calendar in the macOS due-date sheet\nSort order: soonest due first\nTitle of the due-date sheet\nView criterion field",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3361,7 +3550,7 @@
       }
     },
     "Export…" : {
-      "comment" : "Button: writes the theme out as a JSON file\nFile menu item that writes the board out to a file\nMenu item: writes a theme out as JSON",
+      "comment" : "Banner button that saves a copy of the board while saving is paused\nButton: writes the theme out as a JSON file\nFile menu item that writes the board out to a file\nMenu item: writes a theme out as JSON",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3469,6 +3658,36 @@
         }
       }
     },
+    "Find Tasks" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find Tasks"
+          }
+        }
+      }
+    },
+    "Find tasks in Simple Kanban" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find tasks in Simple Kanban"
+          }
+        }
+      }
+    },
+    "Finds tasks by text, board or column. With nothing given it returns everything on the board." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finds tasks by text, board or column. With nothing given it returns everything on the board."
+          }
+        }
+      }
+    },
     "Focus Card Above" : {
       "comment" : "Moves card focus up within a column",
       "localizations" : {
@@ -3556,6 +3775,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "General"
+          }
+        }
+      }
+    },
+    "Get tasks in ${view}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get tasks in ${view}"
+          }
+        }
+      }
+    },
+    "Get Tasks in View" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get Tasks in View"
           }
         }
       }
@@ -3704,7 +3943,7 @@
       }
     },
     "High" : {
-      "comment" : "Task priority",
+      "comment" : "A card's priority, in Shortcuts\nTask priority",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3786,6 +4025,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "iCloud"
+          }
+        }
+      }
+    },
+    "iCloud's copy of the board could not be read when the app opened, so changes are staying on this device for now. Reading is retried with every save — Sync Now retries it too." : {
+      "comment" : "Settings note when the record store could not be read and pushes are withheld",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud's copy of the board could not be read when the app opened, so changes are staying on this device for now. Reading is retried with every save — Sync Now retries it too."
           }
         }
       }
@@ -4282,7 +4532,7 @@
       }
     },
     "Keyboard Shortcuts" : {
-      "comment" : "Help menu item that opens the shortcuts sheet",
+      "comment" : "Help menu item that opens the shortcuts sheet\nTitle of the macOS shortcuts reference",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4304,7 +4554,7 @@
       }
     },
     "Label" : {
-      "comment" : "View criterion field",
+      "comment" : "View criterion field\nWhat a card's label is called in the Shortcuts editor",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4321,6 +4571,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Label added: %@"
+          }
+        }
+      }
+    },
+    "Label Change" : {
+      "comment" : "Whether a Shortcut adds or removes a label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Label Change"
           }
         }
       }
@@ -4378,6 +4639,9 @@
           }
         }
       }
+    },
+    "Labels…" : {
+      "comment" : "View menu item that opens the label manager"
     },
     "Last change from another device: %@." : {
       "comment" : "Settings note naming when another device's change last arrived",
@@ -4467,8 +4731,18 @@
         }
       }
     },
+    "Limit work in progress" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limit work in progress"
+          }
+        }
+      }
+    },
     "Low" : {
-      "comment" : "Task priority",
+      "comment" : "A card's priority, in Shortcuts\nTask priority",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4540,7 +4814,7 @@
       }
     },
     "Max" : {
-      "comment" : "Task priority",
+      "comment" : "Task priority\nThe loudest priority, in Shortcuts",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4551,7 +4825,7 @@
       }
     },
     "Medium" : {
-      "comment" : "Task priority",
+      "comment" : "A card's priority, in Shortcuts\nTask priority",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4612,6 +4886,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Money"
+          }
+        }
+      }
+    },
+    "Move ${task}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move ${task}"
           }
         }
       }
@@ -4689,7 +4973,7 @@
       }
     },
     "Move Task" : {
-      "comment" : "Undo action name for moving a card",
+      "comment" : "Undo action name for filing a task onto another board\nUndo action name for moving a card",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4700,7 +4984,7 @@
       }
     },
     "Move Tasks" : {
-      "comment" : "Undo action name for moving several cards at once",
+      "comment" : "Undo action name for filing several tasks onto another board\nUndo action name for moving several cards at once",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4742,6 +5026,9 @@
         }
       }
     },
+    "Move to Board" : {
+      "comment" : "Task submenu listing the Inbox and the boards"
+    },
     "Move to Column" : {
       "comment" : "Task submenu listing the board's columns",
       "localizations" : {
@@ -4781,6 +5068,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Moved %@ to the trash"
+          }
+        }
+      }
+    },
+    "Moved %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moved %@."
           }
         }
       }
@@ -4826,6 +5123,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Moved to the Inbox"
+          }
+        }
+      }
+    },
+    "Moves a task to a column. With a board given instead, it goes to that board's first working column; with neither, it goes to the Inbox." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moves a task to a column. With a board given instead, it goes to that board's first working column; with neither, it goes to the Inbox."
           }
         }
       }
@@ -4918,6 +5225,9 @@
         }
       }
     },
+    "New Column…" : {
+      "comment" : "File menu item that opens board settings with the add-column field open"
+    },
     "New Label" : {
       "comment" : "A button that creates a new label.",
       "isCommentAutoGenerated" : true
@@ -4999,6 +5309,9 @@
         }
       }
     },
+    "New View…" : {
+      "comment" : "File menu item that adds a saved view and opens its editor"
+    },
     "Newsletter" : {
       "comment" : "Content template label",
       "localizations" : {
@@ -5009,6 +5322,9 @@
           }
         }
       }
+    },
+    "Next Board" : {
+      "comment" : "View menu item that opens the board below this one in the sidebar"
     },
     "Next month" : {
       "comment" : "Accessibility label for the calendar's forward arrow",
@@ -5244,6 +5560,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Not syncing right now — sign in to iCloud and relaunch. Your board is saved on this device either way."
+          }
+        }
+      }
+    },
+    "Note" : {
+      "comment" : "Field label on the share sheet, above the read-only note",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Note"
           }
         }
       }
@@ -5554,6 +5881,16 @@
         }
       }
     },
+    "Open ${task}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open ${task}"
+          }
+        }
+      }
+    },
     "Open at login" : {
       "comment" : "A label for a toggle that lets the user decide whether the app should open at login.",
       "isCommentAutoGenerated" : true,
@@ -5617,6 +5954,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open the Inbox with the board unless it's empty"
+          }
+        }
+      }
+    },
+    "Opens a task in Simple Kanban." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opens a task in Simple Kanban."
           }
         }
       }
@@ -5886,7 +6233,9 @@
         }
       }
     },
-    "Play a sound" : {},
+    "Play a sound" : {
+
+    },
     "Polish" : {
       "comment" : "Seed label: refinement work, not the language",
       "localizations" : {
@@ -5923,6 +6272,9 @@
         }
       }
     },
+    "Previous Board" : {
+      "comment" : "View menu item that opens the board above this one in the sidebar"
+    },
     "Previous month" : {
       "comment" : "Accessibility label for the calendar's back arrow",
       "localizations" : {
@@ -5935,7 +6287,7 @@
       }
     },
     "Priority" : {
-      "comment" : "How a view sorts its cards\nSort order: high priority first\nView criterion field",
+      "comment" : "How a view sorts its cards\nSort order: high priority first\nView criterion field\nWhat a card's priority is called in the Shortcuts editor",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5973,6 +6325,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Put this task back on the board"
+          }
+        }
+      }
+    },
+    "Puts a label on a task or takes one off." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Puts a label on a task or takes one off."
           }
         }
       }
@@ -6164,7 +6526,7 @@
       }
     },
     "Remove" : {
-      "comment" : "Accessibility name of the button removing a view criterion",
+      "comment" : "Accessibility name of the button removing a view criterion\nTakes a label off a card, in Shortcuts",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6301,6 +6663,39 @@
         }
       }
     },
+    "Reopen %lld Tasks" : {
+      "comment" : "Menu item that takes several completed tasks back out of Done",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Reopen %lld Task"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Reopen %lld Tasks"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Reopen ${task}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reopen ${task}"
+          }
+        }
+      }
+    },
     "Reopen Sub-task" : {
       "comment" : "Undo action name for un-ticking a sub-task",
       "localizations" : {
@@ -6323,7 +6718,7 @@
       }
     },
     "Reopen Task" : {
-      "comment" : "Undo action name for reopening a completed task",
+      "comment" : "Task menu item that takes a completed task back out of Done\nUndo action name for reopening a completed task\nUndo action name for reopening a task",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6333,6 +6728,9 @@
         }
       }
     },
+    "Reopen Tasks" : {
+      "comment" : "Undo action name for reopening several tasks at once"
+    },
     "Reopen the view I was on" : {
       "comment" : "A checkbox that lets the user decide whether the app",
       "isCommentAutoGenerated" : true,
@@ -6341,6 +6739,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reopen the view I was on"
+          }
+        }
+      }
+    },
+    "Reopened %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reopened %@."
           }
         }
       }
@@ -6447,6 +6855,29 @@
         }
       }
     },
+    "Restore %lld Tasks" : {
+      "comment" : "Menu item that takes several tasks back out of the archive",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Restore %lld Task"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Restore %lld Tasks"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Restore Backup" : {
       "comment" : "Undo action name for putting a backup of the board back",
       "localizations" : {
@@ -6501,7 +6932,7 @@
       }
     },
     "Restore Task" : {
-      "comment" : "Undo action name for taking a task back out of the archive",
+      "comment" : "Task menu item that takes a task back out of the archive\nUndo action name for taking a task back out of the archive",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6510,6 +6941,9 @@
           }
         }
       }
+    },
+    "Restore Tasks" : {
+      "comment" : "Undo action name for taking several tasks back out of the archive"
     },
     "Restore the board first, then the column can go back on it." : {
       "comment" : "How to get past the refusal to restore a column whose board is gone",
@@ -6581,6 +7015,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Restored from the trash"
+          }
+        }
+      }
+    },
+    "Returns the tasks a saved view gathers — Today, Overdue, or one of your own." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Returns the tasks a saved view gathers — Today, Overdue, or one of your own."
           }
         }
       }
@@ -6660,6 +7104,9 @@
           }
         }
       }
+    },
+    "Save Board" : {
+      "comment" : "File menu item that writes the board out now rather than on the debounce"
     },
     "Save Colour" : {
       "comment" : "Undo action name for adding a colour to the palette",
@@ -6758,13 +7205,13 @@
         }
       }
     },
-    "Saving is paused so the unreadable board file is not written over." : {
+    "Saving is paused so the unreadable board file is not written over. Export keeps a copy of what you do meanwhile." : {
       "comment" : "iOS banner text while writes are held back",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Saving is paused so the unreadable board file is not written over."
+            "value" : "Saving is paused so the unreadable board file is not written over. Export keeps a copy of what you do meanwhile."
           }
         }
       }
@@ -6915,6 +7362,17 @@
         }
       }
     },
+    "Send this device's changes and take in anything waiting from your other devices." : {
+      "comment" : "Status bar tooltip on the sync button when it can be pressed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send this device's changes and take in anything waiting from your other devices."
+          }
+        }
+      }
+    },
     "Session expires with no warning" : {
       "comment" : "Starter template: task title",
       "localizations" : {
@@ -6970,6 +7428,46 @@
         }
       }
     },
+    "Set the due date of ${task} to ${due}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set the due date of ${task} to ${due}"
+          }
+        }
+      }
+    },
+    "Set the priority of ${task} to ${priority}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set the priority of ${task} to ${priority}"
+          }
+        }
+      }
+    },
+    "Sets a task's due date. With no date given the due date is cleared." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sets a task's due date. With no date given the due date is cleared."
+          }
+        }
+      }
+    },
+    "Sets a task's priority." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sets a task's priority."
+          }
+        }
+      }
+    },
     "Settings" : {
       "comment" : "Accessibility name of the sidebar row that opens Settings",
       "localizations" : {
@@ -6980,6 +7478,9 @@
           }
         }
       }
+    },
+    "Settings…" : {
+      "comment" : "Menu item that opens the app's settings, on the platforms where the system does not provide one"
     },
     "Shared boards with roles" : {
       "comment" : "Seed board: task title",
@@ -7056,6 +7557,9 @@
         }
       }
     },
+    "Show in Board" : {
+      "comment" : "Task menu item that goes to where the task lives and reveals it"
+    },
     "Show only the first few" : {
       "localizations" : {
         "en" : {
@@ -7109,6 +7613,9 @@
           }
         }
       }
+    },
+    "Show Trash" : {
+      "comment" : "View menu item that opens the trash"
     },
     "Shown in the Dock while Simple Kanban is running." : {
       "comment" : "Note under the large app icon, on the desk only",
@@ -7263,6 +7770,9 @@
         }
       }
     },
+    "Sort By" : {
+      "comment" : "View submenu listing the orders a column can be drawn in"
+    },
     "Sound" : {
       "comment" : "Settings row: which completion chime plays"
     },
@@ -7361,6 +7871,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Starts a board from this template"
+          }
+        }
+      }
+    },
+    "Status" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status"
           }
         }
       }
@@ -7484,6 +8005,28 @@
         }
       }
     },
+    "Sync is off. Your board stays on this device — turn sync on in Settings." : {
+      "comment" : "Status bar tooltip on the sync button while sync is switched off",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync is off. Your board stays on this device — turn sync on in Settings."
+          }
+        }
+      }
+    },
+    "Sync Now" : {
+      "comment" : "File menu item that sends this device's changes to iCloud and takes in the other devices'",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync Now"
+          }
+        }
+      }
+    },
     "System" : {
       "comment" : "Appearance setting: follow the system",
       "localizations" : {
@@ -7495,8 +8038,18 @@
         }
       }
     },
+    "Takes a finished task back out of Done, to the column it was working in." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Takes a finished task back out of Done, to the column it was working in."
+          }
+        }
+      }
+    },
     "Task" : {
-      "comment" : "Menu title, and a heading in the shortcuts sheet\nWhat kind of thing a trashed item is",
+      "comment" : "Menu title, and a heading in the shortcuts sheet\nWhat a card is called in the Shortcuts editor\nWhat kind of thing a trashed item is",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7689,6 +8242,17 @@
         }
       }
     },
+    "That could not be saved. Try again, or add it in Simple Kanban." : {
+      "comment" : "Share sheet error when the capture could not be written to disk",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That could not be saved. Try again, or add it in Simple Kanban."
+          }
+        }
+      }
+    },
     "That export could not be written." : {
       "comment" : "Alert title when saving an exported file failed",
       "localizations" : {
@@ -7755,8 +8319,30 @@
         }
       }
     },
+    "That label no longer exists." : {
+      "comment" : "Shortcuts error: the named label has been deleted",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That label no longer exists."
+          }
+        }
+      }
+    },
+    "That task cannot be completed — the board it is on has no Done column." : {
+      "comment" : "Shortcuts error: there is nowhere to complete the task to",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That task cannot be completed — the board it is on has no Done column."
+          }
+        }
+      }
+    },
     "That task no longer exists." : {
-      "comment" : "Alert title for a link to a task that has been deleted",
+      "comment" : "Alert title for a link to a task that has been deleted\nShortcuts error: the named task has been deleted",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7789,7 +8375,7 @@
       }
     },
     "That view no longer exists." : {
-      "comment" : "Alert title for a link to a saved view that has been deleted",
+      "comment" : "Alert title for a link to a saved view that has been deleted\nShortcuts error: the named saved view has been deleted",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7805,6 +8391,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The accent follows the app’s theme and stays in the palette"
+          }
+        }
+      }
+    },
+    "The board could not be exported." : {
+      "comment" : "Alert title when the blocked-session export fails",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The board could not be exported."
           }
         }
       }
@@ -8011,7 +8608,9 @@
     "The same icon whatever the theme." : {
       "comment" : "Note under the app icon when it is one of the ten"
     },
-    "The theme's window gradient, highlight and ink, drawn as the icon." : {},
+    "The theme's window gradient, highlight and ink, drawn as the icon." : {
+
+    },
     "The This Week column's dot, and medium priority. Overdue has no field of its own — it is the hot due chip below." : {
       "comment" : "Where the amber hue is used, and why there is no third status hue",
       "localizations" : {
@@ -8066,7 +8665,7 @@
       }
     },
     "Themes…" : {
-      "comment" : "Settings row: opens the theme browser",
+      "comment" : "Settings row: opens the theme browser\nView menu item that opens the theme browser window",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8116,6 +8715,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "This build does not say where its releases are published."
+          }
+        }
+      }
+    },
+    "This copy of Simple Kanban is not set up for sharing." : {
+      "comment" : "Share sheet error when the build is not entitled to the App Group",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This copy of Simple Kanban is not set up for sharing."
           }
         }
       }
@@ -8241,6 +8851,16 @@
         }
       }
     },
+    "Ticks a task off. A task on a board moves to its Done column; a task in the Inbox is completed where it is." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ticks a task off. A task on a board moves to its Done column; a task in the Inbox is completed where it is."
+          }
+        }
+      }
+    },
     "Timebox to a day. Write up what we find either way." : {
       "comment" : "Starter template: task note",
       "localizations" : {
@@ -8253,7 +8873,7 @@
       }
     },
     "Title" : {
-      "comment" : "How a view sorts its cards\nView criterion field",
+      "comment" : "Field label on the share sheet\nHow a view sorts its cards\nView criterion field",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8294,6 +8914,9 @@
           }
         }
       }
+    },
+    "Toggle Inbox" : {
+      "comment" : "View menu item that shows or hides the Inbox panel beside the board"
     },
     "Toggle Inspector" : {
       "comment" : "View menu item that shows or hides the detail panel",
@@ -8560,6 +9183,16 @@
         }
       }
     },
+    "Updated %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updated %@."
+          }
+        }
+      }
+    },
     "Uses this theme for the %@ appearance" : {
       "comment" : "Accessibility hint on a theme tile",
       "localizations" : {
@@ -8616,7 +9249,7 @@
       }
     },
     "View" : {
-      "comment" : "Menu title, and a heading in the shortcuts sheet\nWhat a saved view is called when configuring a widget",
+      "comment" : "Menu title, and a heading in the shortcuts sheet\nWhat a saved view is called in the Shortcuts editor\nWhat a saved view is called when configuring a widget",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8921,580 +9554,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Your board was saved by a newer version of Simple Kanban (format %lld)."
-          }
-        }
-      }
-    },
-    "Change Column Limit" : {
-      "comment" : "Undo action name for setting or clearing a board column's WIP limit",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Change Column Limit"
-          }
-        }
-      }
-    },
-    "iCloud's copy of the board could not be read when the app opened, so changes are staying on this device for now. Reading is retried with every save — Sync Now retries it too." : {
-      "comment" : "Settings note when the record store could not be read and pushes are withheld",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "iCloud's copy of the board could not be read when the app opened, so changes are staying on this device for now. Reading is retried with every save — Sync Now retries it too."
-          }
-        }
-      }
-    },
-    "Saving is paused so the unreadable board file is not written over. Export keeps a copy of what you do meanwhile." : {
-      "comment" : "iOS banner text while writes are held back",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Saving is paused so the unreadable board file is not written over. Export keeps a copy of what you do meanwhile."
-          }
-        }
-      }
-    },
-    "The board could not be exported." : {
-      "comment" : "Alert title when the blocked-session export fails",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The board could not be exported."
-          }
-        }
-      }
-    },
-    "%lld of %lld, over the column limit" : {
-      "comment" : "VoiceOver label for a column count pill past its WIP limit",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld of %2$lld, over the column limit"
-          }
-        }
-      }
-    },
-    "%lld of %lld, at the column limit" : {
-      "comment" : "VoiceOver label for a column count pill exactly at its WIP limit",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld of %2$lld, at the column limit"
-          }
-        }
-      }
-    },
-    "%lld of %lld" : {
-      "comment" : "VoiceOver label for a column count pill below its WIP limit",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld of %2$lld"
-          }
-        }
-      }
-    },
-    "${change} ${label} on ${task}" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "${change} ${label} on ${task}"
-          }
-        }
-      }
-    },
-    "Complete ${task}" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Complete ${task}"
-          }
-        }
-      }
-    },
-    "Find tasks in Simple Kanban" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Find tasks in Simple Kanban"
-          }
-        }
-      }
-    },
-    "Get tasks in ${view}" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Get tasks in ${view}"
-          }
-        }
-      }
-    },
-    "Move ${task}" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Move ${task}"
-          }
-        }
-      }
-    },
-    "Open ${task}" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open ${task}"
-          }
-        }
-      }
-    },
-    "Reopen ${task}" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reopen ${task}"
-          }
-        }
-      }
-    },
-    "Set the due date of ${task} to ${due}" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Set the due date of ${task} to ${due}"
-          }
-        }
-      }
-    },
-    "Set the priority of ${task} to ${priority}" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Set the priority of ${task} to ${priority}"
-          }
-        }
-      }
-    },
-    "Limit work in progress" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Limit work in progress"
-          }
-        }
-      }
-    },
-    "At most %lld at a time" : {
-      "comment" : "How many cards a column is meant to hold at once — its WIP limit",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "At most %lld at a time"
-          }
-        }
-      }
-    },
-    "That label no longer exists." : {
-      "comment" : "Shortcuts error: the named label has been deleted",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "That label no longer exists."
-          }
-        }
-      }
-    },
-    "That task cannot be completed — the board it is on has no Done column." : {
-      "comment" : "Shortcuts error: there is nowhere to complete the task to",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "That task cannot be completed — the board it is on has no Done column."
-          }
-        }
-      }
-    },
-    "Label Change" : {
-      "comment" : "Whether a Shortcut adds or removes a label",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Label Change"
-          }
-        }
-      }
-    },
-    "Ticks a task off. A task on a board moves to its Done column; a task in the Inbox is completed where it is." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ticks a task off. A task on a board moves to its Done column; a task in the Inbox is completed where it is."
-          }
-        }
-      }
-    },
-    "Completed %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Completed %@."
-          }
-        }
-      }
-    },
-    "%@ was already done." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ was already done."
-          }
-        }
-      }
-    },
-    "Takes a finished task back out of Done, to the column it was working in." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Takes a finished task back out of Done, to the column it was working in."
-          }
-        }
-      }
-    },
-    "Reopened %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reopened %@."
-          }
-        }
-      }
-    },
-    "%@ was not finished." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ was not finished."
-          }
-        }
-      }
-    },
-    "Moves a task to a column. With a board given instead, it goes to that board's first working column; with neither, it goes to the Inbox." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Moves a task to a column. With a board given instead, it goes to that board's first working column; with neither, it goes to the Inbox."
-          }
-        }
-      }
-    },
-    "Moved %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Moved %@."
-          }
-        }
-      }
-    },
-    "Opens a task in Simple Kanban." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Opens a task in Simple Kanban."
-          }
-        }
-      }
-    },
-    "Find Tasks" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Find Tasks"
-          }
-        }
-      }
-    },
-    "Finds tasks by text, board or column. With nothing given it returns everything on the board." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Finds tasks by text, board or column. With nothing given it returns everything on the board."
-          }
-        }
-      }
-    },
-    "Get Tasks in View" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Get Tasks in View"
-          }
-        }
-      }
-    },
-    "Returns the tasks a saved view gathers — Today, Overdue, or one of your own." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Returns the tasks a saved view gathers — Today, Overdue, or one of your own."
-          }
-        }
-      }
-    },
-    "Sets a task's due date. With no date given the due date is cleared." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sets a task's due date. With no date given the due date is cleared."
-          }
-        }
-      }
-    },
-    "Updated %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Updated %@."
-          }
-        }
-      }
-    },
-    "Sets a task's priority." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sets a task's priority."
-          }
-        }
-      }
-    },
-    "Change Label" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Change Label"
-          }
-        }
-      }
-    },
-    "Puts a label on a task or takes one off." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Puts a label on a task or takes one off."
-          }
-        }
-      }
-    },
-    "Change" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Change"
-          }
-        }
-      }
-    },
-    "Sync Now" : {
-      "comment" : "Status bar button that sends this device's changes to iCloud and takes in the other devices'",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sync Now"
-          }
-        }
-      }
-    },
-    "Send this device's changes and take in anything waiting from your other devices." : {
-      "comment" : "Status bar tooltip on the sync button when it can be pressed",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Send this device's changes and take in anything waiting from your other devices."
-          }
-        }
-      }
-    },
-    "Sync is off. Your board stays on this device — turn sync on in Settings." : {
-      "comment" : "Status bar tooltip on the sync button while sync is switched off",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sync is off. Your board stays on this device — turn sync on in Settings."
-          }
-        }
-      }
-    },
-    "%@, %lld of %lld, over the column limit" : {
-      "comment" : "VoiceOver label for a column chip past its WIP limit",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@, %2$lld of %3$lld, over the column limit"
-          }
-        }
-      }
-    },
-    "%@, %lld of %lld, at the column limit" : {
-      "comment" : "VoiceOver label for a column chip exactly at its WIP limit",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@, %2$lld of %3$lld, at the column limit"
-          }
-        }
-      }
-    },
-    "%@, %lld of %lld" : {
-      "comment" : "VoiceOver label for a column chip below its WIP limit",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@, %2$lld of %3$lld"
-          }
-        }
-      }
-    },
-    "%@, %lld" : {
-      "comment" : "VoiceOver label for a column chip: the column's name and how many cards are in it",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@, %2$lld"
-          }
-        }
-      }
-    },
-    "Board Overview" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Board Overview"
-          }
-        }
-      }
-    },
-    "Saved View" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Saved View"
-          }
-        }
-      }
-    },
-    "Added to the Inbox" : {
-      "comment" : "Toast after things shared from another app are taken into the Inbox",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Added to the Inbox"
-          }
-        }
-      }
-    },
-    "Add Shared Tasks" : {
-      "comment" : "Undo action name for taking shared items into the Inbox",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add Shared Tasks"
-          }
-        }
-      }
-    },
-    "Add to Inbox" : {
-      "comment" : "Title of the share sheet that captures into Simple Kanban",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add to Inbox"
-          }
-        }
-      }
-    },
-    "Note" : {
-      "comment" : "Field label on the share sheet, above the read-only note",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Note"
-          }
-        }
-      }
-    },
-    "This copy of Simple Kanban is not set up for sharing." : {
-      "comment" : "Share sheet error when the build is not entitled to the App Group",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This copy of Simple Kanban is not set up for sharing."
-          }
-        }
-      }
-    },
-    "That could not be saved. Try again, or add it in Simple Kanban." : {
-      "comment" : "Share sheet error when the capture could not be written to disk",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "That could not be saved. Try again, or add it in Simple Kanban."
           }
         }
       }

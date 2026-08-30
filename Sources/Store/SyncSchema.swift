@@ -232,6 +232,26 @@ final class StoredMeta {
     /// store. Optional, and read leniently, so a record written by a build
     /// before there were themes syncs into one that has them.
     var themesJSON: Data?
+    /// The saved views and the palette, as JSON, for `themesJSON`'s reason: a
+    /// `SavedView` carries a rule tree and a `PaletteSwatch` an enum with
+    /// associated values, and SwiftData can lay out neither.
+    ///
+    /// **`nil` is "no device has ever written one"**, which is not the same as
+    /// an empty list and must never be read as one: it is what every record
+    /// written before this attribute existed says, and the only honest answer
+    /// to it is to keep whatever the reading device already has. That mistake
+    /// is exactly how a saved view used to be lost on the launch after it was
+    /// made — see ``SharedList`` for the rule that replaced the guesswork.
+    var viewsJSON: Data?
+    var paletteJSON: Data?
+    /// When the user last changed each of those three, or `nil` for a list
+    /// nobody could date — a record written before these attributes existed,
+    /// and a list nobody has touched since. Not `updatedAt`, which moves every
+    /// time anything in this record is written and so says nothing about who
+    /// last edited a view. See ``BoardSnapshot/viewsChangedAt``.
+    var viewsChangedAt: Date?
+    var paletteChangedAt: Date?
+    var themesChangedAt: Date?
     var activeBoardID: UUID?
     var updatedAt: Date = Date.distantPast
 
