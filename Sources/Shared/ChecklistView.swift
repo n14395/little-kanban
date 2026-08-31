@@ -147,6 +147,24 @@ struct ChecklistView: View {
                 store.beginEditing(.subtask, on: task.id, scope: scope, subtask: current)
             }
         }
+        // **A draft with something in it is a sub-task, whether or not Return
+        // was pressed.** Leaving the field — tapping a row above, the note, the
+        // board behind — used to abandon what had been typed to a draft nobody
+        // could see was still there, so the row a person had watched themselves
+        // write simply was not on the list. Losing focus now does what Return
+        // does, minus the one part Return is *for*: the field is not asked back,
+        // because a hand that left it meant to leave.
+        //
+        // **An empty draft still makes nothing**, which is the whole of the
+        // exception: `addSubtask` trims and refuses blank, so a field somebody
+        // only tapped commits nothing and keeps whatever whitespace it had.
+        // That is also what makes the second call after Return harmless — the
+        // submit handler has already committed and emptied the draft by the time
+        // the field resigns, so this finds nothing left to add.
+        .onChange(of: isDraftFocused) { _, isFocused in
+            guard !isFocused else { return }
+            store.commitSubtaskDraft(for: scope, task: task.id)
+        }
         .onChange(of: task.id) { previousID, _ in
             endFocusedSession(on: previousID)
             focusedRow = nil

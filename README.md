@@ -2398,6 +2398,26 @@ takes focus, the dashed `+` box on the add row included — a `TextField` is onl
 live across the text it draws, so the row rather than the field is what a finger
 aims at; see **Touch targets**.
 
+**A draft with something in it is a sub-task, whether or not Return was
+pressed.** Return commits the add row and keeps the field, because a checklist is
+written as a list — the draft moves down under the row it just made and the next
+one is typed straight into it, and losing the keyboard there costs a click a
+line. What it did *not* do was cover the other way people finish a line: typing
+one and then tapping something else. That abandoned the text to a draft nobody
+could see was still there — the store keeps it, keyed by surface and task, so it
+was not lost, but the row a person had watched themselves write was not on the
+list. Losing the field now does what Return does, minus the part Return is for:
+the field is not asked back, because a hand that left it meant to leave.
+
+The exception is the whole of the rule: **an empty draft still makes nothing.**
+`addSubtask` trims and refuses blank, so a field somebody only tapped commits
+nothing and keeps whatever it had. That is also what makes the double call after
+Return harmless — Return commits and the field then resigns, so the commit
+arrives twice, and the second finds the draft the first one emptied.
+`DraftTests.committingADraftTwiceAddsOneSubTask` is what holds that, since a
+commit that re-added its text would put every typed sub-task on the list twice
+and nothing else would notice.
+
 **Reordering is a drag on the grip at the end of a row**, on every platform, and
 it logs nothing — the order is on screen, and a feed of "sub-task moved" would
 bury the changes that matter.

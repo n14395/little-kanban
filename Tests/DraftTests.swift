@@ -46,6 +46,56 @@ import Testing
         #expect(store.labelDraft(for: .sheet, task: TestBoard.cafe) == "half")
     }
 
+    /// **A draft that loses the field is committed, and Return does both.**
+    ///
+    /// The checklist's draft field commits when it stops holding the keyboard as
+    /// well as when Return is pressed — a row somebody typed and then tapped away
+    /// from was being abandoned to a draft nobody could see was still there. See
+    /// `theChecklistDraftIsCommittedWhenItLosesTheField` for the wiring.
+    ///
+    /// What that makes the store answerable for is *this*: Return commits and
+    /// then the field resigns, so the commit arrives twice for one sub-task. The
+    /// second has to add nothing, which it does by finding the draft the first
+    /// one emptied. A commit that re-added its text would put every sub-task
+    /// typed on the list twice, and nothing else in here would notice.
+    @Test func committingADraftTwiceAddsOneSubTask() {
+        let store = TestBoard.store()
+        store.setSubtaskDraft("Ring the printer", for: .sheet, task: TestBoard.cafe)
+        store.commitSubtaskDraft(for: .sheet, task: TestBoard.cafe)
+        store.commitSubtaskDraft(for: .sheet, task: TestBoard.cafe)
+
+        #expect(store[TestBoard.cafe]?.subtasks.map(\.text) == ["Ring the printer"])
+        #expect(store.subtaskDraft(for: .sheet, task: TestBoard.cafe).isEmpty)
+    }
+
+    /// **The wiring**, which only the source can say: a `@FocusState` cannot be
+    /// driven from here, and `commitSubtaskDraft` answers the same whether or
+    /// not anything is calling it when the field goes.
+    ///
+    /// Read off the *masked* source — comments and string literals are blanked —
+    /// so the note above the watcher explaining itself cannot satisfy it.
+    ///
+    /// Two commits in the file and no more: Return's and the field's. A third
+    /// would be the draft being committed somewhere it has not been emptied
+    /// first, which is how one typed line becomes two rows.
+    @Test func theChecklistDraftIsCommittedWhenItLosesTheField() {
+        guard SourceTree.isReachable else { return }
+        guard let file = SourceTree.files().first(where: { $0.path == "Shared/ChecklistView.swift" })
+        else {
+            Issue.record("the checklist has moved file")
+            return
+        }
+        let code = file.source
+        #expect(code.contains("onChange(of: isDraftFocused)"),
+                "the checklist's draft field is not watched for losing focus")
+        #expect(code.contains("guard !isFocused"),
+                "the draft is committed on *gaining* the field as well as on losing it")
+
+        let commits = code.components(separatedBy: "commitSubtaskDraft").count - 1
+        #expect(commits == 2,
+                "the checklist commits its draft from \(commits) places; there are two")
+    }
+
     @Test func anEmptyDraftCommitsNothing() {
         let store = TestBoard.store()
         store.setSubtaskDraft("   ", for: .desk, task: TestBoard.cafe)
