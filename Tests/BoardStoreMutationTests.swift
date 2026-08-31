@@ -229,7 +229,7 @@ import Testing
     /// own `createBoard`.
     @Test func aCardWithNoDoneColumnToReachCannotBeTicked() {
         let onlyColumn = BoardColumn(name: "Only", short: "ON", dot: .ink(opacity: 0.35))
-        let board = Board(name: "No finish line", dot: .ink(opacity: 0.35),
+        let board = Board(name: "No finish line",
                           columns: [onlyColumn], codePrefix: "NF")
         let card = TaskItem(id: TestBoard.taskID(90), code: "NF-1", columnID: onlyColumn.id,
                             title: "Nowhere to finish",
@@ -523,10 +523,13 @@ import Testing
     // MARK: Sub-tasks
 
     @Test func reorderingCountsTheOffsetInThePreMoveArray() throws {
-        // `ChecklistView.drop` computes `to > from ? to + 1 : to` precisely
-        // because `move(fromOffsets:toOffset:)` reads the offset in the array as
-        // it still stands, so landing *after* the target is one past it. The
-        // downward drag is the direction an off-by-one hides in.
+        // `ChecklistView.move(from:to:)` — the row's Move Up / Move Down —
+        // computes `to > from ? to + 1 : to` precisely because
+        // `move(fromOffsets:toOffset:)` reads the offset in the array as it
+        // still stands, so landing *after* the target is one past it. Downwards
+        // is the direction an off-by-one hides in. The *drag* names a gap
+        // instead now and does its own arithmetic; `SubtaskReorderTests` is
+        // where that half is pinned.
         let store = TestBoard.store()
         let ids = try #require(store[TestBoard.dragDrop]?.subtasks.map(\.id))
         #expect(ids == [TestBoard.lift, TestBoard.dropTargets, TestBoard.keyboard])
@@ -544,9 +547,9 @@ import Testing
         #expect(kinds(store, TestBoard.dragDrop) == [.created])          // reordering logs nothing
     }
 
-    @Test func aRowDraggedDownLandsPastTheRowItWasDroppedOn() {
-        // `ChecklistView.drop` reads its offset in the array as it still stands,
-        // so a row dragged downwards lands one *past* its target. Driving
+    @Test func aRowMovedDownLandsPastTheRowItWasMovedOver() {
+        // `dropOffset` reads its offset in the array as it still stands, so a
+        // row moved downwards lands one *past* the row it stepped over. Driving
         // `moveSubtask` with a hand-written offset cannot see that expression at
         // all — replacing it with a bare `to` leaves the reorder test above
         // green — so the arithmetic is asserted, and then asserted again through
@@ -565,7 +568,7 @@ import Testing
                 == [TestBoard.dropTargets, TestBoard.keyboard, TestBoard.lift])
     }
 
-    @Test func aRowDraggedUpLandsOnTheRowItWasDroppedOn() throws {
+    @Test func aRowMovedUpLandsOnTheRowItWasMovedOver() throws {
         // Upwards there is nothing to step over: the target's own index is where
         // the row goes, and adding one there would overshoot by a row.
         #expect(BoardStore.dropOffset(from: 1, to: 0) == 0)

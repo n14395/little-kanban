@@ -54,7 +54,7 @@ import Testing
     /// the picker was opened and closed.
     @Test func everyShippedColourSurvivesTheRoundTrip() {
         let shipped: [UInt32] = [
-            0xA8A29A, 0xC98A16, 0xC2532F, 0x1F6F63, 0x3B5BA9,   // Board.dots
+            0xA8A29A, 0xC98A16, 0xC2532F, 0x1F6F63, 0x3B5BA9,   // PaletteSwatch.seed
             0xBE2828, 0x783CA0, 0xE87C58, 0xF1B49B,             // label tones
             0x000000, 0xFFFFFF, 0x808080, 0x010203,             // the corners
         ]

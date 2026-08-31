@@ -4,10 +4,11 @@ import WidgetKit
 /// One saved view — Today, Due this week, or one the user wrote.
 ///
 /// Two sizes, and they answer different questions. The medium tile is a glance:
-/// the view's name and glyph on the left, the top four as bullets beside them,
+/// the view's name and glyph on the left, the first few as bullets beside them,
 /// which is what "is there anything I should know about" looks like. The large
 /// tile is the list itself, with due chips and priorities, which is what
-/// "what am I doing today" looks like.
+/// "what am I doing today" looks like. How many "a few" is comes from the tile
+/// rather than from a constant — see ``WidgetRowCount``.
 struct SavedViewWidget: Widget {
     var body: some WidgetConfiguration {
         AppIntentConfiguration(
@@ -58,7 +59,7 @@ struct SavedViewWidgetView: View {
         }
     }
 
-    // MARK: Medium — the name on the left, four bullets beside it
+    // MARK: Medium — the name on the left, the first few bullets beside it
 
     private func medium(_ list: WidgetList) -> some View {
         HStack(alignment: .top, spacing: 12) {
@@ -67,11 +68,12 @@ struct SavedViewWidgetView: View {
             if list.tasks.isEmpty {
                 emptyNote(list)
             } else {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(list.tasks.prefix(WidgetRowCount.medium)) { task in
-                        WidgetBulletRow(task: task)
+                WidgetRowSpace(shape: .bullet) { rows in
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(list.tasks.prefix(rows)) { task in
+                            WidgetBulletRow(task: task)
+                        }
                     }
-                    Spacer(minLength: 0)
                 }
             }
         }
@@ -86,12 +88,13 @@ struct SavedViewWidgetView: View {
             if list.tasks.isEmpty {
                 emptyNote(list)
             } else {
-                VStack(alignment: .leading, spacing: 5) {
-                    ForEach(list.tasks.prefix(WidgetRowCount.large)) { task in
-                        WidgetTaskRow(task: task, today: entry.digest.today)
+                WidgetRowSpace { rows in
+                    VStack(alignment: .leading, spacing: 5) {
+                        ForEach(list.tasks.prefix(rows)) { task in
+                            WidgetTaskRow(task: task, today: entry.digest.today)
+                        }
                     }
                 }
-                Spacer(minLength: 0)
             }
         }
         .widgetURL(AppLink.url(.view(list.id)))

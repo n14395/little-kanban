@@ -50,13 +50,19 @@ final class InboxSheetDragTests: XCTestCase {
         return app
     }
 
-    /// The sheet's Close button: the one element that is the sheet's and no
+    /// The sheet's own heading: the one element that is the sheet's and no
     /// other's on this screen. The word "Inbox" is not — the tab bar has a
     /// button called that and a card can carry a chip saying it, and an earlier
     /// version of this suite measured the sheet's header at 92% down the screen
-    /// because of exactly that.
-    private func closeButton(_ app: XCUIApplication) -> XCUIElement {
-        app.buttons["Close"]
+    /// because of exactly that. So it is found by the identifier
+    /// `PhoneInboxSheet.titleID` publishes.
+    ///
+    /// **It was the sheet's ✕**, which is not in the app any more: the grabber
+    /// says how the panel goes away and the button was repeating it. Which
+    /// makes this suite the one that now carries the whole claim — if the drag
+    /// stops working there is no button left to fall back on.
+    private func panelTitle(_ app: XCUIApplication) -> XCUIElement {
+        app.staticTexts["InboxPanelTitle"]
     }
 
     /// Dragged down through the given fraction of the window.
@@ -85,8 +91,8 @@ final class InboxSheetDragTests: XCTestCase {
     /// against a wall.
     func testAPullDownOverTheCardsTakesTheSheetWithIt() throws {
         let app = try launched()
-        let close = closeButton(app)
-        XCTAssertTrue(close.waitForExistence(timeout: 15), "the Inbox sheet never came up")
+        let title = panelTitle(app)
+        XCTAssertTrue(title.waitForExistence(timeout: 15), "the Inbox sheet never came up")
 
         // By the words on it rather than as `app.cells.element(boundBy: 0)`,
         // which is what this used to say: the sheet's cards were a `List`'s rows
@@ -102,7 +108,7 @@ final class InboxSheetDragTests: XCTestCase {
         // Waited for rather than read: the sheet takes a moment to leave, and
         // counting the instant the finger lifts reads "still there" every time.
         XCTAssertTrue(
-            close.waitForNonExistence(timeout: 3),
+            title.waitForNonExistence(timeout: 3),
             "a pull down over the cards left the Inbox where it was — the list took the pan and rubber-banded instead of handing it over"
         )
     }
@@ -111,13 +117,13 @@ final class InboxSheetDragTests: XCTestCase {
     /// of a sheet people aim at when the grabber tells them they can.
     func testAPullDownOnTheHeaderTakesTheSheetWithIt() throws {
         let app = try launched()
-        let close = closeButton(app)
-        XCTAssertTrue(close.waitForExistence(timeout: 15), "the Inbox sheet never came up")
+        let title = panelTitle(app)
+        XCTAssertTrue(title.waitForExistence(timeout: 15), "the Inbox sheet never came up")
 
-        dragDown(app, from: close.frame.midY / app.windows.firstMatch.frame.height)
+        dragDown(app, from: title.frame.midY / app.windows.firstMatch.frame.height)
 
         XCTAssertTrue(
-            close.waitForNonExistence(timeout: 3),
+            title.waitForNonExistence(timeout: 3),
             "a pull down on the header left the Inbox where it was"
         )
     }

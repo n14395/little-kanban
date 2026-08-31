@@ -26,7 +26,7 @@ import Testing
     /// Two full copies of a board's worth of content under disjoint ids —
     /// what the two-id-set cloud actually delivered.
     private static func otherSet() -> BoardSnapshot {
-        var board = Board(id: UUID(), name: "Personal", dot: .accent,
+        var board = Board(id: UUID(), name: "Personal",
                           columns: [BoardColumn(id: UUID(), name: "Someday", short: "Some", dot: .accent),
                                     BoardColumn(id: UUID(), name: "Done", short: "Done", dot: .accent)],
                           codePrefix: "PE")

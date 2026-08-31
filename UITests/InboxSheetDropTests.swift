@@ -70,7 +70,8 @@ final class InboxSheetDropTests: XCTestCase {
     /// three rows and the two ends of them.
     func testACardIsRearrangedByDraggingWithinTheInbox() throws {
         let app = try launched()
-        XCTAssertTrue(app.buttons["Close"].waitForExistence(timeout: 15), "the Inbox never came up")
+        XCTAssertTrue(app.staticTexts["InboxPanelTitle"].waitForExistence(timeout: 15),
+                      "the Inbox never came up")
         XCTAssertTrue(card(first, in: app).waitForExistence(timeout: 10), "no cards in the Inbox")
 
         let rows = [first, second, third]

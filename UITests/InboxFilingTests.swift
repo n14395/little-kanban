@@ -30,14 +30,15 @@ import XCTest
 ///    the board. If the panel had taken the editor down and kept itself, or if
 ///    the editor had never returned, there would be no pill to read.
 /// 2. **Then the editor is closed**, and what is behind it is the board — the
-///    floating `New task`, and no `InboxClose`. That is the measurement
+///    floating `New task`, and no Inbox heading. That is the measurement
 ///    `QuickCaptureTests` makes for the mirror-image bug, in the same words: a
 ///    panel left standing is only visible once the thing over it is gone.
 ///
-/// The two × buttons are told apart by identifier rather than by label, because
-/// both call themselves "Close" — which is the right word for each and is what a
-/// reader hears. `PhoneInboxSheet` carries an `InboxClose` identifier for exactly
-/// this collision.
+/// **Neither surface has a ✕ any more** — both are put away by pulling them
+/// down, which is what the grabber above each has always said. So the panel is
+/// found by the heading `PhoneInboxSheet.titleID` names, and the editor by its
+/// title field; the two used to be told apart by identifier because both of
+/// their buttons called themselves "Close".
 ///
 /// **iPhone simulator only** — the iPad's Inbox stands beside the board rather
 /// than over it, so a card filed from there is on screen the moment it moves and
@@ -73,9 +74,9 @@ final class InboxFilingTests: XCTestCase {
         ]
         app.launch()
 
-        // The panel's own × — see this suite's note on why it is found by
-        // identifier and the editor's by label.
-        let panel = app.buttons["InboxClose"]
+        // The panel's own heading — see this suite's note on why each surface
+        // is found the way it is.
+        let panel = app.staticTexts["InboxPanelTitle"]
         XCTAssertTrue(panel.waitForExistence(timeout: 15), "the Inbox panel never came up")
 
         let row = app.descendants(matching: .any)
@@ -116,8 +117,9 @@ final class InboxFilingTests: XCTestCase {
         XCTAssertTrue(app.textFields["Title"].exists, "the editor came back with no card in it")
 
         // **Half two**, and the one the change is for: close the editor and what
-        // is behind it is the board, not the list the card has left.
-        app.buttons["Close"].tap()
+        // is behind it is the board, not the list the card has left. Pulled
+        // down, which is the only way out of it now.
+        dragDown(app, from: 0.15)
         XCTAssertTrue(title.waitForNonExistence(timeout: 5), "the editor would not close")
 
         XCTAssertFalse(
@@ -161,12 +163,29 @@ final class InboxFilingTests: XCTestCase {
 
         XCTAssertTrue(app.buttons[BoardDestinationIDs.pill].waitForExistence(timeout: 10),
                       "the editor did not come back after the card went to the Inbox")
-        app.buttons["Close"].tap()
+        dragDown(app, from: 0.15)
 
         XCTAssertTrue(
-            app.buttons["InboxClose"].waitForExistence(timeout: 5),
+            app.staticTexts["InboxPanelTitle"].waitForExistence(timeout: 5),
             "filing a card to the Inbox did not leave the panel standing behind the editor"
         )
+    }
+
+    /// Puts a sheet away the way a finger does, now that neither surface draws a
+    /// ✕. The reach — four tenths of the window — is `InboxSheetDragTests`'s
+    /// measurement, and that suite owns the claim that a synthetic drag drives
+    /// a system sheet's pan at all.
+    private func dragDown(_ app: XCUIApplication, from y: CGFloat) {
+        let window = app.windows.firstMatch
+        window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: y))
+            .press(
+                forDuration: 0.05,
+                thenDragTo: window.coordinate(
+                    withNormalizedOffset: CGVector(dx: 0.5, dy: min(0.97, y + 0.4))
+                ),
+                withVelocity: .default,
+                thenHoldForDuration: 0.1
+            )
     }
 }
 

@@ -63,10 +63,6 @@ struct DropPreviewCard<Card: View>: View {
     /// card and the phone's are different views.
     @ViewBuilder let card: () -> Card
 
-    /// Faint enough to read as a promise rather than as a second card, solid
-    /// enough that the title on it can still be read.
-    private static var faintness: Double { 0.45 }
-
     var body: some View {
         // **Only where it stands in a gap.** A stand-in on an *empty* list has
         // no gap to hold: it is drawn over the list's own ground, which is the
@@ -83,14 +79,8 @@ struct DropPreviewCard<Card: View>: View {
 
     private var standIn: some View {
         card()
-            .opacity(Self.faintness)
-            .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .strokeBorder(
-                        palette.accent.opacity(0.6),
-                        style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])
-                    )
-            }
+            .opacity(StandIn.faintness)
+            .overlay { StandIn.outline(cornerRadius: cornerRadius, accent: palette.accent) }
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
@@ -134,6 +124,33 @@ struct DropPreviewCard<Card: View>: View {
                 if preview.placement.isInbox { store.isInboxDropTarget = true }
             }
             .padding(.vertical, -reach)
+    }
+}
+
+/// How a thing that is not there yet is drawn, wherever one is drawn.
+///
+/// Two lists show one: the board's columns and the Inbox draw a card-shaped
+/// stand-in through ``DropPreviewCard``, and the task editor's checklist draws a
+/// row-shaped one through `ChecklistView.standIn(_:at:)`. The numbers are here
+/// rather than at either site because *what a promise looks like* is one piece
+/// of vocabulary — two copies of it drift, and the drift shows up as a board and
+/// an editor disagreeing about how solid a card about to land is.
+enum StandIn {
+    /// Faint enough to read as a promise rather than as a second copy of
+    /// something that already exists further up the list, solid enough that the
+    /// words on it can still be read.
+    static let faintness: Double = 0.45
+
+    /// What the thing being carried is drawn at, in the place it has not left
+    /// yet. `BoardTaskCard` states the same number at its own site, where it is
+    /// one of a run of modifiers rather than a decision on its own.
+    static let inTheAir: Double = 0.4
+
+    /// The dashed edge. Its corner is the caller's, because the two surfaces
+    /// round what they draw differently — a board card, a checklist row.
+    static func outline(cornerRadius: CGFloat, accent: Color) -> some View {
+        RoundedRectangle(cornerRadius: cornerRadius)
+            .strokeBorder(accent.opacity(0.6), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
     }
 }
 

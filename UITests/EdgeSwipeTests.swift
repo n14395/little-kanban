@@ -22,9 +22,11 @@ import XCTest
 ///     xcodebuild test -scheme SimpleKanbanUITests \
 ///       -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)'
 final class EdgeSwipeTests: XCTestCase {
-    /// The drawer's own dismiss button. By label, and unique while the drawer
-    /// is up: the only other "Close" on the phone is the detail sheet's, and
-    /// nothing here opens a sheet.
+    /// The drawer's own dismiss button. By label, and now the only "Close" on
+    /// the phone at all: the detail sheet and the Inbox panel each had one and
+    /// neither does any more — both are put away by pulling them down. The
+    /// drawer keeps its ✕ because it comes in from the side, where there is no
+    /// grabber saying so.
     private let drawerClose = "Close"
 
     override func setUp() {

@@ -68,6 +68,9 @@ import Testing
             ("ChecklistView.sheet.rowMinHeight", ChecklistView.Metrics.sheet.rowMinHeight),
             ("ChecklistView.sheet.fieldHit", ChecklistView.Metrics.sheet.fieldHit),
             ("ChecklistView.sheet.box.hitSize", ChecklistView.Metrics.sheet.box.hitSize),
+            // The reorder grip, which is the only affordance a drag has and so
+            // the one control on the row a finger must not miss.
+            ("ChecklistView.sheet.gripHit", ChecklistView.Metrics.sheet.gripHit),
             ("EmptyStateView.sheet.actionHit", EmptyStateView.Metrics.sheet.actionHit),
             ("SettingsView.sheet.rowHit", SettingsView.Metrics.sheet.rowHit),
             // The board's own settings, which both touch idioms draw at
@@ -117,6 +120,11 @@ import Testing
         #expect(ChecklistView.Metrics.desk.boxOverhang == 0)
         #expect(ChecklistView.Metrics.desk.rowMinHeight == 0)
         #expect(ChecklistView.Metrics.desk.fieldHit == 0)
+        // The grip is one of the two here that claims rather than passes: a
+        // pointer target is the extent it draws, and 18pt is the square the
+        // glyph sits in. Nothing is pulled back, because nothing was inflated.
+        #expect(ChecklistView.Metrics.desk.gripOverhang == 0)
+        #expect(ChecklistView.Metrics.desk.gripHit < Self.finger)
         #expect(LabelManagerView.Metrics.desk.fieldHit == 0)
         #expect(DueDateField.Metrics.desk.chipHit == 0)
         #expect(DueDateField.Metrics.desk.rowHit == 0)
@@ -158,6 +166,20 @@ import Testing
         // `ColumnEditorMetrics.arrowEdge`.
         #expect(BoardColumnView.ColumnEditorMetrics.desk.arrowEdge != nil)
         #expect(BoardColumnView.ColumnEditorMetrics.pad.arrowEdge == nil)
+        // The editor's own two panels are the same decision measured on the
+        // phone: the Due card sits about 520pt down an 874pt screen and the
+        // Labels row lower still, so "above the chip" — the only placement a
+        // named edge permits — was the side with nothing in it, and both panels
+        // were drawn at full length inside what was left and cut off at both
+        // ends. See `DueDateField.Metrics.arrowEdge` and `UITests/PickerFitTests`.
+        #expect(DueDateField.Metrics.desk.arrowEdge != nil)
+        #expect(DueDateField.Metrics.sheet.arrowEdge == nil)
+        #expect(LabelEditor.Metrics.desk.arrowEdge != nil)
+        #expect(LabelEditor.Metrics.sheet.arrowEdge == nil)
+        // And the manager's create form, whose row heads its list: on a phone
+        // there is nothing above it to hang a form in at all.
+        #expect(LabelManagerView.Metrics.desk.arrowEdge != nil)
+        #expect(LabelManagerView.Metrics.sheet.arrowEdge == nil)
 
         // The three that claim rather than pass: each is the extent the control
         // already draws, so the square is the shape and not a bigger one.
@@ -189,6 +211,16 @@ import Testing
         #expect(claimed >= sheet.box.size, "the overhang has eaten into the drawn box")
         #expect(claimed <= sheet.rowMinHeight, "the box is pushing the row taller than it draws")
         #expect(sheet.box.hitSize <= sheet.rowMinHeight, "the 44pt square spills outside the row")
+
+        // The grip at the other end of the row makes the same bargain, and it
+        // has to: a second 44pt square taking its full width would cost the
+        // text field 44pt of the row it shares with the box.
+        let grip = sheet.gripHit - 2 * sheet.gripOverhang
+        #expect(sheet.gripOverhang > 0, "the grip's 44pt square is not being pulled back at all")
+        #expect(grip == sheet.gripReserve, "the add row is holding open the wrong width")
+        #expect(grip < sheet.gripHit, "the overhang gives nothing back")
+        #expect(grip >= sheet.gripGlyph, "the overhang has eaten into the drawn glyph")
+        #expect(sheet.gripHit <= sheet.rowMinHeight, "the grip's 44pt square spills outside the row")
     }
 
     /// §6's truncation cap on a chip's name — a `Metrics`-shaped constant in
@@ -255,19 +287,89 @@ import Testing
         #expect(browser.columnWidth <= tile, "the grid asks for a column wider than the tile in it")
     }
 
-    /// One palette for every surface *and* every kind of thing, or a board
+    /// **A panel under a finger is inset for one too, and fits the phone.**
+    ///
+    /// The three popovers that hang off a control in the editor are a family
+    /// and are worth reading against each other: the calendar is 344pt wide
+    /// inside 12pt of padding, the label manager's create form 230 inside 16 —
+    /// and the label picker was **250 inside 8**, the desk's own inset plus a
+    /// point. The compose form it swaps to is a title, a field, a colour the
+    /// width of the panel and two verbs, and at that inset all four ran wall to
+    /// wall with the popover's rounded corners a few points off them. The floor
+    /// here is the family's smallest, so nobody drifts back under it.
+    @Test func everyTouchPanelIsInsetForTheHandItIsUnder() {
+        let phone: CGFloat = 375
+        let inset: CGFloat = 12
+
+        #expect(LabelPickerList.Metrics.sheet.panelPadding >= inset)
+        #expect(DueDateField.Metrics.sheet.panelPadding >= inset)
+        #expect(LabelManagerView.Metrics.sheet.panelPadding >= inset)
+
+        // And the inset comes out of the screen rather than out of the content:
+        // both panels are wider than the desk's and still fit the narrowest
+        // phone with room either side for the popover's own margin.
+        #expect(LabelPickerList.Metrics.sheet.width > LabelPickerList.Metrics.desk.width)
+        #expect(LabelPickerList.Metrics.sheet.width <= phone - 16)
+        #expect(DueDateField.Metrics.sheet.pickerWidth <= phone - 16)
+
+        // The desk keeps its own, which are drawn for a pointer and a window.
+        #expect(LabelPickerList.Metrics.desk.panelPadding < inset)
+        #expect(DueDateField.Metrics.desk.panelPadding < inset)
+    }
+
+    /// One palette for every surface *and* every kind of thing, or a column
     /// coloured on the phone cannot be put back to that colour on the desk and a
     /// colour saved on a column cannot be given to a label. The seed workflow's
     /// own dots have to be in it for a related reason: a column recoloured by
     /// accident is only undoable while the swatch it arrived with is still on
     /// offer, and the seed is what a board file starts its palette with.
-    @Test func theBoardAndColumnSwatchesCoverWhatTheSeedShipsWith() {
-        #expect(Set(BoardColumn.workflow.map(\.dot)).isSubset(of: Set(Board.dotPalette)))
-        #expect(Board.dotPalette.contains(SeedData.defaultBoard.dot))
-        // The Inbox's grey is not a choice: a board wearing it sits in the same
-        // sidebar list as the Inbox itself.
-        #expect(Board.dotPalette.contains(Board.inboxDot) == false)
-        #expect(Set(Board.dotPalette).count == Board.dotPalette.count)
+    @Test func theColumnSwatchesCoverWhatTheSeedShipsWith() {
+        #expect(Set(BoardColumn.workflow.map(\.dot)).isSubset(of: Set(PaletteSwatch.seedPalette)))
+        // The Inbox's grey is not a choice: a column wearing it sits in the same
+        // list as the Inbox itself.
+        #expect(PaletteSwatch.seedPalette.contains(Board.inboxDot) == false)
+        #expect(Set(PaletteSwatch.seedPalette).count == PaletteSwatch.seedPalette.count)
+    }
+
+    /// **The marks a board is offered read at the size a row draws them.**
+    /// There is no way to assert legibility, so this asserts the two things
+    /// that stand behind it: every one of them is a symbol this system can
+    /// actually draw — a name with a typo in it draws *nothing*, and a picker
+    /// of blanks is what that looks like — and none is offered twice.
+    ///
+    /// The seeded views' glyphs are deliberately absent: both kinds of row sit
+    /// in one sidebar, and one mark should mean one destination.
+    @Test func everyMarkABoardIsOfferedIsOneTheSystemDraws() {
+        for symbol in Board.startingSymbols {
+            #expect(SymbolMark.resolved(symbol) == symbol, "\(symbol) is not a symbol here")
+        }
+        #expect(Set(Board.startingSymbols).count == Board.startingSymbols.count,
+                "a mark is offered twice")
+        #expect(Board.startingSymbols.first == SymbolMark.boardFallback,
+                "the list does not start with the mark a board already has")
+        let views = Set(SavedView.seededAll.map(\.symbol))
+        #expect(Set(Board.startingSymbols).isDisjoint(with: views),
+                "a board is offered a glyph one of the seeded views already wears")
+    }
+
+    /// The same three claims about the marks a **view** is offered, which is the
+    /// other list the one picker opens on.
+    ///
+    /// Plus the one that is only true of this list: the seeded seven's own
+    /// glyphs are all in it, so a view somebody has rewritten can be put back to
+    /// looking like what it was without hunting through seven thousand names.
+    @Test func everyMarkAViewIsOfferedIsOneTheSystemDraws() {
+        for symbol in SavedView.startingSymbols {
+            #expect(SymbolMark.resolved(symbol, fallback: SavedView.defaultSymbol) == symbol,
+                    "\(symbol) is not a symbol here")
+        }
+        #expect(Set(SavedView.startingSymbols).count == SavedView.startingSymbols.count,
+                "a mark is offered twice")
+        #expect(SavedView.startingSymbols.first == SavedView.defaultSymbol,
+                "the list does not start with the mark a new view already has")
+        let seeded = Set(SavedView.seededAll.map(\.symbol))
+        #expect(seeded.isSubset(of: Set(SavedView.startingSymbols)),
+                "a seeded view wears a glyph its own picker does not open on")
     }
 
     /// **No swatch is announced by its position.** Both rows had "Colour 1"
@@ -293,7 +395,6 @@ import Testing
         // The derived list the rest of the app takes is exactly this one, in
         // this order — a name added to one and not the other would be a picker
         // labelling the wrong swatch rather than a compile error.
-        #expect(Board.dotPalette == Board.dots.map(\.swatch))
-        #expect(PaletteSwatch.seed.map(\.swatch) == Board.dotPalette)
+        #expect(PaletteSwatch.seedPalette == PaletteSwatch.seed.map(\.swatch))
     }
 }

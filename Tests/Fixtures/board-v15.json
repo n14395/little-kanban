@@ -1,0 +1,1086 @@
+{
+  "activeBoardID": "B0A40000-0000-4000-8000-000000000004",
+  "boards": [
+    {
+      "codePrefix": "NW",
+      "columns": [
+        {
+          "dot": {
+            "rgb": {
+              "_0": 11051674,
+              "opacity": 1
+            }
+          },
+          "id": "C01D0000-0000-4000-8000-000000000002",
+          "name": "Backlog",
+          "short": "Backlog"
+        },
+        {
+          "dot": {
+            "rgb": {
+              "_0": 13208086,
+              "opacity": 1
+            }
+          },
+          "id": "C01D0000-0000-4000-8000-000000000003",
+          "name": "Up Next",
+          "short": "Up Next"
+        },
+        {
+          "dot": {
+            "rgb": {
+              "_0": 12735279,
+              "opacity": 1
+            }
+          },
+          "id": "C01D0000-0000-4000-8000-000000000004",
+          "limit": 3,
+          "name": "In Progress",
+          "short": "Doing"
+        },
+        {
+          "dot": {
+            "rgb": {
+              "_0": 2060131,
+              "opacity": 1
+            }
+          },
+          "id": "C01D0000-0000-4000-8000-000000000005",
+          "name": "Done",
+          "short": "Done"
+        }
+      ],
+      "createdAt": 776940000,
+      "dot": {
+        "accent": {}
+      },
+      "id": "B0A40000-0000-4000-8000-000000000004",
+      "name": "Northwind iOS 3.0"
+    }
+  ],
+  "labels": [
+    {
+      "dark": {
+        "background": {
+          "rgb": {
+            "_0": 15236184,
+            "opacity": 0.2
+          }
+        },
+        "foreground": {
+          "rgb": {
+            "_0": 15840411,
+            "opacity": 1
+          }
+        }
+      },
+      "key": "design",
+      "light": {
+        "background": {
+          "rgb": {
+            "_0": 12735279,
+            "opacity": 0.12
+          }
+        },
+        "foreground": {
+          "rgb": {
+            "_0": 10370591,
+            "opacity": 1
+          }
+        }
+      },
+      "name": "Design"
+    },
+    {
+      "dark": {
+        "background": {
+          "rgb": {
+            "_0": 5291690,
+            "opacity": 0.18
+          }
+        },
+        "foreground": {
+          "rgb": {
+            "_0": 8903625,
+            "opacity": 1
+          }
+        }
+      },
+      "key": "ios",
+      "light": {
+        "background": {
+          "rgb": {
+            "_0": 2060131,
+            "opacity": 0.13
+          }
+        },
+        "foreground": {
+          "rgb": {
+            "_0": 1530448,
+            "opacity": 1
+          }
+        }
+      },
+      "name": "iOS"
+    },
+    {
+      "dark": {
+        "background": {
+          "ink": {
+            "opacity": 0.1
+          }
+        },
+        "foreground": {
+          "ink": {
+            "opacity": 0.65
+          }
+        }
+      },
+      "key": "api",
+      "light": {
+        "background": {
+          "ink": {
+            "opacity": 0.08
+          }
+        },
+        "foreground": {
+          "ink": {
+            "opacity": 0.6
+          }
+        }
+      },
+      "name": "API"
+    },
+    {
+      "dark": {
+        "background": {
+          "rgb": {
+            "_0": 15751770,
+            "opacity": 0.18
+          }
+        },
+        "foreground": {
+          "rgb": {
+            "_0": 16097440,
+            "opacity": 1
+          }
+        }
+      },
+      "key": "bug",
+      "light": {
+        "background": {
+          "rgb": {
+            "_0": 12462120,
+            "opacity": 0.12
+          }
+        },
+        "foreground": {
+          "rgb": {
+            "_0": 10691106,
+            "opacity": 1
+          }
+        }
+      },
+      "name": "Bug"
+    },
+    {
+      "dark": {
+        "background": {
+          "rgb": {
+            "_0": 15118140,
+            "opacity": 0.18
+          }
+        },
+        "foreground": {
+          "rgb": {
+            "_0": 15715204,
+            "opacity": 1
+          }
+        }
+      },
+      "key": "polish",
+      "light": {
+        "background": {
+          "rgb": {
+            "_0": 13208086,
+            "opacity": 0.15
+          }
+        },
+        "foreground": {
+          "rgb": {
+            "_0": 9067782,
+            "opacity": 1
+          }
+        }
+      },
+      "name": "Polish"
+    }
+  ],
+  "nextSerial": 121,
+  "palette": [
+    {
+      "name": "Fixture Rust",
+      "swatch": {
+        "accent": {}
+      }
+    },
+    {
+      "name": "Stone",
+      "swatch": {
+        "rgb": {
+          "_0": 11051674,
+          "opacity": 1
+        }
+      }
+    },
+    {
+      "name": "Amber",
+      "swatch": {
+        "rgb": {
+          "_0": 13208086,
+          "opacity": 1
+        }
+      }
+    },
+    {
+      "name": "Ember",
+      "swatch": {
+        "rgb": {
+          "_0": 12735279,
+          "opacity": 1
+        }
+      }
+    },
+    {
+      "name": "Pine",
+      "swatch": {
+        "rgb": {
+          "_0": 2060131,
+          "opacity": 1
+        }
+      }
+    },
+    {
+      "name": "Indigo",
+      "swatch": {
+        "rgb": {
+          "_0": 3890089,
+          "opacity": 1
+        }
+      }
+    }
+  ],
+  "paletteChangedAt": 768000000.0,
+  "tasks": [
+    {
+      "activity": [
+        {
+          "id": "AC710000-0000-4000-8000-000000000001",
+          "kind": {
+            "captured": {}
+          },
+          "when": 776999400
+        }
+      ],
+      "code": "NW-120",
+      "createdAt": 776999400,
+      "id": "7E570000-0000-4000-8000-000000000001",
+      "inboxCompletedAt": 777085800,
+      "labelKeys": [],
+      "note": "Captured from the menu bar.",
+      "priority": "medium",
+      "subtasks": [],
+      "title": "Widget on the home screen",
+      "updatedAt": 777085800
+    },
+    {
+      "activity": [
+        {
+          "id": "AC710000-0000-4000-8000-000000000002",
+          "kind": {
+            "created": {}
+          },
+          "when": 776992800
+        }
+      ],
+      "boardID": "B0A40000-0000-4000-8000-000000000004",
+      "code": "NW-121",
+      "columnID": "C01D0000-0000-4000-8000-000000000002",
+      "createdAt": 776992800,
+      "due": "2026-08-20",
+      "id": "7E570000-0000-4000-8000-000000000002",
+      "labelKeys": [
+        "design",
+        "ios"
+      ],
+      "note": "Card follows the pointer with a lifted shadow.",
+      "priority": "high",
+      "subtasks": [
+        {
+          "done": true,
+          "id": "5B7A0000-0000-4000-8000-000000000001",
+          "text": "Lift and shadow states"
+        },
+        {
+          "done": false,
+          "id": "5B7A0000-0000-4000-8000-000000000002",
+          "text": "Column drop targets"
+        },
+        {
+          "done": false,
+          "id": "5B7A0000-0000-4000-8000-000000000003",
+          "text": "Keyboard fallback"
+        }
+      ],
+      "title": "Drag and drop between columns",
+      "updatedAt": 776992800
+    },
+    {
+      "activity": [
+        {
+          "id": "AC710000-0000-4000-8000-000000000003",
+          "kind": {
+            "created": {}
+          },
+          "when": 776991000
+        }
+      ],
+      "boardID": "B0A40000-0000-4000-8000-000000000004",
+      "code": "NW-122",
+      "columnID": "C01D0000-0000-4000-8000-000000000002",
+      "createdAt": 776991000,
+      "id": "7E570000-0000-4000-8000-000000000003",
+      "labelKeys": [
+        "polish"
+      ],
+      "note": "",
+      "priority": "low",
+      "subtasks": [],
+      "title": "Caf\u00e9 menu polish",
+      "updatedAt": 776991000
+    },
+    {
+      "activity": [
+        {
+          "id": "AC710000-0000-4000-8000-000000000051",
+          "kind": {
+            "prioritySet": {
+              "_0": "high"
+            }
+          },
+          "when": 777155400
+        },
+        {
+          "id": "AC710000-0000-4000-8000-000000000004",
+          "kind": {
+            "created": {}
+          },
+          "when": 776988000
+        }
+      ],
+      "boardID": "B0A40000-0000-4000-8000-000000000004",
+      "code": "NW-123",
+      "columnID": "C01D0000-0000-4000-8000-000000000003",
+      "createdAt": 776988000,
+      "due": "2026-09-01",
+      "id": "7E570000-0000-4000-8000-000000000004",
+      "labelKeys": [
+        "api"
+      ],
+      "note": "Buffer mutations locally and replay on reconnect.",
+      "priority": "high",
+      "subtasks": [
+        {
+          "done": false,
+          "id": "5B7A0000-0000-4000-8000-000000000004",
+          "text": "Mutation log"
+        }
+      ],
+      "title": "Offline queue for edits",
+      "updatedAt": 776988000
+    },
+    {
+      "activity": [
+        {
+          "id": "AC710000-0000-4000-8000-000000000052",
+          "kind": {
+            "prioritySet": {
+              "_0": "low"
+            }
+          },
+          "when": 777158400
+        },
+        {
+          "id": "AC710000-0000-4000-8000-000000000005",
+          "kind": {
+            "moved": {
+              "columnID": "C01D0000-0000-4000-8000-000000000004",
+              "columnName": "In Progress"
+            }
+          },
+          "when": 776980000
+        },
+        {
+          "id": "AC710000-0000-4000-8000-000000000006",
+          "kind": {
+            "created": {}
+          },
+          "when": 776970000
+        }
+      ],
+      "boardID": "B0A40000-0000-4000-8000-000000000004",
+      "code": "NW-124",
+      "columnID": "C01D0000-0000-4000-8000-000000000004",
+      "createdAt": 776970000,
+      "id": "7E570000-0000-4000-8000-000000000005",
+      "labelKeys": [
+        "api",
+        "bug"
+      ],
+      "note": "",
+      "priority": "low",
+      "subtasks": [],
+      "title": "Sync engine",
+      "updatedAt": 776980000
+    }
+  ],
+  "themes": {
+    "custom": [
+      {
+        "appearance": "light",
+        "card": {
+          "border": "#201C1417",
+          "fill": "#FFFFFF",
+          "radius": 10
+        },
+        "displayFont": {
+          "family": "Newsreader",
+          "italic": true,
+          "weight": 500
+        },
+        "dueChips": {
+          "hot": {
+            "background": "#BE282821",
+            "foreground": "#A32222"
+          },
+          "warm": {
+            "background": "#C8466E21",
+            "foreground": "#A03356"
+          }
+        },
+        "highlight": {
+          "accent": "#1F6F63",
+          "onAccent": "#FCFBF9",
+          "soft": "#1F6F631A"
+        },
+        "id": "migrated-light-1F6F63",
+        "ink": {
+          "base": "#201C14",
+          "faint": 0.42,
+          "muted": 0.62
+        },
+        "labelChips": {
+          "backgroundLift": 0,
+          "backgroundOpacity": 0.13,
+          "foregroundShade": -0.2
+        },
+        "name": "Porcelain (#1F6F63)",
+        "panelOverlay": "#FFFFFF9E",
+        "status": {
+          "done": "#2F7D4F",
+          "medium": "#B98A12"
+        },
+        "uiFont": {
+          "family": "Familjen Grotesk",
+          "italic": false,
+          "weight": 400
+        },
+        "wash": "#5C3F2014",
+        "windowBackground": {
+          "angle": 165,
+          "stops": [
+            {
+              "color": "#FBFAF7",
+              "location": 0
+            },
+            {
+              "color": "#F2EFE8",
+              "location": 0.6
+            },
+            {
+              "color": "#E7E2D6",
+              "location": 1
+            }
+          ]
+        }
+      },
+      {
+        "appearance": "dark",
+        "card": {
+          "border": "#F3EDE414",
+          "fill": "#28211A",
+          "radius": 11
+        },
+        "displayFont": {
+          "family": "Instrument Serif",
+          "italic": false,
+          "weight": 400
+        },
+        "dueChips": {
+          "hot": {
+            "background": "#F05A5A38",
+            "foreground": "#F5A0A0"
+          },
+          "warm": {
+            "background": "#EB8C9633",
+            "foreground": "#F0B7BE"
+          }
+        },
+        "highlight": {
+          "accent": "#1F6F63",
+          "onAccent": "#FCFBF9",
+          "soft": "#1F6F6329"
+        },
+        "id": "migrated-dark-1F6F63",
+        "ink": {
+          "base": "#F3EDE4",
+          "faint": 0.4,
+          "muted": 0.62
+        },
+        "labelChips": {
+          "backgroundLift": 0.45,
+          "backgroundOpacity": 0.19,
+          "foregroundShade": 0.78
+        },
+        "name": "Ember (#1F6F63)",
+        "panelOverlay": "#00000052",
+        "status": {
+          "done": "#58B896",
+          "medium": "#E2B33C"
+        },
+        "uiFont": {
+          "family": "Manrope",
+          "italic": false,
+          "weight": 400
+        },
+        "wash": "#F3EDE417",
+        "windowBackground": {
+          "angle": 160,
+          "stops": [
+            {
+              "color": "#2A1E15",
+              "location": 0
+            },
+            {
+              "color": "#17110D",
+              "location": 0.55
+            },
+            {
+              "color": "#0D0A08",
+              "location": 1
+            }
+          ]
+        }
+      }
+    ],
+    "darkID": "migrated-dark-1F6F63",
+    "lightID": "migrated-light-1F6F63"
+  },
+  "themesChangedAt": 768000000.0,
+  "trash": [
+    {
+      "contents": {
+        "task": {
+          "_0": {
+            "activity": [
+              {
+                "id": "AC710000-0000-4000-8000-000000000007",
+                "kind": {
+                  "moved": {
+                    "columnID": "C01D0000-0000-4000-8000-000000000005",
+                    "columnName": "Done"
+                  }
+                },
+                "when": 776960000
+              },
+              {
+                "id": "AC710000-0000-4000-8000-000000000008",
+                "kind": {
+                  "moved": {
+                    "columnID": "C01D0000-0000-4000-8000-000000000003",
+                    "columnName": "Up Next"
+                  }
+                },
+                "when": 776950000
+              },
+              {
+                "id": "AC710000-0000-4000-8000-000000000009",
+                "kind": {
+                  "created": {}
+                },
+                "when": 776940000
+              }
+            ],
+            "archivedAt": 776999100,
+            "boardID": "B0A40000-0000-4000-8000-000000000004",
+            "code": "NW-125",
+            "columnID": "C01D0000-0000-4000-8000-000000000005",
+            "createdAt": 776940000,
+            "id": "7E570000-0000-4000-8000-000000000006",
+            "labelKeys": [
+              "design"
+            ],
+            "note": "",
+            "priority": "medium",
+            "subtasks": [
+              {
+                "done": true,
+                "id": "5B7A0000-0000-4000-8000-000000000005",
+                "text": "Palette"
+              }
+            ],
+            "title": "Warm neutral palette",
+            "updatedAt": 776960000
+          }
+        }
+      },
+      "id": "08FDDE03-F814-4B4A-BB6A-B119633EC4DA",
+      "trashedAt": 809631041.784789
+    }
+  ],
+  "version": 15,
+  "views": [
+    {
+      "id": "5A7E0001-0000-4000-8000-000000000001",
+      "name": "Fixture Inbox",
+      "preset": "inbox",
+      "rule": {
+        "id": "2D3E003E-49F3-4977-9373-0B3A46A5AD79",
+        "kind": {
+          "group": {
+            "_0": "all",
+            "_1": [
+              {
+                "id": "0934B687-E659-4073-B5CD-ED355A28243E",
+                "kind": {
+                  "group": {
+                    "_0": "all",
+                    "_1": [
+                      {
+                        "id": "4C6D156A-8967-44AC-A566-DFFB7153C4E4",
+                        "kind": {
+                          "criterion": {
+                            "_0": {
+                              "comparator": "isFalse",
+                              "field": "archived",
+                              "id": "D9DDAB27-9B03-48B8-A684-84B8298835DA",
+                              "value": {
+                                "none": {}
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "id": "F8ECA66A-B26B-4AA8-AECD-9103DC3F9938",
+                        "kind": {
+                          "criterion": {
+                            "_0": {
+                              "comparator": "isFalse",
+                              "field": "done",
+                              "id": "954C4E6C-A818-43CD-B50D-3F7E43884B26",
+                              "value": {
+                                "none": {}
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "id": "2CAB5168-D546-49A4-B80E-F673F60906DD",
+                "kind": {
+                  "criterion": {
+                    "_0": {
+                      "comparator": "isInbox",
+                      "field": "board",
+                      "id": "00803160-BEA3-4E9E-B3BA-27875D09096C",
+                      "value": {
+                        "none": {}
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "sort": "manual",
+      "symbol": "tray"
+    },
+    {
+      "id": "5A7E0001-0000-4000-8000-000000000002",
+      "name": "Today",
+      "preset": "today",
+      "rule": {
+        "id": "DD741416-7D22-45B1-99E3-53A36E9778E1",
+        "kind": {
+          "group": {
+            "_0": "all",
+            "_1": [
+              {
+                "id": "231ACF82-DFF6-4820-8380-1A8EA0305572",
+                "kind": {
+                  "group": {
+                    "_0": "all",
+                    "_1": [
+                      {
+                        "id": "EF544997-4709-41B9-BCB4-1978D53DA768",
+                        "kind": {
+                          "criterion": {
+                            "_0": {
+                              "comparator": "isFalse",
+                              "field": "archived",
+                              "id": "1F99C0D3-EE75-4FF7-B4FF-3F1635DAA602",
+                              "value": {
+                                "none": {}
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "id": "53A8B693-AF24-4280-A0B5-E2ACC60B81C4",
+                        "kind": {
+                          "criterion": {
+                            "_0": {
+                              "comparator": "isFalse",
+                              "field": "done",
+                              "id": "92CC7911-8E6E-4EC9-871B-486BBFF93B0A",
+                              "value": {
+                                "none": {}
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "id": "DAC23498-9818-45ED-833B-495E5E252726",
+                "kind": {
+                  "criterion": {
+                    "_0": {
+                      "comparator": "onOrBefore",
+                      "field": "due",
+                      "id": "650B908A-68C8-4BDA-8341-4998D82FE8EA",
+                      "value": {
+                        "days": {
+                          "_0": 0
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "sort": "manual",
+      "symbol": "sun.max"
+    },
+    {
+      "id": "5A7E0001-0000-4000-8000-000000000003",
+      "name": "Upcoming",
+      "preset": "upcoming",
+      "rule": {
+        "id": "33494434-A1FA-4957-BAB7-3C6DC86FB7AC",
+        "kind": {
+          "group": {
+            "_0": "all",
+            "_1": [
+              {
+                "id": "26D27F19-AEA4-4B0A-A64F-80B5685CA0FF",
+                "kind": {
+                  "group": {
+                    "_0": "all",
+                    "_1": [
+                      {
+                        "id": "18B7D70B-2022-48CF-AB8F-AAF96B3C330D",
+                        "kind": {
+                          "criterion": {
+                            "_0": {
+                              "comparator": "isFalse",
+                              "field": "archived",
+                              "id": "971561E1-D0EF-44DD-A565-51B73CAD21EB",
+                              "value": {
+                                "none": {}
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "id": "A83CAFAE-32C8-4B65-AD2B-B54828F78188",
+                        "kind": {
+                          "criterion": {
+                            "_0": {
+                              "comparator": "isFalse",
+                              "field": "done",
+                              "id": "2523FFC3-310F-400E-942C-DE5D7DA22517",
+                              "value": {
+                                "none": {}
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "id": "D09677F2-4A19-4D4A-A5E0-69EB6170D793",
+                "kind": {
+                  "criterion": {
+                    "_0": {
+                      "comparator": "after",
+                      "field": "due",
+                      "id": "E748F845-706B-41F4-BA62-A67C0F3407DA",
+                      "value": {
+                        "days": {
+                          "_0": 0
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "sort": "manual",
+      "symbol": "calendar"
+    },
+    {
+      "id": "5A7E0001-0000-4000-8000-000000000004",
+      "name": "High priority",
+      "preset": "highPriority",
+      "rule": {
+        "id": "18CE17AE-A3EB-4F4B-A605-F7C61C068D70",
+        "kind": {
+          "group": {
+            "_0": "all",
+            "_1": [
+              {
+                "id": "F02400DF-921F-415D-A683-FE0694D90BC6",
+                "kind": {
+                  "group": {
+                    "_0": "all",
+                    "_1": [
+                      {
+                        "id": "F83DDEC4-4FB8-4677-89AB-32C213D4E812",
+                        "kind": {
+                          "criterion": {
+                            "_0": {
+                              "comparator": "isFalse",
+                              "field": "archived",
+                              "id": "12812C07-7351-47CE-B47B-304E0A981817",
+                              "value": {
+                                "none": {}
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "id": "B5B3604E-124C-4426-845D-52B7393B26AF",
+                        "kind": {
+                          "criterion": {
+                            "_0": {
+                              "comparator": "isFalse",
+                              "field": "done",
+                              "id": "EC3E885B-77F1-43A3-A461-DF77C7294CCB",
+                              "value": {
+                                "none": {}
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "id": "0133C031-86AC-4464-B534-E4C314238D14",
+                "kind": {
+                  "criterion": {
+                    "_0": {
+                      "comparator": "atLeast",
+                      "field": "priority",
+                      "id": "6D77794F-978B-4110-A885-10935885C0F5",
+                      "value": {
+                        "priority": {
+                          "_0": "high"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "sort": "manual",
+      "symbol": "exclamationmark.triangle"
+    },
+    {
+      "id": "5A7E0001-0000-4000-8000-000000000005",
+      "name": "Due this week",
+      "preset": "dueThisWeek",
+      "rule": {
+        "id": "B2E04694-AD21-4EF0-AD2D-704DA05FCF35",
+        "kind": {
+          "group": {
+            "_0": "all",
+            "_1": [
+              {
+                "id": "FDC2227A-75EF-43AB-B531-049FD2089AC4",
+                "kind": {
+                  "group": {
+                    "_0": "all",
+                    "_1": [
+                      {
+                        "id": "42C370D4-9D2F-416D-BD87-7432AB9F3D0A",
+                        "kind": {
+                          "criterion": {
+                            "_0": {
+                              "comparator": "isFalse",
+                              "field": "archived",
+                              "id": "74F51698-F0F3-4093-945F-4B8B96D68AA3",
+                              "value": {
+                                "none": {}
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "id": "D36490D4-8F88-4A9D-B04C-AD877BBFA2DB",
+                        "kind": {
+                          "criterion": {
+                            "_0": {
+                              "comparator": "isFalse",
+                              "field": "done",
+                              "id": "3AC77A34-C777-4421-9E7C-0ABF57DC0EFC",
+                              "value": {
+                                "none": {}
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "id": "E82E5F33-5AFE-47D4-A49C-F0218713AFB6",
+                "kind": {
+                  "criterion": {
+                    "_0": {
+                      "comparator": "thisWeek",
+                      "field": "due",
+                      "id": "A83FEC1D-EAB4-4BFF-8CA7-2EBD0D9AD8FF",
+                      "value": {
+                        "none": {}
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "sort": "manual",
+      "symbol": "calendar.badge.clock"
+    },
+    {
+      "id": "5A7E0001-0000-4000-8000-000000000006",
+      "limit": 20,
+      "name": "Recently updated",
+      "preset": "recentlyUpdated",
+      "rule": {
+        "id": "1F7B5BFD-62CA-4E7F-B82B-A4780342A531",
+        "kind": {
+          "group": {
+            "_0": "all",
+            "_1": [
+              {
+                "id": "6396CB9E-B1E3-43CA-8784-56DF96A4C1F5",
+                "kind": {
+                  "criterion": {
+                    "_0": {
+                      "comparator": "isFalse",
+                      "field": "archived",
+                      "id": "218DDAED-5140-4B56-B145-DBD71BDC78C4",
+                      "value": {
+                        "none": {}
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "sort": "recentlyUpdated",
+      "symbol": "clock.arrow.circlepath"
+    },
+    {
+      "id": "5A7E0001-0000-4000-8000-000000000007",
+      "name": "Archive",
+      "preset": "archive",
+      "rule": {
+        "id": "86EC1B2A-C8B9-4D25-861F-402948AF194D",
+        "kind": {
+          "group": {
+            "_0": "all",
+            "_1": [
+              {
+                "id": "C44F466C-B2F4-4BAC-AB13-0E57CF962CC5",
+                "kind": {
+                  "criterion": {
+                    "_0": {
+                      "comparator": "isTrue",
+                      "field": "archived",
+                      "id": "8735ED48-BCDB-4B14-B498-9EE2CEADFA0A",
+                      "value": {
+                        "none": {}
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "sort": "recentlyArchived",
+      "symbol": "archivebox"
+    }
+  ],
+  "viewsChangedAt": 768000000.0
+}

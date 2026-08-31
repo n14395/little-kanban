@@ -55,9 +55,9 @@ struct ThemePreviewTile: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 5 * scale) {
             label(Sample.boards)
-            boardRow(dot: palette.accent, name: Sample.personal, isActive: true)
-            boardRow(dot: palette.theme.status.done.color, name: Sample.errands, isActive: false)
-            boardRow(dot: palette.theme.status.medium.color, name: Sample.reading, isActive: false)
+            boardRow(symbol: "house", name: Sample.personal, isActive: true)
+            boardRow(symbol: "cart", name: Sample.errands, isActive: false)
+            boardRow(symbol: "book", name: Sample.reading, isActive: false)
             Spacer(minLength: 0)
             Circle()
                 .fill(palette.accent)
@@ -146,9 +146,15 @@ struct ThemePreviewTile: View {
         }
     }
 
-    private func boardRow(dot: Color, name: String, isActive: Bool) -> some View {
+    /// A sidebar row at a twelfth of the size, glyph and all: a board wears a
+    /// mark rather than a dot since v16, and a tile that still drew three dots
+    /// would be a preview of a sidebar the app no longer has.
+    private func boardRow(symbol: String, name: String, isActive: Bool) -> some View {
         HStack(spacing: 4 * scale) {
-            Circle().fill(dot).frame(width: 4 * scale, height: 4 * scale)
+            Image(systemName: symbol)
+                .font(palette.ui(6 * scale, .medium))
+                .foregroundStyle(isActive ? palette.accent : palette.inkText(theme.ink.muted))
+                .frame(width: 7 * scale)
             Text(verbatim: name)
                 .font(palette.ui(6.5 * scale, isActive ? .extraBold : .semibold))
                 .foregroundStyle(isActive ? palette.accent : palette.inkText(theme.ink.muted))

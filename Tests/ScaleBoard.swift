@@ -56,7 +56,7 @@ enum ScaleBoard {
 
     static let boards: [Board] = (0..<boardCount).map { b in
         Board(
-            id: boardID(b), name: "Board \(b)", dot: .hex(0xA8A29A), createdAt: at(1_000_000 - b * 1_000),
+            id: boardID(b), name: "Board \(b)", createdAt: at(1_000_000 - b * 1_000),
             columns: (0..<columnsPerBoard).map { c in
                 let n = b * columnsPerBoard + c
                 return BoardColumn(

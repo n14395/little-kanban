@@ -496,6 +496,28 @@ enum ColumnCaret: Hashable, Sendable {
     }
 }
 
+/// Which edge of which checklist row a dragged sub-task would land against —
+/// ``ColumnCaret``'s shape for the third and last list in the app that re-orders
+/// by hand, and for the same reason: the mark is drawn by whichever row it
+/// names, on the side it names, and no row has to know how far down the list it
+/// is to draw its own edge.
+///
+/// Its own type rather than a reuse of one of the other two, for the reason
+/// ``ColumnCaret`` gives: every id here is a `UUID`, so a single enum would take
+/// a card's where a sub-task's belongs and nothing would say otherwise until a
+/// drop landed somewhere absurd.
+enum SubtaskCaret: Hashable, Sendable {
+    case above(SubTask.ID)
+    case below(SubTask.ID)
+
+    /// The row the caret is drawn against.
+    var row: SubTask.ID {
+        switch self {
+        case .above(let id), .below(let id): id
+        }
+    }
+}
+
 /// Board state and every mutation the design defines.
 ///
 /// This is a port of the `Component extends DCLogic` class in
@@ -1071,6 +1093,19 @@ final class BoardStore {
                let local = file.load().snapshot {
                 try? sync.backfillTaskPositions(from: local.tasks.map(\.id))
                 if let positioned = try? sync.load() { synced = positioned }
+            }
+            // A board's mark is the same shape of problem, one version later:
+            // `StoredBoard.symbol` was added at v16 and no record written
+            // before it carries one, while the file beside it has been through
+            // `migrate(v15:)` and carries the mark that board was *dealt*.
+            // Without this the records would answer "the fallback" for every
+            // board and win, and a synced install would upgrade into a sidebar
+            // of identical rows — which is the one thing the step exists to
+            // prevent. Fill and re-read, never overwrite a mark a record has.
+            if (try? sync.hasStoredBoardSymbols()) == false,
+               let local = file.load().snapshot {
+                try? sync.backfillBoardSymbols(from: local.boards)
+                if let marked = try? sync.load() { synced = marked }
             }
             // The board came from the records. The trash did not and never
             // does — see `BoardStore.trash` — so it is read back off the file,
@@ -5663,6 +5698,77 @@ final class BoardStore {
         }
     }
 
+    /// Puts the dragged sub-task in the gap the caret names.
+    ///
+    /// **This replaced `drop(_:before:)`**, and for the reason ``dropColumn(_:at:)``
+    /// replaced the columns' `dropColumn(_:onto:)` and ``drop(_:at:)`` replaced the
+    /// cards' `move(_:onto:)`: a drop that names a *row* can only be resolved by
+    /// the direction the drag came from, so aiming at the same row from above and
+    /// from below meant two different gaps, and the mark drawn on the row's top
+    /// edge was a lie every time the drag was travelling downwards. A caret names
+    /// the gap, so this inserts into it.
+    ///
+    /// The task is passed rather than read off the payload, and then the two are
+    /// checked to agree: a row dragged out of the inspector must not land in a
+    /// sheet showing a *different* card, where its index names a place in a list
+    /// it is not in. Refused against itself and against the two gaps either side
+    /// of itself, where there is nothing to do. `false` says the drop was not
+    /// taken, which is what a drop handler owes its caller.
+    @discardableResult
+    func dropSubtask(_ payload: SubtaskTransfer, on taskID: TaskItem.ID, at caret: SubtaskCaret) -> Bool {
+        guard payload.taskID == taskID, payload.subtaskID != caret.row,
+              let rows = self[taskID]?.subtasks,
+              let from = rows.firstIndex(where: { $0.id == payload.subtaskID }),
+              let anchor = rows.firstIndex(where: { $0.id == caret.row })
+        else { return false }
+        let offset: Int
+        switch caret {
+        case .above:
+            // Already sitting in that gap: the row under the caret is the one
+            // immediately after the dragged sub-task.
+            guard anchor != from + 1 else { return false }
+            offset = anchor
+        case .below:
+            guard anchor != from - 1 else { return false }
+            offset = anchor + 1
+        }
+        moveSubtask(fromOffsets: IndexSet(integer: from), toOffset: offset, on: taskID)
+        return true
+    }
+
+    /// Which row of the checklist **as it is drawn** a dragged sub-task would
+    /// become, or `nil` for no stand-in — ``dropPreview(in:)`` for the
+    /// checklist, and the same answer in the simpler form this list needs: the
+    /// row being carried and the caret are already the view's own state, so an
+    /// index is the whole of what is left to work out.
+    ///
+    /// **As it is drawn**, which is why this is not the offset `dropSubtask`
+    /// computes: the row in the air is still one of the rows, dimmed, until the
+    /// drop lands — so a stand-in going in after row *n* is index *n + 1* in a
+    /// list that still holds the original.
+    ///
+    /// **It refuses exactly what the drop refuses**, and it has to. A row-shaped
+    /// hole opening beside the very row that would fill it promises a move that
+    /// `dropSubtask` then declines as a no-op that would cost a ⌘Z. One rule,
+    /// asked twice — which is also what lets the checklist draw the stand-in
+    /// *instead of* an insertion line rather than as well as one, there being
+    /// nothing left for a line to say that the gap does not.
+    func subtaskDropIndex(_ subtaskID: SubTask.ID, on taskID: TaskItem.ID, at caret: SubtaskCaret) -> Int? {
+        guard subtaskID != caret.row,
+              let rows = self[taskID]?.subtasks,
+              let from = rows.firstIndex(where: { $0.id == subtaskID }),
+              let anchor = rows.firstIndex(where: { $0.id == caret.row })
+        else { return nil }
+        switch caret {
+        case .above:
+            guard anchor != from + 1 else { return nil }
+            return anchor
+        case .below:
+            guard anchor != from - 1 else { return nil }
+            return anchor + 1
+        }
+    }
+
     func subtaskDraft(for scope: DetailScope, task: TaskItem.ID) -> String {
         subtaskDrafts[DraftKey(scope: scope, task: task)] ?? ""
     }
@@ -6091,10 +6197,16 @@ final class BoardStore {
     /// is exactly it. It is here rather than in the view because a drag is not
     /// reachable from a test and this is the half that can be.
     ///
-    /// **The checklist's rows are what is left using it.** The board's cards and
-    /// the settings sheet's columns both moved to a caret, which names a gap and
-    /// so needs no rule for turning a row into one — see ``drop(_:at:)`` and
-    /// ``dropColumn(_:at:)``.
+    /// **The label manager's rows are what is left using it for a *drag*.** The
+    /// board's cards, the settings sheet's columns and the checklist's sub-tasks
+    /// all moved to a caret, which names a gap and so needs no rule for turning a
+    /// row into one — see ``drop(_:at:)``, ``dropColumn(_:at:)`` and
+    /// ``dropSubtask(_:on:at:)``.
+    ///
+    /// It stays because the **Move Up / Move Down** menu items are still written
+    /// against it, in the checklist and the label manager both: a menu item names
+    /// the row it is moving *past*, which is exactly the row-into-gap question
+    /// this answers, and it is the direction of travel there rather than a guess.
     static func dropOffset(from: Int, to: Int) -> Int {
         to > from ? to + 1 : to
     }
@@ -6255,12 +6367,14 @@ final class BoardStore {
     /// ("this board has no columns; add one") and are different rules
     /// underneath, because the second one has cards in it to lose.
     @discardableResult
-    func createBoard(named name: String, dot: SwatchColor = .accent, codePrefix: String = "") -> Board.ID? {
+    func createBoard(
+        named name: String, symbol: String = SymbolMark.boardFallback, codePrefix: String = ""
+    ) -> Board.ID? {
         let trimmed = Board.name(name)
         guard !trimmed.isEmpty else { return nil }
         let board = Board(
             name: trimmed,
-            dot: dot,
+            symbol: Board.symbol(symbol),
             columns: [.freshDone()],
             codePrefix: Board.codePrefix(codePrefix, fallingBackTo: trimmed)
         )
@@ -6287,12 +6401,14 @@ final class BoardStore {
         }
     }
 
-    /// Recolours a board's dot. Tasks are untouched — they store the id, and
-    /// the colour lives on the board.
-    func recolorBoard(_ id: Board.ID, to dot: SwatchColor) {
-        guard let index = boards.firstIndex(where: { $0.id == id }), boards[index].dot != dot else { return }
-        undoable(String(localized: "Change Board Colour", comment: "Undo action name for recolouring a board")) {
-            boards[index].dot = dot
+    /// Changes a board's icon. Tasks are untouched — they store the id, and the
+    /// mark lives on the board.
+    func setBoardSymbol(_ id: Board.ID, to symbol: String) {
+        let wanted = Board.symbol(symbol)
+        guard let index = boards.firstIndex(where: { $0.id == id }), boards[index].symbol != wanted
+        else { return }
+        undoable(String(localized: "Change Board Icon", comment: "Undo action name for changing a board's icon")) {
+            boards[index].symbol = wanted
             scheduleSave()
         }
     }
@@ -6503,6 +6619,40 @@ final class BoardStore {
         // route through here asks for the field, and the field decides whether
         // it is in a position to take it — see `PhoneHeader.searchField`.
         if tab == .search { focusSearch() }
+    }
+
+    /// Whether the Search tab is the surface on screen — which `tab == .search`
+    /// on its own does not answer.
+    ///
+    /// A saved view outranks the tab in `mobileTasks`, so with Today standing in
+    /// front of the board the list is the view's and Search is somewhere the
+    /// user is not. The header's title, the tab bar's lit slot and
+    /// ``toggleSearch()`` all read this one predicate, so what is named, what is
+    /// lit and what a second tap puts away cannot come apart.
+    var isSearching: Bool { activeView == nil && tab == .search }
+
+    /// The phone's Search slot, which is a switch rather than a destination:
+    /// tapped from anywhere else it opens search, tapped again it puts it away.
+    ///
+    /// **A destination row is not a toggle** — the drawer's board and view rows
+    /// do nothing when you press the one you are already on, because a
+    /// destination that undoes itself on a second press is one control with two
+    /// meanings. Search is not a destination. It is a field over the list, the
+    /// same thing the desk's folded search row is, and that row closes on a
+    /// second click too (`BoardToolbar.toggleSearchRow`). Without this the phone
+    /// had no way back at all: the Board slot is gone, so leaving search meant
+    /// opening the drawer and picking the board you were already looking at.
+    ///
+    /// **Closing it is a cancel, query and all**, which is `closeSearchRow`'s
+    /// bargain as well: the field goes when the tab does, so a query left behind
+    /// is text nothing on screen shows — waiting to narrow the next saved view
+    /// opened from the drawer, and waiting to be typed into the middle of, since
+    /// arriving on Search puts the caret at the end of whatever is already
+    /// there.
+    func toggleSearch() {
+        guard isSearching else { return selectTab(.search) }
+        selectTab(.board)
+        clearQuery()
     }
 
     /// The floating "+" button: start a new capture in the Inbox.

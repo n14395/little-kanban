@@ -35,11 +35,11 @@ import Testing
     private static let betaID = uuid(0xB0, 0x1E, 2)
 
     private static let alpha = Board(
-        id: alphaID, name: "Alpha", dot: .accent, createdAt: TestBoard.at(90_000),
+        id: alphaID, name: "Alpha", symbol: "house", createdAt: TestBoard.at(90_000),
         columns: [alphaTodo, alphaDoing, alphaDone], codePrefix: "AL"
     )
     private static let beta = Board(
-        id: betaID, name: "Beta", dot: .hex(0x1F6F63), createdAt: TestBoard.at(80_000),
+        id: betaID, name: "Beta", symbol: "briefcase", createdAt: TestBoard.at(80_000),
         columns: [betaQueue, betaDone], codePrefix: "BE"
     )
 
@@ -175,7 +175,7 @@ import Testing
             ("deleteColumn", { $0.deleteColumn(Self.alphaDoing.id) }),
             ("createBoard", { $0.createBoard(named: "Gamma") }),
             ("renameBoard", { $0.renameBoard(Self.betaID, to: "Support") }),
-            ("recolorBoard", { $0.recolorBoard(Self.betaID, to: .accent) }),
+            ("setBoardSymbol", { $0.setBoardSymbol(Self.betaID, to: "flame") }),
             ("moveBoard", { $0.moveBoard(fromOffsets: [1], toOffset: 0) }),
             ("deleteBoard", { $0.deleteBoard(Self.betaID) }),
         ]

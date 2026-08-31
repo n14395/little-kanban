@@ -19,16 +19,21 @@ import Testing
 
     @Test func aFreshBoardOffersTheSixTheAppShipsWith() {
         let store = store()
-        #expect(store.savedColors.map(\.swatch) == Board.dotPalette)
+        #expect(store.savedColors.map(\.swatch) == PaletteSwatch.seedPalette)
         #expect(store.savedColors.first?.swatch == .accent, "the accent is not first")
         #expect(store.savedColors.allSatisfy { $0.name != nil }, "a shipped colour has no name")
     }
 
-    /// The seed is `Board.dots` rather than a second list, so the colours and
-    /// the names the rest of the app knows them by cannot drift.
+    /// The six carry names as well as hexes: a swatch announced as "Colour 4"
+    /// tells a reader its position and nothing about what choosing it does.
+    ///
+    /// They lived on `Board` until v16, when a board's mark became a glyph and
+    /// the list moved to the type it had always been the seed for.
     @Test func theSeedIsTheOneTheRestOfTheAppNames() {
-        #expect(PaletteSwatch.seed.map(\.swatch) == Board.dots.map(\.swatch))
-        #expect(PaletteSwatch.seed.map(\.name) == Board.dots.map { $0.name })
+        #expect(PaletteSwatch.seedPalette == PaletteSwatch.seed.map(\.swatch))
+        #expect(PaletteSwatch.seed.allSatisfy { $0.name?.isEmpty == false })
+        #expect(Set(PaletteSwatch.seedPalette).count == PaletteSwatch.seedPalette.count,
+                "the seed offers one colour twice")
     }
 
     // MARK: Saving
@@ -80,19 +85,21 @@ import Testing
         #expect(store.savedColors.contains { $0.swatch == .hex(0x123456) } == false)
     }
 
-    /// **Nothing wearing the colour changes.** A board, a column and a label
-    /// each store the colour itself rather than a place in this list, which is
-    /// what makes deleting safe enough to do with no alert in front of it.
+    /// **Nothing wearing the colour changes.** A column and a label each store
+    /// the colour itself rather than a place in this list, which is what makes
+    /// deleting safe enough to do with no alert in front of it. Boards are out
+    /// of this since v16: a board wears a glyph, and there is no colour of one
+    /// to repaint.
     @Test func deletingAColourRepaintsNothing() throws {
         let store = store()
-        let board = try #require(store.activeBoardID)
-        store.recolorBoard(board, to: .hex(0xC2532F))
         let column = try #require(store.columns.first?.id)
         store.recolorColumn(column, to: .hex(0xC2532F))
+        let second = try #require(store.columns.dropFirst().first?.id)
+        store.recolorColumn(second, to: .hex(0xC2532F))
 
         #expect(store.deleteSavedColor(.hex(0xC2532F)))
-        #expect(store.board(id: board)?.dot == .hex(0xC2532F))
         #expect(store.column(id: column)?.dot == .hex(0xC2532F))
+        #expect(store.column(id: second)?.dot == .hex(0xC2532F))
     }
 
     /// The accent is not a hex but "whatever the accent theme is". Nothing else
@@ -165,11 +172,11 @@ import Testing
         let data = try JSONSerialization.data(withJSONObject: json)
 
         let decoded = try BoardFile.decode(data)
-        #expect(decoded.snapshot.palette.map(\.swatch) == Board.dotPalette)
+        #expect(decoded.snapshot.palette.map(\.swatch) == PaletteSwatch.seedPalette)
         #expect(decoded.migratedFrom == 9, "a v9 file was not migrated")
         #expect(decoded.snapshot.version == BoardSnapshot.currentVersion)
 
-        #expect(BoardStore(savedColors: []).savedColors.map(\.swatch) == Board.dotPalette)
+        #expect(BoardStore(savedColors: []).savedColors.map(\.swatch) == PaletteSwatch.seedPalette)
     }
 
     /// The palette is a field, so the version had to move — a build without it
@@ -186,6 +193,6 @@ import Testing
         )
         v9.version = 9
         #expect(BoardSnapshot.migrate(v9: v9).version == 10)
-        #expect(BoardSnapshot.migrate(v9: v9).palette.map(\.swatch) == Board.dotPalette)
+        #expect(BoardSnapshot.migrate(v9: v9).palette.map(\.swatch) == PaletteSwatch.seedPalette)
     }
 }

@@ -4,14 +4,14 @@ import XCTest
 /// does not.
 ///
 /// The menu had grown into a second copy of the drawer: **Switch Board…** beside
-/// a hamburger that lists every board with its dot and its count, and the whole
+/// a hamburger that lists every board with its mark and its count, and the whole
 /// **Views** list beside a drawer that draws the same views with theirs and the
 /// Archive under them. It also carried **Clear Search**, which two controls on
 /// the screen itself already do — the field's × and the filtered indicator under
 /// the header. What it did *not* carry was Settings, which was reachable only by
 /// opening the drawer and scrolling to the foot of it. **Rename Board…** became
 /// **Board Settings…** in the same spirit: renaming is one field of a sheet that
-/// also holds the board's colour and every one of its columns, and two items for
+/// also holds the board's icon and every one of its columns, and two items for
 /// one destination is the duplication this menu was cleared of.
 ///
 /// **A UI test because a menu is only what it renders.** Nothing a store can be

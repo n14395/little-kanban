@@ -75,8 +75,8 @@ struct WidgetTaskRow: View {
     }
 }
 
-/// A title and nothing else, for the medium tiles that show four of something
-/// beside a heading and have no room for a chip.
+/// A title and nothing else, for the medium tile that shows a few of something
+/// beside a title block and has no room for a chip.
 struct WidgetBulletRow: View {
     @Environment(\.palette) private var palette
 
@@ -129,9 +129,9 @@ struct WidgetDueChip: View {
 
 /// A widget's heading: a mark, a name, and how many things are under it.
 ///
-/// The mark is either an SF Symbol — a saved view's own, so the widget's
-/// heading is the glyph the row is picked by in the sidebar — or a coloured dot,
-/// which is how the app marks a board and a column.
+/// The mark is either an SF Symbol — a saved view's or a board's own, so the
+/// widget's heading is the glyph the row is picked by in the sidebar — or a
+/// coloured dot, which is how the app marks a column.
 struct WidgetHeading: View {
     @Environment(\.palette) private var palette
 
@@ -309,15 +309,90 @@ struct WidgetMissingNote: View {
     }
 }
 
-/// How many rows each family has room for, once its heading is drawn.
+/// How many rows a list has room for on the tile it is actually on.
 ///
-/// Fixed rather than measured. `ViewThatFits` would find the largest number
-/// that fits the tile it is *on*, which sounds better and is not: the answer
-/// then changes with the type size, so the same widget shows five rows on one
-/// machine and seven on another, and the list a person reads every morning is a
-/// different length each time they change a setting somewhere else. A fixed
-/// count that occasionally leaves a gap at the foot is the steadier reading.
+/// **Worked out from the tile, not from the family.** The family says medium or
+/// large; it does not say how tall that is. A medium tile is 138pt of content on
+/// a 6.7" phone and 116pt on an SE, and a large one runs from 292pt to 350pt —
+/// so a single number per family has to be the smallest phone's number, and the
+/// phone most people are holding then loses a fifth of its tile to white space.
+/// That is what it did: four rows on a medium tile with room for five, and four
+/// bullets in a box with room for six.
+///
+/// **It is still not `ViewThatFits`.** The count comes from the tile's height
+/// and the design's own point sizes — a row is 16pt on a 5pt gap, a bullet 15pt
+/// on a 6pt gap, both measured — and never from the height the text happened to
+/// render at. So it changes when the tile changes, which is once, when the
+/// widget is placed; it does not change because somebody turned the type size up
+/// in Settings, which was the whole objection to measuring. A reader whose text
+/// is large sees the same number of rows as everyone else on that phone, drawn
+/// larger, with the last one clipped at the margin rather than the list quietly
+/// becoming a different length.
+///
+/// The floor is one row — a list widget drawing nothing reads as broken — and
+/// the ceiling is what the digest carries, since asking for more than that draws
+/// short with nothing on either side saying so. See ``WidgetDigest/listLength``.
 enum WidgetRowCount {
-    static let medium = 4
-    static let large = 7
+    /// The two shapes a list row comes in, and what each one measures.
+    ///
+    /// A bullet is the shorter of the two and sits on the wider gap, which is
+    /// very nearly a wash: both pitch at 21pt. What actually makes a bullet list
+    /// longer is that nothing stands above it — the saved-view medium draws its
+    /// name in a block to the left rather than in a heading — so it has the
+    /// whole tile to spend.
+    enum Shape {
+        case task
+        case bullet
+
+        var height: CGFloat {
+            switch self {
+            case .task: 16
+            case .bullet: 15
+            }
+        }
+
+        var gap: CGFloat {
+            switch self {
+            case .task: 5
+            case .bullet: 6
+            }
+        }
+    }
+
+    /// The most any widget may draw, which is what crossed the fence.
+    static let ceiling = WidgetDigest.listLength
+
+    /// How many rows of `shape` fit in `height` points.
+    ///
+    /// `height` is the space *left for the rows* — a heading and its gap are
+    /// already off it, because ``WidgetRowSpace`` is asked for the leftover
+    /// rather than for the tile.
+    static func fitting(_ height: CGFloat, shape: Shape = .task) -> Int {
+        let pitch = shape.height + shape.gap
+        // The last row spends no gap, so it is the gap-inclusive height that
+        // divides evenly: 5 rows of 16 on 4 gaps of 5 is 100, which is
+        // (100 + 5) / 21.
+        let fits = Int(((height + shape.gap) / pitch).rounded(.down))
+        return min(ceiling, max(1, fits))
+    }
+}
+
+/// The room under a heading, and how many rows fit in it.
+///
+/// A `GeometryReader` standing where the list stands: in a stack it takes
+/// whatever height the things above it left, which is exactly the number
+/// ``WidgetRowCount/fitting(_:shape:)`` wants. Putting it here rather than
+/// around the whole tile means no widget has to know its own margins or subtract
+/// its own heading — the layout has already done both by the time this is
+/// measured.
+struct WidgetRowSpace<Content: View>: View {
+    var shape: WidgetRowCount.Shape = .task
+    @ViewBuilder let content: (Int) -> Content
+
+    var body: some View {
+        GeometryReader { proxy in
+            content(WidgetRowCount.fitting(proxy.size.height, shape: shape))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+    }
 }

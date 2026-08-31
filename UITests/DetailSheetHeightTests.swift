@@ -10,16 +10,32 @@ import XCTest
 /// sheet and quietly clamped when a keyboard is up. Nothing in the store knows
 /// how tall the sheet ended up.
 ///
-/// **Measured off the sheet's own top chrome** rather than off a frame for the
-/// sheet, which XCUITest does not hand out for a SwiftUI presentation. The
-/// Close button sits a fixed distance below the sheet's top edge, so where it
-/// lands *in the window* says where the sheet's top is. On an iPhone 17 Pro
-/// (402x874) it was measured at y=70 while the sheet was `.large` and y=243.5 at
-/// four fifths — 8% of the screen down against 28%. The band below is wide
-/// enough to hold every phone this build runs on and far too narrow to admit
-/// either a full-height sheet or the four fifths this used to be: the fixed
-/// chrome above the button is a *point* offset, so it is a larger share of a
-/// short window than of a tall one, and the band has to hold both ends.
+/// **Measured off the topmost thing in the sheet** rather than off a frame for
+/// the sheet, which XCUITest does not hand out for a SwiftUI presentation. That
+/// thing sits a fixed distance below the sheet's top edge, so where it lands *in
+/// the window* says where the sheet's top is.
+///
+/// **It was the Close button and is now the title field.** The sheet drew a ✕ in
+/// a header row of its own until the grabber above it was found to be saying the
+/// same thing — a sheet is put away by pulling it down — so the row went and the
+/// title is what stands at the top. The mark did not move when the button did:
+/// each was the first child of the sheet's stack under the same padding. It
+/// moved when that padding went from 8pt to `PhoneSheetChrome.topClearance`,
+/// because with the header row gone there was nothing between the first line and
+/// the grabber, which the system draws *over* the top of the sheet.
+///
+/// **So the band moved by 18pt and was re-derived.** The sheet's own top edge on
+/// an iPhone 17 Pro (402x874), read off the chrome rather than off a frame
+/// XCUITest will not hand out: about 62pt at `.large`, 155 at nine tenths, 231 at
+/// four fifths — the fraction is of the height inside the safe areas, so each
+/// sits some 60pt lower than `(1 - fraction) × 874` alone would put it. The mark
+/// is 26pt below whichever of those it is, giving 10%, 21% and 29% of the window.
+///
+/// 15% to 25% holds the middle and clears the other two by about five points
+/// each way, which is the room the reading itself needs: the offset is a fixed
+/// *point* value, so it is a larger share of a short window than of a tall one,
+/// and the band has to hold every iPhone this build runs on. The old band was
+/// 12–24% against a mark 8pt down.
 ///
 /// **iPhone simulator only.** The iPad presents the same view as a form sheet,
 /// which is centred and sized by the system; detents do not apply to it.
@@ -67,19 +83,19 @@ final class DetailSheetHeightTests: XCTestCase {
         // the same reason.
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)).tap()
 
-        let close = app.buttons["Close"]
-        XCTAssertTrue(close.waitForExistence(timeout: 10), "tapping a card raised no detail sheet")
+        let title = app.textFields["Title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 10), "tapping a card raised no detail sheet")
 
         let window = app.windows.firstMatch.frame
-        let top = close.frame.minY
+        let top = title.frame.minY
 
         XCTAssertGreaterThan(
-            top, window.height * 0.12,
-            "the detail sheet is going to the top of the screen again — its chrome is \(top)pt down a \(window.height)pt window, and a full-height sheet puts it at about 8%"
+            top, window.height * 0.15,
+            "the detail sheet is going to the top of the screen again — its title is \(top)pt down a \(window.height)pt window, and a full-height sheet puts it at about 10%"
         )
         XCTAssertLessThan(
-            top, window.height * 0.24,
-            "the detail sheet is not rising far enough — its chrome is \(top)pt down a \(window.height)pt window, and the four fifths this was raised from put it at about 28%"
+            top, window.height * 0.25,
+            "the detail sheet is not rising far enough — its title is \(top)pt down a \(window.height)pt window, and the four fifths this was raised from put it at about 29%"
         )
     }
 
@@ -130,7 +146,6 @@ final class DetailSheetHeightTests: XCTestCase {
         )
         XCTAssertTrue(after.contains("!"),
                       "the field changed by a character that was not the one typed: \"\(after)\"")
-        XCTAssertTrue(app.buttons["Close"].exists,
-                      "the sheet went away while the keyboard came up")
+        XCTAssertTrue(title.exists, "the sheet went away while the keyboard came up")
     }
 }

@@ -75,7 +75,7 @@ struct BoardSnapshot: Codable, Sendable, Equatable {
     var paletteChangedAt: Date?
     var themesChangedAt: Date?
 
-    static let currentVersion = 15
+    static let currentVersion = 16
 
     enum CodingKeys: String, CodingKey {
         case version, tasks, boards, labels, nextSerial, activeBoardID, trash, palette, views, themes
@@ -360,7 +360,8 @@ struct BoardFile: Sendable {
             : atV11
         let atV13 = migratedFrom < 13 ? BoardSnapshot.migrate(v12: atV12) : atV12
         let atV14 = migratedFrom < 14 ? BoardSnapshot.migrate(v13: atV13) : atV13
-        let current = migratedFrom < 15 ? BoardSnapshot.migrate(v14: atV14) : atV14
+        let atV15 = migratedFrom < 15 ? BoardSnapshot.migrate(v14: atV14) : atV14
+        let current = migratedFrom < 16 ? BoardSnapshot.migrate(v15: atV15) : atV15
         return (current.settlingDuplicates(), migratedFrom)
     }
 
@@ -371,6 +372,15 @@ struct BoardFile: Sendable {
         switch try version(of: data) {
         case BoardSnapshot.currentVersion:
             return (try decoder.decode(BoardSnapshot.self, from: data), nil)
+        case 15:
+            // v15 and v16 are the same shape in the one direction that matters
+            // here: v16 *removes* a board's `dot` and *adds* its `symbol`, and
+            // an unknown key is not a decoding failure while `Board.init(from:)`
+            // is lenient about the new one — so a v15 file reads whole and every
+            // board lands on the fallback mark. What it is dealt instead is
+            // `migrate(v15:)`'s answer. The bump is for the other direction, as
+            // ever.
+            return (try decoder.decode(BoardSnapshot.self, from: data), 15)
         case 14:
             // v14 and v15 are the same shape: v15 only *adds* the three dates,
             // and `init(from:)` reads each of them leniently — an absent one is

@@ -38,12 +38,12 @@ final class EditorHeaderTests: XCTestCase {
         ]
         app.launch()
 
-        // The editor's own close control: "Close" on the phone's sheet, "Close
-        // details" on the desk's inspector, so matched on the opening of it.
-        let closer = app.buttons
-            .matching(NSPredicate(format: "label BEGINSWITH %@", "Close"))
-            .firstMatch
-        XCTAssertTrue(closer.waitForExistence(timeout: 20), "the editor never opened")
+        // The title field, which both panels label the same way. It was the
+        // close control — "Close" on the phone's sheet, "Close details" on the
+        // desk's inspector — and the phone's sheet has none now: it is put away
+        // by pulling it down, the way the grabber above it says.
+        XCTAssertTrue(app.textFields["Title"].waitForExistence(timeout: 20),
+                      "the editor never opened")
 
         // The card's own code, and one from the Inbox for good measure: an
         // exact match, because a note or a checklist row is entitled to mention

@@ -71,7 +71,9 @@ struct InboxWidgetView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 WidgetHeading(mark: .symbol(inbox.symbol), title: inbox.name, count: inbox.count)
-                InboxRows(list: inbox, today: entry.digest.today, limit: WidgetRowCount.medium)
+                WidgetRowSpace { rows in
+                    InboxRows(list: inbox, today: entry.digest.today, limit: rows)
+                }
             }
         }
         // The tile's own tap opens the Inbox rather than the capture: the `+`
@@ -88,8 +90,9 @@ struct InboxWidgetView: View {
                 WidgetHeading(mark: .symbol(inbox.symbol), title: inbox.name, count: inbox.count)
                 WidgetNewTaskCorner()
             }
-            InboxRows(list: inbox, today: entry.digest.today, limit: WidgetRowCount.large)
-            Spacer(minLength: 0)
+            WidgetRowSpace { rows in
+                InboxRows(list: inbox, today: entry.digest.today, limit: rows)
+            }
         }
         .widgetURL(AppLink.url(.inbox))
     }
@@ -142,7 +145,6 @@ private struct InboxRows: View {
                 ForEach(list.tasks.prefix(limit)) { task in
                     WidgetTaskRow(task: task, today: today)
                 }
-                Spacer(minLength: 0)
             }
         }
     }

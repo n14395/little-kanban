@@ -56,10 +56,11 @@ final class QuickCaptureTests: XCTestCase {
         ]
         app.launch()
 
-        // The panel's own heading. The tab bar's Inbox is a *button* with the
-        // same word on it, and the board behind is a board name, so a static
-        // text reading "Inbox" is the panel and nothing else.
-        let panelHeading = app.staticTexts["Inbox"]
+        // The panel's own heading, by the identifier `PhoneInboxSheet.titleID`
+        // publishes: the tab bar's Inbox is a *button* with the same word on it
+        // and a card can wear a chip saying it, so the word alone is not the
+        // panel.
+        let panelHeading = app.staticTexts["InboxPanelTitle"]
         XCTAssertFalse(panelHeading.exists, "the Inbox panel was already up before the capture")
 
         let plus = app.buttons["New task"]
@@ -69,16 +70,29 @@ final class QuickCaptureTests: XCTestCase {
         let title = app.textFields["Title"]
         XCTAssertTrue(title.waitForExistence(timeout: 10), "the + did not open a card to type into")
 
-        // The sheet and the panel both put a button called "Close" in their
-        // header, so the count *is* the claim: one means the sheet alone.
-        XCTAssertEqual(
-            app.buttons.matching(identifier: "Close").count, 1,
-            "something else with a Close button came up with the detail sheet — the Inbox panel has a header just like it, and this is what it looks like from here"
+        // **Half one**, made while the sheet is up, which is where the bug
+        // showed: the panel is enumerable behind a sheet, so this is a real
+        // question rather than a vacuous one. It used to be a count of the
+        // buttons called "Close" — one meant the sheet alone — and neither
+        // surface draws one now, so it asks for the panel by the heading the
+        // count was standing in for.
+        XCTAssertFalse(
+            panelHeading.exists,
+            "the Inbox panel came up behind the detail sheet — the capture raised it"
         )
 
-        // Unambiguous only because of the assertion above, which stops the run
-        // before this line when it is not.
-        app.buttons["Close"].tap()
+        // **Half two.** The sheet is put away by pulling it down, which is the
+        // only way out of it now. From its own top chrome: it is held at nine
+        // tenths, so a seventh of the way down the window is on it and not on
+        // the board behind. `InboxSheetDragTests` measured the reach.
+        let window = app.windows.firstMatch
+        window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15))
+            .press(
+                forDuration: 0.05,
+                thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55)),
+                withVelocity: .default,
+                thenHoldForDuration: 0.1
+            )
         XCTAssertTrue(title.waitForNonExistence(timeout: 5), "the detail sheet would not close")
 
         XCTAssertFalse(

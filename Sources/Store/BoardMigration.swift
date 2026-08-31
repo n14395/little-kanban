@@ -459,7 +459,9 @@ extension BoardSnapshot {
         let board = Board(
             id: migratedBoardID,
             name: "Northwind iOS 3.0",
-            dot: .accent,
+            // The mark every board arrives wearing. A file this old is walked
+            // on through `migrate(v15:)`, which is what deals it a real one.
+            symbol: SymbolMark.boardFallback,
             // The board is at least as old as the oldest thing on it.
             createdAt: v4.tasks.map(\.createdAt).min() ?? .now,
             columns: columns,
@@ -726,6 +728,43 @@ extension BoardSnapshot {
     /// the kinder failure.
     static func migrate(v14: BoardSnapshot) -> BoardSnapshot {
         var snapshot = v14
+        snapshot.version = 15
+        return snapshot
+    }
+
+    /// v16 makes a board's mark a glyph instead of a colour — ``Board/symbol``,
+    /// where ``Board`` carried a `dot` up to v15.
+    ///
+    /// **This is the one step in this file that has something to convert and
+    /// converts it into something else.** A colour is not an icon: there is no
+    /// mapping from Amber to a glyph that means anything, and inventing one
+    /// would hand somebody's Errands board a flame because it happened to be
+    /// orange. What the colours *did* carry is the only thing worth keeping —
+    /// that the rows were **told apart**, and by a mark the user had chosen
+    /// rather than by their names alone.
+    ///
+    /// So the marks are dealt out by position from ``Board/startingSymbols``,
+    /// cycling if there are more boards than glyphs: a sidebar that arrived
+    /// distinguishable stays distinguishable, and the picker in Board Settings
+    /// is one tap from every one of them. The alternative — every board wearing
+    /// the same default — is honest and reads as five identical rows until each
+    /// has been visited, which is a chore the upgrade has no business handing
+    /// out.
+    ///
+    /// It deals to *every* board rather than to the ones that decoded without a
+    /// symbol, because in a v15 file that is all of them: the key did not
+    /// exist. `Board.init(from:)` lands them all on the fallback, which is what
+    /// this overwrites.
+    ///
+    /// **The bump is for the other direction**, as every bump here is: a v15
+    /// build handed a v16 board finds no `dot`, throws `keyNotFound`, and
+    /// quarantines the file rather than reading every board as colourless.
+    static func migrate(v15: BoardSnapshot) -> BoardSnapshot {
+        var snapshot = v15
+        let marks = Board.startingSymbols
+        for index in snapshot.boards.indices where !marks.isEmpty {
+            snapshot.boards[index].symbol = marks[index % marks.count]
+        }
         snapshot.version = BoardSnapshot.currentVersion
         return snapshot
     }

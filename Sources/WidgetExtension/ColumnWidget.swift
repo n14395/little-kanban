@@ -6,10 +6,11 @@ import WidgetKit
 /// **The same widget with more room**, which is the Inbox widget's rule and the
 /// reason the two sizes share a heading rather than each getting a layout of
 /// their own: somebody who resizes a column widget should get more of what they
-/// had. Medium is the top four, large is the top seven, and both carry the due
-/// chips and priority dots — a column is where a date means something, so the
-/// bullet treatment the saved-view widget uses at this size would be dropping
-/// the half of a card that a board column is read for.
+/// had. Neither size names a number of rows — ``WidgetRowSpace`` hands the list
+/// however many the tile turned out to have room for — and both carry the due
+/// chips and priority dots, because a column is where a date means something and
+/// the bullet treatment the saved-view widget uses at this size would drop the
+/// half of a card that a board column is read for.
 struct ColumnWidget: Widget {
     var body: some WidgetConfiguration {
         AppIntentConfiguration(
@@ -31,13 +32,7 @@ struct ColumnWidget: Widget {
 }
 
 struct ColumnWidgetView: View {
-    @Environment(\.widgetFamily) private var family
-
     let entry: ConfiguredEntry<ColumnWidgetIntent>
-
-    private var rows: Int {
-        family == .systemMedium ? WidgetRowCount.medium : WidgetRowCount.large
-    }
 
     /// Resolved by column id alone, so a column moved to another board keeps
     /// drawing and simply says it is on the other board now. Falling back to
@@ -73,12 +68,13 @@ struct ColumnWidgetView: View {
                                  comment: "Widget: the column it is showing has no cards in it")
                 )
             } else {
-                VStack(alignment: .leading, spacing: 5) {
-                    ForEach(column.tasks.prefix(rows)) { task in
-                        WidgetTaskRow(task: task, today: entry.digest.today)
+                WidgetRowSpace { rows in
+                    VStack(alignment: .leading, spacing: 5) {
+                        ForEach(column.tasks.prefix(rows)) { task in
+                            WidgetTaskRow(task: task, today: entry.digest.today)
+                        }
                     }
                 }
-                Spacer(minLength: 0)
             }
         }
         .widgetURL(AppLink.url(.column(column.id)))

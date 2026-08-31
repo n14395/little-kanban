@@ -106,13 +106,13 @@ Sources/
                        rather than a `List` so that a drop has somewhere to land;
                        PadRootView — the desk's three panes in a split view
   Shared/              The board itself — scroller, column, card, composer, keyboard map
-                       — plus BoardSettingsView, a board's name, colour and columns
+                       — plus BoardSettingsView, a board's name, icon and columns
                        on every platform
                        — plus InboxPanel, the global Inbox standing beside it
                        — plus the sidebar, the toolbar, the inspector, chips (label, due,
                        column, count), checklist, completion toggle, label manager, empty
                        states, activity feed, flat task list,
-                       label/priority/due/accent/dot/move-to pickers, board destination
+                       label/priority/due/accent/dot/icon/move-to pickers, board destination
                        menu, flow layout, hairlines; settings, the export/import
                        documents with the panels that present them, and the two
                        accessibility helpers every surface goes through — ScaledChrome
@@ -386,10 +386,12 @@ sidebar's Manage-labels row, both "back to the board" buttons, the new-task and
 new-board rows and the add-column tile substitute their subtrees; the column
 header's `ellipsis` is hidden instead, because a `Menu` cannot be substituted
 without losing the menu. Where a label holds no `Image` at all — the sidebar's
-Inbox, board and saved-view rows, whose dot is a `Circle` and not an element —
-the smaller fix is enough and reads better anyway: the name is the
-`.accessibilityLabel` and the count is the `.accessibilityValue`, so the row is
-not *renamed* every time a card is filed. Substituting a subtree does not swallow
+Inbox rows whose mark is drawn as a shape rather than an `Image` — the smaller
+fix is enough and reads better anyway: the name is the `.accessibilityLabel` and
+the count is the `.accessibilityValue`, so the row is not *renamed* every time a
+card is filed. Board and saved-view rows lead with a glyph and so are substituted
+like the rest, keeping the same name/value split inside the substitution.
+Substituting a subtree does not swallow
 a `.keyboardShortcut`, measured — but that measurement was taken while ⌘N still
 lived on the toolbar's New task button, and it no longer has a subject: ⌘N is the
 File menu's now and no substituted control in this app carries a key of its own
@@ -410,8 +412,10 @@ Measured with the Close button, which is exactly 44pt as drawn:
 | iPhone 17e | 390pt | 44.0000 | **42.1949** | 0.95897 |
 
 `(width - 16) / width` to five places on both, so the arithmetic is the whole
-story and it holds for every control in there — Close, Add label, the checklist
-toggles, the Move-to chips, Due date and Priority. The factor is the inset over
+story and it holds for every control in there — Add label, the checklist
+toggles, the Move-to chips, Due date and Priority. The numbers were measured off
+the Close button, which was exactly 44pt as drawn and is not in the sheet any
+more; every other 44pt target pays the same factor. The factor is the inset over
 the *width*, so it is the same at any fraction: the numbers above were measured
 at four fifths and did not move when the sheet was raised to nine tenths.
 
@@ -700,13 +704,13 @@ nothing. Boards are real now, so that gap is closed rather than described; see
 
 ## Boards, columns and the Inbox
 
-A board is a name, a colour, a code prefix and the columns work moves through:
+A board is a name, an icon, a code prefix and the columns work moves through:
 
 ```swift
 struct Board: Identifiable, Hashable, Codable, Sendable {
     var id: UUID
     var name: String
-    var dot: SwatchColor
+    var symbol: String          // an SF Symbol name — a saved view's `symbol` exactly
     var createdAt: Date
     var columns: [BoardColumn]
     var codePrefix: String      // the "NW" in "NW-118" — a label, not a key
@@ -719,33 +723,145 @@ the opposite of the saved view. What the main surface is *showing* is not saved:
 `BoardSurface` is `.board`, `.inbox` or `.view(SavedView)`, it is set through
 `selectSurface(_:)` (`selectTab(_:)` on the phone), and it belongs to a sitting.
 
-Boards can be created, renamed, recoloured, reordered and deleted from both
+Boards can be created, renamed, remarked, reordered and deleted from both
 surfaces — the macOS sidebar's context menu, its click-to-edit toolbar title and
 the Board Settings sheet that menu opens, the iOS drawer's long-press menu and
-the same sheet. Renaming, recolouring and deleting are the sheet's on the desk,
-and only the sheet's; what the sidebar's menu keeps is the board's place in the
-list, which is not a fact about the board. See **Board settings**. Reordering is menu
-items rather than a drag on both, because the rows are already card drop targets
-and a second meaning for the same gesture would fight the first. A board's dot
-is chosen with the same control every other colour in the app is — see **The
-colour picker** — and `Board.dots` is now what that control's palette is
-*seeded* with rather than the whole of what it offers. Each seed carries its name
-— Accent, Stone, Amber, Ember, Pine, Indigo — because a swatch announced as
+the same sheet. Renaming, changing the icon and deleting are the sheet's on the
+desk, and only the sheet's; what the sidebar's menu keeps is the board's place in
+the list, which is not a fact about the board. See **Board settings**. Reordering
+is menu items rather than a drag on both, because the rows are already card drop
+targets and a second meaning for the same gesture would fight the first.
+
+**A board wore a colour until v16 and wears a glyph now** — see **The board icon**
+below, which is also where the upgrade is described. The six colours that used to
+be `Board.dots` have not gone anywhere: they were only ever the *seed* of the
+palette every colour picker draws from, and they now live on the type that seed
+is for, as `PaletteSwatch.seed` with `PaletteSwatch.seedPalette` as the bare
+`[SwatchColor]` the invariants are checked against. Each carries its name —
+Accent, Stone, Amber, Ember, Pine, Indigo — because a swatch announced as
 "Colour 4" tells a VoiceOver user nothing about what picking it does. The last
 three are the accent themes' own hexes and take the accent themes' names; the
 first is `.accent` itself, the one entry that follows the theme rather than
-naming a colour. `Board.dotPalette` is still there as the bare `[SwatchColor]`
-the invariants are checked against.
+naming a colour.
+
+## The board icon
+
+**A board's mark says what the board is for, and the user picks it.** It was a
+coloured dot — one of six — and three things were wrong with that. Six dots at
+7pt say *which* board only if you can tell them apart, which rules out anyone
+who cannot see colour and most people at a glance between Stone and Amber. A
+colour says nothing about what the board *is*: a green board is not a gardening
+board, it is a green one. And the saved views two sections below in the same
+sidebar had been wearing glyphs since v11, so one list was marking its rows two
+ways for no reason a user could name.
+
+So `Board.symbol` is an SF Symbol name, exactly as `SavedView.symbol` is, and
+every surface that marks a board draws it: the sidebar row, the phone's drawer,
+the destination pill on the card detail, and the board-overview widget's heading.
+All of them go through `SymbolMark.resolved(_:)` — see **Drawing a symbol that
+might not be here**.
+
+**The vocabulary is the whole of SF Symbols.** `Board.startingSymbols` is the
+sixteen the picker *opens* on — the marks a board is likely to want, chosen to
+read at the 14pt a sidebar row draws them at, and deliberately sharing no glyph
+with `SavedView.startingSymbols`, so what each picker suggests keeps the two
+kinds of row apart even though both can reach everything. Behind them is
+`SymbolCatalog`: every symbol the deployment target can draw, browsable by the
+system's own categories and searchable by name and by the system's search terms,
+so "fire" finds `flame`. See **The icon picker**.
+
+**Where the list comes from.** There is no API that enumerates SF Symbols, so
+the names are shipped: `Tools/make-symbol-catalogue` reads the system's
+CoreGlyphs bundle and writes `Resources/SFSymbols.txt`, dropping anything newer
+than the deployment target (a name the running OS has not heard of draws an
+empty frame), Apple's 663 restricted marks (a board called Groceries wearing the
+iCloud glyph is exactly the use the restriction forbids), and the localized
+numeral and RTL variants the system substitutes on its own. Re-run it after an
+OS upgrade and commit the diff. It is a resource rather than a Swift literal
+because it is 300KB of data with no code in it, and `SymbolCatalog.entries` is a
+`static let` — nothing is read or parsed until a picker is opened.
+
+**Drawing a symbol that might not be here.** The set of symbol names is not the
+same on every system, and a board is synced: a phone a system version ahead of
+the Mac beside it can pick a glyph the Mac has never heard of. `Image(systemName:)`
+handed one of those draws nothing at all — not a placeholder, an empty frame —
+which reads as a broken row rather than as a mark that has not arrived yet. So
+every surface asks `SymbolMark.resolved(_:)`, which answers with the name where
+the system can draw it and `SymbolMark.boardFallback` where it cannot, and the
+file is left alone: the board keeps the name it was given, and the device that
+*can* draw it goes on drawing it. The answers are memoised behind a lock, because
+a sidebar of a dozen rows asks on every frame of a drag.
+
+**The upgrade.** v16 is the one migration in this app that has something to
+convert and converts it into something else. There is no mapping from Amber to a
+glyph that means anything, and inventing one would hand somebody's Errands board
+a flame because it happened to be orange. What the colours carried is the only
+part worth keeping — that the rows were *told apart* — so `migrate(v15:)` deals
+marks out by position from `Board.startingSymbols`, cycling if there are more
+boards than glyphs. A sidebar that arrived distinguishable stays distinguishable,
+and the picker is one tap away. The alternative, every board on the same default,
+is honest and reads as five identical rows until each has been visited.
+
+## The icon picker
+
+`SymbolWell` is `ColorWell` for glyphs — deliberately the same shape, the same
+sizes and the same place in the Board Settings sheet, because it stands where the
+board's colour well stood. What is behind it is not the same at all: a colour is
+*mixed* and a symbol is *found*.
+
+**Two things stand on it: a board's mark and a saved view's.** The view editor
+drew a row of eighteen fixed swatches until this replaced it — the row could only
+ever offer what was written into the source, which is precisely what was wrong
+with `DotPicker`, and it cost a block of 44pt targets to say so. The two callers
+differ in exactly two arguments: the list the picker *opens* on
+(`Board.startingSymbols` against `SavedView.startingSymbols`, which share no
+glyph, so each picker still suggests marks that keep the sidebar's two sections
+apart) and the fallback `SymbolMark` uses for a name this system cannot draw. The
+board's well writes straight to the store; the view's writes to that editor's
+draft, because everything in it does — a view is five things at once and closing
+the sheet is the one commit.
+
+`SymbolPickerPopover` holds a search field, a group menu and a lazy grid.
+Choosing is one act — pressing a glyph takes it and closes, the way a saved
+colour does — because unlike a spectrum this control cannot be dragged through a
+hundred choices nobody made, so there is no draft to commit on the way out and
+one ⌘Z per pick.
+
+Two rules earn their place. It opens on **Suggested** rather than on everything,
+because the catalogue is alphabetical and "everything" opens on `0.circle` with a
+second screenful of digits under it. And **typing searches the whole catalogue
+whatever is being browsed**: somebody who types "plane" while looking at the
+suggested few is asking the app for a plane, not asking whether one of *these* is
+a plane. Picking a real group *does* scope the search, because that is
+what picking one is for.
+
+**The grid is the row that yields, and the keyboard is the popover's business.**
+Tapping the search field raises the keyboard and UIKit shortens the popover to
+stand clear of it — and SwiftUI then lifted the panel's *contents* by the same
+overlap a second time, on a frame that had already moved. What went up out of the
+top of the panel was the search field itself: measured on a 402×874 phone, it
+jumped from y=311 to 209 while the panel's own top stayed at 286, so the reader
+was left typing into a field they could no longer see, with the grid sitting
+where it had been. Two changes answer it. The panel `ignoresSafeArea(.keyboard)`,
+because by the time it is laid out nothing in it is under the keyboard — the
+container saw to that. And the grid states an **ideal** height rather than a
+height: the ideal is what the popover asks for and so what it opens at, a
+definite smaller proposal is taken instead, and since the field and the group
+menu are fixed the grid is the one row that can give the height up — measured,
+300pt down to 96. `PickerFitTests.testTheIconPickersFieldStaysPutWhenTheKeyboardRises`
+holds it, and fails on the old spelling with exactly the 102pt jump above.
 
 ## The colour picker
 
-**One control, one palette, one place the colours live.** A board's dot, a
-column's dot and a label's colour are picked with the same `ColorWell` — a
-button wearing the colour it has, labelled *Select Colour* — and every one of
+**One control, one palette, one place the colours live.** A column's dot, a
+label's colour and every colour in a theme are picked with the same `ColorWell` —
+a button wearing the colour it has, labelled *Select Colour* — and every one of
 them opens the same `ColorPickerPopover` over the same `BoardStore.savedColors`.
-That last part is the point: a colour mixed while recolouring a column is
-offered the next time a board is recoloured, and one deleted from any picker is
-gone from all of them, because there is only ever one list.
+That last part is the point: a colour mixed while recolouring a column is offered
+the next time a label is recoloured, and one deleted from any picker is gone from
+all of them, because there is only ever one list. Boards left this control at
+v16, when a board's mark became a glyph — see **The icon picker**, which is the
+same shape over a different kind of thing.
 
 It replaced `DotPicker`, a row of six fixed swatches drawn inline by whichever
 surface wanted one. Two things were wrong with it. It could offer only what was
@@ -773,12 +889,12 @@ nobody chose.
 
 **Deleting is a context menu on the swatch**, not a badge on it: an × inside a
 26pt circle sits one slip away from the target that *chooses* the colour. There
-is no alert in front of it because nothing wearing the colour changes — a board,
-a column and a label each store the colour itself rather than a place in the
-list — so what a delete removes is an offer, and ⌘Z puts it back. The accent is
-refused outright: it is not a hex but "whatever the accent theme is", nothing
-else in the palette can say that, and a board wearing it would be left pointing
-at a choice no picker offers.
+is no alert in front of it because nothing wearing the colour changes — a column
+and a label each store the colour itself rather than a place in the list — so
+what a delete removes is an offer, and ⌘Z puts it back. The accent is refused
+outright: it is not a hex but "whatever the accent theme is", nothing else in the
+palette can say that, and a column wearing it would be left pointing at a choice
+no picker offers.
 
 **A label wears four colours and a picker returns one.** A chip is a tinted
 ground with text on it, in light and in dark, and the ten pairs the app shipped
@@ -862,7 +978,7 @@ the editor up the panel underneath reports `exists == false` whether it is still
 there or has gone — which is the one question being asked. So it is asked in two
 halves that only both hold if the panel closed and the editor came back: straight
 after the pick the editor is still up with its pill now naming the board, and
-then the editor is closed and what is behind it is the board rather than the
+then the editor is pulled down and what is behind it is the board rather than the
 list the card has left. The suite files the card home again on the way out, which
 is not tidiness — the board file outlives the process, and a suite that eats one
 of the three seeded Inbox cards fails `InboxSheetDragTests` and `InboxPanelTests`
@@ -1339,7 +1455,7 @@ schema change.
 
 ### Board settings
 
-**A board is one thing, and this is where it is edited**: its name, its colour,
+**A board is one thing, and this is where it is edited**: its name, its icon,
 and the columns it is made of — each one's name, abbreviation, colour and place,
 plus the two that change the board's shape, adding a column and throwing one
 away. `BoardSettingsView` is a sheet on all three surfaces, raised through
@@ -1349,7 +1465,7 @@ The root presents it, once, because most of what raises it is a menu and a menu
 can set a flag but cannot present a sheet: the same split the Trash makes.
 
 It was the phone's alone. On the desk the same capabilities existed as three
-controls in three places — a rename in the sidebar's context menu, a colour in a
+controls in three places — a rename in the sidebar's context menu, a mark in a
 popover off it, a column's four fields in a popover hanging off a column header —
 with the order of the columns spelled as *Move Left* / *Move Right*, one column
 at a time, and nothing on screen showing the order being changed. The first two
@@ -1541,7 +1657,7 @@ Three of those needed a decision rather than a transcription.
 **Label chips are a rule.** The document fixes four chips per theme — `HEALTH` is
 one teal in every dark theme and another in every light one — but a label here is
 not one of four fixed things: you make labels and give each one a colour from the
-same picker a board and a column are coloured from. So `ThemeChipRule` carries the
+same picker a column is coloured from. So `ThemeChipRule` carries the
 three numbers that turn *any* colour into a ground and a text (lift, ground
 strength, text shade) and the document's four pairs fall out as examples of it.
 `palette.chipTone(for:)` applies it at render time, which means every chip already
@@ -1869,6 +1985,29 @@ under a pointer already on its way to it. The neighbouring months fill the edges
 greyed, and they are live: a date at the start of next month is one press away in
 the row it actually falls in, and picking one takes the grid with it.
 
+**The panel hangs where the room is, and scrolls what it is not given.** A
+popover with a named arrow edge has exactly one placement it is permitted:
+`.bottom` means *above the chip* and nothing else. Where the Due card sits on the
+phone is wherever the editor happens to be scrolled — measured on an 874pt screen
+with it scrolled to its foot, 246pt above the card against 453 below, for a panel
+of 469 — so the one placement allowed was into the short side, and the calendar
+was drawn at its full length inside it: the presets and the month's own name cut
+off the top, the last weeks off the bottom, and the lower half of the screen
+empty. `DueDateField.Metrics.arrowEdge`
+names the edge on the desk, where a window has room on every side and AppKit
+treats a named edge as a preference it may overrule, and names none under touch.
+That is the fourth control in this app to arrive at the same answer — see
+`ColumnEditorMetrics.arrowEdge`, `BoardSidebar.trashArrowEdge` and
+`ColorWell.arrowEdge`, which measured it first.
+
+Placement runs out on a screen with no roomy side: a phone lying down has 402pt
+of height and the calendar's panel is 469. So the panel is a `ScrollView`, which asks for
+exactly the same natural height and simply scrolls whatever it is not given —
+`ColorPickerPopover`'s pair again, and the half that holds when the first one
+cannot. `UITests/PickerFitTests` measures both: every control of both panels
+inside the panel and pressable in portrait, and the foot of the calendar one
+swipe away on a screen too short to hold it.
+
 The month on screen belongs to the **panel**, not the task — paging forward to
 look at next month must not move the due date, and the two part company the
 moment an arrow is pressed. It is set when the panel opens, to the card's own
@@ -1987,9 +2126,10 @@ before, where it was the only control in a column of fields — a state verb in 
 middle of an editing surface, sized against a 26pt serif line rather than against
 anything it shared a row with.
 
-The phone keeps its tick beside the title because its header has the ✕ and
-nothing else: the trash is a row at the foot of the sheet, so there is no set of
-verbs up there to join, and a lone tick beside a lone ✕ is not that row. It stays
+The phone keeps its tick beside the title because its sheet has no header at
+all: the ✕ that used to be the whole of one is gone — see **Closing a sheet** —
+and the trash is a row at the foot, so there is no set of verbs up there to
+join. It stays
 `.top`-aligned there for the reason it always was — a centred row puts the circle
 halfway down a title that wrapped, which is beside no line at all, and the 44pt
 touch square is exactly twice the 13pt radius either way, so the circle lands on
@@ -2253,12 +2393,154 @@ by the same `beginEditing`/`endEditing` session as the task title, so a row
 retyped a letter at a time is one activity entry and one ⌘Z. Delete is an `×`
 revealed on hover on macOS and the row's context menu on iOS, which is also the
 path VoiceOver has on both: a control that waits for a pointer is a control a
-screen reader cannot ask for. Reordering is a drag on the row itself and logs
-nothing — the order is on screen, and a feed of "sub-task moved" would bury the
-changes that matter. Every row is 44pt tall on touch and the whole of it takes
-focus, the dashed `+` box on the add row included — a `TextField` is only live
-across the text it draws, so the row rather than the field is what a finger
+screen reader cannot ask for. Every row is 44pt tall on touch and the whole of it
+takes focus, the dashed `+` box on the add row included — a `TextField` is only
+live across the text it draws, so the row rather than the field is what a finger
 aims at; see **Touch targets**.
+
+**Reordering is a drag on the grip at the end of a row**, on every platform, and
+it logs nothing — the order is on screen, and a feed of "sub-task moved" would
+bury the changes that matter.
+
+The row itself *was* the grip, on the bargain the label manager still makes: a
+drag begun inside the text field belongs to the field, because that is how text
+selection works, so the box, the padding and the gutter are what start a reorder.
+What that came to in practice was 8pt of padding at either end and the tick's
+square — and the tick is a button, which takes the press first. Measured on an
+iPhone before the grip existed: a press-and-drag on the gutter moved nothing at
+all, and a press-and-drag on the row ran the *field's* own drag and pasted "Lift
++ shadow states" into the middle of "Keyboard fallback". So the gesture was not
+merely unreachable on touch, it was destructive when it was reached by accident,
+and the desk had the same geometry and the same 8pt to aim at. The grip is a
+thing on the screen now — trailing end of the row, drawn on both platforms and at
+all times, because it is the only affordance a reorder has and a control revealed
+on hover cannot be discovered by a finger. `UITests/ChecklistDragTests` is a real
+press-and-drag on a simulator, which is the only thing that can tell a working
+reorder from the field eating the gesture.
+
+**A dragged row is marked by the gap it will land in, not by a row it will not**,
+which is the columns' and the cards' treatment arriving at the third and last
+list in the app that re-orders by hand. `drop(_:before:)` resolved the row under
+the pointer into a gap by the direction of travel, so the same release meant two
+different places depending on where the drag came from, and the capsule drawn on
+the target's *top* edge was a lie every time the row was travelling downwards.
+Two half-height zones over each row, `.above` and `.below`, replace it — see
+`SubtaskCaret` and `BoardStore.dropSubtask(_:on:at:)` — and they reach half the
+row gap past each end so one row's halves meet the next one's in the middle of
+it. They are in the tree only while a row is in the air, or they would take the
+tap that focuses a row.
+
+They are drawn *over* the row rather than behind it, which matters more here than
+it does for a column: the row is mostly `TextField`, a text field accepts a
+plain-text drop, and `SubtaskTransfer` offers its text as one. A zone behind the
+field would let a row dragged onto another row be pasted into it — the same
+damage the old whole-row grip did, arriving by a different route. A drop stops at
+whatever is in front.
+
+**What the gap holds is a copy of the row**, faint and dashed — the board's and
+the Inbox's `DropPreviewCard` treatment, arriving here for the reason it arrived
+there. A 2pt accent capsule says *between these two* and leaves unanswered the
+question a reorder actually asks: *is this the row I am carrying, and where will
+it be when I let go*. A copy answers both at once — it is legibly that sub-task,
+tick and strikethrough and all, and it pushes its new neighbours apart by exactly
+what the real row is about to claim. The original stays where it is at
+`StandIn.inTheAir` until the drop lands, so nothing vanishes from under the hand;
+the copy is the one to read. The capsule went when the copy arrived, for
+`drawsDropCaret`'s reason: one insertion point stated twice, in two notations, is
+a solid accent rule along the edge of the dashed outline beside it.
+
+`StandIn` in `DropPreviewCard.swift` holds the numbers both surfaces draw a
+promise with, so a board and an editor cannot end up disagreeing about how solid
+a thing about to land is. The row-shaped copy is drawn rather than built from
+`ChecklistView.row(for:)` — the same stripping `BoardTaskCard.standIn` does, and
+for the same reasons: a whole row would bring its own drop zones, a second
+`.draggable` for a sub-task already in the air, and a live `TextField` the
+keyboard could land in. `BoardStore.subtaskDropIndex(_:on:at:)` says which row of
+the list *as drawn* it becomes, and refuses exactly what `dropSubtask` refuses —
+a gap opening where the drop will then decline to land is a promise the app does
+not keep. `SubtaskReorderTests.aGapOpensPreciselyWhereADropWouldLand` asserts
+that over every row against every caret, because the two rules are written out
+separately and an edit to one is what would leave the other behind.
+
+**The stand-in takes the drop**, because by the time it is on screen it is what
+the pointer is over: opening a gap moves the row below it down, and the pointer
+that was in that row's lower half is now inside the copy. It claims its caret on
+the way in and **nothing gives one up on the way out** — a zone that cleared on
+exit cannot coexist with a stand-in, because the gap it opens moves the pointer
+off the zone that asked for it, whose `false` then shuts the gap, which springs
+the rows back under the pointer, which names the same gap again, at the frame
+rate. So the end of a drag is established elsewhere:
+`ChecklistView.SubtaskDragSession` hears it from `onDragSessionUpdated` where
+that exists — macOS 26, but iOS **27**, see `BoardStore.announcesDragEnd` — and
+`ChecklistView.targeting(_:)` infers it on iOS 26 from every zone letting go for
+`BoardStore.dragSettle`. Without one of those, a drag put down over nothing would
+leave the copy in the gap and the zones over the rows, eating the taps that focus
+them, until the lift expired twenty seconds later.
+
+**A note for anyone writing a test against this.** The gap is a real row of
+height, so everything below it moves down by exactly that — which means a
+coordinate worked out from the list *before* the drag stops naming the row it
+named the moment a gap opens above that row. A hand does not have this problem:
+it watches the gap and stops when the gap is where it wants it, which is the
+whole point of drawing one. `UITests/ChecklistDragTests` has to be told instead,
+and its `shift:` parameter is what it is told in — the case that drags the first
+row to the foot of the list is the one that pays it, because it is the only one
+that travels *past* a row to get where it is going.
+
+**Move Up / Move Down stay in the row's context menu.** A drag is not a control:
+it cannot be reached by keyboard, VoiceOver cannot offer it and Switch Control
+cannot perform it, and the grip is `accessibilityHidden` for exactly that reason —
+it is an affordance for a gesture those readers do not have. The pair is what
+they use instead, and it is the last caller of `BoardStore.dropOffset`, which is
+the right home for it: a menu item names the row it is moving *past*, so the
+direction of travel is stated rather than guessed at.
+
+**The menu is on the row's content and pointedly not on its grip**, which is the
+one place the two gestures would otherwise collide: a context menu opens on a
+long press, and a long press is also how a drag begins on touch, so with the menu
+on the whole row taking hold of the handle put the menu on screen over the drag
+that was starting. Reported from a phone, and invisible to every test here at the
+time — the drag *did* start, so a case that only asks where the row landed passes
+with a menu sitting over the screen. `ChecklistView.rowContent(_:)` is the group
+the menu hangs off now; what it costs is the 8pt of padding outside that group,
+which is the price of the handle having a gesture of its own.
+`testALongPressOnTheGripOpensNoMenu` and `testALongPressOnTheRowStillOpensItsMenu`
+are the two halves, because a fix for the first that quietly removed the menu
+would pass on its own.
+
+**The drag session is the authority for the lift, not the payload ask** — and
+arriving at that took two reported bugs, both of the same shape. SwiftUI asks
+`.draggable` for its payload many times per drag: for the preview, again as the
+view updates, and again *through* the drop while the rows reorder under the
+finger. Hanging the lift on that ask therefore means de-duplicating it by hand,
+and every latch that does so is a guess about where one drag ends and the next
+begins. The first version guessed with `draggingRow` and left a row faded after
+it landed — a late ask read as a fresh pick-up, with no drag left to end it. The
+second guessed with a quarter-second window on `liftedRow`, which fixed that and
+left a narrower one behind: drag a row, drag it again straight away, and the
+second drag would not arm, so the handle came away from a row that stayed where
+it was.
+
+`onDragSessionUpdated` reports `.initial` exactly once per session, which is what
+a lift *is*, so on the builds that have it — macOS 26, but iOS **27**, see
+`BoardStore.announcesDragEnd` — `ChecklistView.beginLift(_:)` is called from
+there and the payload ask sets no state at all. No latch, no window, no guess.
+Only iOS 26 has nothing else to go on, and only there does the latch still run.
+
+**Every lift is numbered, and every deferred answer carries its number.** A drag
+session's closing callbacks can arrive after the *next* drag has started, and
+obeying one of those shuts a live drag down under the finger — which is the same
+symptom from the other end. So `SubtaskDragSession` holds the number it was given
+at `.initial` and hands it back at the end, `ChecklistView.endLift(_:)` refuses
+anything that is not the drag in hand, and the settle in `targeting(_:)` and the
+twenty-second expiry check the same thing. `beginLift` also clears the caret and
+the zone count on the way *in*, so nothing left over from a drag that ended
+untidily can be read as belonging to the new one.
+
+`ChecklistDragTests.testARowCanBeDraggedAgainStraightAfterADrop` is the case for
+it, and it works out every coordinate before either drag starts — reading the
+list between the two puts most of a second between them, which is long enough for
+anything settling after a drop to have settled, and the bug lived in that second.
 
 ### Labels
 
@@ -2284,13 +2566,13 @@ a long-press menu on both — while a chip on a card, which is a read-out and no
 a control, renders exactly as it always has.
 
 Those tones carry their names — Indigo, Violet, Pine, Red, Amber, Stone — beside
-their hexes on the model, the way `Board.dots` does and for the same reason: a
+their hexes on the model, the way `PaletteSwatch.seed` does and for the same reason: a
 swatch announced as "Colour 4" gives a VoiceOver user its position and nothing
 about what choosing it does, and a name kept in the picker instead drifts from
 the colour the moment either is edited. Naming one of the app's two swatch rows
 and not the other would only have moved the problem. `LabelDef.palette` is still
 there as the derived pair list `recolorLabel` and the round-robin in `addLabel`
-take, exactly as `Board.dotPalette` is.
+take, exactly as `PaletteSwatch.seedPalette` is.
 
 **The picker's popover has to be able to grow back.** The panel swaps itself for
 the compose form when you press New Label, the form is shorter, and the popover
@@ -2321,6 +2603,47 @@ sized correctly on the way in and pinned from the next pass onwards. The cap is
 still the cap, so a vocabulary of forty labels scrolls inside its 320pt rather
 than opening a popover its own length. `LabelPickerHeightTests` pins both halves
 by hosting the real panel and offering it the compose form's height.
+
+**And the floor is dropped where the screen has no room for one.** The table
+above is AppKit's, and a floor is the right answer wherever the panel may be as
+tall as it likes. A popover on the phone is handed the room between the button
+and the edge of the screen instead, and a panel that refuses to be shorter than
+its rows is laid out at full length inside that box and *clipped* — the search
+field and **New Label** off the top, which is what the phone showed. So
+`standsItsGround` is the caller's decision now: `LabelEditor` reads the vertical
+size class, which only the anchor can still see (`ColorWell.adaptation`'s
+reason), and says no on a phone lying down — 402pt of screen leaves about 180
+either side of the `+`, and the panel is 361 with the five seeded labels in it. Yielding, the panel
+fits what it is given: the chrome above the list is fixed, so the list is what
+shrinks and the rows scroll inside what is left. Standing up, there is room on
+one side or the other once the panel stopped naming an arrow edge
+(`LabelEditor.Metrics.arrowEdge`), and the floor is what it always was.
+
+**The compose form was not given the height it asks for either.** Measured on the
+phone before the fix: the list's panel is 349pt, **New Label** swaps in the form,
+the popover follows it down to 202 — and the form was still laid out to the
+list's geometry, so **Cancel** and **Add** were drawn 21pt below the panel's foot
+reporting `hittable == false`. A form that could be opened and then neither
+committed nor cancelled, on the surface where a label is made. It is a
+`ScrollView` now, which is the calendar's answer to the same arithmetic, and the
+form lands inside its own panel again. What is still left after that swap is a
+layout the popover does not re-propose: coming back from the form, the last row
+of the list cannot be pressed until the panel is closed and opened again.
+Measured with the floor and without it, so it belongs to the swap rather than to
+the height rule.
+
+**And the panel was the smallest of its family.** Three popovers hang off a
+control in the editor, and they are worth reading against each other: the
+calendar is 344pt wide inside 12pt of padding, the manager's create form 230
+inside 16 — and this one was **250 inside 8**, the desk's own inset plus a point.
+The list could live with it; the form could not. A title, a name field, a colour
+the width of the panel and two verbs all ran wall to wall, with the popover's
+rounded corners a few points off them, which is what a reader sees as *too small
+for what is in it*. It is **300 wide inside 14** now, with 12pt between the
+form's rows rather than the desk's 8: measured, the form's panel goes from
+250×202 to 300×226 and every margin in it from 8pt to 14.
+`TouchTargetTests.everyTouchPanelIsInsetForTheHandItIsUnder` holds the floor and
+holds both panels inside the narrowest phone.
 
 ### Activity
 
@@ -2558,7 +2881,8 @@ to clear it.**
   everywhere else on the desk.
 - **iOS Search tab** — the field is on screen and the flat list *is* the results
   list, drawn full-screen instead of in a panel. Same `searchResults`, same
-  ranking, no second implementation.
+  ranking, no second implementation. Tapping the lit Search slot again closes
+  the tab and takes the query with it — see **A mode is, though**.
 - **iOS Board tab** — the query is ignored outright, which is now what the desk
   and the iPad do with the whole board. The Inbox's slide-over reads `inboxTasks`
   and so is out of the query's reach whatever tab is under it.
@@ -2611,8 +2935,10 @@ session state, while the views themselves are board data (v11).
 
 **They used to be an enum**, seven hand-written predicates in the source: the same
 seven on every install, unnameable, unorderable and unchangeable. They are rows in
-the board file now. A view can be made, renamed, given a different glyph,
-re-ruled, reordered and deleted, and the built-in seven are seeded rows in that
+the board file now. A view can be made, renamed, given a different glyph — any
+of SF Symbols since the browser replaced the editor's fixed eighteen, see **The
+icon picker** — re-ruled, reordered and deleted, and the built-in seven are
+seeded rows in that
 same list rather than a separate kind of thing — which is what buys one code path
 for the sidebar, the counts, the empty states and the surface.
 
@@ -2914,10 +3240,13 @@ carrying a second copy of them. Three things about it are load-bearing:
   list it opened a row nobody could see. Each row leads with
   `SavedView.symbol` — the glyph that view's empty state and the phone's drawer
   were already drawing, so a row and the surface it opens carry one mark rather
-  than each picking their own. The **boards** above them keep a coloured dot
-  instead, which is the truer split: a board's mark says *which* board and is the
-  user's to recolour, while a view's says what the view is for and is the same on
-  every install. Every symbol in the list is drawn in a `Metrics.rowGlyph` slot,
+  than each picking their own. The **boards** above them wear one too since v16,
+  where they wore a coloured dot: both marks say what the destination is for, and
+  both are the user's to change, picked from the same browser — what keeps the
+  two sections apart is what each picker opens on (`Board.startingSymbols` and
+  `SavedView.startingSymbols` share no glyph) and the headings they sit under.
+  See **The board icon** and **The icon picker**. Every
+  symbol in the list is drawn in a `Metrics.rowGlyph` slot,
   Labels, Trash and Settings included, so one column of glyphs runs down the list
   — a `calendar` is half again as wide as a `sun.max`, and left to themselves the
   labels stagger. The rows are `accessibilityRepresentation`-substituted for the
@@ -2958,6 +3287,10 @@ These rules are the iPhone's alone:
   the other two platforms use, and it reads as current whenever the panel is up —
   over a saved view included, because a panel over the top is showing whether or
   not a view is under it.
+
+  **Both slots on that bar are switches now.** The Search one closes the search
+  it opened, which is the way back the Board slot used to be — see **A mode is,
+  though**.
 
   It is **a real `.sheet` held at a detent, the same kind of thing as
   `PhoneDetailSheet`** — and it was hand-rolled until it wasn't. The reason for
@@ -3004,8 +3337,11 @@ These rules are the iPhone's alone:
   because a drag over the cards belongs to the list and a sheet arbitrates that
   for itself where an overlay has to be told — and `.isModal`, plus an
   `accessibilityHidden` while the editor is up, because an overlay is a *sibling*
-  of the window's content rather than something underneath a presentation and
-  both the panel's × and the editor's are labelled Close.
+  of the window's content rather than something underneath a presentation — back
+  when both drew a ✕, the panel's and the editor's were reachable at once and
+  both were labelled Close. And an `accessibilityAction(.escape)`, which is the
+  third: upright UIKit answers the escape gesture itself, and on its side every
+  route out of the panel — the handle, the scrim — is hidden from a reader.
 
   **Which shape it is in is one flag answering two questions**, and the handover
   is the subtle part. The sheet is driven by view state (`showsInboxSheet`)
@@ -3025,20 +3361,21 @@ These rules are the iPhone's alone:
   it while it is open, and exactly one is live. `PhoneNavDrawer` hosts its own
   sheets for the same reason and says so in the same words.
 
-  **The drag cannot be tested from here while it is the system's**, which is why
-  the four tests that covered the hand-rolled version went with it. A synthetic
-  `press(forDuration:thenDragTo:)` does not drive a system sheet's pan — a
-  recording of the simulator shows the sheet perfectly still through a 500pt drag
-  that dismisses it under a real finger. `UITests/InboxPanelTests` pins what is
-  left and reachable: the height, the × , the editor coming up over the Inbox and
-  the Inbox still being there afterwards, and the width after a rotation.
-  `DetailSheetHeightTests` reaches the same wall for the editor and answers it
-  the same way.
+  **The drag is testable after all**, which took a while to establish. The four
+  tests that covered the hand-rolled version went with the code, on a reading
+  that a synthetic `press(forDuration:thenDragTo:)` could not drive a system
+  sheet's pan — a recording of the simulator showed the sheet perfectly still
+  through a 500pt drag that dismissed it under a real finger. That was the
+  *reach* being short rather than the gesture being inert: measured against a
+  four-tenths-of-the-window drag it works, and `UITests/InboxSheetDragTests`
+  pins it from the header and from over the cards. Which matters more than it
+  did, because it is now the only way out of the sheet — see **Closing a sheet**.
+  `UITests/InboxPanelTests` pins the rest: the height, the editor coming up over
+  the Inbox and the Inbox still being there afterwards, and the width after a
+  rotation.
 
-  On its side the wall is not there, because the gesture is ours again: the same
-  suite turns the phone, pulls the handle down 220pt and asserts the panel is
-  gone. A `DragGesture` of our own is something a synthetic drag *can* drive,
-  which is the one advantage of having to write it.
+  On its side the gesture is ours: the same suite turns the phone, pulls the
+  handle down 220pt and asserts the panel is gone.
 
   It sits **under** the drawer in the overlay order,
   because the drawer is the way to a *board* and a board list half-covered by the
@@ -3102,7 +3439,7 @@ These rules are the iPhone's alone:
   sitting beside a hamburger that worked; it now has a 44pt target. What is in it
   is **Board settings**, Archive completed, Manage labels, the Trash and
   **Settings**. Board settings replaced *Rename board* by holding it: renaming is
-  one field of a sheet that also carries the board's colour and all of its
+  one field of a sheet that also carries the board's icon and all of its
   columns. **The first row names the surface that is on screen**: on a saved view
   it is **Edit View…** instead, which raises that view's own editor. It offered
   Board settings there — the settings of the board standing *behind* the view,
@@ -3111,7 +3448,7 @@ These rules are the iPhone's alone:
   `BoardStore.editingViewID` rather than presented by the menu, for the drawer's
   reason: a menu is gone by the time the sheet would open.
   What was taken out of it is the hamburger's: **Switch board** stood a thumb's
-  width from a drawer that lists every board with its dot and its count, and the
+  width from a drawer that lists every board with its mark and its count, and the
   whole **Views** section stood beside the same drawer's views and the Archive
   under them — a second, shorter, worse copy of the panel next to it. **Clear
   search** went with them, because the field has an × and the surfaces without
@@ -3166,6 +3503,18 @@ still a text field you rename in place; a view's is not, because a view is renam
 in its own editor where its rules are, and a title that is a field on one
 destination and a label on the next is a title nobody can trust to be either.
 
+**And search takes it too.** The Search tab draws `searchResults` — every board
+and the Inbox, ranked — so the active board's name stood in the largest type on
+the screen over a list that was mostly not from it, which is a title answering
+"where am I" with somewhere you are not. The header says *Search* there instead
+(`PhoneHeader.title`), taking the word from `PhoneTab.search.label` so the title
+and the slot that got you there cannot drift apart. No symbol beside it, where a
+view has one: the field is directly underneath with the same magnifier drawn in
+it. A saved view still outranks the tab, as it does in `mobileTasks` — which is
+what `BoardStore.isSearching` says, and why the title asks about the view first.
+`UITests/SearchTabTests` holds it, on the surface it is about, for this section's
+usual reason: nothing a store can be asked knows which word the header drew.
+
 **The strip is gone**, and its Back to Board button with it. That button was a
 second way out of a place the source list, the drawer or the tab bar is already
 one press from — and on the iPad it never existed for exactly that reason. Its
@@ -3185,6 +3534,20 @@ refuses an assignment that does not change anything, so arriving where you are
 costs no write and no preference update. `UITests/SavedViewTitleTests` holds all
 three claims, and holds them on the surface they are about — none of them is
 something a store can be asked, since `activeView` reads the same either way.
+
+**A mode is, though.** The phone's Search slot closes the search it opened
+(`BoardStore.toggleSearch()`), and that is not the rule above stood on its head.
+A destination row answers *take me there*; search is a field over the list — the
+same thing the desk's folded search row is, and that row has always closed on a
+second click. It was also the one surface with no way back: the Board slot is
+gone from the bar, so leaving search meant opening the drawer and picking the
+board you were already looking at. **Closing it is a cancel, query and all**,
+which is `closeSearchRow`'s bargain too — the field goes when the tab does, so a
+query left standing is text nothing on screen shows, waiting to narrow the next
+saved view opened from the drawer and to be typed into the middle of, since
+arriving on Search puts the caret at the end of whatever is there. `isSearching`
+is the one predicate under all of it: what is lit, what the title says, and what
+a second tap puts away.
 
 ## Selection, commands and shortcuts
 
@@ -3896,7 +4259,9 @@ search field on the board, the Inbox and a saved view is at least 44×44pt.
 Two of those presets are about *placement* rather than size. `ColumnEditorMetrics.arrowEdge`
 is the side the Edit Column popover hangs off: the desk names `.bottom`, because
 a window has room on every side of a column header; the iPad names **none** and
-lets UIKit choose. A column header sits 134pt from the top of a display, and a
+lets UIKit choose. `DueDateField`, `LabelEditor` and `LabelManagerView` carry the
+same field in the same pair of presets now, measured on the phone rather than the
+iPad — see **The calendar is hand-drawn**. A column header sits 134pt from the top of a display, and a
 popover pinned above it opened off the screen — the Name field measured at
 y = −4.5 and every colour swatch reported `hittable=false`. And `TaskColumnMetrics.pad`
 is the saved views' preset, which lived as a private `TaskListMetrics` constant
@@ -4239,7 +4604,8 @@ builds that announce nothing, whichever speaks first taking the lift and
 `beginDrag`'s latch making the other a no-op.
 
 `UITests/HeldCardTests` holds a card, lets go, and taps it, on the board and in
-the Inbox. It has to be a UI test: nothing in the store knows a card is
+the Inbox — asking for the editor's title field, since neither the sheet nor the
+panel draws a ✕ to ask for any more. It has to be a UI test: nothing in the store knows a card is
 unreachable, because `sheetID` is simply never set by a tap that never arrived,
 and every unit test that opens a card by calling the store passes while the card
 on screen sits under something taking its taps.
@@ -4629,6 +4995,58 @@ next to it is a plain counter — a drop has a handler, so it needs no latch. Bo
 fold into `onDragSessionUpdated` when the target moves, which is also when the
 phone's card can start dimming while it is carried.
 
+### Closing a sheet
+
+**Neither sheet on the phone draws a ✕ any more.** The task editor's header was
+one — a lone ✕ at the trailing edge with nothing beside it — and the Inbox
+panel's stood at the end of its heading row. Both are gone, and both go away the
+way every other bottom sheet on this platform does: pull it down. Upright that is
+UIKit's own pan, arbitrated against the scroll view under it; on its side the
+Inbox is not a sheet at all and the pull is `PhoneInboxSheet.pull`, a
+`DragGesture` on the handle at its head.
+
+The argument is that a grabber is already a sentence. It is the system's own
+mark, drawn at the top of the sheet by `presentationDragIndicator(.visible)`, and
+it says *pull me down*; a button that repeats it is 44pt of a header spent saying
+nothing new. On the editor that header held the ✕ and nothing else, so removing
+the button removed the row — the title now stands at the top of the sheet, which
+is the surface where the title is the point. The desk's inspector and the iPad's
+keep their **Close details**, because neither is a sheet you can pull.
+
+**What the row was quietly doing was holding the content off the handle.** The
+system draws its grabber *over* the top of the sheet rather than above it — a 5pt
+capsule about 5pt down, on content that begins at the same edge — so with the row
+gone the Inbox's name drew straight through it and the editor's title came within
+a few points. `PhoneSheetChrome.topClearance` is the fix: 26pt above the first
+line of both, leaving about 16pt clear under the handle, which is enough for it
+to read as chrome belonging to the sheet rather than as something resting on the
+title. One number for the two, because they come up over the same board minutes
+apart. It is not applied on the Inbox turned sideways, where the panel is an
+overlay drawing its own 28pt grabber strip and the clearance is already there.
+
+That moved what `DetailSheetHeightTests` and `InboxPanelTests` measure, since
+both read the sheet's height off where its topmost element lands in the window.
+The editor's band was re-derived — 15% to 25%, against 10% for a full-height
+sheet and 29% for the four fifths it was raised from; the Inbox's 22–33% still
+holds its 29%. Both suites show the arithmetic.
+
+**What a gesture cannot do on its own is answer a reader.** Upright both sheets
+are real presentations and UIKit handles VoiceOver's escape gesture itself. The
+Inbox on its side is an overlay, where the handle and the scrim are both hidden
+from a reader and the ✕ was the exception — so it carries an
+`accessibilityAction(.escape)`, wired to the same thing the handle and the scrim
+do. It draws nothing.
+
+**It cost the UI suites their handle on both surfaces**, which is worth writing
+down because nine of them used a ✕ as their probe for *is this thing up*. The
+Inbox is found by its heading now — `PhoneInboxSheet.titleID`, because the word
+"Inbox" alone is a tab-bar button, a drawer row and a card's chip as well — and
+the editor by the title field both it and the desk's inspector label the same.
+Where a suite needed to *close* something it drags, on
+`UITests/InboxSheetDragTests`' measured reach of four tenths of the window.
+`InboxPanelTests.testTheCloseButtonStillCloses` went, having nothing left to
+test.
+
 ### The column chips carry the column
 
 The phone draws a column as a chip in the header's strip, and until now that was
@@ -4661,7 +5079,7 @@ is one of that board's. Arriving unfolded goes through the same `open(_:)` a tap
 on the row does, split out of `toggle` so the two cannot disagree: the fields
 bind to drafts, and a row unfolded without filling them shows the *last* column's
 name under this column's heading. The sheet scrolls the row into view on the way
-in, because the board name, the colour picker and however many columns come first
+in, because the board name, the icon picker and however many columns come first
 put the fifth column of five off the bottom of a phone.
 
 `UITests/ColumnChipMenuTests` presses it, which is the only way: a context menu is
@@ -4891,9 +5309,11 @@ the board most of a screen above what it belongs to: it is hidden there and the
 panel draws its own.
 
 `UITests/InboxPanelTests` gained the case. It turns the phone and reads a card's
-width against the phone's own upright width, both ends of the header against the
-screen's, and the header's distance from the top — the portrait claim above made
-again in the shape that lost it. With the cap taken out the card measures 642pt
+width against the phone's own upright width, both ends of that card against the
+screen's, and the heading's distance from the top — the portrait claim above made
+again in the shape that lost it. Both ends off the *card* because the header no
+longer has a trailing control to read: the ✕ that used to be one is gone, and
+the heading that replaced it as the suite's mark sits at the leading edge. With the cap taken out the card measures 642pt
 against a 402pt phone, which is what the suite is for.
 
 The add-column composer used to be the one place landscape was worse: 402pt minus
@@ -4997,8 +5417,9 @@ is untouched by it. If sync ever matters, this is the layer to replace.
     activity entry, which is what `reopen` reads. A card whose column this does
     not recognise is treated as an Inbox card rather than dropped.
   - **v4 → v5** — the flat column list becomes a *board's* columns and the Inbox
-    goes global. One board is made, named "Northwind iOS 3.0", dot `.accent`,
-    prefix `"NW"`, adopting the v4 columns whole so no id has to be rewritten, and
+    goes global. One board is made, named "Northwind iOS 3.0", wearing the
+    fallback mark until the v16 step deals it one, prefix `"NW"`, adopting the v4
+    columns whole so no id has to be rewritten, and
     it becomes the active board. Every card in the old Inbox column becomes
     unfiled, because the Inbox is not a column any more, and every other card
     joins the board. "The old Inbox column" is spelled as *a column this board does
@@ -5117,6 +5538,43 @@ is untouched by it. If sync ever matters, this is the layer to replace.
     back undated — a board that has quietly lost its place in every future
     merge.
 
+  - **v15 → v16** — a board's `dot` becomes its `symbol`: the mark in the
+    sidebar stops being one of six colours and becomes an SF Symbol the user
+    picks. See **The board icon**.
+
+    **This is the one step here that converts something into something else**,
+    and the conversion is deliberately not a mapping. There is no glyph that
+    means Amber, and inventing one would hand somebody's Errands board a flame
+    because it happened to be orange. What the colours carried is that the rows
+    were *told apart*, so the step deals marks out by position from
+    `Board.startingSymbols`, cycling past the end of the list — every board in a
+    v15 file is dealt one, because in a v15 file none of them has a mark at all.
+    `Board.init(from:)` is lenient about `symbol` for exactly this window: it
+    lands every board on the fallback so the file decodes, and the step is what
+    then gives each its own. `board-v15.json` is the fixture that says so, and it
+    carries v15's own three dates so the step cannot quietly drop the version
+    before it.
+
+    The bump is the usual argument: a v15 build handed a v16 board finds no
+    `dot`, throws `keyNotFound`, and quarantines a file it could otherwise have
+    shown. **Sync keeps the old attribute rather than dropping it** —
+    `StoredBoard.dot` stays, unread *and unwritten*, the way `StoredColumn.roleKey`
+    does, because a CloudKit schema is additive only and leaving the field
+    untouched means a device on an older build still finds the last colour it
+    wrote instead of a board gone colourless.
+
+    **And the step has to reach the records, or it does not happen at all.**
+    With sync on, the records are what put a board on screen and the file's
+    migrated boards are never read — so a defaulted `StoredBoard.symbol` would
+    answer "the fallback" for every board and win, and the installs most likely
+    to have several boards would be the ones that upgraded into a sidebar of
+    identical rows. `StoredBoard.symbol` is therefore **optional**, so "written
+    before there were marks" is a different answer from "wearing the default
+    one", and `restored` fills the gap from the file exactly as it does for
+    `StoredTask.position`: `hasStoredBoardSymbols()` asks, `backfillBoardSymbols(from:)`
+    writes the marks the migration dealt onto the records that have none, and a
+    mark a record *does* carry is never overwritten.
+
   Those last two were planned as **one** step to v4 — "boards and columns" was a
   single item — and shipped as two because each half is separately verifiable and
   a half-migrated file is not: v3 → v4 turns the compiled-in columns into data
@@ -5142,7 +5600,7 @@ is untouched by it. If sync ever matters, this is the layer to replace.
   same shape one stamp further on, which is what makes the "reads a file with no
   `trash` key" claim a test rather than a sentence. Every later era has one too
   — `board-v7.json`, `board-v8-done-adrift.json` above, and `board-v9.json`
-  through `board-v14.json` — so no step of the chain is exercised only by a
+  through `board-v15.json` — so no step of the chain is exercised only by a
   synthetic value: each is the bytes a build of that era would have written, and
   each carries whatever its own version was *for*, which is what makes a bare
   stamp a step that can fail. Drop a newer one in and `MigrationChainTests`
@@ -5607,7 +6065,7 @@ it would quietly discard the history the JSON keeps.
   skipped, so re-importing a file that collided does not grow the board again.
 - **Codes are re-minted only where they would collide.** A code is a label somebody
   may have pasted into a commit message; nothing already here is renumbered.
-- **Boards match on `id`.** One already here keeps its name, dot and prefix and
+- **Boards match on `id`.** One already here keeps its name, mark and prefix and
   gains only the columns it is missing: a board is an arrangement the user made. A
   new board arrives whole, with any column id already in use re-minted — column ids
   are unique across boards because the store resolves a card's board from its
@@ -6133,11 +6591,55 @@ what keeps the row even — without it a tile whose name fits on one line is
 shorter than its neighbours, and the height would change when a column is
 renamed.
 
-Row counts are **fixed** per family — four on medium, seven on large — rather
-than measured with `ViewThatFits`. Measuring sounds better and is not: the answer
-then changes with the type size, so the same widget shows five rows on one machine
-and seven on another, and the list a person reads every morning is a different
-length each time they change a setting somewhere else.
+Row counts come from **the tile**, not from the family. The family says medium
+or large; it does not say how tall that is. A medium tile is 138pt of content
+once the system's 16pt margins come off on a 6.7" phone and 116pt on an SE, and
+a large one runs from 292pt to 350pt — so a single constant per family has to be
+the smallest phone's number, and every phone above it loses the difference to
+white space. That is exactly what happened: four rows on a tile with room for
+five, four bullets in a box with room for six, and seven rows in the top half of
+a large tile with room for fifteen.
+
+`WidgetRowCount.fitting(_:shape:)` does the arithmetic and `WidgetRowSpace`
+supplies the height — a `GeometryReader` standing where the list stands, so it
+is handed whatever the heading above it left over and no widget has to know its
+own margins. The measured pieces are a task row at 16pt on a 5pt gap, a bullet
+at 15pt on a 6pt gap, and a 16pt heading on its own 6pt or 8pt gap. What comes
+out:
+
+| Tile | Content | Headed rows | Bullets |
+| --- | --- | --- | --- |
+| Medium, 321×148 (SE) | 116pt | 4 | 5 |
+| Medium, 338×158 | 126pt | 5 | 6 |
+| Medium, 364×170 and the desk's 360×170 | 138pt | 5 | 6 |
+| Large, 321×324 (SE) | 292pt | 13 | — |
+| Large, 338×354 | 322pt | 14 | — |
+| Large, 364×382 | 350pt | 15 | — |
+
+A **bullet list holds more than a headed one** at the same size, and not because
+the row is shorter — 15 on a 6pt gap and 16 on a 5pt both pitch at 21pt. It is
+that nothing stands above it: the saved-view medium puts its name in a block to
+the left rather than in a heading, so the list has the whole tile.
+
+This is still **not `ViewThatFits`**, and the old objection to measuring still
+holds. The count is worked out from the tile's height and the design's own point
+sizes, never from the height the text actually rendered at — so it changes when
+the tile changes, which is once, when the widget is placed, and not because
+somebody turned the type size up in Settings. A reader whose text is large gets
+the same number of rows as everyone else on that phone, drawn larger, with the
+last one clipped at the margin; what they do not get is a list that is silently a
+different length every time they change a setting somewhere else.
+
+`WidgetDigest.listLength` is the ceiling `fitting` clamps to, and it went from
+eight to **sixteen** — fifteen for the tallest tile plus the spare row the old
+eight also carried. It is not a shape change, so no digest version bump: an old
+digest decodes and a large tile draws the eight it holds until the app writes the
+next one, which is within half a second of the next edit.
+`everyTileIsFilledByTheRowsItHasRoomFor` pins the table above by stacking rows
+one at a time — a different sum from the division the source does, so an
+off-by-one in the gap shows up as the two disagreeing — and
+`everyListTakesItsLengthFromTheSpaceItIsIn` pins that no list has been left
+cutting itself at a literal.
 
 The extension's own code lives under `Sources/WidgetExtension/` and is excluded
 from the app's target in `project.yml`. It is under `Sources/` rather than beside
@@ -6890,6 +7392,7 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `ThemeTests` | the theme engine, and almost none of it is checkable by looking: the twenty presets in the document's own order with Ember eleventh, Ember's every value against the page it was transcribed from, the two the document sets in italic and the one with four gradient stops, every preset's faces being bundled and resolving at all five weights; the colour codec — hex out, hex/rgba/shorthand in, nonsense refused, opacity quantised so a theme survives its own export; the CSS gradient angle, pinned on the four axes where it is exact and on a corner where it is not; the two slots, a theme going only into the one its kind names, a slot naming nothing falling back, a preset refusing to be saved over; what a theme paints — the accent, max priority being the overdue hue, the due chips, a label's chip through the rule rather than off the stored pair, and the contrast floor holding whatever the theme's ink tiers say; and the file — every preset round-tripping, the two hand-written shapes accepted, and a broken colour naming the field it is in |
 | `TransferTests` | the drag payloads — the plain-text and `Codable` forms of a card, a checklist row and a column, that a column's carries the board it is on, and that all three exported type identifiers match the ones `project.yml` declares |
 | `SavedViewTests` | every view's badge equalling its list's length whenever nothing is typed, and a query being the only thing that may part them; every predicate at the day either side of every bound it draws — Today carrying overdue, Upcoming strictly ahead, `0...6` for the week — the cap at twenty, the two views that override the board's order and the four that do not, Done left out of four of six, archived tasks in one of six, and a query narrowing a view *after* its cap rather than before |
+| `SymbolCatalogTests` | the list both icon pickers browse, and the two claims behind every glyph in it. That it **shipped**: a resource in no target is a file on disk and the picker over it is an empty grid, which is a mistake this project has made before with the string catalogue. And that every name in it **draws** on this system, asked of all seven thousand — a symbol the running OS has never heard of is not an error, it is an empty frame, so the generator's deployment-target filter is the only thing standing between the picker and holes in it, and this is what says the filter still works. Plus the parser on its own bytes (comments skipped, both trailing fields optional, an unknown category dropped rather than taking its symbol with it), search finding a glyph by the system's terms as well as by name and treating a dotted name as words, a search inside a group staying there, and every group having something in it |
 | `SavedViewSeedTests` | **the acceptance test for custom views**: each of the seeded seven, rebuilt out of criteria, gathering exactly what the enum's hand-written predicate gathered — the predicates transcribed into the suite, since the thing they are the reference for deleted them, and run card by card over every `WeekMeaning` (the week decides one of the seven and is a preference, so the default alone tests a third of *Due this week*), then again over a board with cards filed away, which is the half a live board cannot ask. Then the two claims that are not a predicate: *Recently updated* still newest-first and capped at twenty against a 25-card fixture written oldest-first, and the Archive still newest-filing against three cards written in the reverse of the order they must come back in. Then that the other five leave the board's own order alone; that no seeded rule needs more than three criteria to say; and that every criterion in every seeded rule is a field-and-comparator pair the editor's own pickers can actually produce |
 | `ColumnTests` | columns as data — add, rename, recolour, reorder and delete, each of them one ⌘Z and one write; a column keeping the abbreviation and the dot it was *made* with, and borrowing its name for the first and `BoardColumn.defaultDot` for the second when the composer's fields are left alone; a delete relocating its cards and logging it, and being refused rather than ignored when it would leave no Done column or no other one; columns surviving a relaunch, and no columns surviving one too, because no boards is a state rather than damage; and the v3 → v4 step mapping every legacy column id, on the task and inside the activity feed |
 | `DoneColumnTests` | the board's **last** column rather than the *word* carrying every Done behaviour — against a board that also holds a middle column called "Done" — after it has been renamed, recoloured and had the columns around it shuffled, and across a relaunch; that it cannot be dragged off the end, dropped away, or displaced by a new column; that a board built by hand gains it with its first column and a single-column board has none; and that each board's Done is its own while another board has one |
@@ -6909,6 +7412,7 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `SaveContractTests` | every public board mutation reaching the disk, one store and one file apiece |
 | `UndoHarnessTests` | every public board mutation registering exactly one named step that undoes cleanly, and the list of the ones that deliberately register nothing — plus how many there are, which is the only thing stopping a new mutation being quietly left out |
 | `ColumnReorderTests` | dropping a column into the gap a caret names, at the seam the settings sheet's drop closure calls — the board's strip no longer offers the drag at all. Both directions, because `move(fromOffsets:toOffset:)` counts in the pre-move array and the off-by-one only shows travelling down — a rule with it backwards still looks right in half the drags anybody tries. Then the head of the list, which the old drop-on-a-row rule could not name; the gap above Done as the end of the board and nothing landing after it; the refusals — against itself, into the two gaps it already sits between, from another board, and naming a column the board no longer has; that the whole order comes back on one ⌘Z; and that `BoardColumnView`'s own source carries no `ColumnTransfer` and nothing `draggable`, which is the only form the removal can be asserted in — a drag that moves nothing looks exactly like a drag the scroller stole |
+| `SubtaskReorderTests` | dropping a checklist row into the gap a caret names, at the seam the row's drop closure calls. Both directions, for `ColumnReorderTests`' reason; then the head of the list and the foot of it, neither of which the old drop-on-a-row rule could name directly; the refusals — against itself, into the two gaps it already sits between, carrying a row from another card, naming a row the card no longer has, and aimed at a card the store has never heard of; that a reorder writes nothing into the feed and comes back on one ⌘Z; and two claims read off `ChecklistView`'s own source — that the file has exactly one `draggable` and it is the grip's, which is the only form "the row is not the grip any more" can be asserted in, and that nothing in the view is behind a `#if os`, because one view draws this checklist on all three surfaces. Then the stand-in: which row of the list *as drawn* the gap opens at, both spellings of one gap agreeing so the copy does not flicker as a pointer crosses a boundary inside it, no gap for a row that is not there — and the property that ties the mark to the move, that a gap opens precisely when a drop would land, asserted over every row against every caret |
 | `CardDropTests` | what a drop is allowed to do, at the seam the two board drop closures call into. A card dropped on a sibling reorders and *nothing else* — same column, same count, same sub-tasks, no move written into its history — because the failure it exists for was a reorder that moved the card to Done, ticked it, moved the week's completed count and closed its outstanding sub-tasks on the way. The contrasting drop, onto a card in Done, still does all of that, so the first cannot pass by the Done behaviour having been deleted. Then a drop on the column a card is already in staying a no-op, and the two spellings of a walk up and down a column — the second said backwards, because `move` refuses a `before: nil` into the place a card already is — plus the checklist's menu going through `dropOffset` |
 | `MenuKeyOwnershipByPlatformTests` | the other half of `KeyOwnershipTests`, and in a file that is not `#if os(macOS)` so it can say it: the menu bar takes keys off a card only on the platform that has one. On macOS ⌘⌫ and ⌘⏎ reach no card; on iOS `menuOwnedShortcuts` is empty and both reach the card, because `BoardCommands` is built into the macOS scene alone and nothing on iPad was taking them first. Space, a bare ⏎ and ⌥← are unchanged on both |
 | `RootSurfaceTests` | iOS only — which of the two layouts a window gets. An iPad at regular width takes the desk's; a phone takes the phone's at *every* width it can reach, which is the blocker: a Max-class iPhone in landscape is a regular horizontal size class and drew the iPad's split view; an iPad in Slide Over takes the phone's; and an unresolved size class is not a licence to draw three panes |
@@ -6918,7 +7422,7 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `ColumnFlowTests` | where a column of a saved view stops and the next one starts, at the seam `ColumnFlowLayout` measures into — a pure function of card heights, because a `Layout`'s `Subviews` cannot be built by a test. A column taking exactly what fits and the rest starting the next; the gaps counted being the *n − 1* between the cards rather than one per card, which is the off-by-one that wraps a column early; a card taller than the window drawn rather than dropped, and not stranding the one after it; an unbounded height reading as one column rather than as a column per card; nothing in being no columns rather than one empty one. Then the two properties: over six window heights every card is placed exactly once and in order — a saved view is sorted, so a packing that balanced its columns would be reordering it — and the column count never rises as the window grows |
 | `PhoneColumnMetricTests` | the phone's half, which wraps the other way and so has no packing of its own: that the grid is handed the landscape board's own 250pt page, and what that buys once the sensor housing and the surface's own margins are taken off — two columns on a 17 Pro, three on a Pro Max, one upright |
 | `MonthGridTests` | the hand-drawn calendar's arithmetic: six whole weeks for every month of a year and for both kinds of February, every row starting on the calendar's own first weekday, the month present once and in order, the edges consecutive with it and drawn from the neighbouring months, a month starting on the first column having no spill above it, the year rolling at both ends, the column headings rotated to the locale's first weekday, and the month stepping — from the 31st, across both year boundaries, and twelve steps out and back. Against a fixed Gregorian calendar and `en_GB`, so the suite does not report a different month in another region |
-| `TouchTargetTests` | every touch `Metrics` preset claims 44pt — the iPad's `.pad` board presets included, since the iPad draws the desk's board at touch sizes — and no pointer preset inflates the desk; the detail panel's three header controls — the tick, the trash, the ✕ — claiming one square on both idioms, which is the only place that agreement can be stated because the tick brings its own button, plus the drawn box fitting inside it and the desk's square holding the size it was raised to; the calendar's day cell and month arrows under a finger, and its desk pair staying well under the floor; the checklist box's overhang; the chip name's ceiling; the swatch rows fitting a 375pt phone, `Board.dotPalette` staying the size and shape that row is drawn against, and every swatch on offer — board dot and label tone alike — carrying a name rather than a position. See **Touch targets** for what this suite can and cannot see |
+| `TouchTargetTests` | every touch `Metrics` preset claims 44pt — the iPad's `.pad` board presets included, since the iPad draws the desk's board at touch sizes — and no pointer preset inflates the desk; the detail panel's three header controls — the tick, the trash, the ✕ — claiming one square on both idioms, which is the only place that agreement can be stated because the tick brings its own button, plus the drawn box fitting inside it and the desk's square holding the size it was raised to; the calendar's day cell and month arrows under a finger, and its desk pair staying well under the floor; the checklist box's overhang; the chip name's ceiling; the swatch rows fitting a 375pt phone, `PaletteSwatch.seedPalette` staying the size and shape that row is drawn against, and every swatch on offer — column dot and label tone alike — carrying a name rather than a position; and the marks a board is offered all being symbols the system can actually draw, none of them twice and none of them one of the seeded views' glyphs — with the same three asked of the marks a *view* is offered, plus the one that is only true there: every seeded view's own glyph is in its own picker's opening list. See **Touch targets** for what this suite can and cannot see |
 | `ExportImportTests` | the export document — every field through an encode and a decode, the bytes matching what `BoardFile` writes so an export and a `board.json` are one format, and the exporter being handed the whole board rather than the visible one. Then the **merge**, which is where an import destroys work: both sets of tasks kept, an id collision keeping *both* cards under two ids, a code collision re-minted on the arriving card, the serial climbing above both files so the next code is free, the label vocabulary growing without being rewritten, the arriving board landing beside the one already here, a column id already in use re-minted, a board already here keeping its name and gaining only the columns it is missing, the placement invariant holding after a stranger's file is folded in, the same file twice costing nothing and no ⌘Z — collision included — and neither the accent nor the active board being the file's to change. Plus a corrupt, newer or older file each answered properly, the Markdown export's shape, and the board type matching what `project.yml` declares |
 | `BackupRestoreTests` | `BoardFile.restore(from:)` and the caller it waited for — an older backup migrated on the way in, a damaged or newer one failing loudly rather than restoring an empty board, a restore replacing the live board as one ⌘Z that comes off cleanly, the board as it stood copied aside before it goes, a restore that could not read its backup costing nothing at all, and the race Phase A's per-URL write ordering exists for: a debounced write armed *before* a restore — from this store, and from a second store over the same path, where nothing can reach in and cancel it — dropped rather than landing on top of the restored board |
 | `NotificationTests` | due-date reminders against a fake `TaskNotificationCenter` and a throwaway defaults suite, never the machine's own — one request per due date and no more, a change rescheduling under the same identifier rather than adding a second, completing, reopening, archiving, deleting and undoing a delete each cancelling or restoring, no due date scheduling nothing however much the card is edited, a day already gone scheduling nothing, and the 64 nearest kept when the board wants more than the system will hold. Then the identifier: the task's id through every rename, move, archive and delete, and never anything that changes. Then permission: asked on the first due date *set* rather than at launch, never twice, never after a refusal, nothing published while it is refused or the switch is off, and everything the board wanted published the moment it arrives |

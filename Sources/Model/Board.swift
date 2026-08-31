@@ -32,7 +32,7 @@ enum TaskPlacement: Hashable, Sendable {
     var isInbox: Bool { self == .inbox }
 }
 
-/// One board: a name, a colour, and the columns work moves through.
+/// One board: a name, an icon, and the columns work moves through.
 ///
 /// The columns live here rather than on the store because they are the board's
 /// own — switching boards changes them, and two boards may share neither names
@@ -40,7 +40,19 @@ enum TaskPlacement: Hashable, Sendable {
 struct Board: Identifiable, Hashable, Codable, Sendable {
     var id: UUID = UUID()
     var name: String
-    var dot: SwatchColor
+    /// The SF Symbol the sidebar row, the destination pill and the widget's
+    /// heading wear — a saved view's ``SavedView/symbol`` exactly, and for the
+    /// same reason it is a name rather than a case: what a board is *of* is the
+    /// user's to say, and the vocabulary for that is the system's whole symbol
+    /// set rather than a list this app could think of in advance.
+    ///
+    /// **This was a colour until v16.** Six dots said which board a row was for
+    /// and nothing about what the board was, two of them were hard to tell
+    /// apart at 7pt, and a reader who cannot see colour was told the board's
+    /// position in a list. A glyph says both — see ``SymbolCatalog`` for what
+    /// can be picked and ``SymbolMark`` for what is drawn when a synced name is
+    /// one this system has never heard of.
+    var symbol: String = SymbolMark.boardFallback
     var createdAt: Date = .now
     var columns: [BoardColumn]
     /// The prefix on task codes, e.g. "NW" in "NW-118". A label, not a key: it
@@ -97,6 +109,47 @@ struct Board: Identifiable, Hashable, Codable, Sendable {
     var landingColumn: BoardColumn? { workingColumns.first }
 }
 
+// MARK: - Reading an older board
+
+/// **In an extension, not in the body.** An initialiser written inside the
+/// struct takes the memberwise one away with it, and the memberwise one is how
+/// every board in the app, the seed and the suite is made.
+extension Board {
+    /// Spelled out rather than synthesised, for one field.
+    ///
+    /// A board written before v16 carries a `dot` and no `symbol`, and a
+    /// synthesised decoder throws `keyNotFound` for a key that is not there —
+    /// **a property default does not save you.** `BoardSnapshot.init(from:)` is
+    /// written for exactly this reason and says so at length.
+    ///
+    /// The default it lands on is a placeholder rather than an answer: every
+    /// board in a pre-v16 file is dealt a mark of its own by
+    /// ``BoardSnapshot/migrate(v15:)``, which runs straight after this and is
+    /// the only thing that reads what this leaves behind.
+    ///
+    /// Only `symbol` is lenient, for `BoardSnapshot`'s reason: a board with no
+    /// `name` and no `columns` is not a board with neither, it is not a board,
+    /// and reading it as one would write that emptiness back over the user's
+    /// work. The old `dot` is simply not asked for — an unknown key is not a
+    /// decoding failure, so a v15 file's colours are dropped on the way in.
+    enum CodingKeys: String, CodingKey {
+        case id, name, symbol, createdAt, columns, codePrefix
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try container.decode(UUID.self, forKey: .id),
+            name: try container.decode(String.self, forKey: .name),
+            symbol: try container.decodeIfPresent(String.self, forKey: .symbol)
+                ?? SymbolMark.boardFallback,
+            createdAt: try container.decode(Date.self, forKey: .createdAt),
+            columns: try container.decode([BoardColumn].self, forKey: .columns),
+            codePrefix: try container.decode(String.self, forKey: .codePrefix)
+        )
+    }
+}
+
 extension Board {
     /// The prefix a task minted in the Inbox carries. Constant because the
     /// Inbox is not a board and has no prefix of its own to take, and because a
@@ -117,13 +170,22 @@ extension Board {
         String(localized: "New Board", comment: "What a board is called until it is named")
     }
 
-    /// The Inbox's name and dot. It stopped being a `BoardColumn` when it
+    /// The Inbox's name, dot and mark. It stopped being a `BoardColumn` when it
     /// became global, so there is nowhere else for a surface to read them from.
     static var inboxName: String {
         String(localized: "Inbox", comment: "The global capture list, shown above the boards")
     }
 
+    /// Still a colour, because the two surfaces that read it draw the Inbox as
+    /// though it were a *column* — see ``BoardStore/mobileColumn`` — and a
+    /// column is still a coloured dot.
     static let inboxDot: SwatchColor = .ink(opacity: 0.35)
+
+    /// What the destination pill wears when a card is on no board. The seeded
+    /// Inbox view's own glyph, written here rather than read off that view: the
+    /// pill is a list of *places* and the Inbox is one of them whether or not
+    /// the view it shares a name with is still in the sidebar.
+    static let inboxSymbol = "tray"
 
     /// A board name as it is stored: one line, trimmed, and capped where a
     /// sidebar row stops being able to show it.
@@ -152,59 +214,39 @@ extension Board {
         return derived.isEmpty ? defaultCodePrefix : derived
     }
 
-    /// One dot on offer, and what it is called.
+    /// A board's mark as it is stored: trimmed, and never empty.
     ///
-    /// A colour picked by eye is picked by index to anyone who cannot see it,
-    /// and "Colour 4" says nothing about what choosing it does. The name is the
-    /// swatch's only description on either surface, so it lives beside the
-    /// colour rather than in whichever view happens to draw it.
-    struct Dot: Identifiable, Hashable, Sendable {
-        var swatch: SwatchColor
-        var name: String
-
-        var id: SwatchColor { swatch }
+    /// Not checked against ``SymbolCatalog``. The picker only offers names that
+    /// are in it, and the one other way a name arrives — a board synced from a
+    /// device a system version ahead — is precisely the case that must be kept:
+    /// dropping it here would take a glyph away from the device that *can* draw
+    /// it the next time this one saved. ``SymbolMark`` handles the drawing.
+    static func symbol(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? SymbolMark.boardFallback : trimmed
     }
 
-    /// The colours a board file starts its palette with — see
-    /// ``PaletteSwatch/seed``, which is the only thing that reads this now.
+    /// The marks a board is *offered* before it is browsed for one: what the
+    /// icon picker opens on, and what the v15 → v16 migration deals out.
     ///
-    /// It used to be the whole of what a picker could offer, on either surface
-    /// and for a board or a column alike. It is the *seed* since v10: the list
-    /// a picker draws is the user's, in the file, and can be added to and taken
-    /// from. The names stay here because they are what a reader hears, and a
-    /// name kept in a view drifts from the colour the moment either is edited.
+    /// The whole catalogue is one menu away — see ``SymbolCatalog`` — and
+    /// opening a picker on seven thousand glyphs sorted alphabetically means
+    /// opening it on `0.circle`. These are the ones a board is actually likely
+    /// to want, they read at the 14pt a sidebar row draws them at, and the
+    /// first is ``SymbolMark/boardFallback``, so the mark a board already has
+    /// is the mark the list starts with.
     ///
-    /// Six, because that is a row of 44pt targets on the narrowest phone with
-    /// no spacing left to give away — and the six are chosen so every dot the
-    /// seed workflow ships with is among them, so a column can always be put
-    /// back the way it arrived. `inboxDot` is deliberately not offered: a board
-    /// wearing the Inbox's grey in the same sidebar list is a puzzle, not a
-    /// choice.
-    ///
-    /// The last three are the accent themes' own hexes, so they take the accent
-    /// themes' names: one vocabulary for one colour, whichever control is
-    /// offering it. The first is `.accent` — the app's own orange, pinned to
-    /// one literal now rather than following the theme (see
-    /// ``SwatchColor/accentHex``), and still spelled symbolically because every
-    /// board file ever written spells it that way.
-    static var dots: [Dot] {
-        [
-            Dot(swatch: .accent,
-                name: String(localized: "Accent", comment: "Board dot colour: the app's own fixed accent orange")),
-            Dot(swatch: .hex(0xA8A29A),
-                name: String(localized: "Stone", comment: "Board dot colour: warm grey")),
-            Dot(swatch: .hex(0xC98A16),
-                name: String(localized: "Amber", comment: "Board dot colour: golden yellow")),
-            Dot(swatch: .hex(0xC2532F),
-                name: String(localized: "Ember", comment: "Board dot colour: burnt orange")),
-            Dot(swatch: .hex(0x1F6F63),
-                name: String(localized: "Pine", comment: "Board dot colour: deep green")),
-            Dot(swatch: .hex(0x3B5BA9),
-                name: String(localized: "Indigo", comment: "Board dot colour: deep blue")),
-        ]
-    }
-
-    static var dotPalette: [SwatchColor] { dots.map(\.swatch) }
+    /// Deliberately not ``SavedView/startingSymbols``. Both kinds of row sit in
+    /// one sidebar and both are picked from the same browser, so nothing stops
+    /// a board wearing `tray` — but nothing should *offer* it either, for the
+    /// same reason a board was never offered the Inbox's grey: the two lists
+    /// are what each picker opens on, and opening a board's on the Inbox's mark
+    /// is a suggestion to make the sidebar unreadable.
+    static let startingSymbols = [
+        SymbolMark.boardFallback, "house", "briefcase", "hammer", "chart.bar",
+        "book", "cart", "person.2", "paintbrush", "airplane", "leaf",
+        "graduationcap", "cup.and.saucer", "shippingbox", "globe", "heart",
+    ]
 
     static let nameLimit = 60
     static let codePrefixLimit = 4

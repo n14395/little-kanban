@@ -3,6 +3,29 @@
 import SwiftUI
 import UIKit
 
+/// The room a phone sheet leaves above its first line.
+///
+/// **The grabber is drawn over the content, not above it.** The system's handle
+/// — `presentationDragIndicator(.visible)` — is a 5pt capsule about 5pt down
+/// from the sheet's own top edge, and the sheet's content begins at that same
+/// edge. So a sheet with no top padding puts its first line *through* the
+/// handle. The Inbox did exactly that once its heading stopped sharing a row
+/// with a 44pt button, and the editor came within a few points of it; before
+/// that, both were saved by a header row that no longer exists. See **Closing a
+/// sheet** in the README for why the row went.
+///
+/// **One number for both**, because they come up over the same board minutes
+/// apart and a reader meets them as one idiom. It leaves about 16pt clear under
+/// the handle, which is enough for the handle to read as chrome belonging to the
+/// sheet rather than as something resting on the title.
+///
+/// It is not needed where a sheet draws its own handle: the Inbox on its side is
+/// an overlay with a 28pt grabber strip of its own at the head of it, which is
+/// this clearance and then some.
+enum PhoneSheetChrome {
+    static let topClearance: CGFloat = 26
+}
+
 /// The task detail bottom sheet — the same fields as the macOS inspector, sized
 /// for touch and presented in a native sheet at four fifths of the screen.
 struct PhoneDetailSheet: View {
@@ -16,7 +39,6 @@ struct PhoneDetailSheet: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                header
                 titleRow
                 noteField
                 moveTo
@@ -28,7 +50,10 @@ struct PhoneDetailSheet: View {
                 deleteRow
             }
             .padding(.horizontal, 22)
-            .padding(.top, 8)
+            // Under the grabber rather than through it — see ``PhoneSheetChrome``.
+            // It was 8, which was fine while a 44pt ✕ row stood between this and
+            // the top of the sheet and was not once that row went.
+            .padding(.top, PhoneSheetChrome.topClearance)
             .padding(.bottom, 36)
         }
         .scrollDismissesKeyboard(.interactively)
@@ -67,8 +92,9 @@ struct PhoneDetailSheet: View {
         // 44pt control renders smaller than 44pt. The factor is the inset over
         // the screen *width*, so it is the same at any fraction and the numbers
         // below — measured at four fifths, against `.large` — did not move when
-        // the sheet was raised to nine tenths. Measured with the Close button,
-        // which is exactly 44pt as drawn:
+        // the sheet was raised to nine tenths. They were measured with the Close
+        // button, which was exactly 44pt as drawn and is no longer here; every
+        // other 44pt target in the sheet pays the same factor:
         //
         //   iPhone 17 Pro (402pt)   44.0 at `.large`   42.2487 here
         //   iPhone 17e    (390pt)   44.0 at `.large`   42.1949 here
@@ -117,9 +143,10 @@ struct PhoneDetailSheet: View {
     /// **The one detail surface that still keeps its tick beside the title.**
     /// The desk and the iPad moved theirs into the header, where it stands with
     /// the trash and the close ✕ at their size — see ``TaskInspector/header``.
-    /// This sheet's header has the ✕ and nothing else: the trash is a row at the
-    /// foot of the sheet, so there is no set of verbs up there for the tick to
-    /// join, and a lone tick beside a lone ✕ is not that row.
+    /// This sheet has no header at all: the ✕ that used to be the whole of one
+    /// went when the grabber above it was found to be saying the same thing
+    /// better, and the trash is a row at the foot, so there is no set of verbs
+    /// up there for the tick to join.
     ///
     /// The phone needs it somewhere for a reason the desk does not: it is the
     /// surface where the card's own gutter can be the *only* tick, so turning
@@ -219,38 +246,6 @@ struct PhoneDetailSheet: View {
             get: { store.text(field, on: task.id) },
             set: { store.setText($0, field: field, on: task.id) }
         )
-    }
-
-    /// The sheet's own row, which is the ✕ and nothing else. The task code used
-    /// to lead it — see ``TaskInspector/header``, which took the same line out
-    /// of the desk's panel for the same reason and has the long version of it.
-    private var header: some View {
-        HStack(spacing: 8) {
-            Spacer(minLength: 0)
-            // The drawn circle stays at the design's 28pt; the outer frame is
-            // the 44pt touch minimum, which the circular content shape then
-            // trims back to a disc so the corners are not live.
-            Button(action: dismiss) {
-                Image(systemName: "xmark")
-                    .font(palette.ui(12, .semibold, relativeTo: .footnote))
-                    .fontWeight(.semibold)
-                    .foregroundStyle(palette.inkText(0.55))
-                    .frame(minWidth: 28, minHeight: 28)
-                    .background(palette.ink(0.07), in: .circle)
-                    .frame(minWidth: 44, minHeight: 44)
-            }
-            .buttonStyle(.bare)
-            .contentShape(.circle)
-            .accessibilityLabel("Close")
-        }
-    }
-
-    /// Closing the sheet is where a quick capture nothing was filled into goes
-    /// away again (1.14). The id has to be read before the sheet is torn down.
-    private func dismiss() {
-        let id = task.id
-        store.sheetID = nil
-        store.discardIfBlank(id)
     }
 
     /// Where the card lives, in the two halves it now has: which board, and

@@ -143,10 +143,29 @@ final class StoredActivity {
 final class StoredBoard {
     var id: UUID = UUID()
     var name: String = ""
-    /// The dot as JSON. `SwatchColor` is an enum with associated values, which
-    /// SwiftData cannot lay out as an attribute — same class of problem as
-    /// `StoredTask.dueDay`, and `Data` is the shape that always works.
+    /// **v15's dot, kept and no longer read.**
+    ///
+    /// A CloudKit schema is additive only, so the attribute stays whatever the
+    /// app does with it — the same bargain `StoredColumn.roleKey` struck. This
+    /// one is neither read nor *written* any more: a board's mark is a glyph
+    /// since v16, there is no colour to derive from one, and leaving the field
+    /// untouched means a build from before v16 syncing against this one still
+    /// finds the last colour it wrote rather than a board that has gone
+    /// colourless.
     var dot: Data?
+    /// The SF Symbol the board wears — ``Board/symbol``. A plain attribute
+    /// rather than the JSON blob the dot needed: a symbol is a string, which is
+    /// a shape both SwiftData and CloudKit lay out on their own.
+    ///
+    /// **Optional so that "written before there were marks" is a different
+    /// answer from "wearing the default one"** — the same distinction
+    /// `StoredTask.position` draws, and for the same reason. A record from
+    /// before v16 has no mark, the file beside it has the one the migration
+    /// dealt, and a defaulted attribute would report the fallback and win:
+    /// every board on a synced install would arrive wearing one glyph, which is
+    /// exactly what the migration exists to prevent. See
+    /// ``BoardSyncStore/hasStoredBoardSymbols()``.
+    var symbol: String?
     var createdAt: Date = Date.distantPast
     var codePrefix: String = Board.defaultCodePrefix
     /// Where the board sits in the source list. Same reason as

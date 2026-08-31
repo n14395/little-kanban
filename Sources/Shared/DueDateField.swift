@@ -25,18 +25,34 @@ struct DueDateField: View {
         /// The calendar inside the panel — see ``MonthGrid``, which is drawn to
         /// whatever width it is given rather than to a size of its own.
         var grid: MonthGrid.Metrics
+        /// Which side of the chip the calendar hangs off, or `nil` to let the
+        /// system place it — ``BoardColumnView/ColumnEditorMetrics/arrowEdge``,
+        /// ``BoardSidebar/Metrics/trashArrowEdge`` and ``ColorWell/arrowEdge``
+        /// exactly, and for the fourth time for the same measured reason.
+        ///
+        /// **A named edge is not a preference on iOS**, it is the only
+        /// placement UIKit is permitted, and `.bottom` permits only "above the
+        /// chip". Where the Due card sits on the phone is wherever the editor
+        /// is scrolled to — measured with it scrolled to its foot, 246pt above
+        /// the card against 453 below, for a panel of 469 — so the one
+        /// permitted side was the short one, and the panel was drawn at full
+        /// length inside it and cut off at both ends while the lower half of
+        /// the screen sat empty. Left to choose, UIKit takes the side with the
+        /// room. Named on the desk, where a window has room on every side and
+        /// AppKit treats the edge as a preference it may overrule.
+        var arrowEdge: Edge?
 
         static let desk = Metrics(
             chipFont: 12.5, chipHorizontalPadding: 7, chipRadius: 6, chipHit: 0, rowHit: 0,
             addHorizontalPadding: 8, addVerticalPadding: 3, addBorderWidth: 1,
             pickerWidth: 268, rowFont: 12, rowVerticalPadding: 6,
-            rowRadius: 8, panelPadding: 10, grid: .desk
+            rowRadius: 8, panelPadding: 10, grid: .desk, arrowEdge: .bottom
         )
         static let sheet = Metrics(
             chipFont: 14, chipHorizontalPadding: 9, chipRadius: 7, chipHit: 44, rowHit: 44,
             addHorizontalPadding: 11, addVerticalPadding: 5, addBorderWidth: 1.5,
             pickerWidth: 344, rowFont: 14, rowVerticalPadding: 9,
-            rowRadius: 10, panelPadding: 12, grid: .sheet
+            rowRadius: 10, panelPadding: 12, grid: .sheet, arrowEdge: nil
         )
     }
 
@@ -102,7 +118,7 @@ struct DueDateField: View {
         // own name: "Due" and "Due date" read one after the other otherwise.
         .accessibilityLabel("Due date")
         .accessibilityValue(spokenDue)
-        .popover(isPresented: pickerBinding, arrowEdge: .bottom) {
+        .popover(isPresented: pickerBinding, arrowEdge: metrics.arrowEdge) {
             picker
                 .environment(\.palette, palette)
                 .presentationCompactAdaptation(.popover)
@@ -132,7 +148,34 @@ struct DueDateField: View {
         }
     }
 
+    /// **A popover is handed a height, not asked for one.** It gets whatever
+    /// there is between the chip and the edge of the screen, and when the panel
+    /// wants more it is *cut* rather than shrunk — laid out at its natural
+    /// length inside a shorter box and clipped at both ends, so what goes
+    /// missing is the presets and the month's own name at the top and the last
+    /// weeks of the month at the bottom. A scroll view asks for exactly the
+    /// same natural height and simply scrolls whatever it is not given.
+    ///
+    /// Placement is the first half of the answer and lives on the chip — see
+    /// ``Metrics/arrowEdge``. This is the half that holds when even the roomier
+    /// side is not roomy enough: a phone lying down, a small phone, or a reader
+    /// at an accessibility type size, where the panel is taller than either
+    /// side of the card it hangs from. `ColorPickerPopover` is the same pair,
+    /// measured first.
+    ///
+    /// It bounces only when there is something to scroll, so on the desk and
+    /// wherever the panel fits this is the plain panel it has always been.
     private var picker: some View {
+        ScrollView {
+            panel
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(width: metrics.pickerWidth)
+        .background(palette.card)
+        .presentationBackground(palette.card)
+    }
+
+    private var panel: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 5) {
                 ForEach(DueDate.Preset.allCases) { preset in
@@ -178,9 +221,6 @@ struct DueDateField: View {
             }
         }
         .padding(metrics.panelPadding)
-        .frame(width: metrics.pickerWidth)
-        .background(palette.card)
-        .presentationBackground(palette.card)
     }
 
     private func presetButton(_ preset: DueDate.Preset) -> some View {

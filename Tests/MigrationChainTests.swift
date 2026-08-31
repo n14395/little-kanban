@@ -59,7 +59,11 @@ import Testing
             #expect(snapshot.boards.count == 1, "\(name) arrived with \(snapshot.boards.count) boards")
             let board = try #require(snapshot.boards.first)
             #expect(board.name == "Northwind iOS 3.0", "\(name) named its board \(board.name)")
-            #expect(board.dot == .accent, "\(name) lost the board's colour")
+            // The mark the v15 → v16 step deals the first board. A file this old
+            // never carried one — see `BoardMigration.migrate(v15:)`, which
+            // deals rather than converts, because a colour is not an icon.
+            #expect(board.symbol == Board.startingSymbols[0],
+                    "\(name) did not come out of the chain with a mark")
             #expect(board.codePrefix == "NW", "\(name) lost the board's code prefix")
             #expect(snapshot.activeBoardID == board.id, "\(name) arrived with no active board")
             #expect(board.columns.isEmpty == false, "\(name) arrived with no columns")
@@ -273,7 +277,7 @@ import Testing
         // caught by the round trip below.
         let second = Board(
             id: UUID(uuid: (0xB0, 0xA4, 0, 0, 0, 0, 0x40, 0, 0x80, 0, 0, 0, 0, 0, 0, 9)),
-            name: "Second", dot: .accent,
+            name: "Second", symbol: "chart.bar",
             columns: BoardColumn.workflow.map { column in
                 var column = column
                 column.id = UUID()
@@ -403,6 +407,60 @@ import Testing
 
         let board = try #require(v14.boards.first)
         #expect(board.columns.contains { $0.limit == 3 }, "v14's own WIP limit was dropped")
+    }
+
+    /// The v16 step's fixture: a real v15 file, whose board wears a colour and
+    /// has never heard of a mark. It has to arrive wearing one — the first of
+    /// ``Board/startingSymbols``, because it is the first board in the file —
+    /// and the colour has to be gone rather than carried as a field nothing
+    /// draws.
+    @Test func aV15FileArrivesWearingAMarkInsteadOfAColour() throws {
+        let v15 = try snapshot("board-v15")
+        #expect(v15.version == BoardSnapshot.currentVersion)
+
+        let board = try #require(v15.boards.first)
+        #expect(board.symbol == Board.startingSymbols[0])
+        #expect(SymbolMark.resolved(board.symbol) == board.symbol,
+                "the mark it was dealt is not one this system draws")
+
+        // v15's own furniture came across whole. A bare-looking step is exactly
+        // the kind that quietly drops a field the version before it added.
+        #expect(v15.viewsChangedAt != nil, "v15's own dates were dropped by the step past them")
+        #expect(board.columns.contains { $0.limit == 3 }, "v14's WIP limit was dropped")
+
+        // And nothing wrote the colour back out under a name of its own.
+        let json = try JSONSerialization.jsonObject(
+            with: try JSONEncoder().encode(v15)
+        ) as? [String: Any]
+        let written = (json?["boards"] as? [[String: Any]])?.first
+        #expect(written?["dot"] == nil, "a v16 board still writes a colour")
+        #expect(written?["symbol"] as? String == board.symbol)
+    }
+
+    /// **Every board is dealt a mark of its own**, cycling once there are more
+    /// boards than glyphs — which is what the colours did for a sidebar and the
+    /// only part of them worth keeping. A step that gave them all the default
+    /// would upgrade a legible sidebar into a column of identical rows.
+    @Test func theV16StepDealsEveryBoardAMarkOfItsOwn() {
+        var v15 = BoardSnapshot(
+            tasks: [], boards: TestBoard.boards, labels: LabelDef.seed,
+            nextSerial: BoardSnapshot.baseSerial
+        )
+        v15.version = 15
+        let dealt = BoardSnapshot.migrate(v15: v15).boards.map(\.symbol)
+        #expect(dealt == Array(Board.startingSymbols.prefix(dealt.count)))
+        #expect(Set(dealt).count == dealt.count, "two boards were dealt one mark")
+
+        // More boards than there are marks: the list wraps rather than running
+        // out, because a board with no mark at all is not a state any surface
+        // knows how to draw.
+        let many = Board.startingSymbols.count + 2
+        v15.boards = (0..<many).map { index in
+            Board(name: "Board \(index)", columns: [BoardColumn.freshDone()], codePrefix: "B\(index)")
+        }
+        let wrapped = BoardSnapshot.migrate(v15: v15).boards.map(\.symbol)
+        #expect(wrapped.count == many)
+        #expect(wrapped.last == Board.startingSymbols[1])
     }
 
     /// `legacyAccent(in:)` had no test at all — and it is the whole of what

@@ -65,7 +65,7 @@ struct PhoneTabBar: View {
         .background(alignment: .bottom) { ground }
     }
 
-    /// One destination and one toggle, drawn as two equal slots.
+    /// Two switches, drawn as two equal slots.
     ///
     /// **The Board slot is gone.** It named the surface you were already
     /// looking at: the board *is* the phone's main surface, so the slot spent a
@@ -83,12 +83,23 @@ struct PhoneTabBar: View {
     /// not answer "where am I", and it reads as current whenever the panel is
     /// up, over a saved view included.
     ///
+    /// **Search is a switch too**, which it was not. It replaces the list, and
+    /// with the Board slot gone there was nothing on this bar to put it away
+    /// again: leaving search meant opening the drawer and picking the board you
+    /// were already looking at. A lit slot tapped again closes what it opened —
+    /// see ``BoardStore/toggleSearch()``, which is also where the query goes,
+    /// and which says why this is not the drawer's "a destination row is not a
+    /// toggle" over again.
+    ///
     /// The order is the same in both shapes, leading to trailing, which is where
     /// a reader coming from the other one looks.
     private var tabPill: some View {
         HStack(spacing: isHeader ? 0 : 4) {
-            slot(PhoneTab.search.label, symbol: PhoneTab.search.symbol, isCurrent: isCurrent(.search)) {
-                store.selectTab(.search)
+            slot(
+                PhoneTab.search.label, symbol: PhoneTab.search.symbol,
+                isCurrent: store.isSearching
+            ) {
+                store.toggleSearch()
             }
             // **The one slot that carries a number.** The Inbox is the only
             // thing on this bar that fills up while you are looking at
@@ -108,14 +119,6 @@ struct PhoneTabBar: View {
         // second inset would push the pill above the title it stands beside.
         .padding(isHeader ? 0 : 4)
         .glassEffect(.regular, in: .rect(cornerRadius: isHeader ? 14 : 16))
-    }
-
-    /// A saved view has replaced the list, so the place this slot names is not
-    /// what is on screen; highlighting it anyway would be the drawer's inert
-    /// rows over again. The Inbox does not go through this — a panel over the
-    /// top is showing whether or not a view is under it.
-    private func isCurrent(_ tab: PhoneTab) -> Bool {
-        store.activeView == nil && store.tab == tab
     }
 
     @ViewBuilder

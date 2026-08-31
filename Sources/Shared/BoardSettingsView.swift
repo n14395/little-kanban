@@ -1,12 +1,12 @@
 import SwiftUI
 
-/// **A board's settings**: its name, its colour, and the columns it is made of —
+/// **A board's settings**: its name, its icon, and the columns it is made of —
 /// each one's name, abbreviation, colour and place, plus the two that change the
 /// shape of the board, adding a column and throwing one away.
 ///
 /// **One view for three surfaces.** It was the phone's alone, and everything in
 /// it existed on the desk as three separate controls: a rename in the sidebar's
-/// context menu, a colour in a popover off the same menu, and a column's four
+/// context menu, a mark in a popover off the same menu, and a column's four
 /// fields in a popover hanging off its header dot — with the order of the
 /// columns spelled as *Move Left* / *Move Right* menu items, one column at a
 /// time, and no way to see the order you were changing. A board is one thing and
@@ -57,16 +57,19 @@ struct BoardSettingsView: View {
         /// swatch rather than as a tinted label.
         var colourWidth: CGFloat
         var colorWell: ColorWell.Metrics
+        /// The board's icon control, which stands where its colour well stood.
+        /// Columns have no icon: a column is still a coloured dot.
+        var symbolWell: SymbolWell.Metrics
 
         static let desk = Metrics(
             titleFont: 21, rowFont: 13, fieldFont: 13, hit: 28,
             spacing: 15, padding: 18, radius: 10, shortWidth: 96,
-            colourWidth: 132, colorWell: .desk
+            colourWidth: 132, colorWell: .desk, symbolWell: .desk
         )
         static let sheet = Metrics(
             titleFont: 26, rowFont: 15, fieldFont: 15, hit: 44,
             spacing: 18, padding: 20, radius: 12, shortWidth: 108,
-            colourWidth: 148, colorWell: .sheet
+            colourWidth: 148, colorWell: .sheet, symbolWell: .sheet
         )
     }
 
@@ -286,9 +289,9 @@ struct BoardSettingsView: View {
                 VStack(alignment: .leading, spacing: metrics.spacing) {
                     nameField
                     VStack(alignment: .leading, spacing: 7) {
-                        Text("Colour").sectionLabelStyle(opacity: Palette.readableInk)
-                        ColorWell(selection: board.dot, metrics: metrics.colorWell) {
-                            store.recolorBoard(boardID, to: $0)
+                        Text("Icon").sectionLabelStyle(opacity: Palette.readableInk)
+                        SymbolWell(selection: board.symbol, metrics: metrics.symbolWell) {
+                            store.setBoardSymbol(boardID, to: $0)
                         }
                     }
                     columns(board)
@@ -310,7 +313,7 @@ struct BoardSettingsView: View {
                 if focus?.isComposer == true { reveal(in: proxy) }
             }
             // A sheet opened straight onto a column has to *show* it. The board
-            // name, the colour row and however many columns come first are
+            // name, the icon row and however many columns come first are
             // above it, so the fifth column of five opens off the bottom of the
             // sheet and it looks as though it ignored what was asked for.
             .onAppear {

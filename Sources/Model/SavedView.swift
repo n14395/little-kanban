@@ -97,7 +97,7 @@ struct SavedView: Identifiable, Hashable, Codable, Sendable {
     var id: UUID = UUID()
     var name: String
     /// The SF Symbol for the row, the empty state and the iOS "…" menu.
-    var symbol: String = "line.3.horizontal.decrease.circle"
+    var symbol: String = SavedView.defaultSymbol
     var rule: ViewRule = .empty
     var sort: ViewSort = .manual
     /// How many rows the view shows at most, or `nil` for all of them. *Recently
@@ -254,6 +254,30 @@ struct SavedView: Identifiable, Hashable, Codable, Sendable {
     /// The default list a file gains when it is migrated, and what a board with
     /// no views at all falls back to.
     static var seededAll: [SavedView] { Preset.allCases.map(seeded) }
+
+    // MARK: The glyph
+
+    /// What a view wears before anybody picks: the filter mark, because a view
+    /// with no rule written yet is a filter that has not been narrowed.
+    static let defaultSymbol = "line.3.horizontal.decrease.circle"
+
+    /// The glyphs the icon picker *opens* on — ``Board/startingSymbols`` for
+    /// views, and the same bargain: the whole of ``SymbolCatalog`` is one menu
+    /// away, and opening a picker on seven thousand names sorted alphabetically
+    /// means opening it on `0.circle`.
+    ///
+    /// These eighteen were the whole of what the editor could offer until the
+    /// browser arrived. They lead with the seeded seven's own marks, so a view
+    /// somebody has rewritten can be put back to looking like what it was, and
+    /// every one of them reads at the 14pt a sidebar row draws it at — which is
+    /// what a picker over all of SF Symbols cannot promise and why the short
+    /// list is still the one in front.
+    static let startingSymbols = [
+        defaultSymbol, "tray", "sun.max", "calendar",
+        "calendar.badge.clock", "exclamationmark.triangle", "clock.arrow.circlepath",
+        "archivebox", "flag", "star", "bolt", "person", "tag", "checkmark.circle",
+        "magnifyingglass", "flame", "leaf", "bookmark",
+    ]
 
     /// "On the board" — not filed away. The exclusion the old enum applied
     /// before its table and nothing on screen ever said.

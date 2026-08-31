@@ -116,7 +116,7 @@ import Testing
         mutate("unfile") { $0.unfile(TestBoard.dragDrop) }
         mutate("createBoard") { $0.createBoard(named: "Website refresh") }
         mutate("renameBoard") { $0.renameBoard(SeedData.defaultBoard.id, to: "Northwind iOS 4.0") }
-        mutate("recolorBoard") { $0.recolorBoard(SeedData.defaultBoard.id, to: .hex(0x1F6F63)) }
+        mutate("setBoardSymbol") { $0.setBoardSymbol(SeedData.defaultBoard.id, to: "flame") }
         mutate("moveBoard", boards: TestBoard.boards) { $0.moveBoard(fromOffsets: [1], toOffset: 0) }
         mutate("deleteBoard", boards: TestBoard.boards) { $0.deleteBoard(TestBoard.support.id) }
         // Navigation, and the one thing here that registers no undo step — but

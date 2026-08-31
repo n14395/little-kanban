@@ -49,8 +49,8 @@ struct BoardColumn: Identifiable, Hashable, Codable, Sendable {
 
     /// What a column made by hand starts as, before anybody picks a colour.
     ///
-    /// **Deliberately not one of `Board.dots`.** The six are choices; this is
-    /// the absence of one, which is why the composer's swatches show no ring
+    /// **Deliberately not one of ``PaletteSwatch/seed``.** The six are choices;
+    /// this is the absence of one, which is why the composer's swatches show no ring
     /// until a swatch is pressed. Named rather than spelled twice, because
     /// `BoardStore.addColumn` takes it as a parameter default and
     /// `BoardSettingsView` opens its picker on it — two spellings of one

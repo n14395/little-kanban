@@ -314,14 +314,14 @@ import Testing
     /// draws it offers a column instead of a card.
     @Test func aBoardWithOnlyItsDoneColumnHasNowhereToLandACard() {
         let only = BoardColumn(name: "Done", short: "Done", dot: .accent)
-        let bare = Board(name: "Bare", dot: .accent, columns: [only], codePrefix: "BA")
+        let bare = Board(name: "Bare", columns: [only], codePrefix: "BA")
         #expect(bare.doneColumn?.id == only.id)
         #expect(bare.workingColumns.isEmpty)
         #expect(bare.landingColumn == nil, "a card filed onto a new board would arrive complete")
 
         // And a board with no columns at all — which nothing makes any more, but
         // an import can be — has neither.
-        let empty = Board(name: "Empty", dot: .accent, columns: [], codePrefix: "EM")
+        let empty = Board(name: "Empty", columns: [], codePrefix: "EM")
         #expect(empty.doneColumn == nil)
         #expect(empty.workingColumns.isEmpty)
         #expect(empty.landingColumn == nil)

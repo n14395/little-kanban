@@ -191,7 +191,7 @@ import Testing
     /// The default is the same value `BoardSettingsView` opens its picker on,
     /// which is why it is a name rather than a literal: a column made without
     /// touching the swatches has to come out the colour the untouched picker was
-    /// showing, and it is deliberately *not* one of `Board.dots`.
+    /// showing, and it is deliberately *not* one of `PaletteSwatch.seed`.
     @Test func aColumnKeepsTheColourItWasMadeWith() {
         let store = Self.store()
         let picked = store.addColumn(named: "Blocked", dot: .hex(0x3B5BA9))
@@ -199,7 +199,7 @@ import Testing
 
         let untouched = store.addColumn(named: "Waiting")
         #expect(store.column(id: untouched)?.dot == BoardColumn.defaultDot)
-        #expect(Board.dotPalette.contains(BoardColumn.defaultDot) == false,
+        #expect(PaletteSwatch.seedPalette.contains(BoardColumn.defaultDot) == false,
                 "the default is one of the six, so an untouched picker would ring it")
     }
 

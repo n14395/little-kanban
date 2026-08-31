@@ -12,7 +12,8 @@ import SwiftUI
 /// ``BoardDestinationItems`` in a submenu instead.
 struct BoardDestinationMenu: View {
     struct Metrics {
-        var dot: CGFloat
+        /// The board's own glyph, and the Inbox's — see ``Board/inboxSymbol``.
+        var glyph: CGFloat
         var spacing: CGFloat
         var font: CGFloat
         /// What the pill's name scales against under Dynamic Type.
@@ -29,12 +30,12 @@ struct BoardDestinationMenu: View {
         // sheet's, scaled down rather than a different idea of the shape, so
         // the panel and the sheet draw the same control.
         static let desk = Metrics(
-            dot: 7, spacing: 7, font: 12.5, textStyle: .footnote,
+            glyph: 13, spacing: 7, font: 12.5, textStyle: .footnote,
             textOpacity: 0.7, chevronOpacity: 0.35,
             horizontalPadding: 12, height: 34, radius: 12
         )
         static let sheet = Metrics(
-            dot: 8, spacing: 9, font: 14, textStyle: .subheadline,
+            glyph: 15, spacing: 9, font: 14, textStyle: .subheadline,
             textOpacity: 1, chevronOpacity: 0.4,
             horizontalPadding: 14, height: 44, radius: 12
         )
@@ -55,9 +56,10 @@ struct BoardDestinationMenu: View {
             BoardDestinationItems(task: task, follows: true)
         } label: {
             HStack(spacing: metrics.spacing) {
-                Circle()
-                    .fill(palette.resolve(board?.dot ?? Board.inboxDot))
-                    .frame(width: metrics.dot, height: metrics.dot)
+                Image(systemName: SymbolMark.resolved(board?.symbol ?? Board.inboxSymbol))
+                    .symbolSize(metrics.glyph, weight: .medium, relativeTo: metrics.textStyle)
+                    .foregroundStyle(palette.inkText(0.55))
+                    .accessibilityHidden(true)
                 Text(board?.name ?? Board.inboxName)
                     .font(palette.ui(metrics.font, .bold, relativeTo: metrics.textStyle))
                     .foregroundStyle(palette.ink(metrics.textOpacity))

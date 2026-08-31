@@ -11,7 +11,7 @@ struct SavedViewDraft: Identifiable, Hashable {
     init(id: SavedView.ID) { self.id = id }
 }
 
-/// Building a view: a name, a glyph, a rule, an order and a cap.
+/// Building a view: a name, an icon, a rule, an order and a cap.
 ///
 /// **The rule is the whole of it, and it is a tree.** Criteria join under a
 /// group that says *all* or *any*, and a row can itself be a group — which is
@@ -51,14 +51,16 @@ struct SavedViewEditor: View {
         var radius: CGFloat
         /// What a control claims for touch, over and above what it draws.
         var hit: CGFloat
+        /// The view's icon control, which is the board's — see ``SymbolWell``.
+        var symbolWell: SymbolWell.Metrics
 
         static let desk = Metrics(
             width: 520, height: 620, fieldHeight: 26, rowSpacing: 8, sectionSpacing: 18,
-            padding: 20, radius: 10, hit: 0
+            padding: 20, radius: 10, hit: 0, symbolWell: .desk
         )
         static let sheet = Metrics(
             width: nil, height: nil, fieldHeight: 40, rowSpacing: 10, sectionSpacing: 22,
-            padding: 20, radius: 12, hit: 44
+            padding: 20, radius: 12, hit: 44, symbolWell: .sheet
         )
     }
 
@@ -140,17 +142,6 @@ struct SavedViewEditor: View {
 
     // MARK: Name and glyph
 
-    /// The glyphs on offer. A fixed set rather than a symbol browser: every one
-    /// of these reads at 14pt in a sidebar row, which is the only place they are
-    /// drawn, and a picker over all of SF Symbols is a picker most of whose
-    /// answers are illegible there.
-    private static let symbols = [
-        "line.3.horizontal.decrease.circle", "tray", "sun.max", "calendar",
-        "calendar.badge.clock", "exclamationmark.triangle", "clock.arrow.circlepath",
-        "archivebox", "flag", "star", "bolt", "person", "tag", "checkmark.circle",
-        "magnifyingglass", "flame", "leaf", "bookmark",
-    ]
-
     @ViewBuilder private var identity: some View {
         if let draft {
             VStack(alignment: .leading, spacing: 6) {
@@ -169,30 +160,28 @@ struct SavedViewEditor: View {
                 .background(palette.ink(0.06), in: .rect(cornerRadius: 8))
             }
 
+            // **The same control Board Settings uses**, and the same reasoning
+            // one step on: this was a row of eighteen fixed swatches, which
+            // could only ever offer what was written into the source and cost a
+            // block of 44pt targets to say so. A well opens the whole of
+            // ``SymbolCatalog`` behind one target, and still leads with the
+            // eighteen — see ``SavedView/startingSymbols``.
+            //
+            // It writes to the **draft** rather than to the store, unlike the
+            // board's, because everything in this editor does: a view is five
+            // things at once and closing the sheet is the one commit.
             VStack(alignment: .leading, spacing: 6) {
-                Text("Symbol").sectionLabelStyle(size: 10, opacity: Palette.readableInk)
-                FlowLayout(spacing: 6) {
-                    ForEach(Self.symbols, id: \.self) { symbol in
-                        symbolSwatch(symbol, isPicked: draft.symbol == symbol)
-                    }
+                Text("Icon").sectionLabelStyle(size: 10, opacity: Palette.readableInk)
+                SymbolWell(
+                    selection: draft.symbol,
+                    metrics: metrics.symbolWell,
+                    suggested: SavedView.startingSymbols,
+                    fallback: SavedView.defaultSymbol
+                ) { picked in
+                    change { $0.symbol = picked }
                 }
             }
         }
-    }
-
-    private func symbolSwatch(_ symbol: String, isPicked: Bool) -> some View {
-        Button { change { $0.symbol = symbol } } label: {
-            Image(systemName: symbol)
-                .symbolSize(14, weight: .medium, relativeTo: .body)
-                .foregroundStyle(isPicked ? palette.onAccent : palette.inkText(0.55))
-                .frame(width: chrome(28), height: chrome(28))
-                .background(isPicked ? palette.accent : palette.ink(0.06), in: .rect(cornerRadius: 7))
-                .frame(minWidth: metrics.hit, minHeight: metrics.hit)
-                .contentShape(.rect)
-        }
-        .buttonStyle(.bare)
-        .accessibilityLabel(symbol)
-        .accessibilityAddTraits(isPicked ? [.isSelected] : [])
     }
 
     // MARK: The rule

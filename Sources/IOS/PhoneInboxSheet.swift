@@ -152,12 +152,21 @@ struct PhoneInboxSheet: View {
                 // from in here puts the editor up, and while this was a sheet
                 // UIKit covered it and took it out of the tree. As an overlay it
                 // is a sibling of the window's own content rather than something
-                // underneath a presentation — measured, both the panel's × and
-                // the editor's were reachable at once, and both are labelled
-                // Close.
+                // underneath a presentation — measured, back when both had
+                // one, the panel's × and the editor's were reachable at once
+                // and both were labelled Close.
                 panel
                     .accessibilityAddTraits(.isModal)
                     .accessibilityHidden(store.sheetID != nil)
+                    // **The way out, for a reader.** Upright this is a real
+                    // sheet and UIKit answers the escape gesture itself; on its
+                    // side it is an overlay, and every route out of it is
+                    // something a reader cannot use — ``grabber`` is a drag on
+                    // a strip hidden from them, ``ground`` is a tap on a scrim
+                    // that is also hidden, and the ✕ that used to be the
+                    // exception is gone. So the gesture is wired to the thing
+                    // all three of those do. It draws nothing.
+                    .accessibilityAction(.escape) { store.isInboxOpen = false }
             } else {
                 panel
                     // The editor's presentation, to the point: same detent
@@ -311,7 +320,7 @@ struct PhoneInboxSheet: View {
     ///
     /// The tap is ours because the overlay has no system dismissal of its own,
     /// which is the drawer's arrangement exactly. Hidden from a reader, who has
-    /// the × in the header.
+    /// the escape action on the panel — see ``body``.
     private var ground: some View {
         palette.scrim()
             .ignoresSafeArea()
@@ -415,6 +424,17 @@ struct PhoneInboxSheet: View {
         }
     }
 
+    /// The panel's name and how much is in it. **It carried a ✕ and does not
+    /// any more**: the grabber above it — the system's upright, ``grabber`` on
+    /// its side — already says how the panel goes away, and it says it in the
+    /// gesture people reach for first. A button that repeats a gesture is a
+    /// button spending 44pt of a header to say nothing new.
+    ///
+    /// What went with it is the identifier, and the ``titleID`` here is what
+    /// replaced it: the panel still has to be findable from a UI test, and both
+    /// ✕s calling themselves Close is what that identifier was for in the first
+    /// place. The one job the ✕ was doing that a gesture cannot do on its own
+    /// is in ``body``, as an escape action.
     private var header: some View {
         HStack(spacing: 10) {
             Text(Board.inboxName)
@@ -422,29 +442,29 @@ struct PhoneInboxSheet: View {
                 .foregroundStyle(palette.ink)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($isTitleFocused)
+                .accessibilityIdentifier(Self.titleID)
             CountPill(count: store.inboxCount, font: 12)
             Spacer(minLength: 0)
-            Button { store.isInboxOpen = false } label: {
-                Image(systemName: "xmark")
-                    .font(palette.ui(12, .semibold, relativeTo: .footnote))
-                    .fontWeight(.semibold)
-                    .foregroundStyle(palette.inkText(0.55))
-                    .frame(minWidth: 28, minHeight: 28)
-                    .background(palette.ink(0.07), in: .circle)
-                    .frame(minWidth: 44, minHeight: 44)
-            }
-            .buttonStyle(.bare)
-            .contentShape(.circle)
-            .accessibilityLabel("Close")
-            // Named as well as labelled: the editor's × is called Close too,
-            // and once a card in here can raise that sheet over this one, both
-            // are on screen at the same time. `InboxToggle` in the toolbar was
-            // added for the same collision, one floor up.
-            .accessibilityIdentifier("InboxClose")
         }
         .padding(.horizontal, TaskListMetrics.sheet.horizontalPadding)
+        // Under the system's grabber, which is drawn *over* the top of the
+        // sheet — see ``PhoneSheetChrome``. There was none of this while the ✕
+        // held the row open at 44pt: the heading sat in the middle of that and
+        // cleared the handle by accident. Without it the name draws through the
+        // handle, which is what it did.
+        //
+        // Nothing on its side, where the panel is an overlay and ``grabber``
+        // above this is a 28pt strip already.
+        .padding(.top, isShort ? 0 : PhoneSheetChrome.topClearance)
         .padding(.bottom, 6)
     }
+
+    /// The panel's own heading, named so a test can find the panel by it.
+    ///
+    /// The word "Inbox" alone is not enough and never was: the tab bar has a
+    /// button called that, the drawer has a row, and a card can carry a chip
+    /// saying it. This is the heading and nothing else.
+    static let titleID = "InboxPanelTitle" 
 
     /// The cards, in ``PhoneCardStack`` — the board pages' container, and the
     /// desk panel's, for the reason both of them are in it: the Inbox is a place

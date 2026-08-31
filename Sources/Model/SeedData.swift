@@ -57,7 +57,7 @@ enum SeedData {
     static let defaultBoard = Board(
         id: UUID(uuid: (0xB0, 0xA4, 0, 0, 0, 0, 0x40, 0, 0x80, 0, 0, 0, 0, 0, 0, 1)),
         name: "Northwind iOS 3.0",
-        dot: .accent,
+        symbol: "hammer",
         createdAt: ago(days: 30),
         columns: BoardColumn.workflow,
         codePrefix: "NW"
@@ -292,10 +292,18 @@ extension BoardTemplate {
     /// Mints the codes `addTask` would have minted, in order, under the board's
     /// own prefix — so a chosen template arrives numbered like a board somebody
     /// has been working on rather than like a fixture.
+    ///
+    /// **The template's glyph is the board's**, stamped on here rather than
+    /// written twice: the row in the first-run picker and the sidebar row it
+    /// turns into are the same board, and a Personal template that offers a
+    /// house and then makes a board wearing something else has told the user
+    /// the mark is not theirs to trust.
     static func make(
         id: String, name: String, blurb: String, symbol: String,
         board: Board, labels: [LabelDef], cards: [Card]
     ) -> BoardTemplate {
+        var board = board
+        board.symbol = symbol
         var serial = BoardSnapshot.baseSerial
         let tasks = cards.map { card -> TaskItem in
             defer { serial += 1 }
@@ -358,7 +366,7 @@ extension SeedData {
         ]
         let board = Board(
             name: String(localized: "Personal", comment: "Name of the Personal starter board"),
-            dot: .hex(0x3B5BA9), columns: columns, codePrefix: "ME"
+            columns: columns, codePrefix: "ME"
         )
         return .make(
             id: "personal",
@@ -414,7 +422,7 @@ extension SeedData {
         ]
         let board = Board(
             name: String(localized: "Sprint", comment: "Name of the Sprint starter board"),
-            dot: .accent, columns: columns, codePrefix: "SP"
+            columns: columns, codePrefix: "SP"
         )
         return .make(
             id: "sprint",
@@ -487,7 +495,7 @@ extension SeedData {
         ]
         let board = Board(
             name: String(localized: "Content Calendar", comment: "Name of the Content Calendar starter board"),
-            dot: .hex(0x1F6F63), columns: columns, codePrefix: "CC"
+            columns: columns, codePrefix: "CC"
         )
         return .make(
             id: "content",

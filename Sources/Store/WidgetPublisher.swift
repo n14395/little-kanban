@@ -86,7 +86,7 @@ enum WidgetPublisher {
 
     private static func board(from board: Board, in store: BoardStore) -> WidgetBoard {
         WidgetBoard(
-            id: board.id, name: board.name, dot: board.dot,
+            id: board.id, name: board.name, symbol: board.symbol,
             columns: board.columns.map { column in
                 // `visibleTasks(in:)` rather than a filter of `tasks`: it is
                 // the board's own grouping, so a column's rows here are in the
@@ -110,7 +110,7 @@ enum WidgetPublisher {
             id: view.id, name: view.name, symbol: view.symbol, preset: view.preset?.rawValue,
             // The view's own count, which is capped by its `limit` and is what
             // the sidebar row's pill shows. Taking `members.count` instead
-            // would report the eight this digest carries.
+            // would report the sixteen this digest carries.
             count: store.count(of: view, today: today),
             tasks: rows(store.tasks(in: view, today: today), in: store)
         )

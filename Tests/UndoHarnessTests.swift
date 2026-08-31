@@ -345,7 +345,7 @@ import Testing
         check("unfile") { $0.unfile(TestBoard.dragDrop) }
         check("createBoard") { $0.createBoard(named: "Website refresh") }
         check("renameBoard") { $0.renameBoard(SeedData.defaultBoard.id, to: "Northwind iOS 4.0") }
-        check("recolorBoard") { $0.recolorBoard(SeedData.defaultBoard.id, to: .hex(0x1F6F63)) }
+        check("setBoardSymbol") { $0.setBoardSymbol(SeedData.defaultBoard.id, to: "flame") }
         check("moveBoard", boards: TestBoard.boards) { $0.moveBoard(fromOffsets: [1], toOffset: 0) }
         check("deleteBoard", boards: TestBoard.boards) { $0.deleteBoard(SeedData.defaultBoard.id) }
 

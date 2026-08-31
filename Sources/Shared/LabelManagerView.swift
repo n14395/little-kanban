@@ -23,6 +23,13 @@ struct LabelManagerView: View {
         var colorWell: ColorWell.Metrics
         /// The create popover's form — the same one the task picker shows.
         var compose: LabelComposeForm.Metrics
+        /// Which side of the **Create new label** row the form hangs off, or
+        /// `nil` to let the system place it — ``LabelEditor/Metrics/arrowEdge``
+        /// and ``DueDateField/Metrics/arrowEdge``, which says why at length.
+        /// The row heads the list, so on a phone there is nothing above it to
+        /// hang a form in: named, the edge was the only placement UIKit was
+        /// permitted, and it was the wrong one.
+        var arrowEdge: Edge?
         var glyph: CGFloat
         var glyphHit: CGFloat
         /// The floor the rename field claims for itself. `rowMinHeight` is the
@@ -37,13 +44,15 @@ struct LabelManagerView: View {
             width: 396, maxHeight: 520, titleFont: 13, nameFont: 12.5, chipSize: .compact,
             rowSpacing: 8, rowPadding: 10, rowRadius: 12, rowMinHeight: 0,
             listSpacing: 8, panelPadding: 14,
-            colorWell: .desk, compose: .desk, glyph: 11, glyphHit: 26, fieldHit: 0
+            colorWell: .desk, compose: .desk, arrowEdge: .bottom,
+            glyph: 11, glyphHit: 26, fieldHit: 0
         )
         static let sheet = Metrics(
             width: nil, maxHeight: nil, titleFont: 15, nameFont: 15, chipSize: .comfortable,
             rowSpacing: 10, rowPadding: 14, rowRadius: 14, rowMinHeight: 44,
             listSpacing: 10, panelPadding: 16,
-            colorWell: .sheet, compose: .sheet, glyph: 15, glyphHit: 44, fieldHit: 44
+            colorWell: .sheet, compose: .sheet, arrowEdge: nil,
+            glyph: 15, glyphHit: 44, fieldHit: 44
         )
     }
 
@@ -152,7 +161,7 @@ struct LabelManagerView: View {
         }
         .buttonStyle(.bare)
         .hoverBackground(palette.ink(0.06), radius: metrics.rowRadius)
-        .popover(isPresented: $isComposing, arrowEdge: .bottom) {
+        .popover(isPresented: $isComposing, arrowEdge: metrics.arrowEdge) {
             LabelComposeForm(
                 name: $composeName,
                 chosenColor: $composeColor,

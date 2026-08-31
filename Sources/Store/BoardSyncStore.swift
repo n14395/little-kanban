@@ -123,6 +123,8 @@ protocol SyncStoring: AnyObject {
     func carriedLists() throws -> SyncedLists
     func hasStoredTaskOrder() throws -> Bool
     func backfillTaskPositions(from taskIDs: [TaskItem.ID]) throws
+    func hasStoredBoardSymbols() throws -> Bool
+    func backfillBoardSymbols(from boards: [Board]) throws
     func apply(_ snapshot: BoardSnapshot, deleting: SyncIDs) throws
     func reconnect()
 }
@@ -539,6 +541,27 @@ final class BoardSyncStore: SyncStoring {
         return Self.deduplicated(records, by: \.id, newest: \.updatedAt).allSatisfy { $0.position != nil }
     }
 
+    /// Whether every board record already carries a mark. Records written
+    /// before ``StoredBoard/symbol`` was added carry `nil`, which is a
+    /// different answer from a board wearing ``SymbolMark/boardFallback``.
+    func hasStoredBoardSymbols() throws -> Bool {
+        let records = try context.fetch(FetchDescriptor<StoredBoard>())
+        return Self.deduplicated(records, by: \.id, newest: \.createdAt).allSatisfy { $0.symbol != nil }
+    }
+
+    /// Gives pre-mark records the glyph from the local board file without
+    /// touching anything else on them — which is the mark `migrate(v15:)` dealt
+    /// that board, so a synced install upgrades to the same sidebar an
+    /// unsynced one does. A board the file has never seen takes the fallback,
+    /// the way it would if it had just been made.
+    func backfillBoardSymbols(from boards: [Board]) throws {
+        let marks = Dictionary(boards.map { ($0.id, $0.symbol) }, uniquingKeysWith: { first, _ in first })
+        for record in try context.fetch(FetchDescriptor<StoredBoard>()) where record.symbol == nil {
+            record.symbol = marks[record.id] ?? SymbolMark.boardFallback
+        }
+        try context.save()
+    }
+
     /// Gives pre-position records the order from the local board file without
     /// touching their content. A remote-only card follows the known rows.
     func backfillTaskPositions(from taskIDs: [TaskItem.ID]) throws {
@@ -717,7 +740,7 @@ final class BoardSyncStore: SyncStoring {
                 return fresh
             }()
             record.name = board.name
-            record.dot = Self.encoded(board.dot)
+            record.symbol = board.symbol
             record.createdAt = board.createdAt
             record.codePrefix = board.codePrefix
             record.position = index
@@ -1012,7 +1035,7 @@ final class BoardSyncStore: SyncStoring {
         Board(
             id: record.id,
             name: record.name,
-            dot: Self.decoded(record.dot) ?? .accent,
+            symbol: Board.symbol(record.symbol ?? ""),
             createdAt: record.createdAt,
             // Ordered totally rather than by position alone: two records under
             // one id are settled by keeping the first, so every device has to

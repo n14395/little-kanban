@@ -30,22 +30,34 @@ struct WidgetDigest: Codable, Hashable, Sendable {
     /// be one: a digest the extension cannot read is redrawn by the app within
     /// the second, so the reader simply refuses anything that is not its own
     /// version. See ``WidgetShare``.
-    /// **2 since columns carry a WIP limit.** A digest is a cache and a
-    /// version that does not match is refused rather than migrated — see
-    /// ``WidgetDigestFile/decode(_:)`` — so a bump costs one placeholder render
-    /// until the app writes the next digest, which is within half a second of
-    /// the next edit. That is the whole price, and it buys a widget that cannot
-    /// draw `4` beside a column the app is drawing `4/3` for.
-    static let currentVersion = 2
+    /// **2 since columns carry a WIP limit, 3 since a board wears a glyph
+    /// rather than a dot.** A digest is a cache and a version that does not
+    /// match is refused rather than migrated — see ``WidgetDigestFile/decode(_:)``
+    /// — so a bump costs one placeholder render until the app writes the next
+    /// digest, which is within half a second of the next edit. That is the
+    /// whole price, and it buys a widget that cannot draw `4` beside a column
+    /// the app is drawing `4/3` for, or a colour beside a board the app is
+    /// marking with an icon.
+    static let currentVersion = 3
 
     /// How many rows any one list carries.
     ///
     /// The tallest thing any of these widgets draws is the large family's list,
-    /// which fits seven rows on the smallest phone and eight on the desk. One
-    /// spare row is worth the bytes; a hundred are not — the digest is decoded
-    /// on the system's schedule inside an extension with a memory limit, and a
-    /// board with four thousand cards must not be able to make that a problem.
-    static let listLength = 8
+    /// and it no longer draws a fixed number of them: `WidgetRowCount` works the
+    /// count out from the tile, which is thirteen rows on an SE and fifteen on a
+    /// 6.7" phone. Sixteen is that plus the spare the old eight had, and it is
+    /// also the ceiling the extension clamps to, so a tile can never ask for a
+    /// row the app did not send.
+    ///
+    /// One spare row is worth the bytes; a hundred are not — the digest is
+    /// decoded on the system's schedule inside an extension with a memory limit,
+    /// and a board with four thousand cards must not be able to make that a
+    /// problem.
+    ///
+    /// Raising it is not a shape change, so it costs no version bump: an old
+    /// digest still decodes, and a large tile draws the eight it holds until the
+    /// app writes the next one.
+    static let listLength = 16
 
     var version: Int = WidgetDigest.currentVersion
     var writtenAt: Date
@@ -95,7 +107,10 @@ struct WidgetDigest: Codable, Hashable, Sendable {
 struct WidgetBoard: Identifiable, Codable, Hashable, Sendable {
     var id: UUID
     var name: String
-    var dot: SwatchColor
+    /// The board's own glyph — ``Board/symbol``, drawn through ``SymbolMark``
+    /// like everywhere else, because a widget on a Mac a system version behind
+    /// the phone that picked the mark is exactly the case that needs it.
+    var symbol: String
     /// **Every** column, Done included. The column widget is entitled to show
     /// one — a widget of what shipped this week is a perfectly good widget —
     /// so the filtering belongs at the point of use rather than here. See

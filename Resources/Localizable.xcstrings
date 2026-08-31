@@ -906,12 +906,23 @@
       }
     },
     "Accent" : {
-      "comment" : "Board dot colour: the app's own fixed accent orange\nTheme parameter: the app's highlight colour",
+      "comment" : "Palette colour: the app's own fixed accent orange\nTheme parameter: the app's highlight colour",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Accent"
+          }
+        }
+      }
+    },
+    "Accessibility" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accessibility"
           }
         }
       }
@@ -1277,6 +1288,17 @@
         }
       }
     },
+    "All Icons" : {
+      "comment" : "The icon picker's group holding every symbol",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Icons"
+          }
+        }
+      }
+    },
     "All other text. The weight is a baseline: the app's own weights shift with it, so 400 leaves them exactly where they were written." : {
       "comment" : "Where the UI font is used and what its weight means",
       "localizations" : {
@@ -1312,7 +1334,7 @@
       }
     },
     "Amber" : {
-      "comment" : "Board dot colour: golden yellow",
+      "comment" : "Palette colour: golden yellow",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1530,6 +1552,17 @@
         }
       }
     },
+    "Arrows" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrows"
+          }
+        }
+      }
+    },
     "Ask Riya about the empty-board illustration" : {
       "comment" : "Seed board: task title",
       "localizations" : {
@@ -1580,6 +1613,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "At most %lld at a time"
+          }
+        }
+      }
+    },
+    "Automotive" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automotive"
           }
         }
       }
@@ -1827,6 +1871,17 @@
         }
       }
     },
+    "Camera and Photos" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera and Photos"
+          }
+        }
+      }
+    },
     "Cancel" : {
       "comment" : "Alert button: leaves the theme alone\nButton that closes the due-date sheet without setting a date\nButton that closes the starter picker leaving the board alone\nDismisses the share sheet without capturing",
       "localizations" : {
@@ -2003,13 +2058,13 @@
         }
       }
     },
-    "Change Board Colour" : {
-      "comment" : "Undo action name for recolouring a board",
+    "Change Board Icon" : {
+      "comment" : "Undo action name for changing a board's icon",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Change Board Colour"
+            "value" : "Change Board Icon"
           }
         }
       }
@@ -2191,6 +2246,16 @@
         }
       }
     },
+    "Clear the search" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear the search"
+          }
+        }
+      }
+    },
     "Clear the search filter" : {
       "localizations" : {
         "en" : {
@@ -2325,6 +2390,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Comfortable"
+          }
+        }
+      }
+    },
+    "Commerce" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Commerce"
+          }
+        }
+      }
+    },
+    "Communication" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Communication"
           }
         }
       }
@@ -2482,6 +2569,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Conflict tests"
+          }
+        }
+      }
+    },
+    "Connectivity" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connectivity"
           }
         }
       }
@@ -2882,6 +2980,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Design"
+          }
+        }
+      }
+    },
+    "Devices" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Devices"
           }
         }
       }
@@ -3303,7 +3412,7 @@
       }
     },
     "Editing" : {
-      "comment" : "Content template column: written, being cut",
+      "comment" : "A group of icons in the icon picker\nContent template column: written, being cut",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3314,7 +3423,7 @@
       }
     },
     "Ember" : {
-      "comment" : "Board dot colour: burnt orange",
+      "comment" : "Palette colour: burnt orange",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3651,6 +3760,17 @@
         }
       }
     },
+    "Fitness" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fitness"
+          }
+        }
+      }
+    },
     "Focus Card Above" : {
       "comment" : "Moves card focus up within a column",
       "localizations" : {
@@ -3716,6 +3836,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fri"
+          }
+        }
+      }
+    },
+    "Gaming" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gaming"
           }
         }
       }
@@ -3809,7 +3940,7 @@
       }
     },
     "Health" : {
-      "comment" : "Personal template label",
+      "comment" : "A group of icons in the icon picker\nPersonal template label",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3906,7 +4037,7 @@
       }
     },
     "Home" : {
-      "comment" : "Personal template label",
+      "comment" : "A group of icons in the icon picker\nPersonal template label",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3970,9 +4101,30 @@
         }
       }
     },
+    "Icon" : {
+      "comment" : "The icon section in board settings and the saved view editor",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Icon"
+          }
+        }
+      }
+    },
     "Icon follows app theme" : {
       "comment" : "A toggle that lets the user choose whether the app icon follows the system theme.",
       "isCommentAutoGenerated" : true
+    },
+    "Icon group" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Icon group"
+          }
+        }
+      }
     },
     "Ideas" : {
       "comment" : "Content template column: not written yet",
@@ -4111,7 +4263,7 @@
       }
     },
     "Indigo" : {
-      "comment" : "Board dot colour: deep blue",
+      "comment" : "Palette colour: deep blue",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4474,6 +4626,17 @@
         }
       }
     },
+    "Keyboard" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keyboard"
+          }
+        }
+      }
+    },
     "Keyboard fallback" : {
       "comment" : "Seed board: sub-task",
       "localizations" : {
@@ -4663,6 +4826,17 @@
         }
       }
     },
+    "Letters and Numbers" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Letters and Numbers"
+          }
+        }
+      }
+    },
     "Lift + shadow states" : {
       "comment" : "Seed board: sub-task",
       "localizations" : {
@@ -4737,6 +4911,17 @@
         }
       }
     },
+    "Maps" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maps"
+          }
+        }
+      }
+    },
     "Mark as done" : {
       "localizations" : {
         "en" : {
@@ -4770,6 +4955,17 @@
     "Match all or any" : {
       "comment" : "Accessibility label of the picker joining a view's criteria"
     },
+    "Maths" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maths"
+          }
+        }
+      }
+    },
     "Max" : {
       "comment" : "Task priority\nThe loudest priority, in Shortcuts",
       "localizations" : {
@@ -4777,6 +4973,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Max"
+          }
+        }
+      }
+    },
+    "Media" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Media"
           }
         }
       }
@@ -5138,6 +5345,17 @@
         }
       }
     },
+    "Nature" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nature"
+          }
+        }
+      }
+    },
     "Never" : {
       "comment" : "Setting: finished cards are never archived",
       "localizations" : {
@@ -5399,6 +5617,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No high-priority work"
+          }
+        }
+      }
+    },
+    "No icon matches that." : {
+      "comment" : "The icon picker with nothing to show",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No icon matches that."
           }
         }
       }
@@ -5737,6 +5966,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Notifications"
+          }
+        }
+      }
+    },
+    "Objects and Tools" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Objects and Tools"
           }
         }
       }
@@ -6103,6 +6343,17 @@
         }
       }
     },
+    "People" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "People"
+          }
+        }
+      }
+    },
     "Per-field CRDT with a 200ms debounce. Cut sync conflicts to near zero." : {
       "comment" : "Seed board: task description",
       "localizations" : {
@@ -6184,7 +6435,7 @@
       "comment" : "Settings note under the completion sound row"
     },
     "Pine" : {
-      "comment" : "Board dot colour: deep green",
+      "comment" : "Palette colour: deep green",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6268,6 +6519,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Priority set to %@"
+          }
+        }
+      }
+    },
+    "Privacy and Security" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Privacy and Security"
           }
         }
       }
@@ -7256,6 +7518,17 @@
         }
       }
     },
+    "Search icons" : {
+      "comment" : "Placeholder in the icon picker's search field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search icons"
+          }
+        }
+      }
+    },
     "Search labels" : {
       "comment" : "A label for the search field in the label picker.",
       "isCommentAutoGenerated" : true
@@ -7300,6 +7573,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Select Colour"
+          }
+        }
+      }
+    },
+    "Select Icon" : {
+      "comment" : "The icon button's label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select Icon"
           }
         }
       }
@@ -7445,6 +7729,17 @@
     },
     "Settings…" : {
       "comment" : "Menu item that opens the app's settings, on the platforms where the system does not provide one"
+    },
+    "Shapes" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shapes"
+          }
+        }
+      }
     },
     "Shared boards with roles" : {
       "comment" : "Seed board: task title",
@@ -7884,7 +8179,7 @@
       }
     },
     "Stone" : {
-      "comment" : "Board dot colour: warm grey",
+      "comment" : "Palette colour: warm grey",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7959,6 +8254,17 @@
         }
       }
     },
+    "Suggested" : {
+      "comment" : "The icon picker's opening group",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suggested"
+          }
+        }
+      }
+    },
     "Sunday to Saturday" : {
       "comment" : "Setting: a week starts on Sunday",
       "localizations" : {
@@ -7966,16 +8272,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sunday to Saturday"
-          }
-        }
-      }
-    },
-    "Symbol" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Symbol"
           }
         }
       }
@@ -8148,6 +8444,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Text"
+          }
+        }
+      }
+    },
+    "Text Formatting" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text Formatting"
           }
         }
       }
@@ -8838,6 +9145,17 @@
         }
       }
     },
+    "Time" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time"
+          }
+        }
+      }
+    },
     "Timebox to a day. Write up what we find either way." : {
       "comment" : "Starter template: task note",
       "localizations" : {
@@ -8945,6 +9263,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Transcribe"
+          }
+        }
+      }
+    },
+    "Transport" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transport"
           }
         }
       }
@@ -9310,6 +9639,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Wash"
+          }
+        }
+      }
+    },
+    "Weather" : {
+      "comment" : "A group of icons in the icon picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weather"
           }
         }
       }

@@ -59,7 +59,7 @@ import UserNotifications
         #expect(everyTaskKey.isSubset(of: taskKeys),
                 "unexpected task keys: \(everyTaskKey.subtracting(taskKeys).sorted())")
 
-        let boardKeys: Set<String> = ["id", "name", "dot", "createdAt", "columns", "codePrefix"]
+        let boardKeys: Set<String> = ["id", "name", "symbol", "createdAt", "columns", "codePrefix"]
         let boards = try #require(object["boards"] as? [[String: Any]])
         let everyBoardKey = Set(boards.flatMap(\.keys))
         #expect(everyBoardKey.isSubset(of: boardKeys),

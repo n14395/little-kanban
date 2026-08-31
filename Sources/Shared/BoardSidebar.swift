@@ -193,19 +193,26 @@ struct BoardSidebar: View {
 
         return Button { store.selectBoard(board.id) } label: {
             destinationRow(
-                dot: board.dot, count: count,
+                symbol: board.symbol, count: count,
                 isActive: isActive, isDropTarget: isDropTarget(.board(board.id))
             ) {
                 rowName(board.name, isActive: isActive)
             }
         }
         .buttonStyle(.bare)
-        // Name and count stated separately — see `BoardToolbar`. Stated rather
-        // than substituted, because the row's context menu is the only route
-        // Board Settings has to a reader.
-        .accessibilityLabel(board.name)
-        .accessibilityValue(Text(verbatim: "\(count)"))
-        .accessibilityAddTraits(isActive ? [.isSelected] : [])
+        // Name and count stated separately — see `BoardToolbar`. Substituted
+        // rather than named, now that the row has a symbol in it: an `Image`
+        // among siblings inside a button's label is published as an element of
+        // its own whatever else is asked of it, which is `viewRow`'s reason and
+        // was the dot's too, drawn as a `Circle` that published nothing. The
+        // representation keeps the row's own action, so the context menu — the
+        // only route Board Settings has to a reader — is still on the button
+        // underneath it.
+        .accessibilityRepresentation {
+            Button(board.name) { store.selectBoard(board.id) }
+                .accessibilityValue(Text(verbatim: "\(count)"))
+                .accessibilityAddTraits(isActive ? [.isSelected] : [])
+        }
         .contextMenu { boardMenu(board, index: index) }
         .dropDestination(for: TaskTransfer.self) { items, _ in
             guard store.allowsCardDrag, let dropped = items.first, store[dropped.id] != nil
@@ -279,10 +286,13 @@ struct BoardSidebar: View {
     private var newBoardRow: some View {
         Group {
             Button(action: createBoard) {
-                HStack(spacing: 9) {
+                // The plus stands in the glyph slot the boards' own marks use,
+                // so the column of symbols above it does not step sideways at
+                // the last row — see ``destinationRow(symbol:count:isActive:isDropTarget:name:)``.
+                HStack(spacing: 8) {
                     Image(systemName: "plus")
                         .font(palette.ui(9, .bold, relativeTo: .caption2))
-                        .frame(width: 7)
+                        .frame(width: metrics.rowGlyph)
                         .accessibilityHidden(true)
                     Text("New board", comment: "Sidebar row that starts a board")
                         .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
@@ -321,10 +331,12 @@ struct BoardSidebar: View {
     ///
     /// The symbol is `SavedView.symbol` — the same glyph the view's empty state
     /// and the phone's drawer already drew, so a row and the surface it opens
-    /// carry one mark rather than each picking their own. The rows above this
-    /// section wear a coloured dot instead, which is the truer split: a board's
-    /// mark says *which* board and is the user's to change, while a view's says
-    /// what the view is for and is the same on every install.
+    /// carry one mark rather than each picking their own. The boards above wear
+    /// one too since v16: both say what the destination is *for*, and both are
+    /// the user's to change, picked from the same browser. What keeps the two
+    /// sections apart is what each picker *opens* on — see
+    /// ``Board/startingSymbols`` and ``SavedView/startingSymbols``, which share
+    /// no glyph — and the section headings they sit under.
     private func viewRow(_ view: SavedView) -> some View {
         let isActive = store.activeView?.id == view.id
         let count = store.count(of: view, today: dayClock.today)
@@ -750,17 +762,25 @@ struct BoardSidebar: View {
 
     // MARK: Row furniture
 
-    /// The shape every destination shares: a dot, a name, a count, and the
+    /// The shape every destination shares: a mark, a name, a count, and the
     /// active row's ground. The name is a view rather than a string so the row
     /// that names a new board can put its field exactly where a name will be.
+    ///
+    /// The glyph sits in ``Metrics/rowGlyph``'s slot, which is the one the
+    /// views' rows use, so the two sections line their labels up on one edge
+    /// however wide each mark measures.
     private func destinationRow(
-        dot: SwatchColor, count: Int?, isActive: Bool, isDropTarget: Bool = false,
+        symbol: String, count: Int?, isActive: Bool, isDropTarget: Bool = false,
         @ViewBuilder name: () -> some View
     ) -> some View {
-        HStack(spacing: 9) {
-            Circle()
-                .fill(palette.resolve(dot))
-                .frame(width: 7, height: 7)
+        HStack(spacing: 8) {
+            Image(systemName: SymbolMark.resolved(symbol))
+                .imageScale(.small)
+                // Dimmer than the label it stands beside, exactly as the views'
+                // rows are; the active row takes the accent whole.
+                .foregroundStyle(isActive ? palette.accent : palette.inkText(0.5))
+                .frame(width: metrics.rowGlyph)
+                .accessibilityHidden(true)
             name()
                 .frame(maxWidth: .infinity, alignment: .leading)
             if let count {

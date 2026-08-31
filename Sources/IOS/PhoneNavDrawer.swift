@@ -406,7 +406,7 @@ struct PhoneNavDrawer: View {
     /// three literals with the counts 9 and 4 painted on (4.2).
     private func boardRow(_ board: Board) -> some View {
         destinationRow(
-            name: board.name, dot: board.dot,
+            name: board.name, symbol: board.symbol,
             count: store.taskCount(for: board.id), isActive: isActive(board),
             action: { show(board) }
         )
@@ -472,14 +472,18 @@ struct PhoneNavDrawer: View {
     /// — "Backlog, 3" against the views' "Today" value "1", in the same list —
     /// and the name of a place then changes every time a card is added to it.
     private func destinationRow(
-        name: String, dot: SwatchColor, count: Int, isActive: Bool,
+        name: String, symbol: String, count: Int, isActive: Bool,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack(spacing: 11) {
-                Circle()
-                    .fill(palette.resolve(dot))
-                    .frame(width: 8, height: 8)
+            HStack(spacing: 10) {
+                // The views' rows below draw their glyph at this size in this
+                // slot; the boards' marks line up with them rather than sitting
+                // where a 8pt dot used to.
+                Image(systemName: SymbolMark.resolved(symbol))
+                    .imageScale(.small)
+                    .frame(width: 17)
+                    .accessibilityHidden(true)
                 Text(name)
                     .font(palette.ui(15, isActive ? .bold : .semibold, relativeTo: .body))
                     .lineLimit(1)

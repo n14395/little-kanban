@@ -41,21 +41,19 @@ final class HeldCardTests: XCTestCase {
             .firstMatch
     }
 
-    /// Whether the card that was tapped is now open: the phone's detail sheet,
-    /// the iPad's inspector, matched on the opening of the closer's label the
-    /// way `EditorHeaderTests` does — "Close" on the sheet, "Close details" on
-    /// the inspector.
+    /// Whether the card that was tapped is now open: the phone's detail sheet or
+    /// the iPad's inspector, found by the title field both of them label the
+    /// same way — which is what `EditorHeaderTests` and `PickerFitTests` ask
+    /// for too.
     ///
-    /// **Minus the Inbox sheet's own ×**, which is also called Close and is on
-    /// screen from the moment the panel opens. It carries an identifier for
-    /// exactly this reason and this is the query that reads it; without the
-    /// exclusion the Inbox case passed before it had done anything.
+    /// **It was the closer's label**, "Close" on the sheet and "Close details"
+    /// on the inspector, minus the Inbox panel's ✕ by identifier because that
+    /// one was also called Close and was on screen from the moment the panel
+    /// opened. Neither ✕ is in the app any more — a sheet is put away by pulling
+    /// it down — and the collision went with them; the field is what is left
+    /// that both surfaces have and nothing else on either does.
     private func editorIsUp(_ app: XCUIApplication, timeout: TimeInterval) -> Bool {
-        app.buttons
-            .matching(NSPredicate(format: "label BEGINSWITH %@ AND identifier != %@",
-                                  "Close", "InboxClose"))
-            .firstMatch
-            .waitForExistence(timeout: timeout)
+        app.textFields["Title"].waitForExistence(timeout: timeout)
     }
 
     /// Held long enough to lift the card, and let go without going anywhere —

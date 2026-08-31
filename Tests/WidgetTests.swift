@@ -104,7 +104,7 @@ import Testing
     /// board holding nothing but its Done column, which is what every freshly
     /// made board is.
     @Test func aBoardWithNothingButDoneOffersNoColumnsToWorkIn() throws {
-        let bare = Board(name: "Bare", dot: .accent, columns: [BoardColumn.freshDone()],
+        let bare = Board(name: "Bare", columns: [BoardColumn.freshDone()],
                          codePrefix: "BR")
         let store = TestBoard.store(tasks: [], boards: [bare])
         let mirrored = try #require(digest(store).board(id: bare.id))
@@ -168,9 +168,10 @@ import Testing
         }
     }
 
-    /// *Recently updated* is capped at twenty by the view itself and at eight by
-    /// the digest, and the two caps mean different things: the pill says twenty,
-    /// the widget shows eight. Taking `tasks.count` for the pill would have
+    /// *Recently updated* is capped at twenty by the view itself and at sixteen
+    /// by the digest, and the two caps mean different things: the pill says
+    /// twenty, the widget shows what fits. Taking `tasks.count` for the pill
+    /// would have
     /// reported the digest's cap as the view's size.
     @Test func aViewsPillIsItsOwnLimitRatherThanTheDigestsCap() throws {
         let store = ViewBoard.store(tasks: ViewBoard.deepTasks)
@@ -537,6 +538,109 @@ import Testing
                 #expect(call.text.contains(family) == families.contains(family),
                         "\(path) offers \(call.text)")
             }
+        }
+    }
+
+    /// **Every tile is filled by the rows it has room for.**
+    ///
+    /// `WidgetRowCount` works its answer out from the tile rather than from the
+    /// family — the type itself shows why — so what is left worth pinning is
+    /// the arithmetic and its two ends: that a medium tile on a current phone
+    /// holds five headed rows and six bullets rather than the four of each it
+    /// drew when one constant had to serve every phone, that the smallest phone
+    /// still gets a count it can draw without overrunning its margin, and that
+    /// no tile can ask for more rows than the digest carries.
+    ///
+    /// The row sizes are read out of the extension's source, which is another
+    /// target — `everyWidgetOffersTheSizesItIsDocumentedWith`'s reason — and the
+    /// counts are worked out here by stacking rows one at a time, which is a
+    /// different sum from the division the source does. An off-by-one in the
+    /// gap, which is the whole bug class here, shows up as the two disagreeing.
+    @Test func everyTileIsFilledByTheRowsItHasRoomFor() throws {
+        guard SourceTree.isReachable else { return }
+        let file = try #require(
+            SourceTree.files().first { $0.path == "WidgetExtension/WidgetChrome.swift" }
+        )
+        func metric(_ name: String) throws -> (task: Double, bullet: Double) {
+            let pattern = try Regex(
+                #"var \#(name): CGFloat \{\s*switch self \{\s*case \.task: (\d+)\s*case \.bullet: (\d+)"#
+            )
+            let found = try #require(file.source.firstMatch(of: pattern),
+                                     "no \(name) on WidgetRowCount.Shape")
+            return (Double(found.output[1].substring!)!, Double(found.output[2].substring!)!)
+        }
+        let height = try metric("height")
+        let gap = try metric("gap")
+        #expect(file.source.contains("static let ceiling = WidgetDigest.listLength"),
+                "the row count is not clamped to what the digest carries")
+
+        /// Rows stacked into `room` one at a time, which is the question the
+        /// tile actually asks.
+        func fits(_ room: Double, row: Double, gap: Double) -> Int {
+            var count = 0
+            var used = 0.0
+            while used + (count == 0 ? row : gap + row) <= room {
+                used += count == 0 ? row : gap + row
+                count += 1
+            }
+            return min(WidgetDigest.listLength, max(1, count))
+        }
+
+        // A tile's content is its family size less the system's 16pt margins on
+        // each side; a headed list is that less the heading and its gap.
+        let heading = 16.0
+        for (tile, headed, bullets) in [
+            // The smallest phone still supported: 321×148 and 321×324.
+            (116.0, 4, 5),
+            // 6.1": 338×158 and 338×354.
+            (126.0, 5, 6),
+            // 6.7" and the desk: 364×170, 360×170.
+            (138.0, 5, 6),
+        ] {
+            #expect(fits(tile - heading - 6, row: height.task, gap: gap.task) == headed,
+                    "a \(tile)pt medium tile draws the wrong number of headed rows")
+            #expect(fits(tile, row: height.bullet, gap: gap.bullet) == bullets,
+                    "a \(tile)pt medium tile draws the wrong number of bullets")
+        }
+        // And the large family, whose heading sits on an 8pt gap. Fifteen is
+        // what a 6.7" phone holds, which is why the digest carries sixteen.
+        for (tile, rows) in [(292.0, 13), (322.0, 14), (350.0, 15)] {
+            #expect(fits(tile - heading - 8, row: height.task, gap: gap.task) == rows,
+                    "a \(tile)pt large tile draws the wrong number of rows")
+        }
+        #expect(fits(350 - heading - 8, row: height.task, gap: gap.task) < WidgetDigest.listLength,
+                "the digest carries no spare row over what the tallest tile draws")
+    }
+
+    /// That every list takes its length from the space it is in, and that the
+    /// saved view's medium is the one that takes it in bullets.
+    ///
+    /// The two shapes are different heights on different gaps, and one shape for
+    /// both is what drew four bullets in a box with room for six. A literal
+    /// `prefix(4)` left behind anywhere would be the older bug returning: a list
+    /// that draws the same length whatever tile it is on.
+    @Test func everyListTakesItsLengthFromTheSpaceItIsIn() throws {
+        guard SourceTree.isReachable else { return }
+        func source(_ path: String) throws -> String {
+            try #require(SourceTree.files().first { $0.path == path }, "\(path) is not there").source
+        }
+        let lists = [
+            "WidgetExtension/InboxWidget.swift",
+            "WidgetExtension/ColumnWidget.swift",
+            "WidgetExtension/SavedViewWidget.swift",
+        ]
+        for path in lists {
+            let text = try source(path)
+            #expect(text.contains("WidgetRowSpace"),
+                    "\(path) draws a list without measuring the room for it")
+            #expect(text.contains(/prefix\(\d/) == false,
+                    "\(path) still cuts a list at a fixed length")
+        }
+        #expect(try source("WidgetExtension/SavedViewWidget.swift").contains("shape: .bullet"),
+                "the saved-view medium is not measured in bullets")
+        for path in lists.dropLast() {
+            #expect(try source(path).contains("shape: .bullet") == false,
+                    "\(path) draws a heading over rows and took the bullet shape")
         }
     }
 

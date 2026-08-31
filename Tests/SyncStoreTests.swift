@@ -82,6 +82,88 @@ import Testing
         #expect(board == boards[0])
     }
 
+    /// A board's mark is v16's new attribute, and the same additive-only shape:
+    /// a `String` with a default, `SymbolMark.boardFallback` on every record a
+    /// build without it wrote.
+    ///
+    /// **The colour it replaced is left alone rather than cleared.** A CloudKit
+    /// schema is additive only, so `StoredBoard.dot` stays — and this build
+    /// neither reads nor writes it, which is what lets a device on an older
+    /// build go on finding the last colour it wrote instead of a board that has
+    /// gone colourless. `StoredColumn.roleKey` made the same bargain at v9.
+    @Test func aBoardsMarkSurvivesTheRoundTripAndLeavesTheOldColourAlone() throws {
+        let sync = try store()
+        var boards = SeedData.boards
+        boards[0].symbol = "paintbrush"
+        try sync.apply(snapshot(boards: boards))
+
+        let context = sync.container.mainContext
+        let record = try #require(
+            try context.fetch(FetchDescriptor<StoredBoard>()).first { $0.id == boards[0].id }
+        )
+        // A colour an older build had written, which this one must not touch.
+        record.dot = try JSONEncoder().encode(SwatchColor.hex(0xC2532F))
+        boards[0].symbol = "leaf"
+        try sync.apply(snapshot(boards: boards))
+
+        let read = try #require(try sync.load())
+        let board = try #require(read.boards.first { $0.id == boards[0].id })
+        #expect(board.symbol == "leaf")
+        // The whole board, field for field, which is what says the mark did not
+        // arrive at the cost of something else on the record.
+        #expect(board == boards[0])
+        #expect(BoardSyncStore.decoded(record.dot) == SwatchColor.hex(0xC2532F),
+                "the board's old colour was overwritten by a build that does not read it")
+    }
+
+    /// **The upgrade with sync on.** Board records written before v16 carry no
+    /// mark at all, and the file beside them has been through `migrate(v15:)`
+    /// and carries the one each board was *dealt*. The records are what put a
+    /// board on screen, so without the backfill every board would arrive
+    /// wearing the fallback and the whole point of the step — a sidebar that
+    /// stays legible across the upgrade — would be lost on exactly the installs
+    /// most likely to have several boards.
+    ///
+    /// This is `StoredTask.position`'s problem one version later, and it is
+    /// solved the same way: the record's attribute is optional so "never had
+    /// one" and "has the default" are different answers, and the file fills the
+    /// gap without touching anything else.
+    @Test func boardsUpgradedWithSyncOnKeepTheMarksTheFileDealtThem() throws {
+        let sync = try store()
+        var boards = SeedData.boards
+        boards.append(TestBoard.support)
+        try sync.apply(snapshot(boards: boards))
+
+        // The records as a pre-v16 build wrote them: no mark on any of them.
+        let context = sync.container.mainContext
+        for record in try context.fetch(FetchDescriptor<StoredBoard>()) { record.symbol = nil }
+        try context.save()
+        #expect(try sync.hasStoredBoardSymbols() == false)
+
+        // And the file as the migration left it.
+        var dealt = boards
+        for index in dealt.indices { dealt[index].symbol = Board.startingSymbols[index] }
+        let temp = TempBoard()
+        try temp.file.write(
+            BoardSnapshot(tasks: [], boards: dealt, labels: LabelDef.seed,
+                          nextSerial: 100, activeBoardID: dealt[0].id),
+            generation: temp.file.nextWriteGeneration()
+        )
+
+        let store = BoardStore.restored(file: temp.file, sync: sync)
+        #expect(store.boards.map(\.symbol) == dealt.map(\.symbol),
+                "a synced upgrade lost the marks the migration dealt")
+        #expect(try sync.hasStoredBoardSymbols(), "the records were left without marks")
+
+        // A mark a record *does* carry is never overwritten by the file.
+        var theirs = boards
+        theirs[0].symbol = "paintbrush"
+        try sync.apply(snapshot(boards: theirs))
+        let second = BoardStore.restored(file: temp.file, sync: sync)
+        #expect(second.boards.first?.symbol == "paintbrush",
+                "the file overwrote a mark another device had chosen")
+    }
+
     /// Task order is the order a manual drag writes. Unlike a Swift array,
     /// SwiftData's fetch order has no ordering contract, so the record stores
     /// it and the reader must use that position rather than fetch order.
@@ -743,6 +825,10 @@ private final class FlakySyncStore: SyncStoring {
     func hasStoredTaskOrder() throws -> Bool { try wrapped.hasStoredTaskOrder() }
     func backfillTaskPositions(from taskIDs: [TaskItem.ID]) throws {
         try wrapped.backfillTaskPositions(from: taskIDs)
+    }
+    func hasStoredBoardSymbols() throws -> Bool { try wrapped.hasStoredBoardSymbols() }
+    func backfillBoardSymbols(from boards: [Board]) throws {
+        try wrapped.backfillBoardSymbols(from: boards)
     }
     func apply(_ snapshot: BoardSnapshot, deleting: SyncIDs) throws {
         applyCount += 1

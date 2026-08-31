@@ -53,11 +53,30 @@ final class InboxPanelTests: XCTestCase {
         return app
     }
 
-    /// The Inbox's own ×. By identifier rather than by label, because the
-    /// editor's × is called Close too and both are on screen together once a
-    /// card in here has been tapped.
-    private func inboxClose(in app: XCUIApplication) -> XCUIElement {
-        app.buttons["InboxClose"]
+    /// The panel's own heading, which is how the panel is found now that it
+    /// draws no ✕ — the grabber above it says how it goes away, and the button
+    /// was repeating that. By the identifier `PhoneInboxSheet.titleID`
+    /// publishes rather than by the word: the tab bar has an Inbox button, the
+    /// drawer an Inbox row, and a card can wear an Inbox chip.
+    private func inboxTitle(in app: XCUIApplication) -> XCUIElement {
+        app.staticTexts["InboxPanelTitle"]
+    }
+
+    /// Puts a sheet away the way a finger does. `InboxSheetDragTests` measured
+    /// the reach — four tenths of the *window*, which clears UIKit's own
+    /// threshold at either of the two detents this app asks for — and owns the
+    /// claim that it works at all; here it is only the way out of a sheet.
+    private func dragDown(_ app: XCUIApplication, from y: CGFloat) {
+        let window = app.windows.firstMatch
+        window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: y))
+            .press(
+                forDuration: 0.05,
+                thenDragTo: window.coordinate(
+                    withNormalizedOffset: CGVector(dx: 0.5, dy: min(0.97, y + 0.4))
+                ),
+                withVelocity: .default,
+                thenHoldForDuration: 0.1
+            )
     }
 
     /// Turns the device and waits for the *shape* to have changed rather than
@@ -85,12 +104,24 @@ final class InboxPanelTests: XCTestCase {
     /// tall it ended up.
     ///
     /// **Four fifths, a tenth short of the editor's nine** — see
-    /// `PhoneInboxSheet.Metrics.heightFraction` for why the two differ. On an
-    /// iPhone 17 Pro (402x874) the × was measured at 235.8pt, which is 27% of
-    /// the way down; at nine tenths it was 17% and `.large` would be about 7%.
-    /// The band holds the one and rejects the others, and it has to be a band
-    /// rather than a number: the chrome above the × is a fixed *point* offset,
-    /// so it is a larger share of a short window than of a tall one.
+    /// `PhoneInboxSheet.Metrics.heightFraction` for why the two differ. The
+    /// panel's own top edge on an iPhone 17 Pro (402x874) is about 231pt, which
+    /// is 26% of the way down: the fraction is of the height inside the safe
+    /// areas, so it sits some 60pt lower than `0.2 × 874` alone would put it. At
+    /// nine tenths that edge is about 155 and `.large` would be about 62.
+    ///
+    /// **The mark moved twice and the band still holds.** It was the ✕, which
+    /// sat flush with the top of the panel; it is the heading now, which sits
+    /// where the ✕ did — nothing 44pt tall is beside it any more, so it fills
+    /// the row rather than being centred in it — plus
+    /// `PhoneSheetChrome.topClearance`, because with the button gone there was
+    /// nothing holding the name off the grabber and it drew through it. So 231
+    /// became 257, and 27% of the window became 29%. Nine tenths would read 21%
+    /// and `.large` about 10%.
+    ///
+    /// It has to be a band rather than a number: the clearance is a fixed
+    /// *point* offset, so it is a larger share of a short window than of a tall
+    /// one, and this one has to hold every iPhone the suite may be pointed at.
     func testTheInboxRisesToMostOfTheScreenAndStopsShortOfTheTop() throws {
         try XCTSkipUnless(
             UIDevice.current.userInterfaceIdiom == .phone,
@@ -99,11 +130,11 @@ final class InboxPanelTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
 
         let app = opened()
-        let close = inboxClose(in: app)
-        XCTAssertTrue(close.waitForExistence(timeout: 20), "no Inbox sheet on screen")
+        let heading = inboxTitle(in: app)
+        XCTAssertTrue(heading.waitForExistence(timeout: 20), "no Inbox sheet on screen")
 
         let window = app.windows.firstMatch.frame
-        let top = close.frame.minY
+        let top = heading.frame.minY
         XCTAssertGreaterThan(
             top, window.height * 0.22,
             "the Inbox is rising too far — its header is \(top)pt down a \(window.height)pt window, and the board it was opened over has stopped showing"
@@ -124,7 +155,7 @@ final class InboxPanelTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
 
         let app = opened()
-        XCTAssertTrue(inboxClose(in: app).waitForExistence(timeout: 20), "no Inbox sheet on screen")
+        XCTAssertTrue(inboxTitle(in: app).waitForExistence(timeout: 20), "no Inbox sheet on screen")
 
         let card = app.buttons
             .matching(NSPredicate(format: "label CONTAINS %@", "Cards jump 1px on drop")).firstMatch
@@ -136,13 +167,15 @@ final class InboxPanelTests: XCTestCase {
                       "tapping a card in the Inbox raised no editor — the root cannot present over this sheet, so the Inbox has to")
         XCTAssertEqual(title.value as? String, "Cards jump 1px on drop", "the wrong card opened")
 
-        // The editor's own ×, which is a different button from the Inbox's.
-        app.buttons.matching(NSPredicate(format: "label == %@", "Close"))
-            .allElementsBoundByIndex
-            .first { $0.identifier != "InboxClose" }?
-            .tap()
+        // The editor goes away by being pulled down — it has no ✕ either, and
+        // the two used to be told apart by identifier here because both called
+        // themselves Close. It is at nine tenths, so a drag that starts a
+        // seventh of the way down the window starts on the editor and not on
+        // the Inbox behind it.
+        dragDown(app, from: 0.15)
+        XCTAssertTrue(title.waitForNonExistence(timeout: 5), "the editor would not close")
 
-        XCTAssertTrue(inboxClose(in: app).waitForExistence(timeout: 5),
+        XCTAssertTrue(inboxTitle(in: app).waitForExistence(timeout: 5),
                       "the Inbox went away with the editor it put up")
     }
 
@@ -160,23 +193,11 @@ final class InboxPanelTests: XCTestCase {
 
         let slot = app.buttons["Inbox"].firstMatch
         XCTAssertTrue(slot.waitForExistence(timeout: 20), "no Inbox slot on the tab bar")
-        XCTAssertFalse(inboxClose(in: app).exists, "the Inbox is up before anything was tapped")
+        XCTAssertFalse(inboxTitle(in: app).exists, "the Inbox is up before anything was tapped")
         slot.tap()
 
-        XCTAssertTrue(inboxClose(in: app).waitForExistence(timeout: 5),
+        XCTAssertTrue(inboxTitle(in: app).waitForExistence(timeout: 5),
                       "the tab bar's Inbox slot did not raise the sheet")
-    }
-
-    func testTheCloseButtonStillCloses() throws {
-        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "iPhone only")
-        XCUIDevice.shared.orientation = .portrait
-
-        let app = opened()
-        let close = inboxClose(in: app)
-        XCTAssertTrue(close.waitForExistence(timeout: 20), "no Inbox sheet on screen")
-        close.tap()
-        XCTAssertTrue(inboxClose(in: app).waitForNonExistence(timeout: 5),
-                      "the × did not close the Inbox")
     }
 
     /// **No thicker turned than it is upright.** The panel is capped at the
@@ -191,8 +212,8 @@ final class InboxPanelTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
 
         let app = opened()
-        let close = inboxClose(in: app)
-        XCTAssertTrue(close.waitForExistence(timeout: 20), "no Inbox sheet on screen")
+        let heading = inboxTitle(in: app)
+        XCTAssertTrue(heading.waitForExistence(timeout: 20), "no Inbox sheet on screen")
 
         // The phone's own portrait width, taken from the phone rather than
         // written down: this suite runs on whatever simulator it is pointed at,
@@ -211,7 +232,7 @@ final class InboxPanelTests: XCTestCase {
 
         turn(app, to: .landscapeLeft)
         let turned = app.frame
-        XCTAssertTrue(close.waitForExistence(timeout: 10), "the panel did not survive the rotation")
+        XCTAssertTrue(heading.waitForExistence(timeout: 10), "the panel did not survive the rotation")
 
         // **The claim.** Not quite the same number as upright — a sheet at a
         // detent is inset 8pt each side and scaled by `(W - 16) / W`, and one
@@ -229,13 +250,14 @@ final class InboxPanelTests: XCTestCase {
 
         // **Inset from both edges**, which is the other half of "it is a panel":
         // a page clipped to 402pt at one edge would pass the measurement above
-        // and still be a page. By the two ends of the header rather than by a
-        // midpoint, because a card's button is the summary *beside* the tick
-        // rather than the card — its frame sits off centre by the width of the
-        // gutter, and a test reading it as the middle would be measuring the
-        // tick.
+        // and still be a page. By the two ends of the *card*, which is the
+        // widest thing in the panel and so the one that would give a hidden
+        // overrun away. It used to read the trailing end off the header's ×,
+        // which is not there any more — and the heading that replaced it sits
+        // at the leading edge, where a trailing measurement would pass whatever
+        // the panel did.
         XCTAssertLessThan(
-            close.frame.maxX, turned.width - 200,
+            card.frame.maxX, turned.width - 150,
             "the Inbox panel still reaches the trailing edge of the screen"
         )
         XCTAssertGreaterThan(
@@ -247,7 +269,7 @@ final class InboxPanelTests: XCTestCase {
         // made again in the shape that lost it: laid out at the whole screen the
         // header sat at y = 0.
         XCTAssertGreaterThan(
-            close.frame.minY, 20,
+            heading.frame.minY, 20,
             "the Inbox panel reaches the top of the screen on its side"
         )
 
@@ -269,26 +291,26 @@ final class InboxPanelTests: XCTestCase {
     ///
     /// The strip is found by measuring rather than by name: it is hidden from a
     /// reader, having nothing to say to one, so there is no identifier to ask
-    /// for. It sits directly above the header, which the × is in.
+    /// for. It sits directly above the header, which the heading is in.
     func testThePullOnItsSidePutsThePanelAway() throws {
         try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "iPhone only")
         XCUIDevice.shared.orientation = .portrait
 
         let app = opened()
-        let close = inboxClose(in: app)
-        XCTAssertTrue(close.waitForExistence(timeout: 20), "no Inbox sheet on screen")
+        let heading = inboxTitle(in: app)
+        XCTAssertTrue(heading.waitForExistence(timeout: 20), "no Inbox sheet on screen")
 
         turn(app, to: .landscapeLeft)
-        XCTAssertTrue(close.waitForExistence(timeout: 10), "the panel did not survive the rotation")
+        XCTAssertTrue(heading.waitForExistence(timeout: 10), "the panel did not survive the rotation")
 
-        let header = close.frame
+        let header = heading.frame
         let origin = app.coordinate(withNormalizedOffset: .zero)
         let start = origin.withOffset(CGVector(dx: header.midX, dy: header.minY - 12))
         let end = origin.withOffset(CGVector(dx: header.midX, dy: header.minY + 220))
         start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .default,
                     thenHoldForDuration: 0.1)
 
-        XCTAssertTrue(inboxClose(in: app).waitForNonExistence(timeout: 5),
+        XCTAssertTrue(inboxTitle(in: app).waitForNonExistence(timeout: 5),
                       "a pull down on the panel's own handle did not put it away")
     }
 }

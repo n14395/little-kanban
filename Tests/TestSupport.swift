@@ -247,7 +247,7 @@ enum TestBoard {
     /// other's cards.
     static let support = Board(
         id: UUID(uuid: (0xB0, 0xA4, 0, 0, 0, 0, 0x40, 0, 0x80, 0, 0, 0, 0, 0, 0, 0x5E)),
-        name: "Support triage", dot: .hex(0xC98A16), createdAt: at(200_000),
+        name: "Support triage", symbol: "lifepreserver", createdAt: at(200_000),
         columns: [queue, closed], codePrefix: "ST"
     )
 
@@ -499,7 +499,7 @@ enum ForeignBoard {
 
     static let board = Board(
         id: UUID(uuid: (0xF0, 0xB0, 0, 0, 0, 0, 0x40, 0, 0x80, 0, 0, 0, 0, 0, 0, 0x01)),
-        name: "Website refresh", dot: .hex(0x783CA0), createdAt: at(500_000),
+        name: "Website refresh", symbol: "globe", createdAt: at(500_000),
         columns: [triage, shipped], codePrefix: "WR"
     )
 

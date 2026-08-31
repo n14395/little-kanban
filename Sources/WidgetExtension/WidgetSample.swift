@@ -40,7 +40,7 @@ extension WidgetDigest {
                 WidgetBoard(
                     id: UUID(),
                     name: String(localized: "Studio", comment: "Sample board name in the widget gallery"),
-                    dot: .hex(0xC2532F),
+                    symbol: "paintbrush",
                     columns: [
                         column(String(localized: "Backlog", comment: "Seed column: work not started"),
                                dot: .hex(0xA8A29A), count: 7,

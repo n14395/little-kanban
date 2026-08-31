@@ -503,4 +503,13 @@ import Testing
         #expect(SavedViewEditor.Metrics.sheet.hit == 44)
         #expect(SavedViewEditor.Metrics.desk.hit == 0)
     }
+
+    /// The icon well came from Board Settings whole, so it has to arrive at
+    /// both of this editor's sizes rather than at the desk's twice — a 30pt
+    /// control in a sheet is the thing the touch presets exist to prevent.
+    @Test func theIconWellIsSizedForTheSurfaceItIsOn() {
+        #expect(SavedViewEditor.Metrics.sheet.symbolWell.height == SymbolWell.Metrics.sheet.height)
+        #expect(SavedViewEditor.Metrics.desk.symbolWell.height == SymbolWell.Metrics.desk.height)
+        #expect(SymbolWell.Metrics.sheet.height >= 44)
+    }
 }

@@ -14,23 +14,50 @@ struct LabelEditor: View {
         /// only what it draws; on touch the dashed box is half a target.
         var addHit: CGFloat
         var picker: LabelPickerList.Metrics
+        /// Which side of the `+` the picker hangs off, or `nil` to let the
+        /// system place it — ``DueDateField/Metrics/arrowEdge`` exactly, and
+        /// for the same measured reason it gives at length: a named edge is the
+        /// only placement UIKit is permitted, and `.bottom` permits only "above
+        /// the button". The Labels row sits low enough in the phone's editor
+        /// that the panel was clamped into the space above it with the search
+        /// field, the **New Label** button and the first labels cut off the top
+        /// — while the whole lower half of the screen sat empty.
+        var arrowEdge: Edge?
 
         static let desk = Metrics(
             chipSize: .compact, addFont: 11, addHorizontalPadding: 7, addVerticalPadding: 3,
-            addRadius: 6, addBorderWidth: 1, spacing: 5, addHit: 0, picker: .desk
+            addRadius: 6, addBorderWidth: 1, spacing: 5, addHit: 0, picker: .desk,
+            arrowEdge: .bottom
         )
         static let sheet = Metrics(
             chipSize: .comfortable, addFont: 13, addHorizontalPadding: 11, addVerticalPadding: 5,
-            addRadius: 8, addBorderWidth: 1.5, spacing: 6, addHit: 44, picker: .sheet
+            addRadius: 8, addBorderWidth: 1.5, spacing: 6, addHit: 44, picker: .sheet,
+            arrowEdge: nil
         )
     }
 
     @Environment(\.palette) private var palette
     @Environment(BoardStore.self) private var store
+    #if os(iOS)
+    /// Read here rather than inside the panel, for ``ColorWell/adaptation``'s
+    /// reason: a presented popover's own environment describes the popover, not
+    /// the screen it has to fit on. See ``LabelPickerList/standsItsGround``.
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    #endif
 
     let task: TaskItem
     let scope: DetailScope
     var metrics: Metrics = .desk
+
+    /// Whether the panel may insist on its own height. Everywhere but a phone
+    /// lying down, where 402pt of screen cannot hold it either side of the `+`.
+    private var panelHasRoom: Bool {
+        #if os(iOS)
+        verticalSizeClass != .compact
+        #else
+        true
+        #endif
+    }
 
     var body: some View {
         FlowLayout(spacing: metrics.spacing) {
@@ -63,8 +90,11 @@ struct LabelEditor: View {
         }
         .buttonStyle(.bare)
         .accessibilityLabel("Add label")
-        .popover(isPresented: pickerBinding, arrowEdge: .bottom) {
-            LabelPickerList(task: task, scope: scope, metrics: metrics.picker)
+        .popover(isPresented: pickerBinding, arrowEdge: metrics.arrowEdge) {
+            LabelPickerList(
+                task: task, scope: scope, metrics: metrics.picker,
+                standsItsGround: panelHasRoom
+            )
                 .environment(store)
                 .environment(\.palette, palette)
                 .presentationCompactAdaptation(.popover)
@@ -106,10 +136,20 @@ struct LabelPickerList: View {
             rowRadius: 8, rowHit: 0, chipSize: .compact, fieldFont: 12, fieldPadding: 8,
             fieldRadius: 9, panelPadding: 7, compose: .desk
         )
+        // **Wider and better inset than it was**, which is what the panel is
+        // measured against its own siblings rather than against nothing: the
+        // calendar's touch panel is 344 wide inside 12pt of padding and the
+        // label manager's compose popover 230 inside 16, while this one was 250
+        // inside *8* — the desk's inset plus one point. The compose form it
+        // swaps to is a title, a field, a colour the width of the panel and two
+        // verbs, and at that inset all four ran wall to wall with the popover's
+        // own rounded corners a few points off them. Fourteen is the family's
+        // middle, and the width grows with it so the extra inset comes out of
+        // the screen rather than out of the content.
         static let sheet = Metrics(
-            width: 250, maxListHeight: 320, rowVerticalPadding: 9, rowHorizontalPadding: 8,
+            width: 300, maxListHeight: 320, rowVerticalPadding: 9, rowHorizontalPadding: 8,
             rowRadius: 10, rowHit: 44, chipSize: .comfortable, fieldFont: 14, fieldPadding: 10,
-            fieldRadius: 11, panelPadding: 8, compose: .sheet
+            fieldRadius: 11, panelPadding: 14, compose: .sheet
         )
     }
 
@@ -121,6 +161,25 @@ struct LabelPickerList: View {
     /// compose form is kept apart from the other surface's.
     let scope: DetailScope
     var metrics: Metrics = .desk
+    /// Whether the list refuses a height smaller than its rows — see
+    /// ``rowsHeight``, which is the whole of why it would.
+    ///
+    /// **The caller decides, because only the caller can still see the screen**
+    /// — `ColorWell.adaptation`'s reason: once presented, this view's own
+    /// environment describes the popover rather than the screen the popover has
+    /// to live on. The floor answers a popover that will not grow back, and it
+    /// is the right answer wherever there is room for the panel at all. Where
+    /// there is not — a phone lying down has about 180pt either side of the `+`
+    /// and this panel is 361 with five labels in it — standing its ground means
+    /// being laid out at full length inside a box that size and *clipped*, with the
+    /// search field and **New Label** off the top. Yielding, the panel fits
+    /// what it is given: the chrome above the list is fixed, so the list is what
+    /// shrinks and the rows scroll inside what is left.
+    ///
+    /// Placement is the first half of the same answer — see
+    /// ``LabelEditor/Metrics/arrowEdge``, which is what stops the panel being
+    /// pinned to the short side of the `+` on a screen that has a long one.
+    var standsItsGround = true
 
     @FocusState private var isSearchFocused: Bool
 
@@ -149,6 +208,10 @@ struct LabelPickerList: View {
     /// floor of nought is simply the flexible list the panel already was, sized
     /// correctly on the way in and pinned from the next pass onwards. Capped at
     /// `maxListHeight` so a long list still scrolls inside its 320pt.
+    ///
+    /// **A floor only where the screen has room for one** — see
+    /// ``standsItsGround``, which is where the opposite constraint is written
+    /// down.
     @State private var rowsHeight: CGFloat = 0
     /// The colour picked in the form, or `nil` while it still shows the
     /// rotation's next — see `BoardStore.nextLabelColor`.
@@ -160,7 +223,18 @@ struct LabelPickerList: View {
     var body: some View {
         Group {
             if isComposing {
-                composeForm
+                // **The form is not given the height it asks for.** It is
+                // shorter than the list it replaces and the popover follows it
+                // down — measured on the phone, a 349pt panel to 202 — but it
+                // lands a little short of the form's own 225, and what was
+                // drawn outside the box was **Cancel** and **Add**, 21pt below
+                // the panel's foot and reporting `hittable == false`: a form
+                // that could be opened and neither committed nor cancelled.
+                // A scroll view asks for exactly the same height and scrolls
+                // whatever it is not given, which is `DueDateField.picker`'s
+                // answer to the same arithmetic.
+                ScrollView { composeForm }
+                    .scrollBounceBehavior(.basedOnSize)
             } else {
                 list
             }
@@ -194,7 +268,7 @@ struct LabelPickerList: View {
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { rowsHeight = $0 }
             }
             .scrollBounceBehavior(.basedOnSize)
-            .frame(minHeight: min(rowsHeight, metrics.maxListHeight),
+            .frame(minHeight: standsItsGround ? min(rowsHeight, metrics.maxListHeight) : 0,
                    maxHeight: metrics.maxListHeight)
         }
         .defaultFocus($isSearchFocused, true)
@@ -343,13 +417,21 @@ struct LabelComposeForm: View {
         var fieldRadius: CGFloat
         /// The floor under the two verbs, for a finger.
         var actionHit: CGFloat
+        /// Between the four rows. Under a finger they are a 42pt field, a 44pt
+        /// colour and a 44pt pair of verbs, and 8pt between them reads as one
+        /// block of controls rather than four things — the same eight that
+        /// separates a 22pt field from a 26pt well on the desk, where it is the
+        /// right number.
+        var spacing: CGFloat
         var colorWell: ColorWell.Metrics
 
         static let desk = Metrics(
-            fieldFont: 12, fieldPadding: 8, fieldRadius: 9, actionHit: 0, colorWell: .desk
+            fieldFont: 12, fieldPadding: 8, fieldRadius: 9, actionHit: 0,
+            spacing: 8, colorWell: .desk
         )
         static let sheet = Metrics(
-            fieldFont: 14, fieldPadding: 10, fieldRadius: 11, actionHit: 44, colorWell: .sheet
+            fieldFont: 14, fieldPadding: 10, fieldRadius: 11, actionHit: 44,
+            spacing: 12, colorWell: .sheet
         )
     }
 
@@ -369,7 +451,7 @@ struct LabelComposeForm: View {
     private var isEmpty: Bool { name.trimmingCharacters(in: .whitespaces).isEmpty }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: metrics.spacing) {
             Text("New Label")
                 .font(palette.ui(metrics.fieldFont + 1, .bold, relativeTo: .subheadline))
                 .foregroundStyle(palette.ink)

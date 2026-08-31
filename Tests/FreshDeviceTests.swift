@@ -107,7 +107,7 @@ import Testing
 
         // A board of ours that happens to carry their id — which is exactly
         // what two devices seeding the same starter template produces.
-        let mine = Board(id: Self.boardID, name: "Sample", dot: .accent,
+        let mine = Board(id: Self.boardID, name: "Sample",
                          columns: [BoardColumn.backlog], codePrefix: "SA")
         try sync.apply(BoardSnapshot(tasks: [], boards: [mine], labels: [], nextSerial: 100))
 

@@ -44,13 +44,13 @@ final class BoardSettingsSheetTests: XCTestCase {
     }
 
     /// Everything the sheet was built to hold, in one place: the board's name
-    /// and colour — which on the phone existed nowhere at all — and its columns,
+    /// and icon — which on the phone existed nowhere at all — and its columns,
     /// which existed only one at a time behind a column header the phone does
     /// not draw.
     func testTheSheetHoldsTheBoardAndItsColumns() throws {
         let app = opened()
 
-        for section in ["Name", "Colour", "Columns"] {
+        for section in ["Name", "Icon", "Columns"] {
             let label = app.staticTexts
                 .matching(NSPredicate(format: "label ==[c] %@", section))
                 .firstMatch
@@ -159,19 +159,20 @@ final class BoardSettingsSheetTests: XCTestCase {
         XCTAssertNotNil(columnRow("Blocked", in: app), "the column was never added")
     }
 
-    /// One of the composer's swatches, told from the board's own by where it
-    /// sits: the board's colour row is above the columns and scrolls away with
-    /// them, while the composer's is level with its Name field in one row and
-    /// under it in two. Both rows publish the same six names, so a plain query
-    /// matches twice.
-    /// The composer's colour control, told apart from the board's own by being
-    /// *below* the Name field this composer owns.
+    /// The composer's colour control, found *below* the Name field this
+    /// composer owns.
     ///
     /// It used to look for a swatch named "Indigo", because the composer drew a
     /// row of six of them. `DotPicker` is gone — every colour in the app is now
     /// picked with one ``ColorWell``, a button labelled *Select Colour* wearing
     /// the colour it has, with the colour's name as its accessibility *value*
     /// rather than its label. See **The colour picker** in the README.
+    ///
+    /// The frame filter used to be what told this control from the board's own
+    /// colour well above the columns. Since v16 the board wears an icon and its
+    /// well says *Select Icon*, so a column's is the only thing this query can
+    /// match — the filter stays because a *second* composer, open on another
+    /// column, would bring the ambiguity straight back.
     private func composerColourWell(
         beside name: XCUIElement, in app: XCUIApplication
     ) -> XCUIElement? {

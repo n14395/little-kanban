@@ -57,7 +57,7 @@ struct BoardOverviewWidgetView: View {
         let working = board.workingColumns
         return VStack(alignment: .leading, spacing: 9) {
             WidgetHeading(
-                mark: .dot(board.dot), title: board.name,
+                mark: .symbol(SymbolMark.resolved(board.symbol)), title: board.name,
                 count: working.reduce(0) { $0 + $1.count }
             )
             if working.isEmpty {

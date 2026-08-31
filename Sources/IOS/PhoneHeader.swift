@@ -93,8 +93,23 @@ struct PhoneHeader: View {
     /// Inbox used to be the other exception, borrowing no board's name because
     /// it is on none; it is a panel over this header now rather than under it,
     /// and carries its own title.
+    ///
+    /// **Search is the exception that is left.** Its results come from every
+    /// board and the Inbox alike (see `BoardStore.searchResults`), so the active
+    /// board's name stood in the largest type on screen over a list that was
+    /// mostly not from it — a title answering "where am I" with somewhere you
+    /// are not. The word is ``PhoneTab/search``'s own, the one the slot that got
+    /// you here is drawn with, rather than a second literal to keep in step with
+    /// it. No glyph beside it, where a saved view has one: the field directly
+    /// underneath opens with the same magnifier, and the pair a hand's width
+    /// apart would be the strip the saved-view title replaced in miniature.
+    ///
+    /// A saved view still outranks it, as it does in `mobileTasks` — which is
+    /// what ``BoardStore/isSearching`` says, and why `titleLabel` asks about the
+    /// view first.
     private var title: String {
-        store.activeBoard?.name ?? String(
+        if store.isSearching { return PhoneTab.search.label }
+        return store.activeBoard?.name ?? String(
             localized: "No Board", comment: "Phone header title when every board has been deleted"
         )
     }
@@ -149,7 +164,7 @@ struct PhoneHeader: View {
     ///
     /// **What is *not* in here is the drawer's.** It carried a Switch Board item
     /// and the whole list of saved views, both of which the hamburger one thumb's
-    /// width away draws in full — the boards with their dots and counts, the
+    /// width away draws in full — the boards with their marks and counts, the
     /// views with theirs, the Archive under them — so the menu was a second,
     /// shorter, worse copy of the panel beside it. It also carried Clear Search,
     /// which the search field's own × does and which the filtered indicator

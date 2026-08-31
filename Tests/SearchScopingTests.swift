@@ -177,6 +177,45 @@ import Testing
         #expect(store.activeView == nil)
     }
 
+    /// **The Search slot is a switch**, which the drawer's destination rows are
+    /// deliberately not: it is the phone's only way back out of search now that
+    /// the Board slot is gone, and the alternative was opening the drawer and
+    /// picking the board you were already looking at.
+    @Test func theSearchSlotPutsAwayTheSearchItOpened() {
+        let store = TestBoard.store()
+        store.toggleSearch()
+        #expect(store.tab == .search)
+        #expect(store.isSearching)
+
+        store.query = "cafe"
+        store.mobileColumnID = backlog
+        store.toggleSearch()
+
+        #expect(store.tab == .board)
+        #expect(!store.isSearching)
+        // Closing is a cancel, query and all: the field goes with the tab, so
+        // anything left in it would be text nothing on screen shows — waiting
+        // to narrow the next saved view, and to be typed into the middle of.
+        #expect(store.query == "")
+        #expect(codes(store) == ["NW-121", "NW-122"])
+    }
+
+    /// A saved view outranks the tab, so with Today in front of the board the
+    /// slot is not lit and a tap on it is a request to *go* to search rather
+    /// than to leave it. One predicate answers both questions — what is lit and
+    /// what a second tap puts away — so the two cannot come apart.
+    @Test func aSavedViewOverTheSearchTabIsNotASearchToPutAway() {
+        let store = TestBoard.store()
+        store.tab = .search
+        store.activeView = .today
+        #expect(!store.isSearching)
+
+        store.toggleSearch()
+
+        #expect(store.activeView == nil)
+        #expect(store.isSearching)
+    }
+
     /// A quick capture leaves the saved view — the card it makes lands in the
     /// Inbox, and a filter it is unlikely to match is not where the user should
     /// be left looking once the sheet closes.

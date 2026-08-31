@@ -26,11 +26,11 @@ import Testing
     private static let betaID = uuid(0xB0, 0x1D, 2)
 
     private static let alpha = Board(
-        id: alphaID, name: "Alpha", dot: .accent, createdAt: TestBoard.at(90_000),
+        id: alphaID, name: "Alpha", symbol: "house", createdAt: TestBoard.at(90_000),
         columns: [alphaTodo, alphaDone], codePrefix: "AL"
     )
     private static let beta = Board(
-        id: betaID, name: "Beta", dot: .hex(0x1F6F63), createdAt: TestBoard.at(80_000),
+        id: betaID, name: "Beta", symbol: "briefcase", createdAt: TestBoard.at(80_000),
         columns: [betaTodo, betaDone], codePrefix: "BE"
     )
 
@@ -391,9 +391,9 @@ import Testing
 
     // MARK: Managing boards
 
-    @Test func aBoardCanBeCreatedRenamedRecolouredReorderedAndDeleted() throws {
+    @Test func aBoardCanBeCreatedRenamedRemarkedReorderedAndDeleted() throws {
         let store = Self.store()
-        let id = try #require(store.createBoard(named: "Gamma", dot: .hex(0xC98A16), codePrefix: "gm"))
+        let id = try #require(store.createBoard(named: "Gamma", symbol: "leaf", codePrefix: "gm"))
         #expect(store.boards.map(\.name) == ["Alpha", "Beta", "Gamma"])
         #expect(store.board(id: id)?.codePrefix == "GM")
         // Creating a board moves to it — it is the one place the user is going.
@@ -401,8 +401,13 @@ import Testing
 
         store.renameBoard(id, to: "  Gamma   Ray  ")
         #expect(store.board(id: id)?.name == "Gamma Ray")
-        store.recolorBoard(id, to: .accent)
-        #expect(store.board(id: id)?.dot == .accent)
+        #expect(store.board(id: id)?.symbol == "leaf")
+        store.setBoardSymbol(id, to: "flame")
+        #expect(store.board(id: id)?.symbol == "flame")
+        // Trimmed, and an empty one is refused in favour of the fallback: a row
+        // with no mark at all is a row that looks broken.
+        store.setBoardSymbol(id, to: "   ")
+        #expect(store.board(id: id)?.symbol == SymbolMark.boardFallback)
 
         store.moveBoard(fromOffsets: [2], toOffset: 0)
         #expect(store.boards.map(\.name) == ["Gamma Ray", "Alpha", "Beta"])
@@ -580,7 +585,7 @@ import Testing
 
         mutate("createBoard") { $0.createBoard(named: "Gamma") }
         mutate("renameBoard") { $0.renameBoard(Self.betaID, to: "Support") }
-        mutate("recolorBoard") { $0.recolorBoard(Self.betaID, to: .accent) }
+        mutate("setBoardSymbol") { $0.setBoardSymbol(Self.betaID, to: "flame") }
         mutate("moveBoard") { $0.moveBoard(fromOffsets: [1], toOffset: 0) }
         mutate("deleteBoard") { $0.deleteBoard(Self.betaID) }
         mutate("selectBoard") { $0.selectBoard(Self.betaID) }
@@ -608,7 +613,7 @@ import Testing
 
         check("createBoard") { $0.createBoard(named: "Gamma") }
         check("renameBoard") { $0.renameBoard(Self.betaID, to: "Support") }
-        check("recolorBoard") { $0.recolorBoard(Self.betaID, to: .accent) }
+        check("setBoardSymbol") { $0.setBoardSymbol(Self.betaID, to: "flame") }
         check("moveBoard") { $0.moveBoard(fromOffsets: [1], toOffset: 0) }
         check("deleteBoard") { $0.deleteBoard(Self.betaID) }
         check("file") { $0.file(Self.captured, onto: Self.betaID, column: Self.betaTodo.id) }
@@ -711,7 +716,7 @@ import Testing
         // went with none of them. The other two left with theirs.
         #expect(relaunched.inboxTasks.count == 1, "the Inbox's own card went missing with a board")
 
-        let made = relaunched.createBoard(named: "Fresh", dot: .accent)
+        let made = relaunched.createBoard(named: "Fresh")
         #expect(relaunched.boards.map(\.name) == ["Fresh"])
         #expect(relaunched.activeBoardID == made)
         // Blank, and deliberately: the board surface's own offer is a first
@@ -737,7 +742,9 @@ import Testing
         #expect(snapshot.boards.count == 1)
         let board = try #require(snapshot.boards.first)
         #expect(board.name == "Northwind iOS 3.0")
-        #expect(board.dot == .accent)
+        // The mark the v15 → v16 step deals the first board — see
+        // `MigrationChainTests`, which is where the dealing is described.
+        #expect(board.symbol == Board.startingSymbols[0])
         #expect(board.codePrefix == "NW")
         #expect(board.columns == BoardColumn.workflow)
         #expect(snapshot.activeBoardID == board.id)

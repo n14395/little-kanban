@@ -44,7 +44,7 @@ import Testing
     /// leaked across columns.
     private static let boards: [Board] = (0..<2).map { b in
         Board(
-            id: uuid(0xB0, b), name: "Board \(b)", dot: .hex(0xA8A29A),
+            id: uuid(0xB0, b), name: "Board \(b)",
             createdAt: TestBoard.at(300_000 - b * 100),
             columns: (0..<columnsPerBoard).map { c in
                 BoardColumn(
