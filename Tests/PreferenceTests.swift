@@ -125,7 +125,7 @@ import UserNotifications
         store.sortOrder = .dueDate
         // Completion feedback — the switch and the chosen chime.
         UserDefaults.standard.set(false, forKey: Preferences.completionSoundKey)
-        UserDefaults.standard.set(CompletionSound.glass.rawValue, forKey: CompletionSound.storageKey)
+        UserDefaults.standard.set(CompletionSound.glassTriad.rawValue, forKey: CompletionSound.storageKey)
         // Notifications — on or off, and the time of day.
         let suite = try #require(UserDefaults(suiteName: "SimpleKanbanTests-\(UUID().uuidString)"))
         let scheduler = NotificationScheduler(center: nil, defaults: suite)

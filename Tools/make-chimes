@@ -1,0 +1,434 @@
+#!/usr/bin/env python3
+"""Synthesises the completion-chime candidates, so a new one is a diff not a download.
+
+The five sounds in `Resources/Sounds/` were made rather than sourced, and there
+was no script behind them — which meant a sixth could only be got by finding a
+stranger's WAV and hoping it sat beside the other five. This is that missing
+half: every chime is a handful of numbers here, so they can be retuned against
+each other, and a candidate that is nearly right can be nudged instead of
+rejected.
+
+    Tools/make-chimes                  # writes build/chime-candidates/
+    Tools/make-chimes --out DIR        # somewhere else
+    Tools/make-chimes --only glass     # just the ones whose name matches
+
+Each candidate is written twice: a `.caf` in the format the app's
+`AudioServicesCreateSystemSoundID` path wants — mono, 44.1 kHz, 16-bit, which
+is what the shipped five already are — and a `.wav` beside it, because browsers
+and Quick Look will play a WAV and will not always play a CAF. A single
+`all-candidates.wav` is written too, the lot in order with a gap between, for
+hearing them as a set rather than one at a time.
+
+**Everything is struck, and nothing is a sample.** A chime that means *finished*
+is a physical object being hit: the partials are inharmonic, the high ones die
+first, and there is a scrape of contact noise before the tone. That is what the
+`ratios` tables are — measured partial series for a bar, a bell, a glass, a
+tine — and it is why these read as objects rather than as beeps. The synthesis
+is additive because at half a second nothing more is warranted.
+
+**They are levelled by RMS, not by peak.** Peak-normalised, the long bell would
+sit obviously quieter than the dry knock, and auditioning them would be a
+comparison of loudness rather than of character — the choice has to be made on
+the sound. Anything the RMS target would push into clipping is pulled back to
+the peak ceiling instead, so a couple of the very short ones land a shade under.
+"""
+
+import argparse
+import math
+import random
+import struct
+import subprocess
+import sys
+import wave
+from pathlib import Path
+
+SR = 44100
+TARGET_RMS = 0.11      # levelled to this unless the peak ceiling bites first
+PEAK_CEILING = 0.92
+
+# --- notes ------------------------------------------------------------------
+
+STEPS = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+
+
+def hz(name):
+    """"C6" -> 1046.5. Sharps as "F#5", flats as "Eb5"."""
+    letter, rest = name[0].upper(), name[1:]
+    semis = STEPS[letter]
+    while rest and rest[0] in "#b":
+        semis += 1 if rest[0] == "#" else -1
+        rest = rest[1:]
+    midi = 12 * (int(rest) + 1) + semis
+    return 440.0 * 2 ** ((midi - 69) / 12)
+
+
+# --- partial series ---------------------------------------------------------
+#
+# (ratio, amplitude) against the fundamental. The inharmonic ones are what make
+# each family recognisable: a bar is ~1:4:10, a tubular bell ~1:2.76:5.4, and a
+# struck glass sits between them.
+
+BAR = [(1, 1.0), (3.98, 0.34), (10.65, 0.11), (19.6, 0.035)]        # marimba
+GLASS = [(1, 1.0), (2.32, 0.50), (4.25, 0.26), (6.63, 0.13), (9.38, 0.06)]
+BELL = [(1, 1.0), (2.76, 0.58), (5.40, 0.33), (8.93, 0.17), (13.34, 0.08)]
+TINE = [(1, 1.0), (2.0, 0.14), (6.27, 0.42), (12.5, 0.07)]          # Rhodes
+BOX = [(1, 1.0), (2.70, 0.38), (5.10, 0.21), (8.50, 0.10), (12.4, 0.045)]
+KALIMBA = [(1, 1.0), (3.20, 0.26), (6.80, 0.09)]
+BOWL = [(1, 1.0), (2.00, 0.28), (2.83, 0.42), (5.10, 0.18), (7.00, 0.08)]
+WOOD = [(1, 1.0), (2.42, 0.55), (4.10, 0.25)]
+
+
+def buf(seconds):
+    return [0.0] * int(SR * seconds)
+
+
+def strike(out, at, freq, series, decay, amp=1.0, bright=1.0, detune=0.0):
+    """Add one struck tone: partials decaying to -60 dB over `decay`, the high
+    ones sooner by `bright`, behind a 3 ms attack that keeps the onset off the
+    click threshold."""
+    start = int(at * SR)
+    attack = int(0.003 * SR)
+    for ratio, partial_amp in series:
+        f = freq * ratio * (1 + detune * (ratio - 1))
+        if f >= SR / 2:
+            continue
+        tau = decay / (ratio ** bright)
+        length = min(int(tau * 1.4 * SR), len(out) - start)
+        if length <= 0:
+            continue
+        w = 2 * math.pi * f / SR
+        gain = amp * partial_amp
+        for i in range(length):
+            env = math.exp(-6.9 * i / (tau * SR))
+            if i < attack:
+                env *= 0.5 - 0.5 * math.cos(math.pi * i / attack)
+            out[start + i] += gain * env * math.sin(w * i)
+
+
+def mallet(out, at, amount=0.06, decay=0.005, colour=0.55):
+    """The contact noise a striker makes before the tone speaks. Without it a
+    struck tone starts from nowhere and sounds synthesised."""
+    start = int(at * SR)
+    length = min(int(decay * 6 * SR), len(out) - start)
+    prev = 0.0
+    for i in range(max(0, length)):
+        n = random.uniform(-1, 1)
+        prev = prev + colour * (n - prev)          # one-pole, takes the fizz off
+        out[start + i] += amount * prev * math.exp(-i / (decay * SR))
+
+
+def pluck(out, at, freq, decay, amp=1.0, damping=0.5):
+    """Karplus–Strong: a burst of noise round a delay line, averaged as it goes.
+    Cheaper than modelling a string and indistinguishable at this length."""
+    start = int(at * SR)
+    n = max(2, int(SR / freq))
+    line = [random.uniform(-1, 1) for _ in range(n)]
+    prev = 0.0
+    for i in range(n):                              # take the edge off the pick
+        prev = prev + 0.5 * (line[i] - prev)
+        line[i] = prev
+    length = min(int(decay * SR), len(out) - start)
+    loss = math.exp(-6.9 / (decay * freq))          # -60 dB over `decay`
+    attack = int(0.0025 * SR)                       # the burst opens near full
+    idx = 0                                         # scale; ramped, it does not
+    for i in range(max(0, length)):                 # eat the whole headroom
+        cur = line[idx]
+        ramp = 1.0 if i >= attack else 0.5 - 0.5 * math.cos(math.pi * i / attack)
+        out[start + i] += amp * ramp * cur
+        line[idx] = loss * ((1 - damping) * cur + damping * line[(idx + 1) % n])
+        idx = (idx + 1) % n
+
+
+def sweep(out, at, f0, f1, decay, amp=1.0, curve=3.0):
+    """A sine whose pitch runs from f0 to f1 — the whole of a pop or a blip."""
+    start = int(at * SR)
+    length = min(int(decay * 1.6 * SR), len(out) - start)
+    attack = int(0.002 * SR)
+    phase = 0.0
+    for i in range(max(0, length)):
+        t = i / (decay * SR)
+        f = f1 + (f0 - f1) * math.exp(-curve * t)
+        phase += 2 * math.pi * f / SR
+        env = math.exp(-6.9 * i / (decay * SR))
+        if i < attack:
+            env *= i / attack
+        out[start + i] += amp * env * math.sin(phase)
+
+
+def air(samples, mix=0.2, decay=0.9):
+    """A small Schroeder reverb — four combs into two allpasses. Not a room, and
+    not meant to be: it is the half-second of space that stops a high chime
+    sounding like it was played inside the speaker."""
+    if mix <= 0:
+        return samples
+    wet = [0.0] * len(samples)
+    for delay in (1557, 1617, 1491, 1422):
+        g = 0.001 ** (delay / (decay * SR))
+        line = [0.0] * delay
+        idx = 0
+        for i, x in enumerate(samples):
+            y = line[idx]
+            wet[i] += y * 0.25
+            line[idx] = x + g * y
+            idx = (idx + 1) % delay
+    for delay, g in ((225, 0.5), (556, 0.5)):
+        line = [0.0] * delay
+        idx = 0
+        for i, x in enumerate(wet):
+            y = line[idx]
+            line[idx] = x + g * y
+            wet[i] = y - g * line[idx]
+            idx = (idx + 1) % delay
+    return [s + mix * w for s, w in zip(samples, wet)]
+
+
+def finish(samples):
+    """Level, then guarantee the ends are silent — a chime that starts or stops
+    on a non-zero sample is a click, and the click is what you would hear."""
+    peak = max((abs(s) for s in samples), default=0.0)
+    if peak == 0:
+        return samples
+    rms = math.sqrt(sum(s * s for s in samples) / len(samples))
+    gain = min(TARGET_RMS / rms if rms else 1.0, PEAK_CEILING / peak)
+    out = [s * gain for s in samples]
+    fade = int(0.008 * SR)
+    for i in range(min(fade, len(out))):
+        out[-1 - i] *= i / fade
+    return out
+
+
+# --- the candidates ---------------------------------------------------------
+#
+# Twenty, spread across the families rather than twenty variations of one, so
+# the audition is a choice between characters and not between tunings. Each
+# returns a finished float buffer.
+
+def c_bar_third():
+    b = buf(0.50)
+    for at, n in ((0.0, "C6"), (0.075, "E6")):
+        mallet(b, at, 0.05)
+        strike(b, at, hz(n), BAR, 0.36, bright=0.95)
+    return air(b, 0.10)
+
+
+def c_bar_fifth():
+    b = buf(0.52)
+    for at, n in ((0.0, "C6"), (0.085, "G6")):
+        mallet(b, at, 0.05)
+        strike(b, at, hz(n), BAR, 0.34, bright=0.95)
+    return air(b, 0.10)
+
+
+def c_bar_octave():
+    b = buf(0.45)
+    for at, n in ((0.0, "C6"), (0.065, "C7")):
+        mallet(b, at, 0.045)
+        strike(b, at, hz(n), BAR, 0.28, bright=1.0)
+    return air(b, 0.08)
+
+
+def c_bar_low():
+    b = buf(0.55)
+    mallet(b, 0.0, 0.06, colour=0.4)
+    strike(b, 0.0, hz("F4"), BAR, 0.42, bright=0.85)
+    strike(b, 0.0, hz("C5"), BAR, 0.34, amp=0.45, bright=0.85)
+    return air(b, 0.10)
+
+
+def c_glass_single():
+    b = buf(0.60)
+    mallet(b, 0.0, 0.04, decay=0.003, colour=0.8)
+    strike(b, 0.0, hz("E6"), GLASS, 0.46, bright=0.8)
+    return air(b, 0.22, decay=1.0)
+
+
+def c_glass_pair():
+    b = buf(0.62)
+    for at, n, a in ((0.0, "A5", 0.9), (0.09, "E6", 1.0)):
+        mallet(b, at, 0.035, decay=0.003, colour=0.8)
+        strike(b, at, hz(n), GLASS, 0.40, amp=a, bright=0.8)
+    return air(b, 0.22, decay=1.0)
+
+
+def c_glass_triad():
+    b = buf(0.70)
+    for at, n, a in ((0.0, "E6", 0.75), (0.07, "G#6", 0.85), (0.14, "B6", 1.0)):
+        mallet(b, at, 0.03, decay=0.003, colour=0.85)
+        strike(b, at, hz(n), GLASS, 0.36, amp=a, bright=0.85)
+    return air(b, 0.24, decay=1.0)
+
+
+def c_bell_soft():
+    b = buf(0.72)
+    mallet(b, 0.0, 0.05, decay=0.004, colour=0.6)
+    strike(b, 0.0, hz("D6"), BELL, 0.60, bright=0.75, detune=0.0015)
+    return air(b, 0.18)
+
+
+def c_bell_pair():
+    b = buf(0.75)
+    for at, n, a in ((0.0, "A5", 0.85), (0.10, "D6", 1.0)):
+        mallet(b, at, 0.04, decay=0.004, colour=0.6)
+        strike(b, at, hz(n), BELL, 0.50, amp=a, bright=0.75, detune=0.0015)
+    return air(b, 0.18)
+
+
+def c_tine_warm():
+    b = buf(0.60)
+    mallet(b, 0.0, 0.03, decay=0.004, colour=0.5)
+    strike(b, 0.0, hz("A5"), TINE, 0.48, bright=0.7)
+    return air(b, 0.12)
+
+
+def c_tine_sixth():
+    b = buf(0.62)
+    for at, n, a in ((0.0, "C5", 0.8), (0.08, "A5", 1.0)):
+        strike(b, at, hz(n), TINE, 0.44, amp=a, bright=0.7)
+    return air(b, 0.12)
+
+
+def c_music_box():
+    b = buf(0.55)
+    mallet(b, 0.0, 0.05, decay=0.003, colour=0.9)
+    strike(b, 0.0, hz("G6"), BOX, 0.42, bright=1.05)
+    return air(b, 0.16)
+
+
+def c_music_box_pair():
+    b = buf(0.58)
+    for at, n, a in ((0.0, "D6", 0.85), (0.07, "G6", 1.0)):
+        mallet(b, at, 0.04, decay=0.003, colour=0.9)
+        strike(b, at, hz(n), BOX, 0.36, amp=a, bright=1.05)
+    return air(b, 0.16)
+
+
+def c_kalimba():
+    b = buf(0.55)
+    for at, n, a in ((0.0, "F5", 0.9), (0.08, "C6", 1.0)):
+        mallet(b, at, 0.05, decay=0.004, colour=0.45)
+        strike(b, at, hz(n), KALIMBA, 0.40, amp=a, bright=0.9)
+    return air(b, 0.14)
+
+
+def c_bowl():
+    b = buf(0.85)
+    mallet(b, 0.0, 0.04, decay=0.008, colour=0.35)
+    strike(b, 0.0, hz("F#5"), BOWL, 0.70, bright=0.6, detune=0.002)
+    return air(b, 0.26, decay=1.1)
+
+
+def c_pluck_nylon():
+    b = buf(0.50)
+    pluck(b, 0.0, hz("E5"), 0.40, damping=0.45)
+    return air(b, 0.10)
+
+
+def c_pluck_pair():
+    b = buf(0.55)
+    pluck(b, 0.0, hz("E5"), 0.34, amp=0.8, damping=0.45)
+    pluck(b, 0.075, hz("B5"), 0.38, amp=1.0, damping=0.45)
+    return air(b, 0.10)
+
+
+def c_wood_knock():
+    b = buf(0.30)
+    mallet(b, 0.0, 0.16, decay=0.0025, colour=0.7)
+    strike(b, 0.0, 1180.0, WOOD, 0.075, bright=1.1)
+    return b
+
+
+def c_pop_soft():
+    b = buf(0.25)
+    sweep(b, 0.0, hz("A5"), hz("A4"), 0.085)
+    return b
+
+
+def c_chord_done():
+    b = buf(0.70)
+    mallet(b, 0.0, 0.035, decay=0.003, colour=0.8)
+    for at, n, a in ((0.0, "C6", 1.0), (0.006, "E6", 0.7), (0.012, "G6", 0.55)):
+        strike(b, at, hz(n), GLASS, 0.44, amp=a, bright=0.85)
+    return air(b, 0.20, decay=1.0)
+
+
+CANDIDATES = [
+    ("bar-third", c_bar_third, "Marimba, two notes up a third — warm, wooden, unhurried"),
+    ("bar-fifth", c_bar_fifth, "Marimba, up a fifth — the same wood, a wider gesture"),
+    ("bar-octave", c_bar_octave, "Marimba, up an octave — quick and conclusive"),
+    ("bar-low", c_bar_low, "A single low bar with its octave — soft, almost a thud"),
+    ("glass-single", c_glass_single, "One struck glass, high and airy"),
+    ("glass-pair", c_glass_pair, "Two glass notes rising — delicate"),
+    ("glass-triad", c_glass_triad, "Three glass notes arpeggiated — the chime you expect"),
+    ("bell-soft", c_bell_soft, "A small bell, one strike, slow tail"),
+    ("bell-pair", c_bell_pair, "Two bell notes up a fourth"),
+    ("tine-warm", c_tine_warm, "Electric-piano tine — round, mellow, no glass"),
+    ("tine-sixth", c_tine_sixth, "Two tines rising a sixth — soft and jazzy"),
+    ("music-box", c_music_box, "Music-box tooth, single note, bright"),
+    ("music-box-pair", c_music_box_pair, "Two music-box notes up a fourth"),
+    ("kalimba", c_kalimba, "Thumb piano, two notes — woody but pitched high"),
+    ("bowl", c_bowl, "A struck bowl with shimmer — the longest of the set"),
+    ("pluck-nylon", c_pluck_nylon, "One nylon-string pluck"),
+    ("pluck-pair", c_pluck_pair, "Two plucks rising a fifth"),
+    ("wood-knock", c_wood_knock, "A dry woodblock knock — no pitch to speak of"),
+    ("pop-soft", c_pop_soft, "A falling blip — the shortest, least musical"),
+    ("chord-done", c_chord_done, "A major triad struck at once — emphatic"),
+]
+
+
+# --- writing ----------------------------------------------------------------
+
+def write_wav(path, samples):
+    frames = struct.pack(
+        "<%dh" % len(samples),
+        *(max(-32768, min(32767, int(round(s * 32767)))) for s in samples),
+    )
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(SR)
+        w.writeframes(frames)
+
+
+def to_caf(wav_path, caf_path):
+    """The shipped five are CAF/LEI16 at 44.1 kHz mono, and a candidate that is
+    auditioned in one format and installed in another has not been auditioned."""
+    subprocess.run(
+        ["afconvert", "-f", "caff", "-d", "LEI16@44100", "-c", "1",
+         str(wav_path), str(caf_path)],
+        check=True, capture_output=True,
+    )
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Synthesise completion-chime candidates.")
+    ap.add_argument("--out", default="build/chime-candidates", type=Path)
+    ap.add_argument("--only", default="", help="only candidates whose name contains this")
+    args = ap.parse_args()
+
+    random.seed(20260902)          # the mallet noise is the same every run
+    out = args.out
+    out.mkdir(parents=True, exist_ok=True)
+
+    reel = []
+    gap = [0.0] * int(0.55 * SR)
+    made = 0
+    for name, fn, blurb in CANDIDATES:
+        if args.only and args.only not in name:
+            continue
+        samples = finish(fn())
+        wav = out / ("chime-%s.wav" % name)
+        write_wav(wav, samples)
+        to_caf(wav, out / ("chime-%s.caf" % name))
+        reel.extend(samples)
+        reel.extend(gap)
+        made += 1
+        print("%-16s %5.2fs  %s" % (name, len(samples) / SR, blurb))
+
+    if reel:
+        write_wav(out / "all-candidates.wav", reel)
+    print("\n%d candidates -> %s" % (made, out))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

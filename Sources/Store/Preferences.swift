@@ -177,27 +177,63 @@ enum CardDensity: String, CaseIterable, Identifiable, Sendable {
 
 /// The chime a card makes on its way into Done.
 ///
-/// Five bundled sounds rather than the system's: the system has no
-/// cross-platform "completion" sound to name, and a bundled file is the same
-/// chime on the Mac and the phone. Each case names a file in the bundle's
-/// `Sounds/` folder — `PackagingTests` holds the two lists together.
+/// Bundled sounds rather than the system's: the system has no cross-platform
+/// "completion" sound to name — the Mac's fourteen alert sounds are AppKit's
+/// and macOS-only, the phone's `UISounds` are undocumented numeric IDs — so
+/// naming either would mean a different picker on each platform. A bundled
+/// file is the same chime on the Mac and the phone. Each case names a file in
+/// the bundle's `Sounds/` folder, and `CompletionFeedbackTests` holds the two
+/// lists together.
+///
+/// **They are all one thing being struck**, which is why they are synthesised
+/// (`Tools/make-chimes`) rather than collected: a set assembled from fifteen
+/// sources is fifteen recording chains, and the picker becomes a comparison of
+/// room tone. Here every sound is a partial series with a mallet on the front —
+/// a bar at roughly 1 : 3.98 : 10.65, a bell at 1 : 2.76 : 5.4, glass between
+/// them — levelled against the others by RMS rather than by peak, so choosing
+/// one is a choice about character and not about which is loudest.
+///
+/// **The order is the order the picker shows**, and it runs by material rather
+/// than alphabetically: wood, then glass and bell, then tine, then plucked,
+/// then the two short dry ones. Somebody scrolling for "warmer" is scrolling in
+/// one direction, which an alphabetical list cannot offer.
 enum CompletionSound: String, CaseIterable, Identifiable, Sendable {
-    case chime, ding, pop, wood, glass
+    case barThird, barLow, kalimba, wood, woodKnock
+    case glassTriad, bellSoft, bowl, chordDone
+    case tineWarm, tineSixth
+    case pluckNylon, pluckPair
+    case pop, popSoft
 
     var id: String { rawValue }
     static let storageKey = "SimpleKanbanCompletionSound"
-    static let fallback = CompletionSound.chime
 
-    /// `completion-chime`, under `Sounds/` with a `.caf` extension.
+    /// The two rising wooden notes, which is what the old default `chime` was
+    /// and what an unreadable stored value should still land on. `choice` reads
+    /// a name this enum no longer has as no answer at all, so anyone who had
+    /// `chime`, `ding` or `glass` set when those went away arrives here — which
+    /// is the nearest of the fifteen to what they had chosen.
+    static let fallback = CompletionSound.barThird
+
+    /// `completion-barThird`, under `Sounds/` with a `.caf` extension.
     var resourceName: String { "completion-\(rawValue)" }
 
     var label: String {
         switch self {
-        case .chime: String(localized: "Chime", comment: "Completion sound: two soft rising notes")
-        case .ding: String(localized: "Ding", comment: "Completion sound: a single bell")
-        case .pop: String(localized: "Pop", comment: "Completion sound: a short low pluck")
+        case .barThird: String(localized: "Marimba", comment: "Completion sound: two wooden notes rising a third")
+        case .barLow: String(localized: "Low Bar", comment: "Completion sound: one low wooden bar with its octave")
+        case .kalimba: String(localized: "Kalimba", comment: "Completion sound: two thumb-piano notes")
         case .wood: String(localized: "Wood", comment: "Completion sound: a soft marimba knock")
-        case .glass: String(localized: "Glass", comment: "Completion sound: three delicate high notes")
+        case .woodKnock: String(localized: "Knock", comment: "Completion sound: a dry woodblock knock")
+        case .glassTriad: String(localized: "Glass", comment: "Completion sound: three delicate high notes")
+        case .bellSoft: String(localized: "Bell", comment: "Completion sound: a small bell with a slow tail")
+        case .bowl: String(localized: "Bowl", comment: "Completion sound: a struck bowl with shimmer")
+        case .chordDone: String(localized: "Chord", comment: "Completion sound: a major triad struck at once")
+        case .tineWarm: String(localized: "Tine", comment: "Completion sound: one round electric-piano note")
+        case .tineSixth: String(localized: "Tine Pair", comment: "Completion sound: two electric-piano notes rising a sixth")
+        case .pluckNylon: String(localized: "Pluck", comment: "Completion sound: one nylon-string pluck")
+        case .pluckPair: String(localized: "Pluck Pair", comment: "Completion sound: two plucks rising a fifth")
+        case .pop: String(localized: "Pop", comment: "Completion sound: a short low pluck")
+        case .popSoft: String(localized: "Blip", comment: "Completion sound: a falling blip")
         }
     }
 }

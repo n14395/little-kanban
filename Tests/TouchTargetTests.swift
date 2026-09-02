@@ -71,6 +71,9 @@ import Testing
             // The reorder grip, which is the only affordance a drag has and so
             // the one control on the row a finger must not miss.
             ("ChecklistView.sheet.gripHit", ChecklistView.Metrics.sheet.gripHit),
+            // The one control the activity feed has: the button that unfolds the
+            // rest of a card's history and folds it back.
+            ("ActivityFeed.sheet.toggleHit", ActivityFeed.Metrics.sheet.toggleHit),
             ("EmptyStateView.sheet.actionHit", EmptyStateView.Metrics.sheet.actionHit),
             ("SettingsView.sheet.rowHit", SettingsView.Metrics.sheet.rowHit),
             // The board's own settings, which both touch idioms draw at

@@ -1650,6 +1650,9 @@
         }
       }
     },
+    "Bell" : {
+      "comment" : "Completion sound: a small bell with a slow tail"
+    },
     "Bin the boxes from the last move" : {
       "comment" : "Starter template: sub-task",
       "localizations" : {
@@ -1660,6 +1663,9 @@
           }
         }
       }
+    },
+    "Blip" : {
+      "comment" : "Completion sound: a falling blip"
     },
     "Blog" : {
       "comment" : "Content template label",
@@ -1848,6 +1854,9 @@
           }
         }
       }
+    },
+    "Bowl" : {
+      "comment" : "Completion sound: a struck bowl with shimmer"
     },
     "Buffer mutations locally and replay on reconnect. Conflict rule: last write wins per field." : {
       "comment" : "Seed board: task description",
@@ -2144,9 +2153,6 @@
         }
       }
     },
-    "Chime" : {
-      "comment" : "Completion sound: two soft rising notes"
-    },
     "Choose which board to show." : {
       "comment" : "What the board widget's editor asks for",
       "localizations" : {
@@ -2179,6 +2185,9 @@
           }
         }
       }
+    },
+    "Chord" : {
+      "comment" : "Completion sound: a major triad struck at once"
     },
     "Chore" : {
       "comment" : "Sprint template label",
@@ -2994,9 +3003,6 @@
           }
         }
       }
-    },
-    "Ding" : {
-      "comment" : "Completion sound: a single bell"
     },
     "Discard Capture" : {
       "comment" : "Undo action name for dropping an unused quick capture",
@@ -4605,6 +4611,9 @@
         }
       }
     },
+    "Kalimba" : {
+      "comment" : "Completion sound: two thumb-piano notes"
+    },
     "Keep this board on my other devices" : {
       "localizations" : {
         "en" : {
@@ -4669,6 +4678,9 @@
           }
         }
       }
+    },
+    "Knock" : {
+      "comment" : "Completion sound: a dry woodblock knock"
     },
     "Label" : {
       "comment" : "Accessibility label of the label a view criterion names\nView criterion field\nWhat a card's label is called in the Shortcuts editor",
@@ -4880,6 +4892,9 @@
         }
       }
     },
+    "Low Bar" : {
+      "comment" : "Completion sound: one low wooden bar with its octave"
+    },
     "Manage" : {
       "localizations" : {
         "en" : {
@@ -4921,6 +4936,9 @@
           }
         }
       }
+    },
+    "Marimba" : {
+      "comment" : "Completion sound: two wooden notes rising a third"
     },
     "Mark as done" : {
       "localizations" : {
@@ -6448,6 +6466,12 @@
     "Play a sound" : {
 
     },
+    "Pluck" : {
+      "comment" : "Completion sound: one nylon-string pluck"
+    },
+    "Pluck Pair" : {
+      "comment" : "Completion sound: two plucks rising a fifth"
+    },
     "Polish" : {
       "comment" : "Seed label: refinement work, not the language",
       "localizations" : {
@@ -7806,6 +7830,17 @@
         }
       }
     },
+    "Show %lld more" : {
+      "comment" : "Unfolds the rest of a task's activity list; the count is how many more entries there are",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show %lld more"
+          }
+        }
+      }
+    },
     "Show boards" : {
       "localizations" : {
         "en" : {
@@ -7818,6 +7853,17 @@
     },
     "Show in Board" : {
       "comment" : "Task menu item that goes to where the task lives and reveals it"
+    },
+    "Show less" : {
+      "comment" : "Folds a task's activity list back to its most recent few",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show less"
+          }
+        }
+      }
     },
     "Show only the first few" : {
       "localizations" : {
@@ -9166,6 +9212,12 @@
           }
         }
       }
+    },
+    "Tine" : {
+      "comment" : "Completion sound: one round electric-piano note"
+    },
+    "Tine Pair" : {
+      "comment" : "Completion sound: two electric-piano notes rising a sixth"
     },
     "Title" : {
       "comment" : "Field label on the share sheet\nHow a view sorts its cards\nView criterion field",

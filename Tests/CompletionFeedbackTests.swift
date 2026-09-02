@@ -16,7 +16,7 @@ import Testing
         let suite = try #require(UserDefaults(suiteName: "SimpleKanbanTests-\(UUID().uuidString)"))
         Preferences.reading(suite) {
             #expect(Preferences.playsCompletionSound, "a fresh install should ding")
-            #expect(Preferences.completionSound == .chime)
+            #expect(Preferences.completionSound == .barThird)
         }
     }
 
@@ -24,17 +24,28 @@ import Testing
     @Test func theStoredChoiceComesBackAndAStrangerFallsBack() throws {
         let suite = try #require(UserDefaults(suiteName: "SimpleKanbanTests-\(UUID().uuidString)"))
         suite.set(false, forKey: Preferences.completionSoundKey)
-        suite.set(CompletionSound.glass.rawValue, forKey: CompletionSound.storageKey)
+        suite.set(CompletionSound.glassTriad.rawValue, forKey: CompletionSound.storageKey)
         Preferences.reading(suite) {
             #expect(!Preferences.playsCompletionSound)
-            #expect(Preferences.completionSound == .glass)
+            #expect(Preferences.completionSound == .glassTriad)
         }
         // A downgrade leaves a raw value this build has no case for. The
         // fallback answers — the same reading every `Preferences.choice` gives
         // a stranger.
         suite.set("kazoo", forKey: CompletionSound.storageKey)
         Preferences.reading(suite) {
-            #expect(Preferences.completionSound == .chime)
+            #expect(Preferences.completionSound == .barThird)
+        }
+        // And so does a name that *was* a case: `chime`, `ding` and `glass`
+        // were the old five's, and anybody who had chosen one is holding a
+        // stranger now. There is nothing to migrate to — the files went with
+        // the cases — so they land on the fallback, which is the nearest of
+        // the fifteen to the old default.
+        for retired in ["chime", "ding", "glass"] {
+            suite.set(retired, forKey: CompletionSound.storageKey)
+            Preferences.reading(suite) {
+                #expect(Preferences.completionSound == .barThird)
+            }
         }
     }
 
