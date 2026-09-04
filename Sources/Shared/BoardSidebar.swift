@@ -51,16 +51,37 @@ struct BoardSidebar: View {
         /// sight. Left to choose, it hangs off the row's trailing edge pointing
         /// back at it, which is what was asked for in the first place.
         var trashArrowEdge: Edge?
+        /// Whether the pane paints its own ground and its own seam.
+        ///
+        /// **The desk's does; the iPad's cannot.** On macOS this view *is* the
+        /// column: it runs the height of the window, so a wash and a hairline
+        /// hung on it cover the column exactly. On iPad it sits inside a
+        /// `ScrollView` — the list is taller than a landscape iPad mini once
+        /// every row claims its 44pt — and inside one it is only ever as tall
+        /// as its rows. The wash stopped under the last row and the hairline
+        /// stopped with it, which is the reported bug: a band of column under
+        /// the list in a paler colour, with no line down the side of it. The
+        /// paler was the tell — the scroll view was washing the whole column
+        /// from behind, so the list had the wash twice and the band once.
+        ///
+        /// Both belong to the scroll view there, which is the one thing in that
+        /// column that is the column's height — see ``PadRootView/sidebar``. A
+        /// flag rather than a `nil` colour because it is two decisions taken
+        /// together: a ground with no seam is as wrong as a seam with no
+        /// ground, and nothing should be able to take one without the other.
+        var paintsItsOwnGround: Bool
 
         static let desk = Metrics(
             width: 232, trafficLightInset: 16, rowFont: 13, rowVerticalPadding: 7,
             rowRadius: 9, rowHit: 0, rowGlyph: 14, fieldHit: 0, sectionSpacing: 22,
-            labelManager: .desk, trash: .desk, trashArrowEdge: .trailing
+            labelManager: .desk, trash: .desk, trashArrowEdge: .trailing,
+            paintsItsOwnGround: true
         )
         static let pad = Metrics(
             width: nil, trafficLightInset: 0, rowFont: 15, rowVerticalPadding: 10,
             rowRadius: 11, rowHit: 44, rowGlyph: 17, fieldHit: 44, sectionSpacing: 24,
-            labelManager: .sheet, trash: .sheet, trashArrowEdge: nil
+            labelManager: .sheet, trash: .sheet, trashArrowEdge: nil,
+            paintsItsOwnGround: false
         )
     }
 
@@ -161,8 +182,13 @@ struct BoardSidebar: View {
         .padding(.top, 14)
         .padding(.bottom, 12)
         .frame(width: chrome.scaling(metrics.width, cap: 1.4))
-        .background(palette.panelOverlay)
-        .hairline(.trailing, color: palette.ink(0.07))
+        // Drawn here only where this view is the column — see
+        // ``Metrics/paintsItsOwnGround``. Where it is not, the two are the
+        // scroll view's, so that they are the column's height rather than the
+        // list's. `.clear` rather than a branch: the pane's shape should not
+        // depend on which surface is drawing it.
+        .background(metrics.paintsItsOwnGround ? palette.panelOverlay : .clear)
+        .hairline(.trailing, color: metrics.paintsItsOwnGround ? palette.ink(0.07) : .clear)
         .labelManagerSheet(isPresented: managingLabels, metrics: metrics.labelManager)
         .sheet(item: $editing) { draft in
             SavedViewEditor(viewID: draft.id)

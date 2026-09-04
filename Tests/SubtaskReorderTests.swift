@@ -315,8 +315,7 @@ import Testing
     @Test func theSubtaskFieldIsGivenTheWidthItWrapsEarlyBy() {
         for (name, metrics) in [("desk", ChecklistView.Metrics.desk), ("sheet", ChecklistView.Metrics.sheet)] {
             #expect(metrics.fieldCaretGutter == 4,
-                    "\(name)'s field no longer gets the 4pt it wraps early by, so a row near the "
-                    + "wrap will claim a line it does not draw")
+                    "\(name)'s field no longer gets the 4pt it wraps early by, so a row near the wrap claims a line it does not draw")
         }
 
         guard SourceTree.isReachable else { return }

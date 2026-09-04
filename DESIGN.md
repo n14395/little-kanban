@@ -4304,12 +4304,37 @@ for every glyph on the bar, because three pills in a row drawing their marks at
 two sizes read as a bar and a button rather than three of one thing. Measured on
 a 17 Pro they come to 107 and 125 against the capture pill's 84.
 
-**The Inbox is on the window's centre line.** It is the middle of the sentence
-this bar makes and the one slot reached for *while* looking at something else, so
-it gets the place a thumb finds without aiming. Search and the `+` are pinned to
-opposite edges inside the bar's 20pt inset, so the two ends sit the same distance
-in: measured, Search runs 19.0→125.3pt and capture 297.3→383.0 in a 402pt window,
-and the Inbox's centre is 200.8 against a window centre of 201.0.
+**The three sit in a glass bar of their own**, four points inside it on every
+side, and that inset is what takes the ends off the window's edges. The bar still
+spans the full width inside the 20pt margin — it is a bar, not a shrink-wrapped
+group — so its centre is the window's and the Inbox's place is unmoved. What
+changed is that the row reads as one object with three controls in it rather than
+three things that happen to be level. It costs no height: the bar's 4pt of glass
+either side of a 52pt pill comes to 60, and the padding under it drops 12 → 8, so
+the 76 points this shape has always occupied are the 76 it occupies now and
+`TaskListMetrics.sheet` needs no second opinion about where the bar is.
+`Toast.Metrics.phone` is the one number that moved, by the 4 points the bar's own
+material took.
+
+**The Inbox is on the window's centre line**, and the ends are the same width.
+The second half is what makes the first possible rather than a nicety. Three
+things cannot hold at once: the middle on the centre line, both ends the same
+distance in, and the ends different widths — the difference has to come out of
+the gaps, and it did: Search's word and magnifier came to 107 against the `+`
+pill's 84, which showed as a 13pt gap one side of the Inbox and 34 the other.
+Loose in the middle of a window that was lopsided; inside a bar it would be a
+mistake. So `footEndWidth` is a floor both ends meet — 108, the first number that
+clears Search at the system text size — and **the `+` pill is the one that
+gives**, drawing wider here than on the iPad and the desk. A floor rather than a
+width, because a width would clip a longer word in another language or at an
+accessibility size; what it costs is that past 108 Search grows and the `+` stays,
+and the gaps go uneven again by the difference rather than by the 23 points they
+started at.
+
+Measured on a 17 Pro, in a 402pt window: the bar runs 20→382, Search 24→132 and
+the `+` 269.5→378.3 — both 108, both 4 points inside the bar — and the Inbox
+139.5→262.5, whose centre is 201.0 against a window centre of 201.0. The gaps
+either side of it are 7.5 and 7.0.
 
 **An `HStack` cannot say that, and for a while it looked as though it could.**
 Spelled as a stack with the ends in `maxWidth: .infinity` columns, the three
@@ -4325,16 +4350,21 @@ size the bar cannot hold scales the words inside their pills rather than
 overlapping or clipping them; `chip`'s floor of the `+` pill's own width is where
 that squeeze stops.
 
-**The gaps either side of the Inbox are not equal, and cannot be.** Three things
-cannot all hold at once: the middle on the centre line, both ends flush to their
-edges, and the ends different widths. Search carries a word beside its 24pt
-magnifier and the `+` carries two marks and none, so they are 107 and 84 — which
-leaves 13 points one side of the Inbox and 34 the other. **Which two of the three
-to keep is the decision**, and it keeps the edges and the centre line: both are
-things the eye can check against the window, and a gap is not. Flooring the `+`
-pill at Search's width would even them up and is what to reach for if the
-lopsidedness ever reads as a mistake — at the cost of a capture button wider on
-this surface than on the iPad and the desk.
+**Only the bar is glass.** The two switches wore a `.regular` capsule each for as
+long as they were floating over the board with nothing behind them, and that was
+right; it stopped being right the moment the bar went round all three, because a
+glass panel on a glass ground is the one thing the material is not for. Looked
+at, it was a smear and a doubled rim rather than two controls. So the bar is the
+surface and the switches are simply on it: **an unlit switch is its mark and its
+word and nothing else**, and the `accentSoft` capsule underneath is the whole of
+what says one is on — which is how the system draws a selected tab, and how this
+bar drew its lit slot before there were pills at all. Because `footEndWidth` holds
+Search level with the `+`, a lit Search is a capsule of exactly the capture
+button's size at the other end of the row.
+
+The `+` keeps a material of its own because it keeps a *tint* of its own: it is
+the one button here that makes something rather than going somewhere, and a
+tinted capsule on a plain one is a button on a bar rather than glass on glass.
 
 **The iPad's bar is the one place that width is charged to something.** Nothing
 else here is squeezable but the board's name, so the tray costs the row about

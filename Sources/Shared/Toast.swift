@@ -45,11 +45,16 @@ struct BoardToast: View {
             font: 14, glyph: 14, horizontalPadding: 16, verticalPadding: 12,
             radius: 12, bottomInset: 18
         )
-        /// The phone's, which has a tab bar in the way: 52pt of button plus its
-        /// 12pt of padding, and then the card's own gap above that.
+        /// The phone's, which has a tab bar in the way: the bar's 60pt — a 52pt
+        /// pill in 4 points of glass on either side — plus its 8pt of padding,
+        /// and then the card's own gap above that.
+        ///
+        /// The bar occupies what it always did, 76 points; what moved is the
+        /// share of that between its own material and the space under it, which
+        /// is why this is 4 more than the 52 + 12 it used to read.
         static let phone = Metrics(
             font: 14, glyph: 14, horizontalPadding: 16, verticalPadding: 12,
-            radius: 12, bottomInset: 52 + 12 + 14
+            radius: 12, bottomInset: 60 + 8 + 14
         )
     }
 

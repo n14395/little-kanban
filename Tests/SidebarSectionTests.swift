@@ -98,3 +98,60 @@ import Testing
         }
     }
 }
+
+/// Who paints the source list's ground, and its seam.
+///
+/// The reported bug, from an iPad: the column's colour stopped a couple of
+/// hundred points above the foot of the screen, and the hairline down its
+/// trailing edge stopped with it. `BoardSidebar` hangs both on itself, which is
+/// exactly right on the desk — there the view *is* the column, the height of the
+/// window. On iPad it sits inside a `ScrollView`, and inside one a view is as
+/// tall as its content: the wash ended under the last row.
+///
+/// The tell was that the band below it was not bare but *paler*. The scroll view
+/// was already washing the whole column from behind, so the list carried the
+/// wash twice and the band carried it once — which is also why the fix is not
+/// "wash it again" but "wash it once, from the thing that is the column's
+/// height", and why the seam has to move with the ground rather than after it.
+///
+/// **Read out of the source, because a colour's *extent* is not a value.**
+/// Whether a background covers a column or only the rows in it is SwiftUI's
+/// answer to a layout proposal; there is no view hierarchy in this target to ask.
+/// Measured instead against `NSHostingView`, outside the suite: a pane like this
+/// one in a 600pt column, with five rows in it, painted its ground and its seam
+/// to y=204 and stopped. What is asserted here is the arrangement that followed.
+@Suite struct SourceListGroundTests {
+    @Test func theColumnsGroundIsPaintedOnceByWhicheverViewIsTheColumn() {
+        #expect(BoardSidebar.Metrics.desk.paintsItsOwnGround,
+                "the desk's source list is the column, and nothing else there would paint it")
+        #expect(BoardSidebar.Metrics.pad.paintsItsOwnGround == false,
+                "the iPad's list is inside a scroll view, where it is only as tall as its rows")
+
+        guard SourceTree.isReachable else { return }
+        let files = SourceTree.files()
+        guard let pad = files.first(where: { $0.path == "IOS/PadRootView.swift" }),
+              let list = files.first(where: { $0.path == "Shared/BoardSidebar.swift" })
+        else {
+            Issue.record("the iPad root or the source list has moved file")
+            return
+        }
+
+        // Scoped to the property that draws the column: the Inbox panel and the
+        // task editor wash themselves in the same file, and a whole-file read
+        // would be satisfied by either of them.
+        let parts = pad.source.components(separatedBy: "private var sidebar: some View")
+        #expect(parts.count == 2, "PadRootView.sidebar has been renamed; this is reading the wrong view")
+        let column = parts.last?.components(separatedBy: "private var detail").first ?? ""
+        #expect(column.contains("background(palette.panelOverlay)"),
+                "the iPad's column has no ground of its own, and the pane inside it no longer paints one")
+        #expect(column.contains("hairline(.trailing"),
+                "the iPad's column has no seam; the pane's would stop where its rows do")
+
+        // And the pane's own pair stays behind the switch. Unconditional again
+        // is the bug again — two washes over the rows and one under them.
+        #expect(list.source.contains("metrics.paintsItsOwnGround ? palette.panelOverlay"),
+                "the source list paints its ground whatever surface it is on")
+        #expect(list.source.contains("metrics.paintsItsOwnGround ? palette.ink"),
+                "the source list paints its seam whatever surface it is on")
+    }
+}

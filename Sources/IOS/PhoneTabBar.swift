@@ -56,9 +56,25 @@ struct PhoneTabBar: View {
     ///
     /// One number rather than four because three pills in a row drawing their
     /// marks at two sizes read as a bar and a button rather than three of one
-    /// thing. It is also what makes the capture pill 52 tall and 84 wide, and
-    /// that 84 is the floor `chip` holds the switches to.
+    /// thing. It is also what makes the capture pill 52 tall.
     private static let footCaptureGlyph: CGFloat = 24
+
+    /// What both ends of the foot bar are held to — Search at the leading edge
+    /// and the `+` at the trailing one.
+    ///
+    /// **A floor, and measured.** At the system text size Search's magnifier and
+    /// word come to 107 and the capture pill's two marks to 84; 108 is the first
+    /// number both meet, so both draw at exactly it and the gaps either side of
+    /// the Inbox come out equal — see ``footRow`` for why that is the difference
+    /// between an arrangement and a mistake.
+    ///
+    /// **A floor rather than a width**, and the two are not the same promise. Set
+    /// as a width it would clip a longer word in another language, or one at an
+    /// accessibility size, which is a control that has stopped saying what it
+    /// does to keep a gap tidy. As a floor the word always fits: what it costs is
+    /// that past 108 Search grows and the `+` stays, and the gaps go uneven again
+    /// — by the difference rather than by the 23 points they started at.
+    private static let footEndWidth: CGFloat = 108
 
     var body: some View {
         GlassEffectContainer(spacing: isHeader ? 8 : 10) {
@@ -72,7 +88,11 @@ struct PhoneTabBar: View {
             }
         }
         .padding(.horizontal, isHeader ? 0 : 20)
-        .padding(.vertical, isHeader ? 0 : 12)
+        // 8 rather than the 12 it was, because the bar around the three has taken
+        // 4 of its own on every side: 8 + 60 + 8 is the 12 + 52 + 12 this shape
+        // has always occupied, so the list under it keeps every point it had and
+        // `TaskListMetrics.sheet` needs no second opinion about where the bar is.
+        .padding(.vertical, isHeader ? 0 : 8)
         // Level with the header's own two discs, which sit 3pt up from the foot
         // of the row — see `PhoneHeader.hamburger`. The bar is 10pt taller than
         // they are drawn and shares their bottom edge rather than their centre,
@@ -145,17 +165,29 @@ struct PhoneTabBar: View {
     /// which is the same on both sides, so the two ends of the row sit the same
     /// distance in.
     ///
-    /// **The gaps either side of the Inbox are not equal, and cannot be.** Three
-    /// things cannot all be true at once: the middle on the centre line, both
-    /// ends flush to their edges, and the ends different widths. Search carries a
-    /// word and a 24pt magnifier and comes to 107; the `+` pill is
-    /// ``CaptureGlyphs/width(_:)``, 84. Measured on a 17 Pro that leaves 13
-    /// points on one side of the Inbox and 34 on the other. **Which two of the
-    /// three to keep is the choice**, and this keeps the edges and the centre
-    /// line, because both are things the eye can check against the window and a
-    /// gap is not. Giving the `+` pill a floor of Search's width would even them
-    /// up, at the cost of a capture button wider on this surface than on the
-    /// other two.
+    /// **The three sit in a glass bar of their own**, four points inside it on
+    /// every side. That inset is what pulls the ends off the window's edges — 24
+    /// points in rather than 19 — and it is the reason the row now reads as one
+    /// object with three controls in it rather than three things that happen to
+    /// be level. The bar still spans the full width inside the 20pt margin, so
+    /// its centre is the window's and the Inbox's place is unmoved.
+    ///
+    /// **The bar is the only glass the two switches have**, which is the point of
+    /// putting it there — see `chip`. The `+` keeps a material of its own because
+    /// it keeps a tint of its own, and a tinted capsule on a plain one is a
+    /// button on a bar rather than glass on glass.
+    ///
+    /// **The ends are held to one width**, ``footEndWidth``, and that is what
+    /// makes the arrangement possible at all rather than a nicety. Three things
+    /// cannot hold at once: the middle on the centre line, both ends the same
+    /// distance in, and the ends different widths — the difference has to come
+    /// out of the gaps. Left alone Search comes to 107 and the `+` pill to
+    /// ``CaptureGlyphs/width(_:)``'s 84, and those 23 points showed as a 13pt gap
+    /// on one side of the Inbox and 34 on the other. Loose in the middle of a
+    /// window that was lopsided; inside a bar it would be a mistake. So the `+`
+    /// pill is the one that gives, drawing wider here than on the iPad and the
+    /// desk — a floor it meets, not a width it is set to, so a longer word in
+    /// another language moves both ends together rather than only one.
     ///
     /// **`CentredMiddleRow` rather than an `HStack`**, and that is not stylistic
     /// — see its own note. Spelled as a stack with the ends in
@@ -166,11 +198,13 @@ struct PhoneTabBar: View {
     /// drew **"Inb…"**. A row that puts one child on the centre line is not a
     /// stack of equal shares, and writing it as one only worked by coincidence.
     private var footRow: some View {
-        CentredMiddleRow(spacing: 10) {
+        CentredMiddleRow(spacing: 6) {
             searchSlot
             inboxSlot
             quickCaptureButton
         }
+        .padding(4)
+        .glassEffect(.regular, in: .capsule)
     }
 
     private var searchSlot: some View {
@@ -218,45 +252,36 @@ struct PhoneTabBar: View {
         // report, and an empty literal is a key in the string catalogue that
         // localizes nothing.
         if count > 0 {
-            wearingGlass(button.accessibilityValue(Text(verbatim: "\(count)")))
+            button.accessibilityValue(Text(verbatim: "\(count)"))
         } else {
-            wearingGlass(button)
+            button
         }
     }
 
-    /// The material a foot slot wears and a header slot does not.
+    /// The slot's own shape inside the bar: a 34pt chip in the header, and along
+    /// the foot the whole of a pill.
     ///
-    /// Generic over what it is handed rather than erasing it to an `AnyView`,
-    /// which is the shape this would otherwise take — the count has to be
-    /// attached before the glass and only one of the two slots has one, so the
-    /// caller arrives here holding two different types. `MacRootView` says why
-    /// erasing is the wrong way out of that.
+    /// **Neither switch carries glass of its own.** Each wore a `.regular`
+    /// capsule for a while, which was right while they were floating over the
+    /// board with nothing behind them — and wrong the moment ``footRow`` put a
+    /// glass bar around all three, because a glass panel on a glass ground is the
+    /// one thing the material is not for. It reads as a smear and a doubled rim
+    /// rather than as two controls. So the bar is the surface and these are
+    /// simply on it: an unlit switch is its mark and its word and nothing else,
+    /// and the fill below is the whole of what says one is on — which is how the
+    /// system draws a selected tab, and how this bar drew its lit slot before
+    /// there were pills at all.
     ///
-    /// **A pill of its own along the foot**, in the same material the run used to
-    /// wear as one shape and at the capture button's height, so the three read as
-    /// a set. `.interactive()` for that button's reason and no other: the glass
-    /// is the control's own surface now rather than a tray under two of them, and
-    /// a surface that does not answer the finger on it would be the one thing in
-    /// the row that does not. **No tint** — the material is `.regular` here as it
-    /// was on the tray, and what says a switch is on is the same `accentSoft`
-    /// fill it always was.
-    @ViewBuilder private func wearingGlass(_ slot: some View) -> some View {
-        if isHeader {
-            slot
-        } else {
-            slot.glassEffect(.regular.interactive(), in: .capsule)
-        }
-    }
-
-    /// The slot's own shape, inside whatever glass it is wearing: a 34pt chip in
-    /// the header, and along the foot the whole of a pill.
+    /// The `+` keeps its own material because it keeps its own *tint*: it is the
+    /// button on this bar that makes something rather than going somewhere, and
+    /// the accent is the whole of that sentence.
     ///
-    /// **The lit fill reaches the pill's edge along the foot**, where it used to
+    /// **The lit fill is a capsule the width of the whole slot**, where it used to
     /// be an 11pt chip floating inside the run's rounded rectangle with 4pt of
-    /// glass showing round it. That inset made sense while the glass was a tray
-    /// holding two things and the fill had to say *which of the two*; now the
-    /// glass is the switch, and a rounded rectangle drawn a few points inside a
-    /// capsule is a second shape saying nothing.
+    /// glass showing round it. It is the only mark either switch makes on the
+    /// bar, so it takes the slot's own shape — and since ``footEndWidth`` holds
+    /// Search level with the `+`, a lit Search is a capsule of exactly the
+    /// capture button's size at the other end of the row.
     @ViewBuilder
     private func chip(_ title: String, symbol: String, isCurrent: Bool, count: Int) -> some View {
         let content = label(title, symbol: symbol, isCurrent: isCurrent, count: count)
@@ -279,19 +304,19 @@ struct PhoneTabBar: View {
                 // button left — two 123pt pills that were mostly air, and a row
                 // with no centre for the Inbox to sit on. They size to their own
                 // word and mark now, and this is only the floor they cannot go
-                // below: the `+` pill's width, which is the narrowest anything on
-                // this bar is allowed to be.
+                // below.
                 //
-                // It is what keeps the row adaptable, which is the one thing the
-                // old `maxWidth: .infinity` was doing for it: at an accessibility
+                // ``footEndWidth`` binds on Search, which is what holds it level
+                // with the `+` at the other end of the bar; the Inbox is wider
+                // than it unaided and never meets it. It is also what keeps the
+                // row adaptable, which is the one thing the old
+                // `maxWidth: .infinity` was doing for it: at an accessibility
                 // size the pills squeeze back down to here while the words scale
                 // inside them, rather than pushing the row off the screen.
                 //
                 // 52 is the capture button's height, which the run used to reach
-                // by wearing 4pt of padding around a 44pt slot. The bar is the
-                // same height it was, and `Toast.Metrics.phone` still clears it
-                // by the same margin.
-                .frame(minWidth: CaptureGlyphs.width(Self.footCaptureGlyph), minHeight: 52)
+                // by wearing 4pt of padding around a 44pt slot.
+                .frame(minWidth: Self.footEndWidth, minHeight: 52)
                 .background(isCurrent ? palette.accentSoft : .clear, in: .capsule)
                 .contentShape(.capsule)
         }
@@ -449,7 +474,13 @@ struct PhoneTabBar: View {
         } label: {
             CaptureGlyphs(size: glyph, weight: .regular, relativeTo: .title3)
                 .foregroundStyle(palette.onAccent)
-                .frame(minWidth: CaptureGlyphs.width(glyph), minHeight: isHeader ? 44 : 52)
+                // Along the foot it is one end of a bar and is held level with the
+                // other, which is ``footEndWidth`` — wider than the pair of marks
+                // in it needs, and wider than this button draws on the iPad and
+                // the desk. In the header there is no other end to match, so it
+                // is the glyphs' own width and nothing more.
+                .frame(minWidth: isHeader ? CaptureGlyphs.width(glyph) : Self.footEndWidth,
+                       minHeight: isHeader ? 44 : 52)
         }
         .buttonStyle(.bare)
         .glassEffect(.regular.tint(palette.accent).interactive(), in: .capsule)

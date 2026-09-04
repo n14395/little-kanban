@@ -199,7 +199,18 @@ struct PadRootView: View {
             )
         }
         .scrollBounceBehavior(.basedOnSize)
+        // **The column's ground and its seam, both hung here**, because the
+        // scroll view is the only thing in this column that is the column's
+        // height. `BoardSidebar` paints them on the desk, where it *is* the
+        // column; in here it is as tall as its rows and no taller, so its wash
+        // stopped under the last one and its hairline stopped with it. What
+        // that left was a band of column under the list carrying the wash once
+        // where the list above carried it twice — from the pane and from here —
+        // and no line down the side of it at all. One wash now, over the whole
+        // column, which is what the inspector and the Inbox panel each get and
+        // what the desk's source list has always had.
         .background(palette.panelOverlay)
+        .hairline(.trailing, color: palette.ink(0.07))
         .underTheHomeIndicator()
         .navigationSplitViewColumnWidth(
             min: chrome(260, cap: 1.4), ideal: chrome(Self.sidebarIdeal, cap: 1.4),
