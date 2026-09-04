@@ -2,7 +2,7 @@
 
 import SwiftUI
 
-/// The tab pill and quick-capture button: Search, the Inbox, and "+".
+/// The tab pill and quick-capture button: Search, the Inbox, and "+ ▤".
 ///
 /// The design asks for a blurred, tinted bar here (`--glass` + `backdrop-filter`),
 /// which is exactly what Liquid Glass provides natively. Both controls live in a
@@ -253,24 +253,34 @@ struct PhoneTabBar: View {
     /// label, and it has a square of its own to sit in.
     private var showsGlyphBesideWord: Bool { !dynamicTypeSize.isAccessibilitySize }
 
-    /// Capture — 52pt when it floats and 44 when it rides in the header, where
-    /// it is one control in a row of them rather than the thing the thumb comes
-    /// back to. It keeps its accent either way: it is the one button on this bar
-    /// that makes something rather than going somewhere.
+    /// Capture — 52pt tall when it floats and 44 when it rides in the header,
+    /// where it is one control in a row of them rather than the thing the thumb
+    /// comes back to. It keeps its accent either way: it is the one button on
+    /// this bar that makes something rather than going somewhere.
     ///
     /// It lands in the Inbox (``BoardStore/quickCapture()``), where the `+` on
-    /// a column adds to that column.
+    /// a column adds to that column — and it now *says* so, with the tray beside
+    /// the `+` and a capsule around the pair. See ``CaptureGlyphs``, which is
+    /// where that shape and its arithmetic live, since the desk and the iPad
+    /// draw the same button.
+    ///
+    /// **The width comes out of the tab pill, not out of the bar.** Along the
+    /// foot the two slots share `maxWidth: .infinity` between them, so the
+    /// glyph's extra room is taken from a pair of slots that were each a third
+    /// of the screen; in the header the title beside it is the thing with
+    /// `maxWidth: .infinity` and a phone on its side has 850pt of it to give.
+    /// Neither shape grows a point taller.
     private var quickCaptureButton: some View {
-        Button {
+        let glyph: CGFloat = isHeader ? 20 : 24
+        return Button {
             store.quickCapture()
         } label: {
-            Image(systemName: "plus")
-                .symbolSize(isHeader ? 20 : 24, weight: .regular, relativeTo: .title3)
+            CaptureGlyphs(size: glyph, weight: .regular, relativeTo: .title3)
                 .foregroundStyle(palette.onAccent)
-                .frame(minWidth: isHeader ? 44 : 52, minHeight: isHeader ? 44 : 52)
+                .frame(minWidth: CaptureGlyphs.width(glyph), minHeight: isHeader ? 44 : 52)
         }
         .buttonStyle(.bare)
-        .glassEffect(.regular.tint(palette.accent).interactive(), in: .circle)
+        .glassEffect(.regular.tint(palette.accent).interactive(), in: .capsule)
         .accessibilityLabel("New task")
     }
 

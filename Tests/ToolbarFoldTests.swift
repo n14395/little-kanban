@@ -86,38 +86,66 @@ import Testing
 
     /// A 13" iPad in portrait keeps its field with the board to itself — 1032pt,
     /// which is what it gets, since the source list comes over the board in
-    /// portrait rather than beside it — and keeps it with *one* of the two
-    /// columns beside the board as well.
+    /// portrait rather than beside it — and keeps it with the source list beside
+    /// the board as well.
     ///
-    /// The second half is where the row got easier: the bar used to fold at 712
-    /// with the Inbox panel out, back when capture was a labelled **New task**
-    /// button. As a circle it claims the row's own 44pt square instead of 117,
-    /// which is 73 points back to the name and a fold line 73 points lower.
+    /// **It does not keep it with the Inbox panel out**, and that is the shape
+    /// this suite said would flip. The line was 700 while capture was a 44pt
+    /// circle, and the panel case — 1032 less the panel's 320 — cleared it by
+    /// twelve points, which the comment here called the one number close enough
+    /// to move. Capture is a capsule now, a `+` and the tray the card lands in
+    /// (see ``CaptureGlyphs``), and three and a half glyphs is about 25pt more
+    /// of a row whose only compressible piece is the board's name. So the line
+    /// is 726 and that shape folds.
     ///
-    /// **The panel case clears the line by twelve points**, and that is stated
-    /// rather than hidden: it is the one shape here that is close enough to flip
-    /// if any of these numbers moves, which is precisely what this should report
-    /// when it does.
+    /// **The source-list case is what the trade was made against.** 732pt clears
+    /// 726 by six, which is thin — thinner than the twelve this replaced — and
+    /// is stated rather than hidden for the same reason: it is now the number
+    /// that flips first if any of these moves.
     @Test func theBigIPadInPortraitKeepsItsField() {
         let pad = BoardToolbar.Metrics.pad
-        for width in [1032, 1032 - Int(InboxPanel.Metrics.pad.width), 1032 - 300, 1376 - 300] {
+        for width in [1032, 1032 - 300, 1376 - 300] {
             #expect(pad.searchFits(barWidth: CGFloat(width), leadingInset: 0,
                                    sidebarToggle: true, inboxToggle: true, factor: 1),
                     "the field folded at \(width), which is not a squeezed bar")
         }
+        #expect(!pad.searchFits(barWidth: 1032 - InboxPanel.Metrics.pad.width, leadingInset: 0,
+                                sidebarToggle: true, inboxToggle: true, factor: 1),
+                "the panel case fitted, and the capture pill's width says it should not")
     }
 
     /// The capture button is the iPad's, and the desk's absence of one is a
     /// `nil` in the preset rather than an `#if os()` in the body — the same
     /// shape `ColumnEditorMetrics.arrowEdge` uses. It costs the row its own
     /// width and a gap, so it moves the line like anything else in there.
+    ///
+    /// **What the row is charged is the pill's width, not its height.** The
+    /// preset states the height — 44, the finger's, and what every other control
+    /// in the row is — and `captureWidth` derives the rest from the glyph inside
+    /// it, so the two cannot drift apart. A row charged 44 for a control that
+    /// draws at 69 would fold at a width no bar is actually short at.
     @Test func captureBelongsToTheIPadAndCostsTheRowItsWidth() {
         var withoutIt = BoardToolbar.Metrics.pad
         withoutIt.capture = nil
 
         #expect(BoardToolbar.Metrics.desk.capture == nil)
+        #expect(BoardToolbar.Metrics.desk.captureWidth == nil)
         #expect(BoardToolbar.Metrics.pad.capture == 44)
         #expect(threshold(withoutIt) < threshold(BoardToolbar.Metrics.pad))
+    }
+
+    /// The pill is wider than it is tall, and the row is charged for the width.
+    ///
+    /// Both halves matter and only one of them used to exist: a capsule whose
+    /// width the arithmetic never heard about would draw over the board's name,
+    /// and a `captureWidth` that had drifted below the height would be a capsule
+    /// narrower than the circle it replaced.
+    @Test func theCapturePillIsChargedAtItsWidth() throws {
+        let pad = BoardToolbar.Metrics.pad
+        let height = try #require(pad.capture)
+        let width = try #require(pad.captureWidth)
+        #expect(width == CaptureGlyphs.width(BoardToolbar.Metrics.captureGlyph(height)))
+        #expect(width > height)
     }
 
     /// Both columns at once is another matter: the source list and the Inbox

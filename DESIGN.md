@@ -4242,22 +4242,57 @@ list's foot on the desk (`captureToInbox()`), this one
 all land a card in the Inbox, because a capture is what you write down before
 you know where it goes. A column's own `+` adds to that column of that board,
 where the destination is the part that is already settled. But
-it is **a circle with a `+` in it now, and no word** — the same control the
-phone floats over its tab bar, at the 44pt square every other control in this
-row claims. The label was 117pt of a row whose only compressible piece is the board's
-name; the glyph is 44. That is 73 points back to the name and a fold line 73
-points lower, and the word it dropped is carried by the accessibility label, which
-is what a reader was getting either way.
-
-`BoardToolbar.Metrics.capture` is how the two presets differ — a diameter on the
-iPad and `nil` on the desk, in the shape `ColumnEditorMetrics.arrowEdge` uses,
-rather than an `#if os()` in a shared body (C1).
+it is **glyphs and no word now** — the same control the
+phone floats over its tab bar, at the 44pt height every other control in this
+row claims. The label was 117pt of a row whose only compressible piece is the
+board's name; what stands there instead is 69, and the rest went back to the
+name. The word it dropped is carried by the accessibility label, which is what a
+reader was getting either way.
 
 There are two more scenes beside it. `Settings { }` is a root of its own and
 inherits nothing from the window, so the palette, the tint and the appearance
 override are all resolved again in `SettingsWindow`. `MenuBarQuickAdd` is a
 `MenuBarExtra` — a title field, a destination picker that remembers its choice,
 and "Open Board" — so a capture can be made without bringing the app forward.
+
+### The `+` carries the tray it captures into
+
+The sentence above — *this one lands in the Inbox, a column's own `+` lands in
+that column* — was true of all three ever-present buttons and drawn by none of
+them. Both are the same glyph in the same accent, and a lone `+` reads as **add
+here**: here being whatever surface it is sitting on, which is exactly the
+column heading's meaning and exactly not this one's. So capture is **a `+` and
+the tray, side by side at one size, in a capsule** — the tray being the mark the
+Inbox already wears everywhere else in the app, on the toolbar's toggle, in the
+phone's tab pill, on the source list's row and in the empty state. `CaptureGlyphs`
+is the pair and its arithmetic, shared by all three surfaces, because four sizes
+of one control is a rule and not four decisions.
+
+**Only the width moved.** 52pt on the phone's float, 44 in its header, 44 on the
+iPad and 44 at the foot of the desk's source list — untouched, because height is
+what a thumb and a row are measured against. The pill is **three and a half
+glyphs wide**: two glyphs and three gaps of half a glyph each, one between them
+and one at either end. Half a glyph rather than the circle's own inset —
+`(height − size) / 2`, what used to centre a single `+` — because that inset was
+never a gap, and spent three times over it made a pill half again as wide as it
+needs to be.
+
+**The iPad's bar is the one place that width is charged to something.** Nothing
+else here is squeezable but the board's name, so the tray costs the row about
+25pt and the search field folds that much sooner: a 13" in portrait keeps its
+field with the board to itself and with the source list beside it, and gives it
+up when the Inbox panel is out — which is the shape `Tests/ToolbarFoldTests` had
+already named as the one close enough to flip. The phone pays nothing: along the
+foot the width comes off two tab slots that were each a third of the screen, and
+in the header off a serif title with the whole of a landscape phone after it. The
+desk pays nothing either — the foot of its source list is otherwise empty.
+
+`BoardToolbar.Metrics.capture` is how the two presets differ — a height on the
+iPad and `nil` on the desk, in the shape `ColumnEditorMetrics.arrowEdge` uses,
+rather than an `#if os()` in a shared body (C1). The *width* is derived from it
+(`captureWidth`) rather than stated beside it: a table that named both could name
+them out of step, and a row charged 44 for a control drawing at 69 would fold at
+a width no bar is actually short at.
 
 ## The iPad
 
@@ -4431,12 +4466,15 @@ portrait with the Inbox panel open, back when the row also carried New task: the
 bar laid out at 712pt and drew "Northwind iOS 3.0" as **"Northwind i…"** in 131
 of them, beside an empty 220pt field.
 
-**Below 700pt the field folds into a magnifying-glass button**, and the name gets
+**Below 726pt the field folds into a magnifying-glass button**, and the name gets
 those 220 points back — the same board draws its full title with room over. (The
-line was 773 while capture was a labelled New task button; drawing it as a circle
-gave the bar back 73pt, so on a 13" the source list and the Inbox panel now have
-to be out *together* before it folds. With only the panel out that bar clears the
-line by twelve points, which `Tests/ToolbarFoldTests` states rather than hides.)
+line was 773 while capture was a labelled New task button and 700 while it was a
+bare `+` in a circle; the tray beside the `+` — see **The `+` carries the tray it
+captures into** — put 25 of those 73 points back on the row. So on a 13" the
+source list alone still leaves the field in place, clearing the line by six, and
+the Inbox panel alone no longer does. `Tests/ToolbarFoldTests` states both rather
+than hiding them: six points is now the number that flips first if any of these
+moves.)
 Pressing the button drops the field into a row of its own under the bar, focused,
 with the keyboard already up: it was folded away *from* a field, so arriving at
 anything else would cost the reader a press and then a hunt for the field's own
@@ -7504,7 +7542,7 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `BoardSettingsTests` | what the board settings sheet promises before it changes a board: the refuge a trashed column's cards move to being the one `deleteColumn` actually moves them to and the column itself landing in the Trash; the count including archived cards, because the move does; an empty column's warning saying only the part that is still true; that **no** reorder from anywhere to anywhere changes where completed work lands, that adding a column leaves the Done column where it is, and that the Done column refuses every move; plus the shape of the composer — a name and a short, no role, sitting between the working columns and Done — and the board strip no longer ending in a tile |
 | `SidebarRoomTests` | iOS only — which of an iPad window's three panels gives way, and when. A 13" in landscape closing nothing whichever is opened, since it holds all four columns at once and is the shape the layout was drawn for; an unmeasured window closing nothing either, because the other way round shuts a panel on the way in; opening a panel on the left collapsing the *editor* first, which on an 11" in landscape is the whole of it — the two left-hand panels fit together perfectly well once the far side has gone; an 11" in portrait, which has room for one, emptying the rest for whichever was asked for; the two on the left still taking turns with the editor already away, since a panel that costs nothing is skipped rather than counted as the answer; a source list the system drew *over* the board not competing at all; opening the editor taking the room from the far side first and from both when one is not enough; the line being exactly the board's own floor; and two properties over every iPad width and every combination of what was open — that what is left always holds the rest and never closes the panel just opened, and that whatever closes for the Inbox leaves a window the panel will actually draw in. `UITests/PadSidebarsTests` presses the buttons |
 | `DrawerWidthTests` | iOS only — how wide the phone's drawer is drawn, which is 84% of the screen's **short** edge rather than of the container it is handed: the same width on every phone held either way up; the landscape number not being 84% of the landscape width, which is 734pt of board list over a sliver of board; the ceiling being that device's own portrait width rather than a constant, since a maximum picked once widens the smaller phone on its side; an unmeasured screen falling back to the container, so zero cannot win the `min` and collapse the panel; and a container narrower than the screen still holding the panel |
-| `ToolbarFoldTests` | at what width the board header folds its search field into a button, which is arithmetic because the bar's width is whatever the split view left the detail column: the fold happening *before* the row runs out of room rather than after, and leaving the board's name something worth reading; the decision being monotonic in width, so no drag across the line can make it flicker; where the line falls on the shapes real iPads have — a 13" in portrait keeping its field with the board to itself *and* with either column beside it, losing it only when both are out, and an 11" in portrait losing it to the source list alone; each control in the row and the traffic lights' 68pt band moving the line, the capture button included, which is also where the iPad having one and the desk not is pinned; larger type folding sooner and stopping at the chrome caps; and the desk not folding at all, with its own window floor checked to still hold the bar that decision leans on. `UITests/ToolbarFoldTests` presses the button |
+| `ToolbarFoldTests` | at what width the board header folds its search field into a button, which is arithmetic because the bar's width is whatever the split view left the detail column: the fold happening *before* the row runs out of room rather than after, and leaving the board's name something worth reading; the decision being monotonic in width, so no drag across the line can make it flicker; where the line falls on the shapes real iPads have — a 13" in portrait keeping its field with the board to itself *and* with the source list beside it, losing it to the Inbox panel and to both columns together, and an 11" in portrait losing it to the source list alone; each control in the row and the traffic lights' 68pt band moving the line, the capture pill included — charged at its width rather than its height, which is also where the iPad having one and the desk not is pinned; larger type folding sooner and stopping at the chrome caps; and the desk not folding at all, with its own window floor checked to still hold the bar that decision leans on. `UITests/ToolbarFoldTests` presses the button |
 | `TrashSurfaceTests` | where the Trash is now that it is not a settings tab: the flag being session state that starts shut and changes nothing about the board, `SettingsView` building no `TrashView` and holding no trash pane, each of the two door-bearing surfaces — the source list on macOS and iPad, the board menu on the phone — raising `isShowingTrash`, and the phone's sheet being presented by the root rather than by the header that opens it, which is a thing a menu cannot do |
 | `ScaleTests` | 7.4 — five hundred cards on six boards, thirty columns, twenty-four labels and eleven thousand activity entries, and what each hot path costs on it. Nothing asserts a wall-clock time: every bound is a *ratio* between two timings taken in the same process on the same data, which cancels the machine out and leaves the shape of the algorithm. See **Scale** |
 | `FirstRunTests` | 7.5 — a first launch starting on nothing at all rather than on the sample; the picker never standing in front of the test host; the sample offered rather than first; the three starters carrying none of the sample's cards; and then the property over all five templates — folded into the empty board a first launch actually builds, each one satisfies the placement invariant, resolves every label key it wears, mints no duplicate code, has a landing column and a Done column, survives a relaunch card for card, and takes a card added, dated, completed and archived on it. Choosing is one ⌘Z |

@@ -679,6 +679,12 @@ struct BoardSidebar: View {
 
     // MARK: Capture
 
+    /// The `+` and the tray at the foot of the list, at a point size of their
+    /// own: a shade under the pill's 44 × 0.45 because this button carries the
+    /// heavier weight of the three — `.semibold` against the iPad's `.medium` —
+    /// and a heavier glyph at the same size draws bigger.
+    private static let captureGlyph: CGFloat = 19
+
     /// Quick capture, at the foot of the list: one press makes a card in the
     /// Inbox and opens the whole inspector on it in a popover — a title, a
     /// description, a due date, labels, a checklist, and the board menu to file
@@ -694,24 +700,31 @@ struct BoardSidebar: View {
     ///
     /// macOS only. `PadRootView` draws this same list, but a popover that size
     /// wants touch metrics and a width of its own, and the iPad's toolbar
-    /// carries capture itself — a circle with a `+` in it, at the right of the
-    /// bar. See ``BoardToolbar/captureButton``.
+    /// carries capture itself — the same pill, at the right of the bar. See
+    /// ``BoardToolbar/captureButton``.
+    ///
+    /// **A `+` and a tray, in a capsule.** The glyph pair is
+    /// ``CaptureGlyphs``, shared with the other two surfaces: the `+` is the
+    /// verb and the tray is where the card lands, which on this button was the
+    /// half nothing on screen said. Room it has — the foot of the list is
+    /// otherwise empty, and 200pt of source list sit under a 67pt pill.
     @ViewBuilder private var captureButton: some View {
         #if os(macOS)
         Button { capture = Capture(id: store.captureToInbox()) } label: {
-            Image(systemName: "plus")
-                .symbolSize(19, weight: .semibold, relativeTo: .title3)
+            CaptureGlyphs(size: Self.captureGlyph, weight: .semibold, relativeTo: .title3)
                 .foregroundStyle(palette.onAccent)
                 // The one control in the list that is a target rather than a
-                // row, so it takes a square of its own rather than the row
+                // row, so it takes a shape of its own rather than the row
                 // height — and grows with the type inside it like the rest.
                 //
                 // 44 is where it stops shrinking: the touch minimum, which is
                 // not this surface's rule — the desk is the only place this is
                 // drawn — but is a floor worth landing on rather than passing
-                // through, and the glyph keeps its share of the disc.
-                .frame(width: chrome(44), height: chrome(44))
-                .background(palette.accent, in: .circle)
+                // through, and the glyphs keep their share of the pill. Only
+                // the width moved when the disc became a capsule; this is the
+                // same 44pt band of the foot it always was.
+                .frame(width: chrome(CaptureGlyphs.width(Self.captureGlyph)), height: chrome(44))
+                .background(palette.accent, in: .capsule)
                 .shadow(color: palette.shadow(0.2), radius: 5, y: 2)
         }
         .buttonStyle(.bare)

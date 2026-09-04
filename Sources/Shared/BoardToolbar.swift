@@ -48,7 +48,15 @@ struct BoardToolbar: View {
         /// built app — see
         /// ``searchFits(barWidth:leadingInset:sidebarToggle:inboxToggle:factor:)``.
         var inboxWidth: CGFloat
-        /// The capture button's diameter, and `nil` where the bar carries none.
+        /// The capture button's **height**, and `nil` where the bar carries
+        /// none.
+        ///
+        /// A diameter until the button became a capsule with a tray beside its
+        /// `+` (see ``CaptureGlyphs``). Height is the half of it this table
+        /// still states, because height is what the rest of the row is measured
+        /// against — every other control here is `control` tall, and
+        /// `Tests/TouchTargetTests` reads this as the finger's 44. The width is
+        /// derived from it rather than named beside it, in ``captureWidth``.
         ///
         /// A size that is allowed to be absent, the way
         /// ``BoardColumnView/ColumnEditorMetrics/arrowEdge`` is — the presets
@@ -56,6 +64,22 @@ struct BoardToolbar: View {
         /// is `nil` because its capture button is at the foot of the source
         /// list, where a window's furniture goes.
         var capture: CGFloat?
+
+        /// The glyphs inside the capture pill.
+        ///
+        /// Off the button's own height rather than off the bar's `glyph`, so the
+        /// two keep their proportion if the button ever changes size: the phone
+        /// draws 24 in 52, which is this.
+        static func captureGlyph(_ height: CGFloat) -> CGFloat { height * 0.45 }
+
+        /// What the capture button claims of the row — three and a half of its
+        /// glyphs, which is ``CaptureGlyphs/width(_:)``.
+        ///
+        /// Derived rather than a second stored number, because a width in this
+        /// table that disagreed with the one the button drew at would move the
+        /// fold line to a place no bar is actually folding at, and nothing on
+        /// screen would say which of the two was wrong.
+        var captureWidth: CGFloat? { capture.map { CaptureGlyphs.width(Self.captureGlyph($0)) } }
         /// Whether the field folds into a button when the row runs out of
         /// width.
         ///
@@ -131,7 +155,9 @@ struct BoardToolbar: View {
             var pieces = 4
             if sidebarToggle { claimed += grown(control); pieces += 1 }
             if inboxToggle { claimed += grown(inboxWidth); pieces += 1 }
-            if let capture { claimed += grown(capture); pieces += 1 }
+            // The pill's width, not its height: it is the one control in the row
+            // that is wider than it is tall.
+            if let captureWidth { claimed += grown(captureWidth); pieces += 1 }
             // An `HStack`'s spacing goes between every pair, the spacer
             // included — so the gaps are one fewer than the pieces, not one
             // fewer than the controls.
@@ -838,15 +864,22 @@ struct BoardToolbar: View {
     static let searchToggleID = "SearchToggle"
     static let searchFieldID = "SearchField"
 
-    /// A `+` in a filled circle, and nothing else — the same control the phone
-    /// floats over its tab bar (``PhoneTabBar/quickCaptureButton``), at the
-    /// size the rest of this row is.
+    /// A `+` and a tray in a filled capsule — the same control the phone floats
+    /// over its tab bar (``PhoneTabBar/quickCaptureButton``), at the height the
+    /// rest of this row is.
     ///
     /// **No word beside it.** The label was 73pt of a row that has only the
-    /// board's name to give, and the glyph in the accent says the whole of it.
+    /// board's name to give, and the glyphs in the accent say the whole of it.
     /// What the word carried is carried by the accessibility label besides,
     /// which is what a reader gets either way: a button whose label is its
     /// glyph publishes nothing without one.
+    ///
+    /// **The tray costs the row about 25pt**, which this bar is the one surface
+    /// that has to find somewhere: `searchFits` charges ``Metrics/captureWidth``
+    /// against the board's name, so the field now folds a little sooner. That is
+    /// stated in `Tests/ToolbarFoldTests` rather than discovered — a 13" in
+    /// portrait keeps its field with the board to itself and with the source
+    /// list beside it, and gives it up when the Inbox panel is out.
     ///
     /// **It captures to the Inbox, never to the board behind it.** This is the
     /// iPad's copy of the control the desk keeps at the foot of its source list
@@ -856,19 +889,16 @@ struct BoardToolbar: View {
     /// the column it sits on, because there the destination is what is already
     /// settled. See ``BoardStore/beginCapturingInInbox()``.
     @ViewBuilder private var captureButton: some View {
-        if let diameter = metrics.capture {
+        if let height = metrics.capture, let width = metrics.captureWidth {
             Button {
                 store.beginCapturingInInbox()
             } label: {
-                Image(systemName: "plus")
-                    // Off the circle rather than off the bar's glyph size, so
-                    // the two keep their proportion if the circle ever changes:
-                    // the phone draws 24 in 52, which is this.
-                    .symbolSize(diameter * 0.45, weight: .medium, relativeTo: .title3)
+                CaptureGlyphs(size: Metrics.captureGlyph(height), weight: .medium,
+                              relativeTo: .title3)
                     .foregroundStyle(palette.onAccent)
-                    .frame(minWidth: chrome(diameter), minHeight: chrome(diameter))
-                    .background(palette.accent, in: .circle)
-                    .contentShape(.circle)
+                    .frame(minWidth: chrome(width), minHeight: chrome(height))
+                    .background(palette.accent, in: .capsule)
+                    .contentShape(.capsule)
             }
             .buttonStyle(.bare)
             .help("New task")
