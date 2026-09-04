@@ -5646,13 +5646,19 @@ final class BoardStore {
         guard let taskIndex = position(of: taskID),
               let subIndex = tasks[taskIndex].subtasks.firstIndex(where: { $0.id == subtaskID })
         else { return }
-        let name = tasks[taskIndex].subtasks[subIndex].done
+        let wasDone = tasks[taskIndex].subtasks[subIndex].done
+        let name = wasDone
             ? String(localized: "Reopen Sub-task", comment: "Undo action name for un-ticking a sub-task")
             : String(localized: "Complete Sub-task", comment: "Undo action name for ticking a sub-task")
         undoable(name) {
             tasks[taskIndex].subtasks[subIndex].done.toggle()
             touch(taskIndex)
             scheduleSave()
+            // The sub-task's chime, on the one edge that means a step was
+            // finished — `performMove`'s reasoning, one size down. Undo, redo
+            // and a sync merge put `done` back without coming through here, and
+            // a checklist restored is not a checklist being ticked.
+            if !wasDone { CompletionFeedback.shared.subtaskCompleted() }
         }
     }
 

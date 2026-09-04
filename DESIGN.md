@@ -4277,6 +4277,65 @@ and one at either end. Half a glyph rather than the circle's own inset —
 never a gap, and spent three times over it made a pill half again as wide as it
 needs to be.
 
+**The phone's other two switches took the shape with it.** Search and the Inbox
+shared one 16pt rounded rectangle of glass along the foot, with the lit one
+marked by an 11pt chip floating inside it — a shape that made sense while the
+glass was a tray holding two things and the fill had to say *which of the two*.
+Next to a capsule it is two shape languages in a bar four inches wide. So each
+wears a glass capsule of its own at the `+`'s 52pt height, and the lit fill
+reaches the pill's edge instead of sitting a few points inside it. Nothing is
+recoloured: the material is still `.regular` and untinted, and *on* is still
+`accentSoft` — `.interactive()` is the one thing added, because the glass is each
+switch's own surface now rather than a tray under both, and a surface that does
+not answer the finger on it would be the only one in the row that does not.
+**The header keeps its single rounded pill**, where the two are 34pt glyph chips
+between a serif title and the ⋯ and their being a matched pair inside one shape
+is what says they are one control.
+
+### The foot's three pills are laid out around the Inbox
+
+Once they were three capsules rather than a tray and a button, the old
+arrangement stopped meaning anything: Search and the Inbox each took
+`maxWidth: .infinity` and halved whatever the `+` left, which came to two 123pt
+pills that were mostly air, sitting wherever that arithmetic put them. **They
+size to their own word and mark now** — the word set at 13pt rather than 12, and
+the mark at 24, which is the size the `+` and its tray are drawn at. One number
+for every glyph on the bar, because three pills in a row drawing their marks at
+two sizes read as a bar and a button rather than three of one thing. Measured on
+a 17 Pro they come to 107 and 125 against the capture pill's 84.
+
+**The Inbox is on the window's centre line.** It is the middle of the sentence
+this bar makes and the one slot reached for *while* looking at something else, so
+it gets the place a thumb finds without aiming. Search and the `+` are pinned to
+opposite edges inside the bar's 20pt inset, so the two ends sit the same distance
+in: measured, Search runs 19.0→125.3pt and capture 297.3→383.0 in a 402pt window,
+and the Inbox's centre is 200.8 against a window centre of 201.0.
+
+**An `HStack` cannot say that, and for a while it looked as though it could.**
+Spelled as a stack with the ends in `maxWidth: .infinity` columns, the three
+shared the width three ways: a stack hands its room out by flexibility, and a
+middle child that can shrink at all is offered a *share* rather than what it
+asked for. With the marks at 13pt every pill's ideal happened to fit inside a
+third and the row looked right; the moment they went to 24 the Inbox was clamped
+to 113 and drew **"Inb…"**. The centre line is not a share of anything, so
+`CentredMiddleRow` is a `Layout` — it measures the middle, keeps it on the
+centre, and hands each end exactly the room between its own edge and the middle's
+gap. Each child is proposed the smaller of its ideal and that room, so a text
+size the bar cannot hold scales the words inside their pills rather than
+overlapping or clipping them; `chip`'s floor of the `+` pill's own width is where
+that squeeze stops.
+
+**The gaps either side of the Inbox are not equal, and cannot be.** Three things
+cannot all hold at once: the middle on the centre line, both ends flush to their
+edges, and the ends different widths. Search carries a word beside its 24pt
+magnifier and the `+` carries two marks and none, so they are 107 and 84 — which
+leaves 13 points one side of the Inbox and 34 the other. **Which two of the three
+to keep is the decision**, and it keeps the edges and the centre line: both are
+things the eye can check against the window, and a gap is not. Flooring the `+`
+pill at Search's width would even them up and is what to reach for if the
+lopsidedness ever reads as a mistake — at the cost of a capture button wider on
+this surface than on the iPad and the desk.
+
 **The iPad's bar is the one place that width is charged to something.** Nothing
 else here is squeezable but the board's name, so the tray costs the row about
 25pt and the search field folds that much sooner: a 13" in portrait keeps its

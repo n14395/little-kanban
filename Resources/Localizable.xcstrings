@@ -6463,7 +6463,10 @@
         }
       }
     },
-    "Play a sound" : {
+    "Play a sound when a card is finished" : {
+
+    },
+    "Play a sound when a sub-task is ticked" : {
 
     },
     "Pluck" : {
@@ -8289,6 +8292,9 @@
         }
       }
     },
+    "Sub-task sound" : {
+      "comment" : "Settings row: which chime a ticked sub-task plays"
+    },
     "Sub-tasks" : {
       "comment" : "View criterion field",
       "localizations" : {
@@ -8956,6 +8962,9 @@
           }
         }
       }
+    },
+    "The same chimes, chosen separately — a step finished is not the card finished, and the two should not sound alike. Un-ticking one is silent." : {
+
     },
     "The same icon whatever the theme." : {
       "comment" : "Note under the app icon when it is one of the ten"

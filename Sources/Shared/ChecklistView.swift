@@ -46,6 +46,36 @@ struct ChecklistView: View {
         /// the claim would otherwise push the row past the height it draws.
         var fieldHit: CGFloat
         var fieldOverhang: CGFloat
+        /// The room the field keeps at the end of a line for the insertion
+        /// point, handed back to it as width.
+        ///
+        /// **This is the empty second line.** A `TextField(axis: .vertical)`
+        /// wraps its text 4pt before the trailing edge of its frame and *draws*
+        /// it to the edge, so a sub-task whose text ends inside that 4pt band
+        /// is measured at two lines and drawn on one. The row grows by a whole
+        /// line, the words sit at the top of it, and the box and the grip —
+        /// which centre on the row — slide down past the text they belong to.
+        /// It reads as arbitrary because it is a band and not a threshold: two
+        /// sub-tasks of quite different lengths can both be caught at one
+        /// window width and neither at the next, which is what makes it look
+        /// like the long ones are wrapping for no reason.
+        ///
+        /// **4 is measured, not guessed.** The field's height was compared
+        /// against the same string's `Text` height at every width from 200 to
+        /// 460pt, over five strings, in a bundled face and the system one
+        /// alike: the mismatch is exactly 4pt wide at every wrap point. Handing
+        /// the field 4pt of width it does not claim puts its wrap back on the
+        /// claim's trailing edge, so the text still stops where it always did
+        /// and the row is as tall as the lines it actually draws. At 3.5 a
+        /// sliver of the band survives; at 4.5 the field starts keeping text on
+        /// a line `Text` would have wrapped, which is the same fault pointing
+        /// the other way.
+        ///
+        /// The same number on both surfaces — it is the field's own reserve
+        /// rather than anything about the row's size. The phone shows less of
+        /// it than the desk does: a sheet row has ``rowMinHeight`` 44 under it,
+        /// which a second claimed line clears by only a couple of points.
+        var fieldCaretGutter: CGFloat
         /// The reorder grip at the trailing end of every row: the glyph as
         /// drawn, the square it claims, and how much of that claim it hands
         /// straight back. `gripOverhang` is `boxOverhang`'s trick for
@@ -76,7 +106,7 @@ struct ChecklistView: View {
             rowVerticalPadding: 6, rowHorizontalPadding: 8, rowMinHeight: 0,
             rowRadius: 9, font: 12.5,
             showsRowHover: true, showsInlineDelete: true, deleteGlyph: 9.5,
-            boxOverhang: 0, fieldHit: 0, fieldOverhang: 0,
+            boxOverhang: 0, fieldHit: 0, fieldOverhang: 0, fieldCaretGutter: 4,
             gripGlyph: 10, gripHit: 18, gripOverhang: 0, standInRadius: 9
         )
         static let sheet = Metrics(
@@ -84,7 +114,7 @@ struct ChecklistView: View {
             rowVerticalPadding: 6, rowHorizontalPadding: 8, rowMinHeight: 44,
             rowRadius: 0, font: 14,
             showsRowHover: false, showsInlineDelete: false, deleteGlyph: 13,
-            boxOverhang: 7, fieldHit: 44, fieldOverhang: 6,
+            boxOverhang: 7, fieldHit: 44, fieldOverhang: 6, fieldCaretGutter: 4,
             gripGlyph: 14, gripHit: 44, gripOverhang: 7, standInRadius: 10
         )
     }
@@ -275,6 +305,13 @@ struct ChecklistView: View {
                 .frame(maxWidth: .infinity, minHeight: metrics.fieldHit, alignment: .leading)
                 .contentShape(.accessibility, Rectangle())
                 .padding(.vertical, -metrics.fieldOverhang)
+                // `boxOverhang`'s trick a third time, sideways: the field
+                // measures and draws 4pt wider than the row gives it, which is
+                // exactly the reserve it wraps early by. Nothing moves —
+                // the text stops where it always did — but a row is now as tall
+                // as the lines it draws rather than the lines it planned for.
+                // See ``Metrics/fieldCaretGutter``.
+                .padding(.trailing, -metrics.fieldCaretGutter)
                 // A placeholder is not a name, and this one is gone the moment
                 // the row has any text — which is every row a reader meets.
                 .accessibilityLabel("Sub-task")

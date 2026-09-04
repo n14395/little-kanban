@@ -49,6 +49,34 @@ import Testing
         }
     }
 
+    /// The sub-task's half: its own switch, its own key, and a default chime
+    /// that is deliberately not the card's — the point of the second sound is
+    /// that a step finished and a card finished are told apart without being
+    /// looked at.
+    @MainActor
+    @Test func theSubtaskChimeIsItsOwnSwitchAndItsOwnSound() throws {
+        let suite = try #require(UserDefaults(suiteName: "SimpleKanbanTests-\(UUID().uuidString)"))
+        Preferences.reading(suite) {
+            #expect(Preferences.playsSubtaskSound, "a fresh install should tick")
+            #expect(Preferences.subtaskSound == .tineWarm)
+            #expect(Preferences.subtaskSound != Preferences.completionSound,
+                    "the two default chimes are the same sound, so neither says which happened")
+        }
+        // Two keys, and setting one moves nothing about the other — which is
+        // the mistake a shared key would make invisible.
+        suite.set(CompletionSound.bowl.rawValue, forKey: CompletionSound.subtaskStorageKey)
+        Preferences.reading(suite) {
+            #expect(Preferences.subtaskSound == .bowl)
+            #expect(Preferences.completionSound == .barThird)
+        }
+        // And a stranger falls back to the sub-task's own default rather than
+        // to the card's.
+        suite.set("kazoo", forKey: CompletionSound.subtaskStorageKey)
+        Preferences.reading(suite) {
+            #expect(Preferences.subtaskSound == .tineWarm)
+        }
+    }
+
     // MARK: The gate
 
     /// A bulk complete runs one announcement per card inside a single turn,

@@ -175,7 +175,16 @@ enum CardDensity: String, CaseIterable, Identifiable, Sendable {
 
 // MARK: - What finishing sounds like
 
-/// The chime a card makes on its way into Done.
+/// The chime a card makes on its way into Done — and, chosen separately, the
+/// one a ticked sub-task makes.
+///
+/// **One vocabulary, two choices.** A sub-task could have had a list of its own
+/// and there is nothing to put on it: the fifteen here are already every
+/// "something small was struck" this app has, and a second set would either
+/// repeat them or be worse ones. What the two settings own is which of the
+/// fifteen each plays, and the defaults are picked to be told apart — the card's
+/// two rising wooden notes against the sub-task's one round tine — because the
+/// point of the sub-task sound is that it is *not* the card's.
 ///
 /// Bundled sounds rather than the system's: the system has no cross-platform
 /// "completion" sound to name — the Mac's fourteen alert sounds are AppKit's
@@ -206,6 +215,11 @@ enum CompletionSound: String, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
     static let storageKey = "SimpleKanbanCompletionSound"
+    /// Where the sub-task's choice is kept. A key of its own rather than a
+    /// shared one: the two are set from two rows and a person who wants the
+    /// bell for a card and the tine for a sub-task is asking the ordinary
+    /// question of a pair of pickers.
+    static let subtaskStorageKey = "SimpleKanbanSubtaskSound"
 
     /// The two rising wooden notes, which is what the old default `chime` was
     /// and what an unreadable stored value should still land on. `choice` reads
@@ -213,6 +227,13 @@ enum CompletionSound: String, CaseIterable, Identifiable, Sendable {
     /// `chime`, `ding` or `glass` set when those went away arrives here — which
     /// is the nearest of the fifteen to what they had chosen.
     static let fallback = CompletionSound.barThird
+
+    /// What a ticked sub-task sounds like out of the box: one round
+    /// electric-piano note. Shorter and plainer than ``fallback``'s pair, and
+    /// far enough from it that the two are told apart without being read — a
+    /// sub-task is a step and a card is the thing the steps were for, and the
+    /// sounds should say which just happened.
+    static let subtaskFallback = CompletionSound.tineWarm
 
     /// `completion-barThird`, under `Sounds/` with a `.caf` extension.
     var resourceName: String { "completion-\(rawValue)" }
@@ -346,6 +367,14 @@ extension Preferences {
     /// sound is the point of the feature, and the switch is for the person it
     /// grates on — see ``CompletionSound`` for which chime.
     static let completionSoundKey = "SimpleKanbanPlaysCompletionSound"
+    /// Play a chime when a sub-task is ticked. On by default for the reason
+    /// above, and it is the louder half of that bargain: a checklist is ticked
+    /// far more often than a card is finished, so this is the switch more
+    /// likely to be reached for. It arrives open anyway, because a sound
+    /// nobody hears is a setting nobody knows to look for — and the sub-task
+    /// tick already had a haptic, which is the same feedback said quietly.
+    /// Only the edge *into* done makes it; un-ticking is silent.
+    static let subtaskSoundKey = "SimpleKanbanPlaysSubtaskSound"
     /// Keep the ⌃⌘N status item in the menu bar. On by default, because it is
     /// the app's one route in from another app.
     static let menuBarExtraKey = "SimpleKanbanShowsMenuBarExtra"
@@ -427,6 +456,9 @@ extension Preferences {
     static var completionSound: CompletionSound {
         choice(CompletionSound.self, key: CompletionSound.storageKey, fallback: .fallback)
     }
+    static var subtaskSound: CompletionSound {
+        choice(CompletionSound.self, key: CompletionSound.subtaskStorageKey, fallback: .subtaskFallback)
+    }
 
     /// Writes down the view on screen, for ``resumesLastPlace`` to read at the
     /// next launch. Written whatever the setting says: turning it on should
@@ -444,6 +476,7 @@ extension Preferences {
     static var opensInboxAtLaunch: Bool { flag(inboxAtLaunchKey) }
     static var showsCardTick: Bool { flag(cardTickKey) }
     static var playsCompletionSound: Bool { flag(completionSoundKey, fallback: true) }
+    static var playsSubtaskSound: Bool { flag(subtaskSoundKey, fallback: true) }
     static var showsMenuBarExtra: Bool { flag(menuBarExtraKey, fallback: true) }
     static var launchesAtLogin: Bool { flag(launchAtLoginKey) }
     static var appIconFollowsTheme: Bool { flag(appIconFollowsThemeKey) }

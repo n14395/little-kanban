@@ -137,6 +137,8 @@ struct SettingsView: View {
     @AppStorage(WeekMeaning.storageKey) private var weekMeaning = WeekMeaning.fallback
     @AppStorage(Preferences.completionSoundKey) private var playsCompletionSound = true
     @AppStorage(CompletionSound.storageKey) private var completionSound = CompletionSound.fallback
+    @AppStorage(Preferences.subtaskSoundKey) private var playsSubtaskSound = true
+    @AppStorage(CompletionSound.subtaskStorageKey) private var subtaskSound = CompletionSound.subtaskFallback
     @AppStorage(TrashRetention.storageKey) private var trashRetention = TrashRetention.fallback
     @AppStorage(BackupsKept.storageKey) private var backupsKept = BackupsKept.fallback
     @AppStorage(Preferences.resumeKey) private var resumesLastPlace = false
@@ -618,11 +620,17 @@ struct SettingsView: View {
                 }
             }
 
+            // **The two chimes, in the order the work happens in**: a sub-task
+            // is ticked on the way to a card being finished, so its pair of
+            // rows sits under the card's rather than in a group of its own.
+            // Each is a switch and the chime it plays, and the two switches are
+            // named for what they answer to — "Play a sound" was unambiguous
+            // while there was one sound to play, and is not now.
             group(String(localized: "Completing", comment: "Settings group heading over the completion feedback rows")) {
                 row {
                     Toggle(isOn: $playsCompletionSound) {
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("Play a sound")
+                            Text("Play a sound when a card is finished")
                                 .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
                             Text("A short chime when a card reaches Done, however it got there. The haptic tap stays either way, on hardware that has one.")
                                 .font(palette.ui(metrics.noteFont, .medium, relativeTo: .caption))
@@ -641,6 +649,33 @@ struct SettingsView: View {
                                 completionSound = option
                                 // The audition: hearing the choice is the only
                                 // way to make it.
+                                CompletionFeedback.shared.preview(option)
+                            }
+                        }
+                    }
+                }
+                rule
+                row {
+                    Toggle(isOn: $playsSubtaskSound) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Play a sound when a sub-task is ticked")
+                                .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                            Text("The same chimes, chosen separately — a step finished is not the card finished, and the two should not sound alike. Un-ticking one is silent.")
+                                .font(palette.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                                .foregroundStyle(palette.inkText(0.45))
+                        }
+                    }
+                }
+                rule
+                row {
+                    choice(String(localized: "Sub-task sound",
+                                  comment: "Settings row: which chime a ticked sub-task plays"),
+                           value: subtaskSound.label,
+                           note: String(localized: "Picking one plays it.",
+                                        comment: "Settings note under the completion sound row")) {
+                        ForEach(CompletionSound.allCases) { option in
+                            pick(option.label, isCurrent: option == subtaskSound) {
+                                subtaskSound = option
                                 CompletionFeedback.shared.preview(option)
                             }
                         }

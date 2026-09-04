@@ -33,6 +33,10 @@ struct ChimeGate {
 /// through `performMove`, which is the point: they put a board back, and a
 /// board being put back is not something being finished.
 ///
+/// **A ticked sub-task is announced the same way**, from `toggleSubtask` and
+/// with a switch and a chime of its own — see ``subtaskCompleted(now:)``. It is
+/// the smaller event of the two and it is deliberately not the same sound.
+///
 /// **The tap is performed here on every platform**, and it used to be split:
 /// the phone's card carried its own `.success` through `sensoryFeedback`, on
 /// the argument that SwiftUI's instrument is the right one where there is a
@@ -52,6 +56,15 @@ final class CompletionFeedback {
     static let shared = CompletionFeedback()
 
     private var gate = ChimeGate()
+    /// The sub-task's gate, and pointedly not the card's.
+    ///
+    /// A shared one would make the two sounds silence each other, and the one
+    /// moment they land together is the moment both are worth hearing: ticking
+    /// the last open sub-task on a card and then finishing the card is two
+    /// things happening, said in two voices a beat apart. What this still
+    /// swallows is a burst of its own — a run of ticks inside one turn, which
+    /// nothing does today and which a future "tick them all" would.
+    private var subtaskGate = ChimeGate()
 
     #if os(iOS)
     /// Kept rather than made per tap: the generator is the thing the system
@@ -83,6 +96,24 @@ final class CompletionFeedback {
         haptic()
         guard Preferences.playsCompletionSound else { return }
         play(Preferences.completionSound)
+    }
+
+    /// The store's other announcement: a sub-task has just been ticked by
+    /// somebody's hand. `BoardStore.toggleSubtask` is the only route to it, and
+    /// only in the direction that closes one — re-opening a sub-task is not a
+    /// thing being finished, and neither is the sweep `performMove` runs over a
+    /// card's outstanding sub-tasks on its way into Done, which never comes
+    /// through the toggle and would otherwise ring underneath the card's own
+    /// chime.
+    ///
+    /// **No haptic here**, which is the one way this differs from
+    /// ``taskCompleted(now:)``. The tap for a card had to move because
+    /// completing one takes the row out of the tree; a ticked sub-task stays
+    /// exactly where it is, so `ChecklistView` can keep its `.selection`
+    /// feedback and does — see the `sensoryFeedback` at the foot of its body.
+    func subtaskCompleted(now: Date = .now) {
+        guard reachesTheMachine, Preferences.playsSubtaskSound, subtaskGate.admits(now) else { return }
+        play(Preferences.subtaskSound)
     }
 
     /// The settings picker's audition. It plays whatever the toggle says,

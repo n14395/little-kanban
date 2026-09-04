@@ -54,11 +54,14 @@ import Testing
             // board to hit by accident, and an accidental completion carries a
             // chime and an auto-archive behind it — see `Preferences.cardTickKey`.
             #expect(Preferences.showsCardTick == false)
-            // The two that default *on*. The menu bar item is this app's only
-            // route in from another app, and the chime is the point of the
-            // feature it belongs to.
+            // The three that default *on*. The menu bar item is this app's only
+            // route in from another app, and each chime is the point of the
+            // feature it belongs to — the sub-task's included, which is the
+            // more often heard of the two and so the more likely to be turned
+            // off by hand.
             #expect(Preferences.showsMenuBarExtra)
             #expect(Preferences.playsCompletionSound)
+            #expect(Preferences.playsSubtaskSound)
         }
     }
 
@@ -87,6 +90,15 @@ import Testing
         }
         Preferences.reading(suite([:])) {
             #expect(Preferences.playsCompletionSound)
+        }
+        // The third, and the one whose two keys are easiest to confuse: turning
+        // the sub-task chime off must leave the card's alone.
+        Preferences.reading(suite([Preferences.subtaskSoundKey: false])) {
+            #expect(Preferences.playsSubtaskSound == false)
+            #expect(Preferences.playsCompletionSound)
+        }
+        Preferences.reading(suite([:])) {
+            #expect(Preferences.playsSubtaskSound)
         }
         // And the switch that defaults *off*, from the other side: a card tick
         // turned on has to survive the same read, or the setting would be one

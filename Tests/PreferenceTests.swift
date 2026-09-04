@@ -111,6 +111,7 @@ import UserNotifications
         let borrowed = BorrowedDefaults([
             AppAppearance.storageKey, BoardStore.sortOrderKey,
             Preferences.completionSoundKey, CompletionSound.storageKey,
+            Preferences.subtaskSoundKey, CompletionSound.subtaskStorageKey,
         ])
         defer { borrowed.giveBack() }
 
@@ -123,9 +124,11 @@ import UserNotifications
         UserDefaults.standard.set(AppAppearance.dark.rawValue, forKey: AppAppearance.storageKey)
         // Board — how a column orders its cards.
         store.sortOrder = .dueDate
-        // Completion feedback — the switch and the chosen chime.
+        // Completion feedback — the two switches and the two chosen chimes.
         UserDefaults.standard.set(false, forKey: Preferences.completionSoundKey)
         UserDefaults.standard.set(CompletionSound.glassTriad.rawValue, forKey: CompletionSound.storageKey)
+        UserDefaults.standard.set(false, forKey: Preferences.subtaskSoundKey)
+        UserDefaults.standard.set(CompletionSound.bowl.rawValue, forKey: CompletionSound.subtaskStorageKey)
         // Notifications — on or off, and the time of day.
         let suite = try #require(UserDefaults(suiteName: "SimpleKanbanTests-\(UUID().uuidString)"))
         let scheduler = NotificationScheduler(center: nil, defaults: suite)

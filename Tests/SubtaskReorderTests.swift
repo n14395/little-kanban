@@ -292,6 +292,45 @@ import Testing
         }
     }
 
+    /// **The row is as tall as the lines it draws.**
+    ///
+    /// The reported bug: a sub-task just short of wrapping was given a second,
+    /// empty line — the words at the top of a double-height row, the tick and
+    /// the grip sliding down past them to centre on it. The cause is that a
+    /// `TextField(axis: .vertical)` wraps its text 4pt before the trailing edge
+    /// of its frame and draws it to the edge, so any text ending inside that
+    /// 4pt band measures at two lines and draws on one. The fix hands the field
+    /// 4pt of width it does not claim, which puts its wrap back on the claim's
+    /// edge.
+    ///
+    /// **Nothing here can watch it happen** — a row's height is SwiftUI's
+    /// answer to a layout proposal and there is no view hierarchy in this
+    /// target, which is `FieldFocusTests`' problem and it takes the same way
+    /// out. The 4 was measured outside the suite, against `NSHostingView`, by
+    /// comparing the field's height with the same string's `Text` height at
+    /// every width from 200 to 460pt over five strings: 4.0 is the only value
+    /// that is never too tall and never too short. So what is asserted is that
+    /// the number is still 4 and the field is still given it — the two halves
+    /// that a later edit could take apart without anything else noticing.
+    @Test func theSubtaskFieldIsGivenTheWidthItWrapsEarlyBy() {
+        for (name, metrics) in [("desk", ChecklistView.Metrics.desk), ("sheet", ChecklistView.Metrics.sheet)] {
+            #expect(metrics.fieldCaretGutter == 4,
+                    "\(name)'s field no longer gets the 4pt it wraps early by, so a row near the "
+                    + "wrap will claim a line it does not draw")
+        }
+
+        guard SourceTree.isReachable else { return }
+        guard let file = SourceTree.files().first(where: { $0.path == "Shared/ChecklistView.swift" })
+        else {
+            Issue.record("the checklist has moved file")
+            return
+        }
+        // Masked source: the prose above `fieldCaretGutter` explains the band
+        // at length, and prose is not the modifier.
+        #expect(file.source.contains("padding(.trailing, -metrics.fieldCaretGutter)"),
+                "the row's field is no longer handed its gutter; the empty second line is back")
+    }
+
     /// **And it is a grip on every platform**, which is the whole of what was
     /// asked for: one view draws the desk inspector's checklist, the iPad's and
     /// the phone sheet's, so a `#if os` in here would be the way the drag came
