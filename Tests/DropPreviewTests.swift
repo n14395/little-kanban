@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// The card-shaped hole that opens where a dragged card would land.
 ///

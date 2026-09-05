@@ -214,7 +214,7 @@ struct PhoneRootView: View {
         .onChange(of: showsInboxSheet) { _, shows in
             if !shows, !isShort { store.isInboxOpen = false }
         }
-        // A launch straight into the Inbox — `-SimpleKanbanShowInbox`, and a
+        // A launch straight into the Inbox — `-CardstockShowInbox`, and a
         // deep link — arrives before any of those can fire.
         .onAppear { showsInboxSheet = store.isInboxOpen && !isShort }
         // Raised from the header's board menu, which is this surface's drawer

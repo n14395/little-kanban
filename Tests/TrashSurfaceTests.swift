@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// Where the Trash is, now that it is not a tab of Settings.
 ///

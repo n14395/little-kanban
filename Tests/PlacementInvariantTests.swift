@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// The one rule the whole of D2 rests on, asked as a property rather than at a
 /// call site: **a task is unfiled, or it is on a board in one of *that board's*

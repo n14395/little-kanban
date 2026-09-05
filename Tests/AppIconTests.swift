@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 import SwiftUI
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// The icon the app wears, and the two switches that choose it.
 ///
@@ -163,7 +163,7 @@ import Testing
 
     // MARK: The mark
 
-    /// The nine rectangles of `simple-kanban-icon-4f.svg`, which the tool
+    /// The nine rectangles of `cardstock-icon-4f.svg`, which the tool
     /// rasterises and the picker draws. Derived in `AppIconArtwork` rather than
     /// transcribed, so this is the transcription — and the place a change to
     /// the drawing has to be argued for.

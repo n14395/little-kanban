@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// Restoring a backup, and the one way it can be silently undone.
 ///

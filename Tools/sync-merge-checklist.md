@@ -4,7 +4,7 @@ The one thing `SyncStoreTests` and `SyncWiringTests` cannot prove: what two real
 devices, through a real CloudKit container, do to each other. Everything below
 is driven by hand on **a Mac and a physical iPhone or iPad**, both signed into
 the same iCloud account, both running a build signed for
-`iCloud.com.n14395.SimpleKanban`. Run it before promoting the schema to
+`iCloud.com.n14395.Cardstock`. Run it before promoting the schema to
 production, and again after any change to `SyncSchema.swift` or the merge paths
 in `BoardStore`/`BoardSyncStore`.
 
@@ -20,7 +20,7 @@ allows. After each action, sync both sides deliberately rather than waiting:
 **Sync Now** in the Mac status bar, pull past the top of a column on the phone.
 CloudKit pushes can take from seconds to minutes; a scenario only *fails* when
 the state is still wrong after both sides have synced and settled. Watch
-Console.app (subsystem `com.n14395.SimpleKanban`, category `sync`) for the
+Console.app (subsystem `com.n14395.Cardstock`, category `sync`) for the
 failure log lines — none of them should appear in a clean run.
 
 | # | Scenario | Do | Expect | Pass? |
@@ -74,7 +74,7 @@ two devices and their OS versions — the section currently records no two-devic
 run, and "covered by tests that by construction cannot prove this" is the gap
 this checklist closes. Then, and only then, promote the schema:
 
-1. <https://icloud.developer.apple.com> ▸ container `iCloud.com.n14395.SimpleKanban`.
+1. <https://icloud.developer.apple.com> ▸ container `iCloud.com.n14395.Cardstock`.
 2. Check the **Development** schema lists every record type `SyncSchema.swift`
    declares (StoredMeta, StoredBoard, StoredColumn, StoredLabel, StoredTask,
    StoredSubtask, StoredActivity) with their fields — first run initialised it.

@@ -26,7 +26,7 @@ struct MenuBarQuickAdd: Scene {
     @AppStorage(Preferences.menuBarExtraKey) private var isShowing = true
 
     var body: some Scene {
-        MenuBarExtra("Simple Kanban", systemImage: "checklist", isInserted: $isShowing) {
+        MenuBarExtra("Cardstock", systemImage: "checklist", isInserted: $isShowing) {
             MenuBarQuickAddView()
                 .environment(store)
         }
@@ -48,8 +48,11 @@ private struct MenuBarQuickAddView: View {
     /// written, and a capture made from another app is exactly the case the
     /// Inbox is for — deciding which board it belongs on is the thing the user
     /// is deferring by capturing at all. Anyone who wants Up Next picks it once.
-    @AppStorage("SimpleKanbanQuickAddDestination") private var destinationID = ""
+    @AppStorage("CardstockQuickAddDestination") private var destinationID = ""
     @State private var draft = ""
+    /// Tokens handed back out of this draft — the extra's own, because its
+    /// field is its own. See ``CapturePreview``.
+    @State private var rejections: Set<String> = []
     /// What the last capture made, so the panel can say the capture landed. It
     /// stays up rather than dismissing: capture is usually plural.
     @State private var lastAdded: String?
@@ -77,6 +80,15 @@ private struct MenuBarQuickAddView: View {
                 RoundedRectangle(cornerRadius: 9)
                     .fill(palette.ink(0.05))
                     .strokeBorder(palette.ink(0.09))
+            }
+
+            // The same grammar the board's own composer reads, for the same
+            // reason: this is a person typing a whole card on one line and
+            // committing it with ⏎, which is the only shape the grammar claims.
+            // The share extension deliberately does not read it — that text was
+            // written in another app, aimed at nothing.
+            if !parse.isPlain {
+                CapturePreview(parse: parse) { rejections.insert(CaptureParse.fold($0.text)) }
             }
 
             HStack(spacing: 8) {
@@ -143,13 +155,22 @@ private struct MenuBarQuickAddView: View {
         draft.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// The reading of the line, or the line itself where the setting is off.
+    private var parse: CaptureParse {
+        guard store.interpretsCapture else { return .plain(draft) }
+        return CaptureParse.parse(
+            draft, labels: store.labels, today: CalendarDay(.now), rejecting: rejections
+        )
+    }
+
     /// `.captured` rather than `.created`, so the activity feed says where the
     /// card came from — which is the entry that string was written for.
     private func commit() {
-        let title = trimmedDraft
-        guard !title.isEmpty else { return }
-        let id = store.addTask(to: destination, title: title, log: .captured)
+        let capture = parse
+        guard !capture.title.isEmpty else { return }
+        let id = store.addTask(to: destination, title: capture.title, log: .captured, capture: capture)
         draft = ""
+        rejections = []
         lastAdded = store[id].map { task in
             String(localized: "Added \(task.code) to \(placeName)",
                    comment: "Menu bar quick-add confirmation: a task code and where it went")

@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// That no user-facing string escapes the catalogue.
 ///

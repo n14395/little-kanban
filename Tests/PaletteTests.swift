@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// The palette every colour picker in the app draws from: what is in it, what
 /// can be put in it, what can be taken out, and that it is still there next

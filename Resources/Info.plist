@@ -5,19 +5,19 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Simple Kanban</string>
+	<string>Cardstock</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
 			<key>CFBundleTypeName</key>
-			<string>Simple Kanban Board</string>
+			<string>Cardstock Board</string>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>LSHandlerRank</key>
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>com.n14395.SimpleKanban.board</string>
+				<string>com.n14395.Cardstock.board</string>
 			</array>
 		</dict>
 	</array>
@@ -41,10 +41,10 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>com.n14395.SimpleKanban.task-link</string>
+			<string>com.n14395.Cardstock.task-link</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>simplekanban</string>
+				<string>cardstock</string>
 			</array>
 		</dict>
 	</array>
@@ -60,7 +60,7 @@
 	<string>Copyright © 2026 Nicholas Fay. All rights reserved.</string>
 	<key>NSUserActivityTypes</key>
 	<array>
-		<string>com.n14395.SimpleKanban.task</string>
+		<string>com.n14395.Cardstock.task</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>
@@ -92,9 +92,9 @@
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>Simple Kanban Task</string>
+			<string>Cardstock Task</string>
 			<key>UTTypeIdentifier</key>
-			<string>com.n14395.SimpleKanban.task</string>
+			<string>com.n14395.Cardstock.task</string>
 		</dict>
 		<dict>
 			<key>UTTypeConformsTo</key>
@@ -102,9 +102,9 @@
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>Simple Kanban Sub-task</string>
+			<string>Cardstock Sub-task</string>
 			<key>UTTypeIdentifier</key>
-			<string>com.n14395.SimpleKanban.subtask</string>
+			<string>com.n14395.Cardstock.subtask</string>
 		</dict>
 		<dict>
 			<key>UTTypeConformsTo</key>
@@ -112,9 +112,9 @@
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>Simple Kanban Column</string>
+			<string>Cardstock Column</string>
 			<key>UTTypeIdentifier</key>
-			<string>com.n14395.SimpleKanban.column</string>
+			<string>com.n14395.Cardstock.column</string>
 		</dict>
 		<dict>
 			<key>UTTypeConformsTo</key>
@@ -122,9 +122,9 @@
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>Simple Kanban Label</string>
+			<string>Cardstock Label</string>
 			<key>UTTypeIdentifier</key>
-			<string>com.n14395.SimpleKanban.label</string>
+			<string>com.n14395.Cardstock.label</string>
 		</dict>
 		<dict>
 			<key>UTTypeConformsTo</key>
@@ -132,14 +132,14 @@
 				<string>public.json</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>Simple Kanban Board</string>
+			<string>Cardstock Board</string>
 			<key>UTTypeIdentifier</key>
-			<string>com.n14395.SimpleKanban.board</string>
+			<string>com.n14395.Cardstock.board</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
 				<array>
-					<string>simplekanban</string>
+					<string>cardstock</string>
 				</array>
 			</dict>
 		</dict>

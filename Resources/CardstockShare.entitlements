@@ -6,12 +6,12 @@
 	     saying so is what lets the group below be granted. -->
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
-	<!-- The digest, and nothing else. The extension has no network entitlement,
-	     no file access beyond this container, and no iCloud container: it reads
-	     one small JSON file the app wrote and draws it. See WidgetShare. -->
+	<!-- The captures folder, and nothing else. No network, no iCloud container,
+	     no reach at the board file: the extension writes one small JSON file
+	     into the group and the app drains it. See CaptureInbox. -->
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>P52946XHRJ.group.com.n14395.SimpleKanban</string>
+		<string>P52946XHRJ.group.com.n14395.Cardstock</string>
 	</array>
 </dict>
 </plist>

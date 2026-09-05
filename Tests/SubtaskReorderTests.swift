@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// Dropping a sub-task into the gap a caret names, which is what dragging a
 /// checklist row by its grip does — see `grip(for:)` and `dropZones(for:)` in

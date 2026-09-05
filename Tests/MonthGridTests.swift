@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// The calendar's arithmetic, which is the half of a hand-rolled month grid
 /// that can be wrong without looking wrong.

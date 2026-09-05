@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// The list the board icon picker browses, and the two claims that stand behind
 /// every glyph in it: it **shipped**, and it **draws**.

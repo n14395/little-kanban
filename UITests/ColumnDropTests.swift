@@ -19,10 +19,10 @@ import XCTest
 ///
 /// **iOS simulator only.**
 ///
-///     xcrun simctl uninstall <device> com.n14395.SimpleKanban
-///     xcodebuild test -scheme SimpleKanbanUITests \
+///     xcrun simctl uninstall <device> com.n14395.Cardstock
+///     xcodebuild test -scheme CardstockUITests \
 ///       -destination 'platform=iOS Simulator,name=iPad Air 13-inch (M4)'
-///     xcodebuild test -scheme SimpleKanbanUITests \
+///     xcodebuild test -scheme CardstockUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 final class ColumnDropTests: XCTestCase {
     /// - Parameter showingTicks: whether the cards draw their completion
@@ -34,18 +34,18 @@ final class ColumnDropTests: XCTestCase {
     private func launched(showingTicks: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
-            "-SimpleKanbanSkipFirstRun", "YES",
+            "-CardstockSkipFirstRun", "YES",
             // The inspector holds the room the fourth column needs.
-            "-SimpleKanbanHideInspector", "YES",
+            "-CardstockHideInspector", "YES",
             // The board, said out loud. A phone lands on **Today** on a cold
             // launch — `BoardStore.landingSurface` — and Today is a flat list
             // with no columns in it, so a suite about dropping a card on a
             // column has to name the surface the columns are on. Only visible
             // on a fresh install, which is exactly how this suite should be run.
-            "-SimpleKanbanTab", "board",
+            "-CardstockTab", "board",
         // The key is `Preferences.cardTickKey`, spelled out because a UI test
         // runs out of process and cannot import the app to ask.
-        ] + (showingTicks ? ["-SimpleKanbanShowsCardTick", "YES"] : [])
+        ] + (showingTicks ? ["-CardstockShowsCardTick", "YES"] : [])
         app.launch()
         return app
     }

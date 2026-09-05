@@ -28,9 +28,9 @@ enum WidgetShare {
     /// team-prefixed spelling in provisioning. One constant per platform is the
     /// only arrangement that signs on both.
     #if os(macOS)
-    static let appGroup = "P52946XHRJ.group.com.n14395.SimpleKanban"
+    static let appGroup = "P52946XHRJ.group.com.n14395.Cardstock"
     #else
-    static let appGroup = "group.com.n14395.SimpleKanban"
+    static let appGroup = "group.com.n14395.Cardstock"
     #endif
 
     /// The group's container, or `nil` when this build is not entitled to it —
@@ -56,10 +56,10 @@ enum WidgetShare {
     /// placed, so they are *identifiers*: renaming one silently orphans
     /// everybody's existing widgets. They stay as written.
     enum Kind {
-        static let inbox = "SimpleKanbanInbox"
-        static let boardOverview = "SimpleKanbanBoardOverview"
-        static let column = "SimpleKanbanColumn"
-        static let savedView = "SimpleKanbanSavedView"
+        static let inbox = "CardstockInbox"
+        static let boardOverview = "CardstockBoardOverview"
+        static let column = "CardstockColumn"
+        static let savedView = "CardstockSavedView"
 
         static let all = [inbox, boardOverview, column, savedView]
     }

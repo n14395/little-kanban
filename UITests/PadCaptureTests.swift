@@ -16,9 +16,9 @@ import XCTest
 /// for: the button used to open the composer on the board behind it, which is
 /// the column heading's job.
 ///
-///     xcodebuild test -scheme SimpleKanbanUITests \
+///     xcodebuild test -scheme CardstockUITests \
 ///       -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)' \
-///       -only-testing:SimpleKanbanUITests/PadCaptureTests
+///       -only-testing:CardstockUITests/PadCaptureTests
 final class PadCaptureTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -31,7 +31,7 @@ final class PadCaptureTests: XCTestCase {
         )
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
-        app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES"]
+        app.launchArguments = ["-CardstockSkipFirstRun", "YES"]
         app.launch()
 
         // The name the glyph does not draw. `app.buttons["New task"]` resolving

@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// **The seven, rebuilt out of criteria, gathering exactly what they gathered
 /// before.**

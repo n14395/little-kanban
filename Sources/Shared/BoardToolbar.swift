@@ -445,7 +445,7 @@ struct BoardToolbar: View {
     /// A result the user picked: go to the card, and the search is over.
     /// ``BoardStore/reveal(_:)`` is the whole errand — the card's board, the
     /// card selected, its detail open — and is the same call a
-    /// `simplekanban://` link makes.
+    /// `cardstock://` link makes.
     private func choose(_ id: TaskItem.ID) {
         // The field first, and then the card. `reveal` clears the query, which
         // is a change this view watches — and a watcher that saw the field
@@ -825,7 +825,7 @@ struct BoardToolbar: View {
 
     /// The bar's own coordinate space, so the field's frame and the panel's
     /// offset are the same numbers.
-    private static let barSpace = "SimpleKanban.toolbar"
+    private static let barSpace = "Cardstock.toolbar"
 
     /// The field, folded.
     ///

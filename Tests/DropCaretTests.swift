@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 import SwiftUI
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// Where a dragged card says it is going to land, and whether it is telling the
 /// truth.

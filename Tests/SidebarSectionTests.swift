@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// The foot of the source list, and that all three platforms draw the same
 /// thing there.

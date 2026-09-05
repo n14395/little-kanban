@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// A folder for captures, thrown away with the test — `TempBoard` for the App
 /// Group's side of the fence.
@@ -8,7 +8,7 @@ final class TempCaptures: Sendable {
     let directory: URL
 
     init() {
-        directory = URL.temporaryDirectory.appending(path: "SimpleKanbanCaptures/\(UUID().uuidString)")
+        directory = URL.temporaryDirectory.appending(path: "CardstockCaptures/\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
 

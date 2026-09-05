@@ -9,7 +9,7 @@
 	     on each platform. -->
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.com.n14395.SimpleKanban</string>
+		<string>group.com.n14395.Cardstock</string>
 	</array>
 </dict>
 </plist>

@@ -30,9 +30,9 @@ import XCTest
 /// **iPhone simulator only** — the phone's tab bar is what puts these two
 /// surfaces on screen.
 ///
-///     xcodebuild test -scheme SimpleKanbanUITests \
+///     xcodebuild test -scheme CardstockUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-///       -only-testing:SimpleKanbanUITests/RowSwipeTests
+///       -only-testing:CardstockUITests/RowSwipeTests
 final class RowSwipeTests: XCTestCase {
     /// What the two edges used to put there. Named as the buttons they were
     /// rather than as the verbs they do: a swipe action *is* a button, and a
@@ -51,8 +51,8 @@ final class RowSwipeTests: XCTestCase {
         )
         let app = XCUIApplication()
         app.launchArguments = [
-            "-SimpleKanbanSkipFirstRun", "YES",
-            "-SimpleKanbanTab", tab,
+            "-CardstockSkipFirstRun", "YES",
+            "-CardstockTab", tab,
         ]
         app.launch()
         return app

@@ -37,7 +37,7 @@ enum DefaultDueDate: String, CaseIterable, Identifiable, Sendable {
     case none, today, tomorrow
 
     var id: String { rawValue }
-    static let storageKey = "SimpleKanbanDefaultDueDate"
+    static let storageKey = "CardstockDefaultDueDate"
     static let fallback = DefaultDueDate.none
 
     var label: String {
@@ -71,7 +71,7 @@ enum AutoArchive: String, CaseIterable, Identifiable, Sendable {
     case never, week, fortnight, month
 
     var id: String { rawValue }
-    static let storageKey = "SimpleKanbanAutoArchiveDone"
+    static let storageKey = "CardstockAutoArchiveDone"
     static let fallback = AutoArchive.never
 
     /// How long a card may sit in Done, or `nil` for "as long as it likes".
@@ -103,7 +103,7 @@ enum TrashRetention: String, CaseIterable, Identifiable, Sendable {
     case week, month, quarter
 
     var id: String { rawValue }
-    static let storageKey = "SimpleKanbanTrashRetention"
+    static let storageKey = "CardstockTrashRetention"
     static let fallback = TrashRetention.month
 
     var days: Int {
@@ -133,7 +133,7 @@ enum BackupsKept: String, CaseIterable, Identifiable, Sendable {
     case few, ten, many, fifty, hundred
 
     var id: String { rawValue }
-    static let storageKey = "SimpleKanbanBackupsKept"
+    static let storageKey = "CardstockBackupsKept"
     static let fallback = BackupsKept.many
 
     var count: Int {
@@ -160,7 +160,7 @@ enum CardDensity: String, CaseIterable, Identifiable, Sendable {
     case comfortable, compact
 
     var id: String { rawValue }
-    static let storageKey = "SimpleKanbanCardDensity"
+    static let storageKey = "CardstockCardDensity"
     static let fallback = CardDensity.comfortable
 
     var showsDetail: Bool { self == .comfortable }
@@ -214,12 +214,12 @@ enum CompletionSound: String, CaseIterable, Identifiable, Sendable {
     case pop, popSoft
 
     var id: String { rawValue }
-    static let storageKey = "SimpleKanbanCompletionSound"
+    static let storageKey = "CardstockCompletionSound"
     /// Where the sub-task's choice is kept. A key of its own rather than a
     /// shared one: the two are set from two rows and a person who wants the
     /// bell for a card and the tine for a sub-task is asking the ordinary
     /// question of a pair of pickers.
-    static let subtaskStorageKey = "SimpleKanbanSubtaskSound"
+    static let subtaskStorageKey = "CardstockSubtaskSound"
 
     /// The two rising wooden notes, which is what the old default `chime` was
     /// and what an unreadable stored value should still land on. `choice` reads
@@ -273,7 +273,7 @@ enum WeekMeaning: String, CaseIterable, Identifiable, Sendable {
     case rollingSevenDays, monday, sunday
 
     var id: String { rawValue }
-    static let storageKey = "SimpleKanbanWeekMeaning"
+    static let storageKey = "CardstockWeekMeaning"
     static let fallback = WeekMeaning.rollingSevenDays
 
     /// `Calendar`'s numbering, where Sunday is 1 — `nil` when a week is not a
@@ -344,11 +344,11 @@ extension Preferences {
     /// Off by default: the first board is a stable place to land, and a saved
     /// view restored without warning looks like a board that has lost its
     /// cards. `SavedView` has been `Codable` since it was written, for this.
-    static let resumeKey = "SimpleKanbanResumeLastPlace"
+    static let resumeKey = "CardstockResumeLastPlace"
     /// What was on screen, written on change and read once at launch.
-    static let lastSurfaceKey = "SimpleKanbanLastSurface"
+    static let lastSurfaceKey = "CardstockLastSurface"
     /// Bring the Inbox panel up with the board.
-    static let inboxAtLaunchKey = "SimpleKanbanOpenInboxAtLaunch"
+    static let inboxAtLaunchKey = "CardstockOpenInboxAtLaunch"
     /// Draw the tick in a card's trailing gutter.
     ///
     /// **Off by default.** The circle is the fastest way to finish something
@@ -362,11 +362,11 @@ extension Preferences {
     /// gutter closes up and the card's text starts at its own margin;
     /// completing a card is the context menu, ⌘↩, and the tick beside the title
     /// in the detail panel, which is drawn whatever this says.
-    static let cardTickKey = "SimpleKanbanShowsCardTick"
+    static let cardTickKey = "CardstockShowsCardTick"
     /// Play the completion chime when a card reaches Done. On by default: the
     /// sound is the point of the feature, and the switch is for the person it
     /// grates on — see ``CompletionSound`` for which chime.
-    static let completionSoundKey = "SimpleKanbanPlaysCompletionSound"
+    static let completionSoundKey = "CardstockPlaysCompletionSound"
     /// Play a chime when a sub-task is ticked. On by default for the reason
     /// above, and it is the louder half of that bargain: a checklist is ticked
     /// far more often than a card is finished, so this is the switch more
@@ -374,21 +374,28 @@ extension Preferences {
     /// nobody hears is a setting nobody knows to look for — and the sub-task
     /// tick already had a haptic, which is the same feedback said quietly.
     /// Only the edge *into* done makes it; un-ticking is silent.
-    static let subtaskSoundKey = "SimpleKanbanPlaysSubtaskSound"
+    static let subtaskSoundKey = "CardstockPlaysSubtaskSound"
+    /// Read `#bug`, `!high` and a trailing "next friday" out of a title as it is
+    /// typed. On by default, and the switch exists for one specific person: the
+    /// one whose cards are called things like "#3 rewrite" and who would rather
+    /// the field left their words alone. Everyone else has the preview strip,
+    /// which hands any single token back without a trip to Settings — see
+    /// ``CaptureParse``.
+    static let interpretsCaptureKey = "CardstockInterpretsCapture"
     /// Keep the ⌃⌘N status item in the menu bar. On by default, because it is
     /// the app's one route in from another app.
-    static let menuBarExtraKey = "SimpleKanbanShowsMenuBarExtra"
+    static let menuBarExtraKey = "CardstockShowsMenuBarExtra"
     /// Start the app when the Mac is logged in to.
-    static let launchAtLoginKey = "SimpleKanbanLaunchAtLogin"
+    static let launchAtLoginKey = "CardstockLaunchAtLogin"
 
     /// Which of the ten grounds the app wears — the design document's own
     /// reference, `4a` through `4j`. See ``AppIcon``.
-    static let appIconKey = "SimpleKanbanAppIcon"
+    static let appIconKey = "CardstockAppIcon"
     /// Wear the icon that matches the theme instead, whichever theme that turns
     /// out to be. Off by default: the icon is the app's face in a Dock full of
     /// other apps' faces, and one that changed the first time the system went
     /// dark would be a surprise nobody asked for.
-    static let appIconFollowsThemeKey = "SimpleKanbanAppIconFollowsTheme"
+    static let appIconFollowsThemeKey = "CardstockAppIconFollowsTheme"
 }
 
 // MARK: - Reading them
@@ -477,6 +484,7 @@ extension Preferences {
     static var showsCardTick: Bool { flag(cardTickKey) }
     static var playsCompletionSound: Bool { flag(completionSoundKey, fallback: true) }
     static var playsSubtaskSound: Bool { flag(subtaskSoundKey, fallback: true) }
+    static var interpretsCapture: Bool { flag(interpretsCaptureKey, fallback: true) }
     static var showsMenuBarExtra: Bool { flag(menuBarExtraKey, fallback: true) }
     static var launchesAtLogin: Bool { flag(launchAtLoginKey) }
     static var appIconFollowsTheme: Bool { flag(appIconFollowsThemeKey) }

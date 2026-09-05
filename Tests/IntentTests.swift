@@ -1,7 +1,7 @@
 import AppIntents
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// Shortcuts, Siri and the Spotlight action row, all of which reach the board
 /// through `TaskIntentBridge` rather than through a view.

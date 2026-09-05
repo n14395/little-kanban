@@ -18,11 +18,11 @@ import XCTest
 ///
 /// Fresh install as the fixture, same as `InboxDragTests`:
 ///
-///     xcrun simctl uninstall <device> com.n14395.SimpleKanban
+///     xcrun simctl uninstall <device> com.n14395.Cardstock
 final class ChecklistFocusTests: XCTestCase {
     private func launched() -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES"]
+        app.launchArguments = ["-CardstockSkipFirstRun", "YES"]
         app.launch()
         return app
     }

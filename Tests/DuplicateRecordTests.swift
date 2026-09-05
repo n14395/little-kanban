@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// Two records under one id, and the three places nothing was settling them.
 ///

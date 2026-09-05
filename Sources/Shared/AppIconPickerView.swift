@@ -126,7 +126,7 @@ struct AppIconPickerView: View {
                 // it broken. `applicationIconImage` is the Dock icon of a
                 // *running* app; the bundle's own is what a sandboxed app
                 // cannot rewrite. See ``AppIconInstaller``.
-                Text("Shown in the Dock while Simple Kanban is running.")
+                Text("Shown in the Dock while Cardstock is running.")
                     .font(palette.ui(metrics.noteSize, .medium, relativeTo: .caption))
                     .foregroundStyle(palette.inkText(0.34))
                 #endif

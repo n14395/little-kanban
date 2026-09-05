@@ -41,10 +41,10 @@ import XCTest
 /// behind, which on the machine this was written on was a board somebody's
 /// column tests had emptied.
 ///
-///     xcrun simctl uninstall <device> com.n14395.SimpleKanban
-///     xcodebuild test -scheme SimpleKanbanUITests \
+///     xcrun simctl uninstall <device> com.n14395.Cardstock
+///     xcodebuild test -scheme CardstockUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-///       -only-testing:SimpleKanbanUITests/ChecklistDragTests
+///       -only-testing:CardstockUITests/ChecklistDragTests
 final class ChecklistDragTests: XCTestCase {
     /// The seed card with a three-row checklist — enough rows that "up",
     /// "down" and "to the end" are three different places.
@@ -60,7 +60,7 @@ final class ChecklistDragTests: XCTestCase {
             "driving the desk's pointer is not a verification; the phone draws the same checklist"
         )
         let app = XCUIApplication()
-        app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES", "-SimpleKanbanTab", "board"]
+        app.launchArguments = ["-CardstockSkipFirstRun", "YES", "-CardstockTab", "board"]
         app.launch()
 
         let subject = app.descendants(matching: .any)

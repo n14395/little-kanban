@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// The Done behaviours, asked of a column that has been edited.
 ///

@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 #if os(iOS)
 

@@ -44,9 +44,9 @@ import XCTest
 /// than over it, so a card filed from there is on screen the moment it moves and
 /// there is nothing to take down.
 ///
-///     xcodebuild test -scheme SimpleKanbanUITests \
+///     xcodebuild test -scheme CardstockUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17' \
-///       -only-testing:SimpleKanbanUITests/InboxFilingTests
+///       -only-testing:CardstockUITests/InboxFilingTests
 final class InboxFilingTests: XCTestCase {
     /// A seeded Inbox card — no board, no column, and no labels either, so its
     /// row's combined label starts with the title rather than with a chip.
@@ -65,12 +65,12 @@ final class InboxFilingTests: XCTestCase {
 
         let app = XCUIApplication()
         app.launchArguments = [
-            "-SimpleKanbanSkipFirstRun", "YES",
-            "-SimpleKanbanTab", "board",
+            "-CardstockSkipFirstRun", "YES",
+            "-CardstockTab", "board",
             // Up from the start: which door opens the panel is the tab rail's
             // business, and tapping through one more surface is one more way
             // for this to fail for a reason that is not about filing.
-            "-SimpleKanbanShowInbox", "YES",
+            "-CardstockShowInbox", "YES",
         ]
         app.launch()
 

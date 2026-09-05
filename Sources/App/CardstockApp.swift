@@ -7,7 +7,7 @@ import UIKit
 #endif
 
 @main
-struct SimpleKanbanApp: App {
+struct CardstockApp: App {
     /// Named here rather than at both ends: the app menu opens it and the scene
     /// declares it, and a typo in either is a menu item that does nothing.
     static let aboutWindowID = "about"
@@ -61,7 +61,7 @@ struct SimpleKanbanApp: App {
         //
         // The frame is still restored: AppKit autosaves it against the scene's
         // id, and `.defaultSize` applies only to a window it has never seen.
-        Window("Simple Kanban", id: "board") {
+        Window("Cardstock", id: "board") {
             root.environment(window)
         }
         .defaultSize(width: 1240, height: 812)
@@ -87,7 +87,7 @@ struct SimpleKanbanApp: App {
         // and because it is the app talking about itself rather than about
         // this board. Like `Settings`, it inherits nothing from the window and
         // resolves its own palette.
-        Window("About Simple Kanban", id: Self.aboutWindowID) {
+        Window("About Cardstock", id: Self.aboutWindowID) {
             AboutWindow()
                 .environment(store)
         }

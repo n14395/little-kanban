@@ -109,15 +109,15 @@ extension UTType {
     /// after the declaration has gone. `TransferTests` reads the bundle's plist
     /// directly instead.
     static let simpleKanbanTask = UTType(
-        exportedAs: "com.n14395.SimpleKanban.task", conformingTo: .data
+        exportedAs: "com.n14395.Cardstock.task", conformingTo: .data
     )
     static let simpleKanbanSubtask = UTType(
-        exportedAs: "com.n14395.SimpleKanban.subtask", conformingTo: .data
+        exportedAs: "com.n14395.Cardstock.subtask", conformingTo: .data
     )
     static let simpleKanbanColumn = UTType(
-        exportedAs: "com.n14395.SimpleKanban.column", conformingTo: .data
+        exportedAs: "com.n14395.Cardstock.column", conformingTo: .data
     )
     static let simpleKanbanLabel = UTType(
-        exportedAs: "com.n14395.SimpleKanban.label", conformingTo: .data
+        exportedAs: "com.n14395.Cardstock.label", conformingTo: .data
     )
 }

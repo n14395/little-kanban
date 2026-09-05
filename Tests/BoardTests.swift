@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// Boards, and the one global Inbox.
 ///
@@ -635,7 +635,7 @@ import Testing
         // surface there, and the relaunch *reads* "reopen the view I was on" —
         // so the test failed on any machine whose owner had turned that on,
         // and quietly edited their stored surface on every machine besides.
-        let suite = try #require(UserDefaults(suiteName: "SimpleKanbanTests-\(UUID().uuidString)"))
+        let suite = try #require(UserDefaults(suiteName: "CardstockTests-\(UUID().uuidString)"))
         Preferences.reading(suite) {
             let store = Self.store(file: temp.file)
             store.selectBoard(Self.betaID)

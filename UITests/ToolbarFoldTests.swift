@@ -14,9 +14,9 @@ import XCTest
 ///
 /// **iPad only.** The phone has no toolbar: its search is a tab.
 ///
-///     xcodebuild test -scheme SimpleKanbanUITests \
+///     xcodebuild test -scheme CardstockUITests \
 ///       -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)' \
-///       -only-testing:SimpleKanbanUITests/ToolbarFoldTests
+///       -only-testing:CardstockUITests/ToolbarFoldTests
 final class ToolbarFoldTests: XCTestCase {
     private let field = "SearchField"
     private let toggle = "SearchToggle"
@@ -40,8 +40,8 @@ final class ToolbarFoldTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchArguments = [
-            "-SimpleKanbanSkipFirstRun", "YES",
-            "-SimpleKanbanHideInspector", "YES",
+            "-CardstockSkipFirstRun", "YES",
+            "-CardstockHideInspector", "YES",
         ]
         app.launch()
 

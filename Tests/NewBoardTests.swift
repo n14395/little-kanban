@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// A board made on another device, arriving.
 ///

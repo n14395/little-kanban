@@ -1,7 +1,7 @@
 import Foundation
-@testable import Simple_Kanban
+@testable import Cardstock
 
-// The module name comes from the app's PRODUCT_NAME, "Simple Kanban".
+// The module name comes from the app's PRODUCT_NAME, "Cardstock".
 
 /// Anchors `Bundle(for:)` on the test bundle, which is where the fixtures are.
 private final class TestBundleAnchor {}
@@ -16,7 +16,7 @@ final class TempBoard: Sendable {
     let file: BoardFile
 
     init(named name: String = "board.json") {
-        directory = URL.temporaryDirectory.appending(path: "SimpleKanbanTests/\(UUID().uuidString)")
+        directory = URL.temporaryDirectory.appending(path: "CardstockTests/\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         file = BoardFile(url: directory.appending(path: name))
     }

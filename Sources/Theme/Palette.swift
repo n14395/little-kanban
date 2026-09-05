@@ -61,7 +61,7 @@ struct Palette: Equatable, Sendable {
     /// The UI face, `step` from its baseline. See ``ThemeFont/weight``.
     /// Through the resolved face — no catalogue lookup on this path.
     func ui(
-        _ size: CGFloat, _ step: SimpleKanbanFont.Weight = .regular,
+        _ size: CGFloat, _ step: CardstockFont.Weight = .regular,
         relativeTo textStyle: Font.TextStyle = .body
     ) -> Font {
         uiFace.font(size, step, relativeTo: textStyle)

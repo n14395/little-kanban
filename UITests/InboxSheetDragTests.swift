@@ -27,9 +27,9 @@ import XCTest
 /// **iPhone simulator only** — the iPad puts the Inbox in a panel beside the
 /// board, where none of this applies.
 ///
-///     xcodebuild test -scheme SimpleKanbanUITests \
+///     xcodebuild test -scheme CardstockUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-///       -only-testing:SimpleKanbanUITests/InboxSheetDragTests
+///       -only-testing:CardstockUITests/InboxSheetDragTests
 final class InboxSheetDragTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -42,9 +42,9 @@ final class InboxSheetDragTests: XCTestCase {
         )
         let app = XCUIApplication()
         app.launchArguments = [
-            "-SimpleKanbanSkipFirstRun", "YES",
-            "-SimpleKanbanTab", "board",
-            "-SimpleKanbanShowInbox", "YES",
+            "-CardstockSkipFirstRun", "YES",
+            "-CardstockTab", "board",
+            "-CardstockShowInbox", "YES",
         ]
         app.launch()
         return app

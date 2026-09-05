@@ -13,7 +13,7 @@
 	</array>
 	<key>com.apple.developer.icloud-container-identifiers</key>
 	<array>
-		<string>iCloud.com.n14395.SimpleKanban</string>
+		<string>iCloud.com.n14395.Cardstock</string>
 	</array>
 	<key>aps-environment</key>
 	<string>development</string>
@@ -24,7 +24,7 @@
 	     iOS insists it does not, which is why the two files disagree. -->
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.com.n14395.SimpleKanban</string>
+		<string>group.com.n14395.Cardstock</string>
 	</array>
 </dict>
 </plist>

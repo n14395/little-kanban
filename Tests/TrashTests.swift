@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// The trash: what goes in, what comes back out, and what the thirty days do.
 ///

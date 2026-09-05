@@ -1,5 +1,5 @@
 import Foundation
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// A board the size nothing here has ever been run at.
 ///

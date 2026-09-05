@@ -22,9 +22,9 @@ import XCTest
 /// reads the order off the screen rather than assuming the seed's, so it can be
 /// run twice running:
 ///
-///     xcodebuild test -scheme SimpleKanbanUITests \
+///     xcodebuild test -scheme CardstockUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-///       -only-testing:SimpleKanbanUITests/InboxSheetDropTests
+///       -only-testing:CardstockUITests/InboxSheetDropTests
 final class InboxSheetDropTests: XCTestCase {
     /// The three cards the seed leaves unfiled. Named rather than counted —
     /// which row is where is read off the screen below.
@@ -44,9 +44,9 @@ final class InboxSheetDropTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchArguments = [
-            "-SimpleKanbanSkipFirstRun", "YES",
-            "-SimpleKanbanTab", "board",
-            "-SimpleKanbanShowInbox", "YES",
+            "-CardstockSkipFirstRun", "YES",
+            "-CardstockTab", "board",
+            "-CardstockShowInbox", "YES",
         ]
         app.launch()
         return app

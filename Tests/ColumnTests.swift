@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// Columns as board data, and the role that carries the only behaviour hung on
 /// one.

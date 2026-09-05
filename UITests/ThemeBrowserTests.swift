@@ -21,9 +21,9 @@ import XCTest
 /// the dark themes on screen *and take the light ones off*. A filter that only
 /// ever adds is a filter nobody can tell from no filter at all.
 ///
-///     xcodebuild test -scheme SimpleKanbanUITests \
+///     xcodebuild test -scheme CardstockUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-///       -only-testing:SimpleKanbanUITests/ThemeBrowserTests
+///       -only-testing:CardstockUITests/ThemeBrowserTests
 final class ThemeBrowserTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -36,8 +36,8 @@ final class ThemeBrowserTests: XCTestCase {
     private func openBrowser() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
-            "-SimpleKanbanSkipFirstRun", "YES",
-            "-SimpleKanbanOpenSettings", "YES",
+            "-CardstockSkipFirstRun", "YES",
+            "-CardstockOpenSettings", "YES",
         ]
         app.launch()
 

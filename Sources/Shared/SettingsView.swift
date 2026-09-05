@@ -138,6 +138,7 @@ struct SettingsView: View {
     @AppStorage(Preferences.completionSoundKey) private var playsCompletionSound = true
     @AppStorage(CompletionSound.storageKey) private var completionSound = CompletionSound.fallback
     @AppStorage(Preferences.subtaskSoundKey) private var playsSubtaskSound = true
+    @AppStorage(Preferences.interpretsCaptureKey) private var interpretsCapture = true
     @AppStorage(CompletionSound.subtaskStorageKey) private var subtaskSound = CompletionSound.subtaskFallback
     @AppStorage(TrashRetention.storageKey) private var trashRetention = TrashRetention.fallback
     @AppStorage(BackupsKept.storageKey) private var backupsKept = BackupsKept.fallback
@@ -209,7 +210,7 @@ struct SettingsView: View {
                 .environment(store)
         }
         // iOS only. The desk opens the browser as a window of its own — see the
-        // `themes` scene in `SimpleKanbanApp` for why — and a phone has no such
+        // `themes` scene in `CardstockApp` for why — and a phone has no such
         // thing to open.
         #if os(iOS)
         .sheet(isPresented: $isBrowsingThemes) {
@@ -446,7 +447,7 @@ struct SettingsView: View {
                     note: themeNote
                 ) {
                     #if os(macOS)
-                    openWindow(id: SimpleKanbanApp.themesWindowID)
+                    openWindow(id: CardstockApp.themesWindowID)
                     #else
                     isBrowsingThemes = true
                     #endif
@@ -588,9 +589,34 @@ struct SettingsView: View {
                     choice(String(localized: "New tasks are due", comment: "Settings row: a new task's due date"),
                            value: defaultDue.label) {
                         ForEach(DefaultDueDate.allCases) { option in
-                            pick(option.label, isCurrent: option == defaultDue) { defaultDue = option }
+                            // Written to the store as well as to defaults. The
+                            // store reads this preference once, at init — see
+                            // `BoardStore.defaultDueDate`, which is a stored
+                            // property so a parallel test can set it — so
+                            // without this line the choice made here did not
+                            // reach the next card minted until the app was
+                            // relaunched.
+                            pick(option.label, isCurrent: option == defaultDue) {
+                                defaultDue = option
+                                store.defaultDueDate = option
+                            }
                         }
                     }
+                }
+                rule
+                row {
+                    Toggle(isOn: $interpretsCapture) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Read dates and tags in a typed title")
+                                .font(palette.ui(metrics.rowFont, .semibold, relativeTo: .subheadline))
+                            Text("“Ship the beta next friday !high #bug” becomes a card due Friday, marked High and labelled Bug. Whatever it is about to take is shown under the field first, and any of it can be handed back.")
+                                .font(palette.ui(metrics.noteFont, .medium, relativeTo: .caption))
+                                .foregroundStyle(palette.inkText(0.45))
+                        }
+                    }
+                    // The same reason the row above writes the store: the store
+                    // holds its own copy so a test can set it.
+                    .onChange(of: interpretsCapture) { _, isOn in store.interpretsCapture = isOn }
                 }
                 rule
                 row {
@@ -849,7 +875,7 @@ struct SettingsView: View {
     private var syncExplanation: String {
         guard SyncPreference.isAvailable else {
             return String(
-                localized: "This copy of Simple Kanban was not built for iCloud, so your board stays on this device. Everything still saves locally, and you can export it at any time.",
+                localized: "This copy of Cardstock was not built for iCloud, so your board stays on this device. Everything still saves locally, and you can export it at any time.",
                 comment: "Settings note when the build carries no iCloud entitlement"
             )
         }
@@ -888,7 +914,7 @@ struct SettingsView: View {
     @ViewBuilder
     private var transferRows: some View {
         action(String(localized: "Export board…", comment: "Settings row that writes the board out as a file"),
-               note: String(localized: "One .simplekanban document holding every board, task and label.",
+               note: String(localized: "One .cardstock document holding every board, task and label.",
                             comment: "Settings note under the board export row")) {
             isExportingBoard = true
         }

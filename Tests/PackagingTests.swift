@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import UniformTypeIdentifiers
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// What the built bundle actually carries.
 ///
@@ -23,9 +23,9 @@ import UniformTypeIdentifiers
     // MARK: Identity
 
     @Test func theBundleIsTheAppRatherThanTheTestRunner() {
-        #expect(string("CFBundleIdentifier") == "com.n14395.SimpleKanban")
-        #expect(string("CFBundleName") == "Simple Kanban")
-        #expect(string("CFBundleDisplayName") == "Simple Kanban")
+        #expect(string("CFBundleIdentifier") == "com.n14395.Cardstock")
+        #expect(string("CFBundleName") == "Cardstock")
+        #expect(string("CFBundleDisplayName") == "Cardstock")
     }
 
     // MARK: The extensions
@@ -39,8 +39,8 @@ import UniformTypeIdentifiers
         let names = (try? FileManager.default.contentsOfDirectory(
             atPath: plugins.path(percentEncoded: false)
         )) ?? []
-        #expect(names.contains("SimpleKanbanWidgets.appex"), "the widget extension is not embedded: \(names)")
-        #expect(names.contains("SimpleKanbanShare.appex"), "the share extension is not embedded: \(names)")
+        #expect(names.contains("CardstockWidgets.appex"), "the widget extension is not embedded: \(names)")
+        #expect(names.contains("CardstockShare.appex"), "the share extension is not embedded: \(names)")
     }
 
     /// What the share extension declares about itself, read off the built
@@ -55,11 +55,11 @@ import UniformTypeIdentifiers
     @Test func theShareExtensionDeclaresWhatItIsAndWhatItTakes() throws {
         let plugins = try #require(Bundle.main.builtInPlugInsURL)
         let appex = try #require(
-            Bundle(url: plugins.appending(path: "SimpleKanbanShare.appex")),
+            Bundle(url: plugins.appending(path: "CardstockShare.appex")),
             "the share extension is not in the built app"
         )
         let info = appex.infoDictionary ?? [:]
-        #expect(info["CFBundleIdentifier"] as? String == "com.n14395.SimpleKanban.Share")
+        #expect(info["CFBundleIdentifier"] as? String == "com.n14395.Cardstock.Share")
         // The extension's version must match the app's, or a .dmg refuses to
         // install and a submission is rejected — the same rule the widgets keep.
         #expect(info["CFBundleShortVersionString"] as? String == string("CFBundleShortVersionString"))
@@ -67,7 +67,7 @@ import UniformTypeIdentifiers
 
         let extensionInfo = try #require(info["NSExtension"] as? [String: Any])
         #expect(extensionInfo["NSExtensionPointIdentifier"] as? String == "com.apple.share-services")
-        #expect(extensionInfo["NSExtensionPrincipalClass"] as? String == "SimpleKanbanShare.ShareViewController")
+        #expect(extensionInfo["NSExtensionPrincipalClass"] as? String == "CardstockShare.ShareViewController")
 
         let attributes = try #require(extensionInfo["NSExtensionAttributes"] as? [String: Any])
         let rule = try #require(attributes["NSExtensionActivationRule"] as? [String: Any])
@@ -175,21 +175,21 @@ import UniformTypeIdentifiers
     @Test func theBundleClaimsEveryTypeTheAppUses() throws {
         let exported = try #require(info["UTExportedTypeDeclarations"] as? [[String: Any]])
         let identifiers = Set(exported.compactMap { $0["UTTypeIdentifier"] as? String })
-        #expect(identifiers.contains("com.n14395.SimpleKanban.task"))
-        #expect(identifiers.contains("com.n14395.SimpleKanban.subtask"))
-        #expect(identifiers.contains("com.n14395.SimpleKanban.board"))
+        #expect(identifiers.contains("com.n14395.Cardstock.task"))
+        #expect(identifiers.contains("com.n14395.Cardstock.subtask"))
+        #expect(identifiers.contains("com.n14395.Cardstock.board"))
 
         let documents = try #require(info["CFBundleDocumentTypes"] as? [[String: Any]])
         let contentTypes = documents.flatMap { $0["LSItemContentTypes"] as? [String] ?? [] }
-        #expect(contentTypes.contains("com.n14395.SimpleKanban.board"),
+        #expect(contentTypes.contains("com.n14395.Cardstock.board"),
                 "the board document is exported but not owned")
 
         let urlTypes = try #require(info["CFBundleURLTypes"] as? [[String: Any]])
         let schemes = urlTypes.flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }
-        #expect(schemes.contains("simplekanban"), "the deep-link scheme is not claimed")
+        #expect(schemes.contains("cardstock"), "the deep-link scheme is not claimed")
 
         let activities = try #require(info["NSUserActivityTypes"] as? [String])
-        #expect(activities.contains("com.n14395.SimpleKanban.task"),
+        #expect(activities.contains("com.n14395.Cardstock.task"),
                 "Handoff and Spotlight continuation are not claimed")
     }
 

@@ -21,9 +21,9 @@ import XCTest
 /// **iPhone only** — the iPad and the desk have their own chrome for all of
 /// this, and none of it is this menu.
 ///
-///     xcodebuild test -scheme SimpleKanbanUITests \
+///     xcodebuild test -scheme CardstockUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-///       -only-testing:SimpleKanbanUITests/BoardMenuTests
+///       -only-testing:CardstockUITests/BoardMenuTests
 final class BoardMenuTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -38,7 +38,7 @@ final class BoardMenuTests: XCTestCase {
         )
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
-        app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES", "-SimpleKanbanTab", "board"]
+        app.launchArguments = ["-CardstockSkipFirstRun", "YES", "-CardstockTab", "board"]
         app.launch()
 
         let menu = app.buttons["Board actions"]
@@ -100,7 +100,7 @@ final class BoardMenuTests: XCTestCase {
         )
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
-        app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES", "-SimpleKanbanTab", "board"]
+        app.launchArguments = ["-CardstockSkipFirstRun", "YES", "-CardstockTab", "board"]
         app.launch()
 
         // Onto a view, through the drawer — the only way to one on this surface.

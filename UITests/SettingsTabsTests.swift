@@ -15,9 +15,9 @@ import XCTest
 /// at once, which is precisely the case where a regression would go unnoticed on
 /// a phone.
 ///
-///     xcodebuild test -scheme SimpleKanbanUITests \
+///     xcodebuild test -scheme CardstockUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-///       -only-testing:SimpleKanbanUITests/SettingsTabsTests
+///       -only-testing:CardstockUITests/SettingsTabsTests
 final class SettingsTabsTests: XCTestCase {
     /// A subject, and one control that its pane has and no other pane does.
     /// Named rather than closured so the list stays a plain value: a `[(String,
@@ -64,8 +64,8 @@ final class SettingsTabsTests: XCTestCase {
     private func launchWithSettingsOpen() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
-            "-SimpleKanbanSkipFirstRun", "YES",
-            "-SimpleKanbanOpenSettings", "YES",
+            "-CardstockSkipFirstRun", "YES",
+            "-CardstockOpenSettings", "YES",
         ]
         app.launch()
         return app

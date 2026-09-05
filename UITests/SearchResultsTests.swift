@@ -16,9 +16,9 @@ import XCTest
 /// accessibility API while it was written, which is the only way to drive that
 /// platform (see the project's notes on the probe).
 ///
-///     xcodebuild test -scheme SimpleKanbanUITests \
+///     xcodebuild test -scheme CardstockUITests \
 ///       -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)' \
-///       -only-testing:SimpleKanbanUITests/SearchResultsTests
+///       -only-testing:CardstockUITests/SearchResultsTests
 final class SearchResultsTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -27,14 +27,14 @@ final class SearchResultsTests: XCTestCase {
     private func launched() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
-            "-SimpleKanbanSkipFirstRun", "YES",
+            "-CardstockSkipFirstRun", "YES",
             // The board, said out loud: a cold launch lands on Today, which has
             // no columns for this to check are still full.
-            "-SimpleKanbanTab", "board",
+            "-CardstockTab", "board",
             // The panel and the inspector both want the trailing edge of the
             // window, and a result that opens the inspector is easier to read
             // when only one of them was there to begin with.
-            "-SimpleKanbanHideInspector", "YES",
+            "-CardstockHideInspector", "YES",
         ]
         app.launch()
         return app

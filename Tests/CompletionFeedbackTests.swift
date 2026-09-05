@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// The chime's plumbing: the preference vocabulary, the gate that keeps a bulk
 /// complete to one sound, and the promise that every preset names a file the
@@ -13,7 +13,7 @@ import Testing
 
     @MainActor
     @Test func theSoundIsOnByDefaultAndTheChimeIsTheFallback() throws {
-        let suite = try #require(UserDefaults(suiteName: "SimpleKanbanTests-\(UUID().uuidString)"))
+        let suite = try #require(UserDefaults(suiteName: "CardstockTests-\(UUID().uuidString)"))
         Preferences.reading(suite) {
             #expect(Preferences.playsCompletionSound, "a fresh install should ding")
             #expect(Preferences.completionSound == .barThird)
@@ -22,7 +22,7 @@ import Testing
 
     @MainActor
     @Test func theStoredChoiceComesBackAndAStrangerFallsBack() throws {
-        let suite = try #require(UserDefaults(suiteName: "SimpleKanbanTests-\(UUID().uuidString)"))
+        let suite = try #require(UserDefaults(suiteName: "CardstockTests-\(UUID().uuidString)"))
         suite.set(false, forKey: Preferences.completionSoundKey)
         suite.set(CompletionSound.glassTriad.rawValue, forKey: CompletionSound.storageKey)
         Preferences.reading(suite) {
@@ -55,7 +55,7 @@ import Testing
     /// looked at.
     @MainActor
     @Test func theSubtaskChimeIsItsOwnSwitchAndItsOwnSound() throws {
-        let suite = try #require(UserDefaults(suiteName: "SimpleKanbanTests-\(UUID().uuidString)"))
+        let suite = try #require(UserDefaults(suiteName: "CardstockTests-\(UUID().uuidString)"))
         Preferences.reading(suite) {
             #expect(Preferences.playsSubtaskSound, "a fresh install should tick")
             #expect(Preferences.subtaskSound == .tineWarm)

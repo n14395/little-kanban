@@ -15,12 +15,17 @@ struct BoardTaskComposer: View {
         /// text it draws — around 21pt — so on touch the row claims the
         /// minimum and hands the field the whole of it.
         var minHeight: CGFloat
+        /// Which size the capture chips run at — the pointer surface's or the
+        /// touch surface's. The same split every other chip in the app makes.
+        var isCompact: Bool
 
         static let desk = Metrics(
-            font: 13.5, horizontalPadding: 12, verticalPadding: 10, cornerRadius: 12, minHeight: 0
+            font: 13.5, horizontalPadding: 12, verticalPadding: 10, cornerRadius: 12, minHeight: 0,
+            isCompact: true
         )
         static let pad = Metrics(
-            font: 15, horizontalPadding: 14, verticalPadding: 11, cornerRadius: 14, minHeight: 44
+            font: 15, horizontalPadding: 14, verticalPadding: 11, cornerRadius: 14, minHeight: 44,
+            isCompact: false
         )
     }
 
@@ -37,6 +42,52 @@ struct BoardTaskComposer: View {
     var metrics: Metrics = .desk
 
     var body: some View {
+        // The reading of the line as it stands, which the strip below shows and
+        // `commitDraft` acts on — asked for once here so both are the same one.
+        let parse = store.draftParse
+
+        return VStack(alignment: .leading, spacing: 0) {
+            field
+            // Absent until the grammar finds something, so a composer nobody
+            // types a token into is the height it has always been. See
+            // ``CapturePreview``.
+            if !parse.isPlain {
+                CapturePreview(parse: parse, isCompact: metrics.isCompact) { store.rejectFromDraft($0) }
+                    .padding(.horizontal, metrics.horizontalPadding)
+                    .padding(.bottom, metrics.verticalPadding)
+                    // The strip appears mid-sentence, under a field somebody is
+                    // still typing into; growing into place reads as part of
+                    // the field rather than as something that landed on it.
+                    .transition(.opacity)
+            }
+        }
+        .animation(.snappy(duration: 0.18), value: parse.taken)
+        .background {
+            RoundedRectangle(cornerRadius: metrics.cornerRadius)
+                .fill(palette.card)
+                .shadow(color: palette.shadow(0.1), radius: 1, y: 1)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: metrics.cornerRadius)
+                .strokeBorder(palette.accent.opacity(0.35), lineWidth: 2)
+        }
+        .focusWhenReady($isFocused)
+        // Clicking away is the third way out, alongside ⏎ and Escape.
+        // Only an empty draft goes: losing a half-typed title to a stray
+        // click costs the user more than a stray open row does.
+        //
+        // The placement check is what makes "add to another column" work:
+        // that closes this composer and opens one there, and without it
+        // this one's parting focus change would cancel the new one's draft.
+        .onChange(of: isFocused) { _, focused in
+            guard !focused, store.addingPlacement == placement,
+                  store.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else { return }
+            store.cancelDraft()
+        }
+    }
+
+    private var field: some View {
         @Bindable var store = store
 
         // The placeholder doubles as the field's accessibility label unless one
@@ -65,28 +116,5 @@ struct BoardTaskComposer: View {
             .padding(.horizontal, metrics.horizontalPadding)
             .padding(.vertical, metrics.verticalPadding)
             .fieldHitArea(minHeight: metrics.minHeight) { isFocused = true }
-            .background {
-                RoundedRectangle(cornerRadius: metrics.cornerRadius)
-                    .fill(palette.card)
-                    .shadow(color: palette.shadow(0.1), radius: 1, y: 1)
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: metrics.cornerRadius)
-                    .strokeBorder(palette.accent.opacity(0.35), lineWidth: 2)
-            }
-            .focusWhenReady($isFocused)
-            // Clicking away is the third way out, alongside ⏎ and Escape.
-            // Only an empty draft goes: losing a half-typed title to a stray
-            // click costs the user more than a stray open row does.
-            //
-            // The placement check is what makes "add to another column" work:
-            // that closes this composer and opens one there, and without it
-            // this one's parting focus change would cancel the new one's draft.
-            .onChange(of: isFocused) { _, focused in
-                guard !focused, store.addingPlacement == placement,
-                      store.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                else { return }
-                store.cancelDraft()
-            }
     }
 }

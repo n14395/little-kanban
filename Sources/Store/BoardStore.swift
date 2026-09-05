@@ -140,7 +140,7 @@ enum BoardStoreError: LocalizedError, Equatable, Sendable, Identifiable {
             String(localized: "Your board could not be read.",
                    comment: "Alert title when the saved board is corrupt")
         case .load(.newerVersion(let version, _)):
-            String(localized: "Your board was saved by a newer version of Simple Kanban (format \(version)).",
+            String(localized: "Your board was saved by a newer version of Cardstock (format \(version)).",
                    comment: "Alert title when the saved board is too new to read")
         case .save(let message):
             String(localized: "The board could not be saved. \(message)",
@@ -521,7 +521,7 @@ enum SubtaskCaret: Hashable, Sendable {
 /// Board state and every mutation the design defines.
 ///
 /// This is a port of the `Component extends DCLogic` class in
-/// the design spec (see `simple-kanban design spec.zip`): same state fields,
+/// the design spec (see `cardstock design spec.zip`): same state fields,
 /// same transition rules.
 ///
 /// **One file, on purpose — splitting it was tried and reverted.** The
@@ -750,16 +750,48 @@ final class BoardStore {
     /// the Inbox — which is not a column.
     var addingColumnID: BoardColumn.ID? { addingPlacement?.columnID }
     var draft: String = ""
+    /// Tokens the user has handed back out of the draft, keyed by their folded
+    /// text — see ``CaptureParse/parse``. Session state and deliberately not
+    /// undoable: it lives and dies with the one line being typed, and it is
+    /// cleared wherever the draft is.
+    var draftRejections: Set<String> = []
+    /// Whether a typed title is read for `#bug`, `!high` and a trailing date.
+    ///
+    /// On the store rather than read from the global at each use, for the reason
+    /// ``defaultDueDate`` gives: a preference read straight from `Preferences`
+    /// is one a parallel test cannot change without changing what every other
+    /// suite sees.
+    var interpretsCapture: Bool = Preferences.interpretsCapture
+
+    /// What the open composer's line currently says. The surface drawing the
+    /// field shows this, and ``commitDraft()`` acts on it, so the chips somebody
+    /// is looking at and the card they get are the same reading.
+    ///
+    /// `today` is read here rather than passed because the composer has no
+    /// clock to hand; a draft is typed and committed inside a second or two, so
+    /// the only way to see it go stale is to leave a composer open across
+    /// midnight, and the card then lands on the day the ⏎ was pressed.
+    var draftParse: CaptureParse {
+        guard interpretsCapture else { return .plain(draft) }
+        return CaptureParse.parse(
+            draft, labels: labels, today: CalendarDay(.now), rejecting: draftRejections
+        )
+    }
+
+    /// Hands one token back: the words stay in the title and nothing is set.
+    func rejectFromDraft(_ token: CaptureParse.Token) {
+        draftRejections.insert(CaptureParse.fold(token.text))
+    }
 
     // MARK: Surfaces
 
     var isInspectorOpen: Bool = !BoardStore.inspectorHiddenAtLaunch
 
-    /// `-SimpleKanbanHideInspector YES`, for the same reason the Inbox has a
+    /// `-CardstockHideInspector YES`, for the same reason the Inbox has a
     /// launch argument: a UI test needs a column beside the panel, and on an
     /// iPad in portrait the inspector is holding that room.
     #if DEBUG
-    static let inspectorHiddenAtLaunch = UserDefaults.standard.bool(forKey: "SimpleKanbanHideInspector")
+    static let inspectorHiddenAtLaunch = UserDefaults.standard.bool(forKey: "CardstockHideInspector")
     #else
     static let inspectorHiddenAtLaunch = false
     #endif
@@ -806,9 +838,9 @@ final class BoardStore {
     /// is not a verification — it is a fight with whoever is using the machine.
     /// So there is a launch argument, the same shape as `FirstRun`'s pair:
     ///
-    ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanShowInbox YES
+    ///     xcrun simctl launch <device> com.n14395.Cardstock -CardstockShowInbox YES
     #if DEBUG
-    static let inboxOpensAtLaunch = UserDefaults.standard.bool(forKey: "SimpleKanbanShowInbox")
+    static let inboxOpensAtLaunch = UserDefaults.standard.bool(forKey: "CardstockShowInbox")
     #else
     static let inboxOpensAtLaunch = false
     #endif
@@ -972,7 +1004,7 @@ final class BoardStore {
         }
     }
 
-    static let sortOrderKey = "SimpleKanbanSortOrder"
+    static let sortOrderKey = "CardstockSortOrder"
 
     /// When the board last reached the disk, for the status bar. `nil` until
     /// this session has saved something.
@@ -1253,7 +1285,7 @@ final class BoardStore {
         // **Last, so it is the last word.** These ran at the end of `init`,
         // which was before any of the above — fine while nothing here touched
         // the surface, and wrong the moment a launch landed somewhere by
-        // default: `-SimpleKanbanTab board` set the board and this method put
+        // default: `-CardstockTab board` set the board and this method put
         // Today back over it. A launch argument is a person at a terminal saying
         // where to open, and it beats what was stored.
         applyLaunchOverrides()
@@ -2440,44 +2472,44 @@ final class BoardStore {
     /// individual tabs can be driven from `simctl launch` or a UI test without
     /// scripting taps. The sheet takes either a task's `code` or its UUID:
     ///
-    ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenSheet NW-118
-    ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenDrawer YES
-    ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenSettings YES
-    ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenTrash YES
-    ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenBoardSettings YES
-    ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanTab search
-    ///     xcrun simctl launch <device> com.n14395.SimpleKanban -SimpleKanbanOpenLink simplekanban://new
+    ///     xcrun simctl launch <device> com.n14395.Cardstock -CardstockOpenSheet NW-118
+    ///     xcrun simctl launch <device> com.n14395.Cardstock -CardstockOpenDrawer YES
+    ///     xcrun simctl launch <device> com.n14395.Cardstock -CardstockOpenSettings YES
+    ///     xcrun simctl launch <device> com.n14395.Cardstock -CardstockOpenTrash YES
+    ///     xcrun simctl launch <device> com.n14395.Cardstock -CardstockOpenBoardSettings YES
+    ///     xcrun simctl launch <device> com.n14395.Cardstock -CardstockTab search
+    ///     xcrun simctl launch <device> com.n14395.Cardstock -CardstockOpenLink cardstock://new
     private func applyLaunchOverrides() {
         let defaults = UserDefaults.standard
-        if let identifier = defaults.string(forKey: "SimpleKanbanOpenSheet"),
+        if let identifier = defaults.string(forKey: "CardstockOpenSheet"),
            let task = task(matching: identifier) {
             sheetID = task.id
         }
-        if defaults.bool(forKey: "SimpleKanbanOpenDrawer") {
+        if defaults.bool(forKey: "CardstockOpenDrawer") {
             isNavDrawerOpen = true
         }
-        if defaults.bool(forKey: "SimpleKanbanOpenSettings") {
+        if defaults.bool(forKey: "CardstockOpenSettings") {
             isShowingSettings = true
         }
-        if defaults.bool(forKey: "SimpleKanbanOpenTrash") {
+        if defaults.bool(forKey: "CardstockOpenTrash") {
             isShowingTrash = true
         }
         // The board's own settings, on whichever board the launch settles on.
         // The one surface here that is a *sheet on macOS too*, and so the one a
         // desk screenshot needs a way in to that is not a right-click.
-        if defaults.bool(forKey: "SimpleKanbanOpenBoardSettings"), let board = activeBoardID {
+        if defaults.bool(forKey: "CardstockOpenBoardSettings"), let board = activeBoardID {
             boardSettings = BoardSettingsRequest(board: board)
         }
-        // A `simplekanban://` link, queued exactly as an arriving one is — the
+        // A `cardstock://` link, queued exactly as an arriving one is — the
         // scene resolves it when it appears, which is the same path a cold
         // launch from a widget takes and therefore the same order of state
         // changes. The alternative, `simctl openurl`, stops to ask "Open in
-        // Simple Kanban?" and needs a tap of its own, which is precisely the
+        // Cardstock?" and needs a tap of its own, which is precisely the
         // thing these arguments exist to avoid.
-        if let raw = defaults.string(forKey: "SimpleKanbanOpenLink"), let url = URL(string: raw) {
+        if let raw = defaults.string(forKey: "CardstockOpenLink"), let url = URL(string: raw) {
             TaskLink.router.open(url)
         }
-        if let raw = defaults.string(forKey: "SimpleKanbanTab"), let parsed = PhoneTab(rawValue: raw) {
+        if let raw = defaults.string(forKey: "CardstockTab"), let parsed = PhoneTab(rawValue: raw) {
             // `selectTab` rather than the field, because a tab names a *surface*
             // as well: asking for the Board tab and arriving on Today — which is
             // where a launch lands now — is not what the argument says. It is
@@ -3562,7 +3594,7 @@ final class BoardStore {
     /// navigation alone, for callers that already have the card's detail open
     /// and only want the board behind it put right. This is the whole errand,
     /// and it has three callers that mean exactly the same thing by it: a
-    /// `simplekanban://` link, a Spotlight or notification tap, and a result
+    /// `cardstock://` link, a Spotlight or notification tap, and a result
     /// chosen from the search panel.
     ///
     /// The query goes first. A result the user has chosen has ended the search
@@ -5115,9 +5147,10 @@ final class BoardStore {
         to placement: TaskPlacement,
         title: String,
         fromPhone: Bool = false,
-        log kind: ActivityEntry.Kind = .created
+        log kind: ActivityEntry.Kind = .created,
+        capture: CaptureParse? = nil
     ) -> TaskItem.ID {
-        let id = mintTask(to: placement, title: title, log: kind)
+        let id = mintTask(to: placement, title: title, log: kind, capture: capture)
 
         // Session state, and outside the step deliberately: moving the selection
         // ends the sessions the surface left on the task it came from, and those
@@ -5256,8 +5289,18 @@ final class BoardStore {
     /// mint a card on whatever day it likes — the same bargain `DayClock` makes
     /// everywhere else. It is only consulted when ``DefaultDueDate`` is set to
     /// something, which it is not by default.
+    ///
+    /// **A capture's readings arrive here rather than being set afterwards.**
+    /// A card made and then given a due date, a priority and two labels through
+    /// the ordinary mutators is one card and four undo steps — ⌘Z four times to
+    /// take back one ⏎. Minting it whole makes it one step, and it also settles
+    /// what the activity feed says: a card born with a due date logs `.created`
+    /// and nothing else, exactly as one born with ``defaultDueDate`` already
+    /// did. The feed is for things that happened *to* a card, and none of this
+    /// happened to it — it is how the card arrived.
     private func mintTask(
         to placement: TaskPlacement, title: String, log kind: ActivityEntry.Kind,
+        capture: CaptureParse? = nil,
         today: CalendarDay = CalendarDay(.now)
     ) -> TaskItem.ID {
         let startsDue = defaultDueDate.day(from: today)
@@ -5265,10 +5308,14 @@ final class BoardStore {
         var task = TaskItem(
             code: BoardSnapshot.code(prefix: codePrefix(for: placement), forSerial: nextSerial),
             title: title,
-            due: startsDue,
-            priority: .default,
+            due: capture?.due ?? startsDue,
+            priority: capture?.priority ?? .default,
             activity: [ActivityEntry(kind)]
         )
+        // Filtered against the board's own labels a second time: the parse was
+        // made against them, but a draft can outlive the label it named if the
+        // manager is open in another window while somebody types.
+        task.labelKeys = (capture?.labelKeys ?? []).filter { label(forKey: $0) != nil }
         task.placement = placement
         undoable(String(localized: "New Task", comment: "Undo action name for adding a task")) {
             nextSerial += 1
@@ -5298,9 +5345,15 @@ final class BoardStore {
     /// `nil` when there was nothing to commit.
     @discardableResult
     func commitDraft() -> TaskItem.ID? {
-        let title = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let placement = addingPlacement, !title.isEmpty else { return nil }
-        let made = addTask(to: placement, title: title)
+        // Read once, and the same reading the composer has been showing: asking
+        // twice would let a draft typed either side of midnight commit a day the
+        // preview never named.
+        let capture = draftParse
+        guard let placement = addingPlacement, !capture.title.isEmpty else { return nil }
+        let made = addTask(to: placement, title: capture.title, capture: capture)
+        // `addTask` has already emptied the draft; the refusals go with it,
+        // because they were about that line and not about the next one.
+        draftRejections = []
         // **The iPad opens its editor on the card that was just made**, which
         // `addTask` has already selected. The other two platforms do not, and
         // the difference is real rather than a preference:
@@ -5326,6 +5379,7 @@ final class BoardStore {
     func cancelDraft() {
         addingPlacement = nil
         draft = ""
+        draftRejections = []
     }
 
     func beginAdding(in columnID: BoardColumn.ID) {
@@ -5335,6 +5389,7 @@ final class BoardStore {
     func beginAdding(in placement: TaskPlacement) {
         addingPlacement = placement
         draft = ""
+        draftRejections = []
     }
 
     /// Where ⌘N and the toolbar's New Task button open the composer.

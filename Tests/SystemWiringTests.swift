@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// The joins between Phase F's machinery and the app that is meant to be using
 /// it.
@@ -80,7 +80,7 @@ import Testing
     @Test func theAppAttachesTheSystemEntryPoints() throws {
         try expectCalled(
             ".systemEntryPoints()",
-            "no view attaches the entry points, so simplekanban:// URLs, tapped notifications, Handoff and Spotlight all reach nothing"
+            "no view attaches the entry points, so cardstock:// URLs, tapped notifications, Handoff and Spotlight all reach nothing"
         )
     }
 
@@ -96,7 +96,7 @@ import Testing
     /// to the front, before the first scene exists, and a store adopted on
     /// appear is not there yet when it does.
     @Test func theStoreIsAdoptedBeforeAnySceneExists() throws {
-        let app = try Self.source(named: "SimpleKanbanApp.swift")
+        let app = try Self.source(named: "CardstockApp.swift")
         let adopt = try #require(app.range(of: "TaskIntentBridge.adopt("))
         let initialiser = try #require(app.range(of: "init() {"))
         #expect(initialiser.lowerBound < adopt.lowerBound,
@@ -120,7 +120,7 @@ import Testing
     /// platform, so the scene comes up already active and `scenePhase` never
     /// changes. The `.active` branch catches everything after that.
     @Test func theDrainRunsAtLaunchAndOnComingForward() throws {
-        let app = try Self.source(named: "SimpleKanbanApp.swift")
+        let app = try Self.source(named: "CardstockApp.swift")
         let calls = app.components(separatedBy: "store.adoptPendingCaptures()").count - 1
         #expect(calls == 2,
                 "the drain is called \(calls) times; it belongs on `.onAppear` and on `scenePhase == .active`")
@@ -178,7 +178,7 @@ import Testing
     /// palette itself now, from the appearance override and the colour scheme,
     /// which is the only thing that works from that position.
     @Test func nothingPresentedFromTheRootReadsThePaletteFromTheEnvironment() throws {
-        let text = try Self.source(named: "SimpleKanbanApp.swift")
+        let text = try Self.source(named: "CardstockApp.swift")
         let parts = text.components(separatedBy: ": ViewModifier {")
         var offenders: [String] = []
         for index in 1..<max(parts.count, 1) {

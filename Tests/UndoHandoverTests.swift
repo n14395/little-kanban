@@ -2,7 +2,7 @@
 import AppKit
 import SwiftUI
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// The one link in undo that the rest of the suite cannot see.
 ///

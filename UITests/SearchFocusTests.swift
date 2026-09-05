@@ -9,7 +9,7 @@ import XCTest
 /// and whether a tap on it reaches the field is a question about what is in
 /// front of what.
 ///
-///     xcodebuild test -scheme SimpleKanbanUITests \
+///     xcodebuild test -scheme CardstockUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 final class SearchFocusTests: XCTestCase {
     override func setUp() {
@@ -23,7 +23,7 @@ final class SearchFocusTests: XCTestCase {
         )
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
-        app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES"]
+        app.launchArguments = ["-CardstockSkipFirstRun", "YES"]
         app.launch()
         XCTAssertTrue(app.buttons["Show boards"].waitForExistence(timeout: 15), "no board")
         XCTAssertFalse(app.keyboards.element.exists, "the keyboard was up before search")

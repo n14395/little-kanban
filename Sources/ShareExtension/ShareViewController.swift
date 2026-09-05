@@ -71,10 +71,10 @@ final class ShareViewController: ShareHost {
         do {
             try CaptureInbox.write(capture)
         } catch CaptureInbox.WriteError.noContainer {
-            return String(localized: "This copy of Simple Kanban is not set up for sharing.",
+            return String(localized: "This copy of Cardstock is not set up for sharing.",
                           comment: "Share sheet error when the build is not entitled to the App Group")
         } catch {
-            return String(localized: "That could not be saved. Try again, or add it in Simple Kanban.",
+            return String(localized: "That could not be saved. Try again, or add it in Cardstock.",
                           comment: "Share sheet error when the capture could not be written to disk")
         }
         extensionContext?.completeRequest(returningItems: [])

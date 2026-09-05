@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// Undo is snapshot-based, so what matters is not that an inverse was written
 /// but that the board comes back exactly as it was — and that one user action

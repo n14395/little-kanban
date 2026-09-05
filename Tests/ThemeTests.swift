@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// The theme engine: the twenty the app ships with, the shape a theme is, the
 /// arithmetic under it, and the file it travels in.
@@ -383,7 +383,7 @@ import Testing
             try ThemeDocument.decode(Data("not json at all".utf8))
         }
         #expect(throws: ThemeFileError.empty) {
-            try ThemeDocument.decode(Data(#"{"format":"com.n14395.SimpleKanban.theme","version":1,"themes":[]}"#.utf8))
+            try ThemeDocument.decode(Data(#"{"format":"com.n14395.Cardstock.theme","version":1,"themes":[]}"#.utf8))
         }
         // A colour with a typo in it names the field it is in rather than
         // throwing a Swift type name at somebody editing a hex.
@@ -408,6 +408,6 @@ import Testing
         let text = String(decoding: try ThemeDocument([try #require(ThemePresets.theme("1a"))]).encoded(), as: UTF8.self)
         #expect(text.contains("\n"), "the export is one line")
         #expect(text.contains("\"#E8703F\""), "a colour is not written as a hex")
-        #expect(text.contains("\"format\" : \"com.n14395.SimpleKanban.theme\""))
+        #expect(text.contains("\"format\" : \"com.n14395.Cardstock.theme\""))
     }
 }

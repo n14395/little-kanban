@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// Filing a task away: what it leaves, what it keeps, and what one ⌘Z has to
 /// bring back.

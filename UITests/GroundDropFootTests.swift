@@ -21,9 +21,9 @@ import XCTest
 /// Nothing here needs a re-seeded board: which card is where is read off the
 /// screen, so the suites that rearrange one can run before it.
 ///
-///     xcodebuild test -scheme SimpleKanbanUITests \
+///     xcodebuild test -scheme CardstockUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-///       -only-testing:SimpleKanbanUITests/GroundDropFootTests
+///       -only-testing:CardstockUITests/GroundDropFootTests
 final class GroundDropFootTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -73,7 +73,7 @@ final class GroundDropFootTests: XCTestCase {
         // — `BoardStore.landingSurface` — and Today is a flat list with no
         // column ground under it. `ColumnStripTests` names the tab for the same
         // reason.
-        app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES", "-SimpleKanbanTab", "board"]
+        app.launchArguments = ["-CardstockSkipFirstRun", "YES", "-CardstockTab", "board"]
         app.launch()
         XCTAssertTrue(app.buttons["New task"].waitForExistence(timeout: 20), "the app never came up")
 

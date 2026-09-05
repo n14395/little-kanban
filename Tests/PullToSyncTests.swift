@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// Pull a list of cards past its top and the board checks iCloud.
 ///

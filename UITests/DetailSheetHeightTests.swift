@@ -40,9 +40,9 @@ import XCTest
 /// **iPhone simulator only.** The iPad presents the same view as a form sheet,
 /// which is centred and sized by the system; detents do not apply to it.
 ///
-///     xcodebuild test -scheme SimpleKanbanUITests \
+///     xcodebuild test -scheme CardstockUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-///       -only-testing:SimpleKanbanUITests/DetailSheetHeightTests
+///       -only-testing:CardstockUITests/DetailSheetHeightTests
 final class DetailSheetHeightTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -72,7 +72,7 @@ final class DetailSheetHeightTests: XCTestCase {
         )
 
         let app = XCUIApplication()
-        app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES", "-SimpleKanbanTab", "board"]
+        app.launchArguments = ["-CardstockSkipFirstRun", "YES", "-CardstockTab", "board"]
         app.launch()
 
         XCTAssertTrue(boardIsUp(app), "the board never came up")
@@ -117,7 +117,7 @@ final class DetailSheetHeightTests: XCTestCase {
         )
 
         let app = XCUIApplication()
-        app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES", "-SimpleKanbanTab", "board"]
+        app.launchArguments = ["-CardstockSkipFirstRun", "YES", "-CardstockTab", "board"]
         app.launch()
         XCTAssertTrue(boardIsUp(app), "the board never came up")
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)).tap()

@@ -392,7 +392,7 @@ struct PhoneNavDrawer: View {
     }
 
     private static let wordmark = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
-        ?? "Simple Kanban"
+        ?? "Cardstock"
 
     private func sectionHeader(_ title: LocalizedStringKey, topPadding: CGFloat) -> some View {
         Text(title)

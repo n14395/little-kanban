@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// The Inbox as a panel beside the board rather than a page in place of it.
 ///

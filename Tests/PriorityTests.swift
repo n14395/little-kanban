@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// `Priority` itself: the order it declares, what a card starts on, and what it
 /// answers to on disk.

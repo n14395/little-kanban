@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// Dropping a column into the gap a caret names, which is what dragging a
 /// column row up or down the board settings sheet does — see `ColumnRowGrip`

@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// The saved-view predicates, asked at the day either side of every bound they
 /// draw.

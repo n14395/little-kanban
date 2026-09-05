@@ -13,9 +13,9 @@ import XCTest
 /// that this simulator does not draw. The pointer surfaces' bin is
 /// `Tests/TrashSurfaceTests`' and the eye's.
 ///
-///     xcodebuild test -scheme SimpleKanbanUITests \
+///     xcodebuild test -scheme CardstockUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-///       -only-testing:SimpleKanbanUITests/TrashSurfaceTests
+///       -only-testing:CardstockUITests/TrashSurfaceTests
 final class TrashSurfaceTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -36,8 +36,8 @@ final class TrashSurfaceTests: XCTestCase {
 
         let app = XCUIApplication()
         app.launchArguments = [
-            "-SimpleKanbanSkipFirstRun", "YES",
-            "-SimpleKanbanTab", "board",
+            "-CardstockSkipFirstRun", "YES",
+            "-CardstockTab", "board",
         ]
         app.launch()
 
@@ -69,8 +69,8 @@ final class TrashSurfaceTests: XCTestCase {
 
         let app = XCUIApplication()
         app.launchArguments = [
-            "-SimpleKanbanSkipFirstRun", "YES",
-            "-SimpleKanbanOpenTrash", "YES",
+            "-CardstockSkipFirstRun", "YES",
+            "-CardstockOpenTrash", "YES",
         ]
         app.launch()
 

@@ -324,7 +324,7 @@ struct MoveTaskIntent: AppIntent {
 /// what a Shortcut ends with rather than what it does.
 struct OpenTaskIntent: AppIntent {
     static let title: LocalizedStringResource = "Open Task"
-    static let description = IntentDescription("Opens a task in Simple Kanban.")
+    static let description = IntentDescription("Opens a task in Cardstock.")
     static let openAppWhenRun = true
 
     @Parameter(title: "Task")
@@ -365,7 +365,7 @@ struct FindTasksIntent: AppIntent {
     var column: ColumnEntity?
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Find tasks in Simple Kanban") {
+        Summary("Find tasks in Cardstock") {
             \.$text
             \.$board
             \.$column

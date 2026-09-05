@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// The SwiftData store the board syncs through.
 ///
@@ -407,7 +407,7 @@ import Testing
     @Test func theContainerIsNamedAfterTheBundle() {
         // The entitlement and the code have to agree, and nothing at build time
         // says so.
-        #expect(SyncSchema.cloudContainerID == "iCloud.com.n14395.SimpleKanban")
+        #expect(SyncSchema.cloudContainerID == "iCloud.com.n14395.Cardstock")
     }
 
     @Test func anInMemoryStoreNeverReachesICloud() throws {

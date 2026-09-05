@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// Contract §9: every interactive control in `Sources/Shared/` carries its own
 /// hit metric, and the touch preset claims at least 44pt.

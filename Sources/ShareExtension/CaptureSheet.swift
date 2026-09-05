@@ -46,7 +46,7 @@ struct CaptureSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Add to Inbox", comment: "Title of the share sheet that captures into Simple Kanban")
+            Text("Add to Inbox", comment: "Title of the share sheet that captures into Cardstock")
                 .font(palette.ui(17, .extraBold, relativeTo: .headline))
                 .foregroundStyle(palette.ink)
 

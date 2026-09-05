@@ -27,9 +27,9 @@ import XCTest
 /// after the source list has already closed for it, and this fails there with
 /// *the Inbox button did nothing*.
 ///
-///     xcodebuild test -scheme SimpleKanbanUITests \
+///     xcodebuild test -scheme CardstockUITests \
 ///       -destination 'platform=iOS Simulator,name=iPad Pro 11-inch (M5)' \
-///       -only-testing:SimpleKanbanUITests/PadSidebarsTests
+///       -only-testing:CardstockUITests/PadSidebarsTests
 final class PadSidebarsTests: XCTestCase {
     /// A row only the source list draws.
     private let listMark = "New board"
@@ -78,7 +78,7 @@ final class PadSidebarsTests: XCTestCase {
         )
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
-        app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES"]
+        app.launchArguments = ["-CardstockSkipFirstRun", "YES"]
         app.launch()
         XCTAssertTrue(app.buttons["InboxToggle"].waitForExistence(timeout: 20), "no board")
 
@@ -138,7 +138,7 @@ final class PadSidebarsTests: XCTestCase {
         )
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
-        app.launchArguments = ["-SimpleKanbanSkipFirstRun", "YES"]
+        app.launchArguments = ["-CardstockSkipFirstRun", "YES"]
         app.launch()
         XCTAssertTrue(app.buttons["InboxToggle"].waitForExistence(timeout: 20), "no board")
 

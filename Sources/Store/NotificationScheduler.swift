@@ -170,7 +170,7 @@ final class NotificationScheduler {
     /// The count last published, or `nil` when no notice is scheduled.
     @ObservationIgnored private var publishedOverdue: Int?
     /// The one repeating request, told apart from the per-task ones.
-    private static let overdueIdentifier = "com.n14395.SimpleKanban.overdue"
+    private static let overdueIdentifier = "com.n14395.Cardstock.overdue"
     /// False until the first reconcile has been seen. See the type's note.
     @ObservationIgnored private var hasBaseline = false
 
@@ -178,11 +178,11 @@ final class NotificationScheduler {
     private static let pendingLimit = 64
 
     private enum Keys {
-        static let enabled = "SimpleKanbanRemindersEnabled"
-        static let hour = "SimpleKanbanReminderHour"
-        static let minute = "SimpleKanbanReminderMinute"
-        static let dayBefore = "SimpleKanbanRemindsTheDayBefore"
-        static let overdueNag = "SimpleKanbanNagsWhileOverdue"
+        static let enabled = "CardstockRemindersEnabled"
+        static let hour = "CardstockReminderHour"
+        static let minute = "CardstockReminderMinute"
+        static let dayBefore = "CardstockRemindsTheDayBefore"
+        static let overdueNag = "CardstockNagsWhileOverdue"
     }
 
     init(
@@ -332,7 +332,7 @@ final class NotificationScheduler {
         content.body = String(localized: "\(count) cards are past their date.",
                               comment: "Body of the daily overdue notification; the placeholder is a count")
         content.sound = .default
-        content.threadIdentifier = "com.n14395.SimpleKanban.due"
+        content.threadIdentifier = "com.n14395.Cardstock.due"
 
         var components = DateComponents()
         components.hour = reminderHour
@@ -376,7 +376,7 @@ final class NotificationScheduler {
                    comment: "Body of the reminder for a task due tomorrow; the placeholder is a task code like NW-118")
         }
         content.sound = .default
-        content.threadIdentifier = "com.n14395.SimpleKanban.due"
+        content.threadIdentifier = "com.n14395.Cardstock.due"
         content.userInfo = [NotificationRelay.taskIDKey: reminder.id.uuidString]
         // What tapping the notification opens, in the same vocabulary a pasted
         // link uses. See `TaskLink`.
@@ -418,7 +418,7 @@ final class NotificationScheduler {
     var explanation: String? {
         switch authorization {
         case .denied:
-            String(localized: "Simple Kanban is not allowed to send notifications, so due dates will not remind you. You can allow them in System Settings.",
+            String(localized: "Cardstock is not allowed to send notifications, so due dates will not remind you. You can allow them in System Settings.",
                    comment: "Shown in settings when notification permission has been refused")
         case .notDetermined:
             String(localized: "You will be asked to allow notifications the first time you give a task a due date.",

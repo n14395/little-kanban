@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import UniformTypeIdentifiers
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// Getting a board out of the app and back in.
 ///

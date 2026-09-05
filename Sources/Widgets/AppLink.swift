@@ -2,7 +2,7 @@ import Foundation
 
 /// Every place outside the app that can name a place inside it.
 ///
-/// The app has answered `simplekanban://task/<uuid>` since links existed — see
+/// The app has answered `cardstock://task/<uuid>` since links existed — see
 /// ``TaskLink`` — and a widget needs four more: the board it is showing, the
 /// column it is showing, the saved view it is showing, and the two things the
 /// Inbox widget's `+` and header do. They are one vocabulary rather than five
@@ -17,7 +17,7 @@ import Foundation
 /// delete. ``newTask`` opens the app on a fresh Inbox capture with its title
 /// field focused, which is what the app's own `+` does.
 enum AppLink {
-    static let scheme = "simplekanban"
+    static let scheme = "cardstock"
 
     /// What a link names. Cases carry ids and nothing else: a link is written
     /// by one process and read by another, possibly after the thing it names
@@ -85,7 +85,7 @@ enum AppLink {
         }
     }
 
-    /// A host with nothing after it. `simplekanban://inbox/anything` is not the
+    /// A host with nothing after it. `cardstock://inbox/anything` is not the
     /// Inbox with something on the end — it is a link whose shape this build
     /// does not know, and reading it as the Inbox would silently swallow a
     /// destination a later version might mean by it.

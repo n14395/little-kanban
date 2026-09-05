@@ -44,7 +44,7 @@ struct ThemeBrowserView: View {
         var editor: ThemeEditorView.Metrics
 
         /// A window of its own on the desk — see the `themes` scene in
-        /// `SimpleKanbanApp`. No fixed width: three columns at the size it opens
+        /// `CardstockApp`. No fixed width: three columns at the size it opens
         /// at, more if it is dragged wider, one at the floor.
         static let window = Metrics(
             width: nil, minWidth: 336, minHeight: 460, showsDone: false, padding: 24,

@@ -894,13 +894,13 @@
         }
       }
     },
-    "About Simple Kanban" : {
+    "About Cardstock" : {
       "comment" : "App menu item",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "About Simple Kanban"
+            "value" : "About Cardstock"
           }
         }
       }
@@ -959,12 +959,12 @@
         }
       }
     },
-    "Add ${taskTitle} to Simple Kanban" : {
+    "Add ${taskTitle} to Cardstock" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Add ${taskTitle} to Simple Kanban"
+            "value" : "Add ${taskTitle} to Cardstock"
           }
         }
       }
@@ -1159,7 +1159,7 @@
       }
     },
     "Add to Inbox" : {
-      "comment" : "Title of the share sheet that captures into Simple Kanban",
+      "comment" : "Title of the share sheet that captures into Cardstock",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1212,12 +1212,12 @@
         }
       }
     },
-    "Adds a task to Simple Kanban. With no column given it goes to the Inbox." : {
+    "Adds a task to Cardstock. With no column given it goes to the Inbox." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Adds a task to Simple Kanban. With no column given it goes to the Inbox."
+            "value" : "Adds a task to Cardstock. With no column given it goes to the Inbox."
           }
         }
       }
@@ -1487,6 +1487,9 @@
         }
       }
     },
+    "Archive Completed in Inbox" : {
+      "comment" : "Task menu item that files away every ticked capture in the Inbox"
+    },
     "Archive finished cards" : {
       "comment" : "Settings row: when Done cards are archived",
       "localizations" : {
@@ -1507,9 +1510,6 @@
           }
         }
       }
-    },
-    "Archive Completed in Inbox" : {
-      "comment" : "Task menu item that files away every ticked capture in the Inbox"
     },
     "Archive Task" : {
       "comment" : "Task menu item that files the selected task away\nUndo action name for archiving a task",
@@ -2279,7 +2279,7 @@
       }
     },
     "Close" : {
-      "comment" : "Button that closes the backup sheet without restoring anything\nCloses the About panel on the desk",
+      "comment" : "Button that closes the backup sheet without restoring anything",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2653,7 +2653,7 @@
       }
     },
     "Copy Link" : {
-      "comment" : "Task menu item that puts the task's simplekanban:// link on the pasteboard",
+      "comment" : "Task menu item that puts the task's cardstock:// link on the pasteboard",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3445,9 +3445,6 @@
         }
       }
     },
-    "Empty Trash…" : {
-      "comment" : "Edit menu item that permanently deletes everything in the trash"
-    },
     "Empty the trash?" : {
       "localizations" : {
         "en" : {
@@ -3468,6 +3465,9 @@
           }
         }
       }
+    },
+    "Empty Trash…" : {
+      "comment" : "Edit menu item that permanently deletes everything in the trash"
     },
     "Enrolment flow" : {
       "comment" : "Starter template: sub-task",
@@ -3755,12 +3755,12 @@
         }
       }
     },
-    "Find tasks in Simple Kanban" : {
+    "Find tasks in Cardstock" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Find tasks in Simple Kanban"
+            "value" : "Find tasks in Cardstock"
           }
         }
       }
@@ -4587,13 +4587,13 @@
         }
       }
     },
-    "Its links name a task, a board, a column, a view or the Inbox — a task link looks like simplekanban://task/ followed by the task's identifier." : {
+    "Its links name a task, a board, a column, a view or the Inbox — a task link looks like cardstock://task/ followed by the task's identifier." : {
       "comment" : "Alert body explaining the shapes of link the app understands",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Its links name a task, a board, a column, a view or the Inbox — a task link looks like simplekanban://task/ followed by the task's identifier."
+            "value" : "Its links name a task, a board, a column, a view or the Inbox — a task link looks like cardstock://task/ followed by the task's identifier."
           }
         }
       }
@@ -6092,13 +6092,13 @@
         }
       }
     },
-    "One .simplekanban document holding every board, task and label." : {
+    "One .cardstock document holding every board, task and label." : {
       "comment" : "Settings note under the board export row",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "One .simplekanban document holding every board, task and label."
+            "value" : "One .cardstock document holding every board, task and label."
           }
         }
       }
@@ -6193,22 +6193,22 @@
         }
       }
     },
-    "Opens a task in Simple Kanban." : {
+    "Opens a task in Cardstock." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Opens a task in Simple Kanban."
+            "value" : "Opens a task in Cardstock."
           }
         }
       }
     },
-    "Opens the Today view in Simple Kanban." : {
+    "Opens the Today view in Cardstock." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Opens the Today view in Simple Kanban."
+            "value" : "Opens the Today view in Cardstock."
           }
         }
       }
@@ -7170,9 +7170,6 @@
         }
       }
     },
-    "Restore from a Backup…" : {
-      "comment" : "File menu item that lists the rolling backups to put one back"
-    },
     "Restore from a backup" : {
       "comment" : "Settings row that lists the rolling backups\nTitle of the sheet that lists the rolling backups",
       "localizations" : {
@@ -7183,6 +7180,9 @@
           }
         }
       }
+    },
+    "Restore from a Backup…" : {
+      "comment" : "File menu item that lists the rolling backups to put one back"
     },
     "Restore from Trash" : {
       "comment" : "Undo action name for taking something back out of the trash",
@@ -7952,13 +7952,13 @@
     "Show Trash" : {
       "comment" : "View menu item that opens the trash"
     },
-    "Shown in the Dock while Simple Kanban is running." : {
+    "Shown in the Dock while Cardstock is running." : {
       "comment" : "Note under the large app icon, on the desk only",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Shown in the Dock while Simple Kanban is running."
+            "value" : "Shown in the Dock while Cardstock is running."
           }
         }
       }
@@ -7985,45 +7985,45 @@
         }
       }
     },
-    "Simple Kanban" : {
+    "Cardstock" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Simple Kanban"
+            "value" : "Cardstock"
           }
         }
       }
     },
-    "Simple Kanban cannot open that link." : {
+    "Cardstock cannot open that link." : {
       "comment" : "Alert title for a URL the app cannot interpret",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Simple Kanban cannot open that link."
+            "value" : "Cardstock cannot open that link."
           }
         }
       }
     },
-    "Simple Kanban is not allowed to send notifications, so due dates will not remind you. You can allow them in System Settings." : {
+    "Cardstock is not allowed to send notifications, so due dates will not remind you. You can allow them in System Settings." : {
       "comment" : "Shown in settings when notification permission has been refused",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Simple Kanban is not allowed to send notifications, so due dates will not remind you. You can allow them in System Settings."
+            "value" : "Cardstock is not allowed to send notifications, so due dates will not remind you. You can allow them in System Settings."
           }
         }
       }
     },
-    "Simple Kanban is still starting up. Try again in a moment." : {
+    "Cardstock is still starting up. Try again in a moment." : {
       "comment" : "Shortcuts error: the app has not finished launching",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Simple Kanban is still starting up. Try again in a moment."
+            "value" : "Cardstock is still starting up. Try again in a moment."
           }
         }
       }
@@ -8626,13 +8626,13 @@
         }
       }
     },
-    "That could not be saved. Try again, or add it in Simple Kanban." : {
+    "That could not be saved. Try again, or add it in Cardstock." : {
       "comment" : "Share sheet error when the capture could not be written to disk",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "That could not be saved. Try again, or add it in Simple Kanban."
+            "value" : "That could not be saved. Try again, or add it in Cardstock."
           }
         }
       }
@@ -8780,9 +8780,6 @@
         }
       }
     },
-    "The board is copied here every 15 minutes as you work. Restoring replaces everything on the board — a copy of it as it stands is kept first, and ⌘Z takes the restore back." : {
-
-    },
     "The board could not be exported." : {
       "comment" : "Alert title when the blocked-session export fails",
       "localizations" : {
@@ -8838,13 +8835,13 @@
         }
       }
     },
-    "The board file was saved by a newer version of Simple Kanban (format %lld)." : {
+    "The board file was saved by a newer version of Cardstock (format %lld)." : {
       "comment" : "Error shown when a saved board is too new for this build to read",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The board file was saved by a newer version of Simple Kanban (format %lld)."
+            "value" : "The board file was saved by a newer version of Cardstock (format %lld)."
           }
         }
       }
@@ -8870,6 +8867,9 @@
           }
         }
       }
+    },
+    "The board is copied here every 15 minutes as you work. Restoring replaces everything on the board — a copy of it as it stands is kept first, and ⌘Z takes the restore back." : {
+
     },
     "The board that column was on has been deleted." : {
       "comment" : "Explanation when a trashed column cannot be restored",
@@ -9099,24 +9099,24 @@
         }
       }
     },
-    "This copy of Simple Kanban is not set up for sharing." : {
+    "This copy of Cardstock is not set up for sharing." : {
       "comment" : "Share sheet error when the build is not entitled to the App Group",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This copy of Simple Kanban is not set up for sharing."
+            "value" : "This copy of Cardstock is not set up for sharing."
           }
         }
       }
     },
-    "This copy of Simple Kanban was not built for iCloud, so your board stays on this device. Everything still saves locally, and you can export it at any time." : {
+    "This copy of Cardstock was not built for iCloud, so your board stays on this device. Everything still saves locally, and you can export it at any time." : {
       "comment" : "Settings note when the build carries no iCloud entitlement",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This copy of Simple Kanban was not built for iCloud, so your board stays on this device. Everything still saves locally, and you can export it at any time."
+            "value" : "This copy of Cardstock was not built for iCloud, so your board stays on this device. Everything still saves locally, and you can export it at any time."
           }
         }
       }
@@ -9756,13 +9756,13 @@
         }
       }
     },
-    "Welcome to Simple Kanban" : {
+    "Welcome to Cardstock" : {
       "comment" : "First-run picker title",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Welcome to Simple Kanban"
+            "value" : "Welcome to Cardstock"
           }
         }
       }
@@ -9956,13 +9956,13 @@
         }
       }
     },
-    "Your board was saved by a newer version of Simple Kanban (format %lld)." : {
+    "Your board was saved by a newer version of Cardstock (format %lld)." : {
       "comment" : "Alert title when the saved board is too new to read",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Your board was saved by a newer version of Simple Kanban (format %lld)."
+            "value" : "Your board was saved by a newer version of Cardstock (format %lld)."
           }
         }
       }

@@ -2,7 +2,7 @@ import CoreData
 import Foundation
 import SwiftData
 import Testing
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// The pass that keeps the store a board rather than an archive.
 ///

@@ -9,10 +9,10 @@ extension UTType {
     /// the type meaning something inside a bundle that has not been registered.
     ///
     /// Conforms to `public.json` rather than `public.data`, unlike the two drag
-    /// payloads: a `.simplekanban` file genuinely is JSON, and saying so is what
+    /// payloads: a `.cardstock` file genuinely is JSON, and saying so is what
     /// lets somebody open one in a text editor without the system arguing.
     static let simpleKanbanBoard = UTType(
-        exportedAs: "com.n14395.SimpleKanban.board", conformingTo: .json
+        exportedAs: "com.n14395.Cardstock.board", conformingTo: .json
     )
 
     /// Markdown, which this app does not own — hence *imported*, and declared in
@@ -33,7 +33,7 @@ extension UTType {
 /// somebody.
 struct BoardTransferDocument: FileDocument {
     /// `.json` is readable too, so the file the user drags in off another Mac —
-    /// which is `board.json`, with no `.simplekanban` extension — can be picked.
+    /// which is `board.json`, with no `.cardstock` extension — can be picked.
     static var readableContentTypes: [UTType] { [.simpleKanbanBoard, .json] }
     static var writableContentTypes: [UTType] { [.simpleKanbanBoard] }
 
@@ -56,10 +56,10 @@ struct BoardTransferDocument: FileDocument {
         FileWrapper(regularFileWithContents: try snapshot.encoded())
     }
 
-    /// `Simple Kanban 2026-08-21`. Dated rather than named after the board,
+    /// `Cardstock 2026-08-21`. Dated rather than named after the board,
     /// because an export is a moment rather than a thing — two exports of one
     /// board on different days are different files and should not collide.
-    static func filename(on day: CalendarDay) -> String { "Simple Kanban \(day)" }
+    static func filename(on day: CalendarDay) -> String { "Cardstock \(day)" }
 }
 
 /// The same board as Markdown, which is the form most people actually want:
@@ -101,7 +101,7 @@ struct BoardMarkdownDocument: FileDocument {
 /// rather than as the file is stored.
 enum BoardMarkdown {
     static func render(_ snapshot: BoardSnapshot, today: CalendarDay = .today()) -> String {
-        var lines: [String] = ["# Simple Kanban", "", "_Exported \(today.description)_"]
+        var lines: [String] = ["# Cardstock", "", "_Exported \(today.description)_"]
         let names = Dictionary(
             snapshot.labels.map { ($0.key, $0.name) }, uniquingKeysWith: { first, _ in first }
         )
@@ -168,7 +168,7 @@ enum BoardMarkdown {
 
 /// Reads a board file the user pointed at.
 ///
-/// Three doors hand the app one — the import panel, a `.simplekanban` opened
+/// Three doors hand the app one — the import panel, a `.cardstock` opened
 /// from the Finder, and the same from Files — and every one of them arrives
 /// security-scoped. Reading without claiming the scope is the sandbox failure
 /// that only shows up in a signed build, so it is claimed in one place.

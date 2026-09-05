@@ -2,7 +2,7 @@ import Foundation
 import Synchronization
 import Testing
 import UserNotifications
-@testable import Simple_Kanban
+@testable import Cardstock
 
 /// One request as the fake keeps it.
 ///
@@ -170,7 +170,7 @@ final class FakeNotificationCenter: TaskNotificationCenter, @unchecked Sendable 
     }
 
     private func suite() -> UserDefaults {
-        UserDefaults(suiteName: "SimpleKanbanTests-\(UUID().uuidString)") ?? .standard
+        UserDefaults(suiteName: "CardstockTests-\(UUID().uuidString)") ?? .standard
     }
 
     /// The scheduler hands each request over in a task of its own, so the
