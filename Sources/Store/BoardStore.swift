@@ -862,6 +862,10 @@ final class BoardStore {
     /// `BoardTransfer` for why they are not shared.
     var isExportingBoard: Bool = false
     var isImportingBoard: Bool = false
+    /// The third panel, and the last to get a menu item: exporting the board as
+    /// text was a settings row and nothing else, so the one export a person
+    /// pastes into a note or an issue was the one the File menu did not offer.
+    var isExportingMarkdown: Bool = false
     var tab: PhoneTab = .board
     var mobileColumnID: BoardColumn.ID = BoardColumn.inProgress.id
 

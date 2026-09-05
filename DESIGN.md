@@ -5143,8 +5143,8 @@ under the finger.
 
 **Haptics are `.sensoryFeedback(_:trigger:)` throughout, with one exception** —
 no generator to prepare, and the system setting is honoured by the API.
-`.selection` on paging and on a tab change; `.selection` on ticking a sub-task;
-`.impact(.light)` on a lift and on a drop. Nothing per keystroke.
+`.selection` on paging and on a tab change; `.selection` on *re-opening* a
+sub-task; `.impact(.light)` on a lift and on a drop. Nothing per keystroke.
 
 **The exception is completion, and it had to move.** The tap for a card going
 into Done was `.sensoryFeedback(.success, trigger: isDone)` on `PhoneTaskCard`,
@@ -5162,6 +5162,26 @@ a no-op on hardware with nothing to knock. The gate that keeps a bulk complete t
 one chime keeps it to one tap for the same reason, and it is still only the edge
 *into* done — never a reopen, and never an undo, which does not pass through
 `performMove` at all.
+
+**A ticked sub-task gets that same tap**, and used to get a `.selection` instead.
+The argument for the lighter one was that a sub-task is a value changing and the
+tap that finishes a card is the card's — but a step finished is a thing finished,
+and the box under the finger is the same box. So `subtaskCompleted` calls the
+very `haptic()` that `taskCompleted` does, which makes them the same tap by
+construction rather than two `.success`es that could drift apart. **The sound is
+where the two stay different**, which is what the second chime was always for:
+`tineWarm` against `barThird`, so a step and a card are told apart without being
+looked at. The gates stay separate too — ticking the last open sub-task and then
+finishing the card is two things happening, and they are said in two voices a beat
+apart rather than one silencing the other.
+
+Two consequences worth naming. **The tap is not behind the sub-task sound
+switch**, for the card's reason: the switch is about the noise. That is also why
+the gate is now consulted before the switch rather than after — asked after, it
+would never advance on a machine with the chime off, and the burst it exists to
+swallow would arrive as a burst of taps. And **`ChecklistView`'s `.selection` now
+counts only the other direction**: re-opening a row still feels like a value
+changing, and counting both would be two taps for the one press.
 
 **The lift bump is latched, because SwiftUI asks for the payload more than
 once.** `.draggable` takes the payload as an autoclosure, and the comment here

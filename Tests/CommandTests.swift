@@ -206,6 +206,69 @@ import Testing
     }
 }
 
+/// The Column menu, which is aimed at the column holding the focused card.
+///
+/// **Its rules are the column header's own menu's**, said once in the
+/// vocabulary rather than twice: Move Left is dead on the first column and on
+/// Done — the board's last, which does not move because being last is what makes
+/// it the column a tick sends cards to — and Move Right is dead on the one
+/// before Done, which is as far right as a working column goes. `moveColumn`
+/// refuses and clamps the same two cases, so what these greyed items prevent is
+/// not corruption but a press that appears to do nothing.
+@MainActor
+@Suite struct ColumnCommandTests {
+    private func columns(_ store: BoardStore) -> [BoardColumn.ID] { store.columns.map(\.id) }
+
+    @Test func everyColumnItemIsDeadWithTheKeyboardOffTheBoard() {
+        let store = TestBoard.store()
+        for command in AppCommand.commands(in: .column) {
+            #expect(command.isEnabled(forColumn: nil, in: store) == false,
+                    "\(command.rawValue) is live with no column under the keyboard")
+        }
+        // And a column id this board has never heard of — a card opened out of
+        // a saved view can be on another board — is the same as none.
+        for command in AppCommand.commands(in: .column) {
+            #expect(command.isEnabled(forColumn: UUID(), in: store) == false)
+        }
+    }
+
+    @Test func aColumnDoesNotMovePastTheEndsOrPastDone() throws {
+        let store = TestBoard.store()
+        let ids = columns(store)
+        try #require(ids.count >= 3, "the seed board has too few columns to ask this of")
+        let first = try #require(ids.first)
+        let done = try #require(ids.last)
+        let beforeDone = ids[ids.count - 2]
+
+        #expect(AppCommand.moveColumnLeft.isEnabled(forColumn: first, in: store) == false,
+                "the first column has nowhere left to go")
+        #expect(AppCommand.moveColumnLeft.isEnabled(forColumn: done, in: store) == false,
+                "Done is the board's last column and does not move")
+        #expect(AppCommand.moveColumnRight.isEnabled(forColumn: beforeDone, in: store) == false,
+                "nothing moves past Done")
+        #expect(AppCommand.moveColumnRight.isEnabled(forColumn: first, in: store))
+        #expect(AppCommand.moveColumnLeft.isEnabled(forColumn: beforeDone, in: store))
+
+        // The two that only need a column stay live wherever it is, Done
+        // included: a Done column can be renamed, and it can be thrown away.
+        for id in ids {
+            #expect(AppCommand.editColumn.isEnabled(forColumn: id, in: store))
+            #expect(AppCommand.trashColumn.isEnabled(forColumn: id, in: store))
+        }
+    }
+
+    /// Everything else in the vocabulary ignores the column entirely, so a
+    /// focused column cannot quietly become a second thing the Task menu
+    /// disables on.
+    @Test func nothingButTheColumnMenuAsksAboutAColumn() {
+        let store = TestBoard.store()
+        for command in AppCommand.allCases where !command.needsColumn {
+            #expect(command.isEnabled(forColumn: nil, in: store),
+                    "\(command.rawValue) disables when the keyboard is off the board")
+        }
+    }
+}
+
 /// The one shortcut vocabulary. The menu bar, the board's key handlers and the
 /// shortcuts sheet all read this, so what it says has to be internally
 /// consistent — a sheet claiming a key the menu does not have is worse than no

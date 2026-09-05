@@ -1477,7 +1477,7 @@
       }
     },
     "Archive Completed" : {
-      "comment" : "Undo action name for archiving completed Inbox tasks\nUndo action name for archiving everything in the Done column",
+      "comment" : "Task menu item that files away every finished task in the board's Done column\nUndo action name for archiving completed Inbox tasks\nUndo action name for archiving everything in the Done column",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1507,6 +1507,9 @@
           }
         }
       }
+    },
+    "Archive Completed in Inbox" : {
+      "comment" : "Task menu item that files away every ticked capture in the Inbox"
     },
     "Archive Task" : {
       "comment" : "Task menu item that files the selected task away\nUndo action name for archiving a task",
@@ -2276,7 +2279,7 @@
       }
     },
     "Close" : {
-      "comment" : "Closes the About panel on the desk",
+      "comment" : "Button that closes the backup sheet without restoring anything\nCloses the About panel on the desk",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2328,7 +2331,7 @@
       }
     },
     "Column" : {
-      "comment" : "Accessibility label of the column a view criterion names\nView criterion field\nWhat a board column is called in the Shortcuts editor\nWhat a board column is called when configuring a widget\nWhat kind of thing a trashed item is",
+      "comment" : "Accessibility label of the column a view criterion names\nMenu title, and a heading in the shortcuts sheet\nView criterion field\nWhat a board column is called in the Shortcuts editor\nWhat a board column is called when configuring a widget\nWhat kind of thing a trashed item is",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2650,6 +2653,7 @@
       }
     },
     "Copy Link" : {
+      "comment" : "Task menu item that puts the task's simplekanban:// link on the pasteboard",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2917,7 +2921,7 @@
       }
     },
     "Delete View" : {
-      "comment" : "Undo action name for deleting a saved view",
+      "comment" : "Undo action name for deleting a saved view\nView menu item that deletes the saved view on screen",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3289,7 +3293,7 @@
       }
     },
     "Duplicate View" : {
-      "comment" : "Undo action name for duplicating a saved view",
+      "comment" : "Undo action name for duplicating a saved view\nView menu item that copies the saved view on screen",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3333,6 +3337,7 @@
       }
     },
     "Edit Column…" : {
+      "comment" : "Column menu item that opens the focused column's name, colour and limit",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3397,6 +3402,7 @@
       }
     },
     "Edit View…" : {
+      "comment" : "View menu item that opens the rules of the saved view on screen",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3438,6 +3444,9 @@
           }
         }
       }
+    },
+    "Empty Trash…" : {
+      "comment" : "Edit menu item that permanently deletes everything in the trash"
     },
     "Empty the trash?" : {
       "localizations" : {
@@ -3592,7 +3601,7 @@
       }
     },
     "Export as Markdown…" : {
-      "comment" : "Settings row that writes the board out as text",
+      "comment" : "File menu item that writes the board out as text\nSettings row that writes the board out as text",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5092,6 +5101,12 @@
         }
       }
     },
+    "Move Board Down" : {
+      "comment" : "View menu item that moves this board one place down the sidebar"
+    },
+    "Move Board Up" : {
+      "comment" : "View menu item that moves this board one place up the sidebar"
+    },
     "Move Card Left" : {
       "comment" : "Moves the focused card to the previous column",
       "localizations" : {
@@ -5135,6 +5150,7 @@
       }
     },
     "Move Left" : {
+      "comment" : "Column menu item that moves the focused column one place left",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5145,6 +5161,7 @@
       }
     },
     "Move Right" : {
+      "comment" : "Column menu item that moves the focused column one place right",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7143,6 +7160,7 @@
       }
     },
     "Restore Built-in Views" : {
+      "comment" : "View menu item that puts back the saved views the app ships with",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7152,8 +7170,11 @@
         }
       }
     },
+    "Restore from a Backup…" : {
+      "comment" : "File menu item that lists the rolling backups to put one back"
+    },
     "Restore from a backup" : {
-      "comment" : "Settings row that lists the rolling backups",
+      "comment" : "Settings row that lists the rolling backups\nTitle of the sheet that lists the rolling backups",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7292,6 +7313,9 @@
           }
         }
       }
+    },
+    "Reveal in Finder" : {
+      "comment" : "File menu item that opens the board's folder in the Finder"
     },
     "Review" : {
       "comment" : "Sprint template column, abbreviated",
@@ -7691,6 +7715,9 @@
           }
         }
       }
+    },
+    "Set Labels" : {
+      "comment" : "Task submenu listing the board's labels, each of which can be put on or taken off"
     },
     "Set Priority" : {
       "comment" : "Task submenu listing the priorities\nUndo action name for changing a task's priority",
@@ -8753,6 +8780,9 @@
         }
       }
     },
+    "The board is copied here every 15 minutes as you work. Restoring replaces everything on the board — a copy of it as it stands is kept first, and ⌘Z takes the restore back." : {
+
+    },
     "The board could not be exported." : {
       "comment" : "Alert title when the blocked-session export fails",
       "localizations" : {
@@ -9430,7 +9460,7 @@
       }
     },
     "Trash Column" : {
-      "comment" : "Undo action name for putting a column in the trash",
+      "comment" : "Column menu item that puts the focused column in the trash\nUndo action name for putting a column in the trash",
       "localizations" : {
         "en" : {
           "stringUnit" : {

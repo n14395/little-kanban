@@ -155,7 +155,13 @@ struct ChecklistView: View {
     /// for: derived state — the row's `done` flags — also changes when the
     /// surface is re-pointed at another card, and a tick nobody made is worse
     /// than silence.
-    @State private var ticks = 0
+    ///
+    /// **Only the box that *re-opens* a row bumps this.** Ticking one closed is
+    /// finishing something, and it is announced by the store and tapped by
+    /// `CompletionFeedback` in the same breath as the chime — the card's own
+    /// `.success`, which is what a finger that finished a step should feel. Two
+    /// taps for the one tap is what counting both directions here would give.
+    @State private var reopens = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: metrics.rowGap) {
@@ -208,9 +214,11 @@ struct ChecklistView: View {
         // emptied to whitespace.
         .onDisappear { endFocusedSession(on: focusOwnerID) }
         // Ticking a row was the one gesture in the sheet with nothing to feel
-        // (5.8). `.selection` rather than `.success`: a sub-task is a value
-        // changing, and the tick that finishes the card is the card's.
-        .sensoryFeedback(.selection, trigger: ticks)
+        // (5.8). Closing one is `CompletionFeedback`'s now, at the card's own
+        // `.success` — see `subtaskCompleted`. This is the other direction, where
+        // nothing has been finished and `.selection` is the whole of what a value
+        // changing is worth.
+        .sensoryFeedback(.selection, trigger: reopens)
     }
 
     private func endFocusedSession(on owner: TaskItem.ID?) {
@@ -277,8 +285,15 @@ struct ChecklistView: View {
     private func rowContent(_ subtask: SubTask) -> some View {
         HStack(alignment: .center, spacing: metrics.rowSpacing) {
             CompletionToggle(isDone: subtask.done, metrics: metrics.box) {
+                // Read before the toggle, which is what this row still holds:
+                // the value came out of `task.subtasks` when the row was drawn,
+                // and the store's write does not reach back into it. Done
+                // already means this press re-opens the row — the one direction
+                // `subtaskCompleted` says nothing about, and so the one this has
+                // to speak for.
+                let reopening = subtask.done
                 store.toggleSubtask(subtask.id, on: task.id)
-                ticks += 1
+                if reopening { reopens += 1 }
             }
             .padding(-metrics.boxOverhang)
 

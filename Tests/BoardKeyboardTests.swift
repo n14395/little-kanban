@@ -175,7 +175,14 @@ import Testing
         #expect(board(.space) == .completeTask)
         #expect(flat(.space) == .completeTask)
 
-        // ⏎ on its own is Open Task and is nobody's menu item.
+        // ⏎ on its own is Open Task, which *is* a menu item now — and one drawn
+        // without its key, because ↩ on a menu is ↩ taken out of every text
+        // field in the app. So the press stays the card's, which is what
+        // `AppCommand.menuPress` exists to keep true: read off `shortcuts`
+        // instead, this set would hold ↩ and the card would stand aside for an
+        // item that never receives it.
+        #expect(AppCommand.openTask.isMenuItem)
+        #expect(AppCommand.openTask.menuPress == nil)
         #expect(!BoardKeyboard.menuOwnedShortcuts.contains(AppShortcut(.return)))
         #expect(board(.return) == .openTask)
         #expect(flat(.return) == .openTask)
@@ -203,6 +210,14 @@ import Testing
             AppShortcut(.upArrow, [.command, .option]), AppShortcut(.downArrow, [.command, .option]),
             AppShortcut(.return, .command), AppShortcut(.return, [.command, .shift]),
             AppShortcut("j", .command), AppShortcut("/", .command),
+            // The five the menu bar grew when the items nobody could reach
+            // without a pointer were added to it. Each is a modifier along from
+            // a key the board already knows: ⌘⌫ throws a card away and ⇧⌘⌫
+            // throws away what was thrown away, ⌘C copies the card and ⌃⌘C
+            // copies its link, ⌥← moves a card and ⌃⌥← moves the column.
+            AppShortcut("r", [.command, .shift]), AppShortcut(.delete, [.command, .shift]),
+            AppShortcut("c", [.command, .control]),
+            AppShortcut(.leftArrow, [.control, .option]), AppShortcut(.rightArrow, [.control, .option]),
         ]
         #expect(BoardKeyboard.menuOwnedShortcuts == menu)
 
@@ -218,9 +233,16 @@ import Testing
     /// that happen to collide today: whatever the menu bar puts a key equivalent
     /// on, no card answers to. A key added to a menu item stops shadowing a
     /// card's on its own, and this is what says so.
+    ///
+    /// **What the item *declares*, which is ``AppCommand/menuPress``** — not the
+    /// first key its command names. The two were the same until Open Task became
+    /// an item drawn without its ↩, so that the key could stay with the cards and
+    /// out of every text field in the app. Read off `shortcuts` this rule says a
+    /// card must not answer to ↩, which is the opposite of what that item was
+    /// added for.
     @Test func noPressTheMenuDeclaresReachesACard() {
         for command in AppCommand.allCases where command.isMenuItem {
-            guard let shortcut = command.shortcuts.first else { continue }
+            guard let shortcut = command.menuPress else { continue }
             let key = shortcut.key.keyEquivalent
             let modifiers = shortcut.modifiers.eventModifiers
             #expect(board(key, modifiers) == nil,

@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 /// The menu bar, **generated** from ``AppCommand`` rather than transcribed from
 /// it: each placement draws `AppCommand.menuItems(in:)` for one section, and
@@ -87,6 +90,8 @@ struct BoardCommands: Commands {
         CommandGroup(after: .sidebar) {
             items(.view)
             Divider()
+            items(.savedView)
+            Divider()
             items(.viewOptions)
             Divider()
             items(.navigate)
@@ -98,6 +103,16 @@ struct BoardCommands: Commands {
             items(.task)
             Divider()
             items(.filing)
+        }
+
+        // **A menu of its own**, because a column is neither a card nor the
+        // board. Everything in it was reachable only from the ⋯ on a column
+        // header — a control that has to be found with a pointer, on a header
+        // that scrolls off the side of a wide board — and every item is aimed
+        // at the column holding the focused card, which is the only column the
+        // app can name without one. See ``AppCommand/needsColumn``.
+        CommandMenu(AppCommandGroup.column.title) {
+            items(.column)
         }
 
         #if os(macOS)
@@ -142,14 +157,19 @@ struct BoardCommands: Commands {
         case .moveToColumn: columnRows
         case .moveToBoard: boardRows
         case .setPriority: priorityRows
+        case .setLabels: labelRows
         case .appearance: appearanceRows
         case .cardDensity: densityRows
         case .sortOrder: sortRows
         default:
             let acting = applicable(command)
             Button(command.title(selectionCount: acting.count)) { perform(command, on: acting) }
-                .keyboardShortcut(command.keyboardShortcut)
-                .disabled(!command.isEnabled(for: targets, in: store))
+                // ``AppCommand/menuShortcut``, not the first of `shortcuts`:
+                // Open Task's ↩ belongs to the board and would be taken out of
+                // every text field in the app by an item carrying it.
+                .keyboardShortcut(command.menuShortcut)
+                .disabled(!command.isEnabled(for: targets, in: store)
+                          || !command.isEnabled(forColumn: window.focusedColumnID, in: store))
         }
     }
 
@@ -186,10 +206,29 @@ struct BoardCommands: Commands {
         case .shortcuts: store.isShowingShortcuts = true
         case .importBoard: store.isImportingBoard = true
         case .exportBoard: store.isExportingBoard = true
-        case .moveToColumn, .moveToBoard, .setPriority, .appearance, .cardDensity, .sortOrder:
+        case .exportMarkdown: store.isExportingMarkdown = true
+        case .revealBoardFile: revealBoardFile()
+        case .restoreBackup: window.isRestoringBackup = true
+        case .emptyTrash: window.isConfirmingEmptyTrash = true
+        case .editView: editView()
+        case .duplicateView: duplicateView()
+        case .deleteView: deleteView()
+        case .restoreBuiltInViews: store.restoreSeededViews()
+        case .moveBoardUp: moveBoard(by: -1)
+        case .moveBoardDown: moveBoard(by: 1)
+        case .copyLink: copyLink(to: ids)
+        case .openTask: open(ids)
+        case .archiveCompleted: store.archiveCompleted()
+        case .archiveInboxCompleted: store.archiveInboxCompleted()
+        case .editColumn: editColumn()
+        case .moveColumnLeft: moveColumn(by: -1)
+        case .moveColumnRight: moveColumn(by: 1)
+        case .trashColumn: trashColumn()
+        case .moveToColumn, .moveToBoard, .setPriority, .setLabels,
+             .appearance, .cardDensity, .sortOrder:
             // Anchors: the rows underneath them are what act.
             break
-        case .undo, .redo, .copyTask, .pasteTask, .selectAll, .deselect, .openTask,
+        case .undo, .redo, .copyTask, .pasteTask, .selectAll, .deselect,
              .focusPreviousColumn, .focusNextColumn, .focusCardAbove, .focusCardBelow,
              .moveCardLeft, .moveCardRight:
             // Not the menu bar's: the system's own two, and the keys the board
@@ -271,6 +310,28 @@ struct BoardCommands: Commands {
             }
         }
         .disabled(ids.isEmpty)
+    }
+
+    /// The board's labels, each a row that puts one on or takes it off.
+    ///
+    /// **Not the shape of the three above it.** Those name a place a card can
+    /// be in exactly one of — a column, a board, a priority — so the current
+    /// one is ticked *and dead*, because a row that would move a card to where
+    /// it already is does nothing. A card wears any number of labels, so every
+    /// row here stays live: the tick says the cards already carry it, and
+    /// pressing it takes it off again. `toggleLabel(_:on:)` decides which way a
+    /// mixed selection goes — anything not already carrying it gets it — so the
+    /// menu does not have to.
+    private var labelRows: some View {
+        let ids = applicable(.setLabels)
+        return Menu(AppCommand.setLabels.title) {
+            ForEach(store.labels) { label in
+                row(label.name, isCurrent: every(ids) { $0.labelKeys.contains(label.key) }) {
+                    store.toggleLabel(label.key, on: ids)
+                }
+            }
+        }
+        .disabled(ids.isEmpty || store.labels.isEmpty)
     }
 
     private var priorityRows: some View {
@@ -450,6 +511,99 @@ struct BoardCommands: Commands {
             }
         }
     }
+
+    /// ⌃⌘C. Aimed at one card for ``showPlace(of:)``'s reason: the pasteboard
+    /// holds one thing, and a selection of three cannot be linked to at once.
+    private func copyLink(to ids: Set<TaskItem.ID>) {
+        guard let id = store.tasks.first(where: { ids.contains($0.id) })?.id else { return }
+        TaskLink.copyToPasteboard(id)
+    }
+
+    /// What ↩ does where the board has focus, said as a menu item for the
+    /// readers a key press is not offered to — see ``AppCommand/menuShortcut``
+    /// for why the item cannot carry the key itself. The same two lines
+    /// `BoardKeyboard` runs, aimed at one card, because the inspector shows one.
+    private func open(_ ids: Set<TaskItem.ID>) {
+        guard let id = store.tasks.first(where: { ids.contains($0.id) })?.id else { return }
+        store.select(id)
+        store.isInspectorOpen = true
+    }
+
+    /// The saved view on screen, which is what the three View ▸ items act on.
+    /// The source list's row menu acts on the row it hangs off; the menu bar has
+    /// no row to hang off, so it acts on where you are standing.
+    private func editView() {
+        store.editingViewID = store.activeView?.id
+    }
+
+    private func duplicateView() {
+        guard let id = store.activeView?.id else { return }
+        // Straight into the editor, as the list's own Duplicate does: a copy
+        // named "… copy" sitting in the sidebar is a row to wonder about.
+        store.editingViewID = store.duplicateView(id)?.id
+    }
+
+    private func deleteView() {
+        guard let id = store.activeView?.id else { return }
+        store.deleteView(id)
+    }
+
+    /// View ▸ Move Board Up / Down, which reorders the source list rather than
+    /// moving through it — `step(_:)` above is the one that navigates.
+    ///
+    /// `toOffset` is `index + 2` going down for `move(fromOffsets:toOffset:)`'s
+    /// arithmetic: the offset names a gap in the list *before* the row is taken
+    /// out of it. The sidebar's own two rows say the same thing.
+    private func moveBoard(by delta: Int) {
+        guard let index = store.boards.firstIndex(where: { $0.id == store.activeBoardID }) else { return }
+        store.moveBoard(fromOffsets: IndexSet(integer: index), toOffset: delta < 0 ? index - 1 : index + 2)
+    }
+
+    // MARK: The column the keyboard is in
+
+    /// The column holding the focused card, which is what the Column menu is
+    /// aimed at. `nil` while the keyboard is not on a card — on the Archive, in
+    /// a saved view, or with nothing focused at all — and every item in that
+    /// menu is then disabled rather than aimed at a column nobody chose.
+    private var focusedColumn: BoardColumn.ID? {
+        guard let id = window.focusedColumnID, store.column(id: id) != nil else { return nil }
+        return id
+    }
+
+    /// The whole board with this column already unfolded in it, which is what
+    /// the column header's own Edit Column… opens. There is no separate column
+    /// editor to raise: the popover the header shows belongs to the header.
+    private func editColumn() {
+        guard let column = focusedColumn, let board = store.activeBoardID else { return }
+        store.boardSettings = BoardSettingsRequest(board: board, column: column)
+    }
+
+    private func moveColumn(by delta: Int) {
+        guard let column = focusedColumn,
+              let index = store.columns.firstIndex(where: { $0.id == column })
+        else { return }
+        store.moveColumn(fromOffsets: IndexSet(integer: index), toOffset: delta < 0 ? index - 1 : index + 2)
+    }
+
+    /// A refusal has a reason and the reason has to be read, so it goes to the
+    /// window — the header keeps its own copy of this alert for the menu it
+    /// draws, and the menu bar has no view of its own to put one on.
+    private func trashColumn() {
+        guard let column = focusedColumn else { return }
+        window.columnRefusal = store.trashColumn(column)
+    }
+
+    #if os(macOS)
+    private func revealBoardFile() {
+        guard let url = store.boardFileURL else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+    #else
+    /// Unreachable: ``AppCommand/revealBoardFile`` is `.desk` only. Present so
+    /// the one `perform(_:on:)` switch stays exhaustive rather than growing a
+    /// platform hole — the same bargain ``openThemes()`` makes below.
+    private func revealBoardFile() {}
+    #endif
 
     /// ⌥⌘↑ and ⌥⌘↓.
     private func step(_ delta: Int) {

@@ -35,6 +35,9 @@ struct PadRootView: View {
     /// strip under every arrow press — and it is mirrored onto the window state
     /// the menu bar reads, exactly as the desk mirrors it.
     @State private var focusRelay = BoardFocusRelay()
+    /// What an import folded in, or why a transfer could not be done —
+    /// `MacRootView`'s, for the panels the menu bar raises here too.
+    @State private var transferNotice: SettingsNotice?
     /// Which row the keyboard is on in the flat surfaces. Owned here for
     /// `BoardScrollView`'s reason: ↑ and ↓ cross rows, and a row cannot see its
     /// neighbours.
@@ -139,6 +142,37 @@ struct PadRootView: View {
             SavedViewEditor(viewID: draft.id, metrics: .sheet)
         }
         .labelManagerSheet(isPresented: $window.isManagingLabels, metrics: .sheet)
+        // File ▸ Restore from a Backup…, Edit ▸ Empty Trash… and a refused
+        // Column ▸ Trash Column.
+        .menuPresentations(window: window, backups: .sheet)
+        // **File ▸ Import… / Export… / Export as Markdown…**, which had nowhere
+        // to appear on this platform at all: the menu bar has been declared into
+        // the iPad's scene since it grew one, but the panels those two items ask
+        // for were presented only by `MacRootView`. So both items were live, set
+        // the flag they were built to set, and opened nothing — the settings
+        // pane's own rows raise their own panels from state of their own, which
+        // is why nobody noticed the menu's were going nowhere.
+        .modifier(BoardTransfer(
+            isExportingBoard: $store.isExportingBoard,
+            isExportingMarkdown: $store.isExportingMarkdown,
+            isImporting: $store.isImportingBoard,
+            today: dayClock.today,
+            onImport: { transferNotice = .importing($0, into: store) },
+            onFailure: { transferNotice = SettingsNotice(
+                title: String(localized: "That export could not be written.",
+                              comment: "Alert title when saving an exported file failed"),
+                message: $0
+            ) }
+        ))
+        .alert(
+            transferNotice?.title ?? "",
+            isPresented: Binding(get: { transferNotice != nil }, set: { if !$0 { transferNotice = nil } }),
+            presenting: transferNotice
+        ) { _ in
+            Button("OK") { transferNotice = nil }
+        } message: { notice in
+            Text(notice.message)
+        }
         // **The source list is the split view's column, not a child of ours**,
         // so View ▸ Toggle Sidebar cannot simply hide a view: it asks for the
         // flag, and this is where the flag becomes `columnVisibility`. Written

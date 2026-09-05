@@ -60,16 +60,21 @@ import Testing
     }
 
     /// The commands with no key of their own, named — so adding one is a
-    /// decision rather than an omission. Six open submenus; Import…, Export…,
-    /// Themes… and New View… open something the user then has to answer anyway;
-    /// and the four filing items are ones nobody has claimed a key for. New View…
-    /// is the one with a key it may not have: ⌃⌘N is `MenuBarQuickAdd`'s in the
+    /// decision rather than an omission. Seven open submenus; the transfer and
+    /// browser items open something the user then has to answer anyway; and the
+    /// rest — the filing pair, the four archive-and-restore items, the saved
+    /// view's four, the two that reorder boards and the two column items that
+    /// are not a movement — are ones nobody has claimed a key for. New View… is
+    /// the one with a key it may not have: ⌃⌘N is `MenuBarQuickAdd`'s in the
     /// documentation and on the seed board.
     @Test func theCommandsWithoutAKeyAreTheOnesWeChose() {
         let keyless = Set(AppCommand.allCases.filter(\.shortcuts.isEmpty))
-        #expect(keyless == [.newView, .importBoard, .exportBoard, .themes,
-                            .moveToColumn, .moveToBoard, .setPriority, .setDueDate,
-                            .archiveTask, .unarchiveTask,
+        #expect(keyless == [.newView, .importBoard, .exportBoard, .exportMarkdown,
+                            .restoreBackup, .themes, .setDueDate,
+                            .archiveTask, .unarchiveTask, .archiveCompleted, .archiveInboxCompleted,
+                            .editView, .duplicateView, .deleteView, .restoreBuiltInViews,
+                            .moveBoardUp, .moveBoardDown, .editColumn, .trashColumn,
+                            .moveToColumn, .moveToBoard, .setPriority, .setLabels,
                             .appearance, .cardDensity, .sortOrder])
         // And everything else has a key that SwiftUI can be handed.
         for command in AppCommand.allCases where !keyless.contains(command) {
@@ -152,8 +157,19 @@ import Testing
     @Test func everyCommandThatActsOnATaskSaysItNeedsOne() {
         #expect(Set(AppCommand.allCases.filter(\.needsSelection))
                 == [.trashTask, .completeTask, .reopenTask, .moveToColumn, .moveToBoard,
-                    .setPriority, .setDueDate, .showInBoard, .archiveTask, .unarchiveTask,
+                    .setPriority, .setLabels, .setDueDate, .showInBoard, .copyLink,
+                    .archiveTask, .unarchiveTask,
                     .copyTask, .deselect, .openTask, .moveCardLeft, .moveCardRight])
+
+        // And the commands aimed at a column rather than at a card, which
+        // disable on a different thing: the keyboard being somewhere on the
+        // board at all. None of them needs a selection — a column is a column
+        // whether or not anything in it is picked.
+        #expect(Set(AppCommand.allCases.filter(\.needsColumn))
+                == [.editColumn, .moveColumnLeft, .moveColumnRight, .trashColumn])
+        for command in AppCommand.allCases where command.needsColumn {
+            #expect(command.needsSelection == false, "\(command.rawValue) would disable with nothing selected")
+        }
 
         // Acting on the whole selection without needing one is incoherent.
         for command in AppCommand.allCases where command.actsOnWholeSelection {
@@ -165,7 +181,10 @@ import Testing
                         .selectAll, .find, .saveBoard, .syncNow, .settings, .boardSettings,
                         .toggleInspector, .toggleSidebar, .toggleInbox, .showTrash,
                         .manageLabels, .themes, .appearance, .cardDensity, .sortOrder,
-                        .previousBoard, .nextBoard, .shortcuts,
+                        .previousBoard, .nextBoard, .moveBoardUp, .moveBoardDown, .shortcuts,
+                        .exportMarkdown, .revealBoardFile, .restoreBackup, .emptyTrash,
+                        .editView, .duplicateView, .deleteView, .restoreBuiltInViews,
+                        .archiveCompleted, .archiveInboxCompleted,
                         .focusPreviousColumn, .focusNextColumn, .focusCardAbove, .focusCardBelow] {
             #expect(command.needsSelection == false, "\(command.rawValue) would disable with nothing selected")
         }
@@ -216,6 +235,42 @@ import Testing
         #expect(AppCommand.completeTask.keyboardShortcut?.modifiers == .command)
         // Space is a board key, so nothing on a menu claims it on its own.
         #expect(AppCommand.allCases.filter { $0.shortcuts.contains(AppShortcut(.space)) } == [.completeTask])
+    }
+
+    /// **↩ may be taught but never declared.**
+    ///
+    /// Open Task is ↩ where the board has focus, and it grew a menu item so that
+    /// the readers a key press is not offered to can reach it. A menu key
+    /// equivalent is offered the press *before* the responder chain, so an item
+    /// carrying ↩ would take Return out of every text field in the app — the
+    /// composer, a card's title, a sub-task row — and each of those would stop
+    /// committing what had been typed into it. It is the `.board` group's
+    /// bargain one step along: those give up the item and keep the key, and this
+    /// gives up the key and keeps the item.
+    ///
+    /// Nothing about the app would look wrong if this regressed: the menus would
+    /// draw, and typing would quietly stop working.
+    @Test func noMenuItemCarriesAKeyThatBelongsToTheTextFields() {
+        #expect(AppCommand.openTask.shortcuts == [AppShortcut(.return)])
+        #expect(AppCommand.openTask.keyboardShortcut != nil, "the board still handles ↩")
+        #expect(AppCommand.openTask.menuShortcut == nil, "the Task menu's item would swallow ↩")
+        #expect(AppCommand.openTask.isMenuItem)
+
+        // Every other command's item carries exactly the key the sheet prints
+        // first, so the one exception cannot spread by being copied.
+        for command in AppCommand.allCases where command != .openTask {
+            #expect(command.menuShortcut?.key.character == command.keyboardShortcut?.key.character,
+                    "\(command.rawValue) draws a key its own vocabulary does not name")
+            #expect(command.menuShortcut?.modifiers == command.keyboardShortcut?.modifiers)
+        }
+
+        // And no menu item claims a bare key at all — a modifierless equivalent
+        // is the same theft under another letter. Space is `completeTask`'s
+        // second press, which the menu never shows.
+        for command in AppCommand.allCases where command.isMenuItem {
+            guard let key = command.menuShortcut else { continue }
+            #expect(!key.modifiers.isEmpty, "\(command.rawValue) puts a bare key on a menu")
+        }
     }
 
     @Test func modifiersPrintInTheOrderTheSystemWritesThem() {
@@ -302,16 +357,22 @@ import Testing
     @Test func theVocabularyIsWhatWeThinkItIs() {
         #expect(AppCommand.commands(in: .file)
                 == [.newTask, .newBoard, .newColumn, .newView, .importBoard, .exportBoard,
-                    .boardSettings, .saveBoard, .syncNow, .settings])
-        #expect(AppCommand.commands(in: .edit) == [.undo, .redo, .trashTask, .find])
+                    .exportMarkdown, .boardSettings, .saveBoard, .syncNow, .revealBoardFile,
+                    .restoreBackup, .settings])
+        #expect(AppCommand.commands(in: .edit) == [.undo, .redo, .trashTask, .emptyTrash, .find])
         #expect(AppCommand.commands(in: .view)
                 == [.toggleInspector, .toggleSidebar, .toggleInbox, .showTrash, .manageLabels,
-                    .themes, .appearance, .cardDensity, .sortOrder, .previousBoard, .nextBoard])
+                    .themes, .editView, .duplicateView, .deleteView, .restoreBuiltInViews,
+                    .appearance, .cardDensity, .sortOrder,
+                    .previousBoard, .nextBoard, .moveBoardUp, .moveBoardDown])
         #expect(AppCommand.commands(in: .task)
                 == [.completeTask, .reopenTask, .moveToColumn, .moveToBoard, .setPriority,
-                    .setDueDate, .showInBoard, .archiveTask, .unarchiveTask])
+                    .setLabels, .setDueDate, .showInBoard, .copyLink, .openTask,
+                    .archiveTask, .unarchiveTask, .archiveCompleted, .archiveInboxCompleted])
+        #expect(AppCommand.commands(in: .column)
+                == [.editColumn, .moveColumnLeft, .moveColumnRight, .trashColumn])
         #expect(AppCommand.commands(in: .board)
-                == [.copyTask, .pasteTask, .selectAll, .deselect, .openTask,
+                == [.copyTask, .pasteTask, .selectAll, .deselect,
                     .focusPreviousColumn, .focusNextColumn, .focusCardAbove, .focusCardBelow,
                     .moveCardLeft, .moveCardRight])
         #expect(AppCommand.commands(in: .help) == [.shortcuts])
@@ -332,9 +393,12 @@ import Testing
 
         #expect(Set(rows).union(menuOnly).union(unbuilt) == Set(AppCommand.allCases))
         #expect(rows.count + menuOnly.count + unbuilt.count == AppCommand.allCases.count)
-        #expect(Set(menuOnly) == [.newView, .importBoard, .exportBoard, .themes,
-                                  .moveToColumn, .moveToBoard, .setPriority, .setDueDate,
-                                  .archiveTask, .unarchiveTask,
+        #expect(Set(menuOnly) == [.newView, .importBoard, .exportBoard, .exportMarkdown,
+                                  .restoreBackup, .themes, .setDueDate,
+                                  .archiveTask, .unarchiveTask, .archiveCompleted, .archiveInboxCompleted,
+                                  .editView, .duplicateView, .deleteView, .restoreBuiltInViews,
+                                  .moveBoardUp, .moveBoardDown, .editColumn, .trashColumn,
+                                  .moveToColumn, .moveToBoard, .setPriority, .setLabels,
                                   .appearance, .cardDensity, .sortOrder])
         #expect(unbuilt.isEmpty, "an unbuilt command is drawn disabled — say which, and why")
     }
@@ -357,7 +421,7 @@ import Testing
     /// somebody renamed one.
     @Test func aSubmenuAnchorOpensRatherThanDoes() {
         #expect(Set(AppCommand.allCases.filter(\.opensSubmenu))
-                == [.moveToColumn, .moveToBoard, .setPriority,
+                == [.moveToColumn, .moveToBoard, .setPriority, .setLabels,
                     .appearance, .cardDensity, .sortOrder])
         for command in AppCommand.allCases where command.opensSubmenu {
             #expect(command.shortcuts.isEmpty, "\(command.rawValue) opens a submenu and cannot take a key")
@@ -397,8 +461,9 @@ import Testing
         ("CommandGroup(replacing: .importExport)", [.importExport, .file]),
         ("CommandGroup(replacing: .appSettings)", [.app]),
         ("CommandGroup(after: .pasteboard)", [.edit]),
-        ("CommandGroup(after: .sidebar)", [.view, .viewOptions, .navigate]),
+        ("CommandGroup(after: .sidebar)", [.view, .savedView, .viewOptions, .navigate]),
         ("CommandMenu(AppCommandGroup.task.title)", [.task, .filing]),
+        ("CommandMenu(AppCommandGroup.column.title)", [.column]),
         ("CommandGroup(replacing: .help)", [.help]),
     ]
 
@@ -521,15 +586,18 @@ import Testing
     /// became one platform's only is an item that vanished from the other's
     /// menu bar, and nothing else would say so.
     ///
-    /// Two of the three are not taste. iPadOS puts its own **Settings…** (⌘,)
+    /// Two of the four are not taste. iPadOS puts its own **Settings…** (⌘,)
     /// and its own **Show Sidebar** (⌃⌘S, for the split view) on the menu bar,
     /// and a second item on either key is not a duplicate the system resolves —
     /// UIKit throws `NSInvalidArgumentException` building the menu and the app
     /// terminates before its first window. Both were found exactly that way, on
-    /// an iPad Pro 13" that took the test host down with it.
-    @Test func theOnlyItemsOnePlatformKeepsToItselfAreTheThreeWeNamed() {
+    /// an iPad Pro 13" that took the test host down with it. The other two are
+    /// windows one machine has and the other does not: the theme browser, and
+    /// the Finder that Reveal in Finder would send.
+    @Test func theOnlyItemsOnePlatformKeepsToItselfAreTheOnesWeNamed() {
         let exclusive: [AppCommand: Set<AppPlatform>] = [
             .settings: [.touch], .themes: [.desk], .toggleSidebar: [.desk],
+            .revealBoardFile: [.desk],
         ]
         for (command, platforms) in exclusive {
             #expect(command.platforms == platforms, "\(command.rawValue) is on the wrong machines")

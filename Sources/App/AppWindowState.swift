@@ -52,6 +52,26 @@ final class AppWindowState {
     /// modal and the second ask cannot happen while the first is up.
     var isManagingLabels = false
 
+    /// Set by File ▸ Restore from a Backup…, and cleared by the sheet it opens.
+    ///
+    /// A sheet rather than a submenu of dates, which is what it looks like it
+    /// wants to be: the list is a directory listing, and a `Commands` body is
+    /// re-evaluated whenever anything it reads changes — which is every
+    /// keystroke on a card. Settings makes the same call for the same reason
+    /// and says so where it reads the list.
+    var isRestoringBackup = false
+
+    /// Set by Edit ▸ Empty Trash…, and cleared by the alert it raises. The item
+    /// asks rather than does: what the trash holds is thirty days of second
+    /// chances, and ⌘Z is the only way back from spending them all at once.
+    var isConfirmingEmptyTrash = false
+
+    /// Why Column ▸ Trash Column did not happen, or `nil`. A refusal changed
+    /// nothing and has a reason the user has to be able to read — the column
+    /// header keeps its own copy of this alert for the menu it draws, and a menu
+    /// item has no view of its own to put one on.
+    var columnRefusal: ColumnRefusal?
+
     /// The cards Set Due Date… was aimed at, handed to the sheet rather than
     /// worked out there a second time.
     ///

@@ -35,7 +35,9 @@ struct ChimeGate {
 ///
 /// **A ticked sub-task is announced the same way**, from `toggleSubtask` and
 /// with a switch and a chime of its own — see ``subtaskCompleted(now:)``. It is
-/// the smaller event of the two and it is deliberately not the same sound.
+/// the smaller event of the two and it is deliberately not the same sound; the
+/// *tap* is the same one, because a finger that finished something should feel
+/// the same thing whichever of the two it finished.
 ///
 /// **The tap is performed here on every platform**, and it used to be split:
 /// the phone's card carried its own `.success` through `sensoryFeedback`, on
@@ -106,13 +108,29 @@ final class CompletionFeedback {
     /// through the toggle and would otherwise ring underneath the card's own
     /// chime.
     ///
-    /// **No haptic here**, which is the one way this differs from
-    /// ``taskCompleted(now:)``. The tap for a card had to move because
-    /// completing one takes the row out of the tree; a ticked sub-task stays
-    /// exactly where it is, so `ChecklistView` can keep its `.selection`
-    /// feedback and does — see the `sensoryFeedback` at the foot of its body.
+    /// **The same tap as a finished card**, which it did not use to be. A ticked
+    /// sub-task stays exactly where it is, so `ChecklistView` was able to carry
+    /// its own `sensoryFeedback` and did — a `.selection` on the argument that a
+    /// sub-task is a value changing and the tap that finishes a card is the
+    /// card's. Finishing a step is finishing something, and it now says so in the
+    /// same voice: `haptic()`, the very call ``taskCompleted(now:)`` makes, so
+    /// the two are the same tap by construction rather than by two `.success`es
+    /// that could drift. What still tells them apart is the *sound*, which is the
+    /// half of this that was always meant to carry the difference.
+    ///
+    /// `ChecklistView` keeps a `.selection` for the other direction, where there
+    /// is nothing being finished and so nothing for this to announce.
+    ///
+    /// **The tap is not behind the sound switch**, for ``taskCompleted(now:)``'s
+    /// reason: the switch is about the noise, and a silent tap is exactly what
+    /// somebody who turned the noise off still gets. That is also why the gate is
+    /// consulted first now — asked after the switch, it would never advance on a
+    /// machine with the sub-task chime off, and the burst it exists to swallow
+    /// would arrive as a burst of taps instead.
     func subtaskCompleted(now: Date = .now) {
-        guard reachesTheMachine, Preferences.playsSubtaskSound, subtaskGate.admits(now) else { return }
+        guard subtaskGate.admits(now), reachesTheMachine else { return }
+        haptic()
+        guard Preferences.playsSubtaskSound else { return }
         play(Preferences.subtaskSound)
     }
 

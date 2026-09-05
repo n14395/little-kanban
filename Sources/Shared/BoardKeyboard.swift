@@ -177,9 +177,17 @@ enum BoardKeyboard {
     ///
     /// The desk's list is derived from what the menu actually declares on the
     /// desk, so an item added there cannot silently start shadowing a card's key.
+    ///
+    /// **``AppCommand/menuPress``, not the first of `shortcuts`.** The two were
+    /// the same thing until an item was drawn without the key its command
+    /// carries: Open Task is ↩ on a focused card and an item with no key at all,
+    /// because ↩ on a menu would be taken out of every text field in the app.
+    /// Read off `shortcuts` this set would hold ↩ — and the card would stand
+    /// aside for a menu item that never receives it, leaving the key handled by
+    /// nobody, which is the same fault the iOS branch below is written to avoid.
     nonisolated static let menuOwnedShortcuts: Set<AppShortcut> = {
         #if os(macOS)
-        Set(AppCommand.allCases.filter { $0.isMenuItem(on: .current) }.compactMap(\.shortcuts.first))
+        Set(AppCommand.allCases.filter { $0.isMenuItem(on: .current) }.compactMap(\.menuPress))
         #else
         []
         #endif

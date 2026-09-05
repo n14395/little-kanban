@@ -165,6 +165,7 @@ struct MacRootView: View {
         // pane keeps its own pair for the rows inside it.
         .modifier(BoardTransfer(
             isExportingBoard: $store.isExportingBoard,
+            isExportingMarkdown: $store.isExportingMarkdown,
             isImporting: $store.isImportingBoard,
             today: dayClock.today,
             onImport: { transferNotice = .importing($0, into: store) },
@@ -184,6 +185,10 @@ struct MacRootView: View {
             Text(notice.message)
         }
         .labelManagerSheet(isPresented: $window.isManagingLabels, metrics: BoardSidebar.Metrics.desk.labelManager)
+        // File ▸ Restore from a Backup…, Edit ▸ Empty Trash… and a refused
+        // Column ▸ Trash Column — the three the menu bar raises that have no
+        // view of their own to appear on.
+        .menuPresentations(window: window, backups: .desk)
         .environment(resolvedWindow)
         .environment(focusRelay)
         // Both directions, because the menu hands focus on as well as reading
