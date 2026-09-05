@@ -87,8 +87,12 @@ struct PhoneNavDrawer: View {
                 // around the drawer or the number being computed twice. At
                 // `progress == 1` the shift is zero, so every non-interactive
                 // way in is left to the transition below, untouched.
-                .visualEffect { content, proxy in
-                    content.offset(x: parked(by: proxy.size.width))
+                .visualEffect { [progress, layoutDirection] content, proxy in
+                    content.offset(x: Self.parked(
+                        by: proxy.size.width,
+                        progress: progress,
+                        mirrored: layoutDirection == .rightToLeft
+                    ))
                 }
                 .transition(.move(edge: .leading))
                 // `@AccessibilityFocusState`, not the keyboard's — this moves
@@ -134,9 +138,18 @@ struct PhoneNavDrawer: View {
     /// How far out of sight the panel is drawn, in points, in whichever
     /// direction "out" is: `.offset` is a raw coordinate and does not mirror
     /// itself, the same trap the panel's shadow falls into below.
-    private func parked(by width: CGFloat) -> CGFloat {
+    ///
+    /// **`nonisolated`, and handed what it needs rather than reading it.**
+    /// `visualEffect` runs its closure off the main actor, so an instance
+    /// method reaching for `progress` and `layoutDirection` is a main-actor
+    /// read from somewhere that cannot promise it is on the main actor. Both
+    /// are `Sendable` values, so the call site captures them and this does the
+    /// arithmetic — which is all it ever did.
+    private nonisolated static func parked(
+        by width: CGFloat, progress: CGFloat, mirrored: Bool
+    ) -> CGFloat {
         let hidden = (1 - progress) * width
-        return layoutDirection == .rightToLeft ? hidden : -hidden
+        return mirrored ? hidden : -hidden
     }
 
     /// One proxy for the two halves of the same fact.

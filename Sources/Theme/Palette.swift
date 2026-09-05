@@ -67,6 +67,13 @@ struct Palette: Equatable, Sendable {
         uiFace.font(size, step, relativeTo: textStyle)
     }
 
+    /// The UI face as a platform font, for the one control that cannot take a
+    /// `Font` — see ``ResolvedThemeFace/platformFont(_:_:)``, which says what
+    /// the caller owes it about the size.
+    func uiFont(_ size: CGFloat, _ step: CardstockFont.Weight = .regular) -> CardstockFont.Platform {
+        uiFace.platformFont(size, step)
+    }
+
     /// The display face — board titles and the task title in the inspector, and
     /// nothing else. The design is emphatic about the "and nothing else": a
     /// display face used for a fourth thing stops being the thing that marks the

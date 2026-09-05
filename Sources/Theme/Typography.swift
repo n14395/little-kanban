@@ -1,4 +1,9 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
 /// The two faces a theme is set in, and the five weights the app asks of them.
 ///
@@ -29,7 +34,29 @@ enum CardstockFont {
             case .extraBold: .heavy
             }
         }
+
+        /// The same weight as AppKit and UIKit spell it, for the one control
+        /// that takes a ``CardstockFont/Platform`` rather than a `Font`.
+        var platformEquivalent: Platform.Weight {
+            switch self {
+            case .regular: .regular
+            case .medium: .medium
+            case .semibold: .semibold
+            case .bold: .bold
+            case .extraBold: .heavy
+            }
+        }
     }
+
+    /// The font type the two text systems take. `NSFont` and `UIFont` differ in
+    /// name and in nothing this app asks of them, so the one place that needs a
+    /// platform font — ``DescriptionEditor``, which is a text view rather than a
+    /// SwiftUI control — says it once and reads the same on both.
+    #if os(macOS)
+    typealias Platform = NSFont
+    #else
+    typealias Platform = UIFont
+    #endif
 
     /// `face` at `size`, `step` heavier or lighter than the face's own baseline.
     ///
@@ -66,6 +93,35 @@ enum CardstockFont {
             design: FontCatalog.isSerif(face.family) ? .serif : .default
         )
         return face.isItalic ? system.italic() : system
+    }
+}
+
+
+extension CardstockFont.Platform {
+    /// This face with a slant put on it, or `nil` where the descriptor will not
+    /// make one — the platform's version of the shear
+    /// ``ResolvedThemeFace/font(_:_:relativeTo:)`` asks SwiftUI for when a family
+    /// ships no italic of its own.
+    ///
+    /// AppKit and UIKit disagree twice in three lines: the trait is `.italic` on
+    /// one and `.traitItalic` on the other, and building a font from a descriptor
+    /// can fail on one and not the other. Both differences are spent here rather
+    /// than at the call site.
+    var obliqued: CardstockFont.Platform? {
+        #if os(macOS)
+        return CardstockFont.Platform(
+            descriptor: fontDescriptor.withSymbolicTraits(.italic), size: 0
+        )
+        #else
+        guard let slanted = fontDescriptor.withSymbolicTraits(.traitItalic) else { return nil }
+        return CardstockFont.Platform(descriptor: slanted, size: 0)
+        #endif
+    }
+
+    /// This face redrawn as a serif, for the stand-in a missing family gets.
+    var serifed: CardstockFont.Platform? {
+        guard let serif = fontDescriptor.withDesign(.serif) else { return nil }
+        return CardstockFont.Platform(descriptor: serif, size: 0)
     }
 }
 
@@ -108,6 +164,41 @@ struct ResolvedThemeFace: Equatable, Sendable {
         guard let name = names[index] else { return fallback(size: size, step: step) }
         let font = Font.custom(name, size: size, relativeTo: textStyle)
         return shearsItalic ? font.italic() : font
+    }
+
+    /// The same face as a platform font, for ``DescriptionEditor`` — the app's
+    /// one control that is a text view rather than a SwiftUI view, and so takes
+    /// an `NSFont`/`UIFont` where everything else takes a `Font`.
+    ///
+    /// **`size` arrives already grown.** A `Font` carries the text style it was
+    /// declared `relativeTo` and follows the reader's text size on its own; a
+    /// platform font is a fixed number of points and does not. So the growing
+    /// happens at the call site, through the `ScaledMetric` the rest of the
+    /// app's fixed sizes go through, and what reaches here is the answer.
+    func platformFont(_ size: CGFloat, _ step: CardstockFont.Weight = .regular)
+        -> CardstockFont.Platform {
+        let index = CardstockFont.Weight.allCases.firstIndex(of: step) ?? 0
+        guard let name = names[index], let font = CardstockFont.Platform(name: name, size: size)
+        else { return platformFallback(size: size, step: step) }
+        // A family with no slanted face gets a synthesised oblique, which is the
+        // platform's version of the shear `font(_:_:relativeTo:)` asks SwiftUI
+        // for. If the descriptor cannot make one, upright is the honest answer.
+        guard shearsItalic else { return font }
+        return font.obliqued ?? font
+    }
+
+    /// ``platformFont(_:_:)``'s stand-in, from the same precomputed design the
+    /// SwiftUI fallback uses — a theme built on a font this machine does not
+    /// have still reads as the *kind* of face it was set in.
+    private func platformFallback(size: CGFloat, step: CardstockFont.Weight)
+        -> CardstockFont.Platform {
+        let weight = Self.clamped(face.weight, step: step)
+        let system = CardstockFont.Platform.systemFont(
+            ofSize: size,
+            weight: CardstockFont.Weight(rawValue: weight)?.platformEquivalent ?? .regular
+        )
+        guard fallbackDesign == .serif else { return system }
+        return system.serifed ?? system
     }
 
     /// ``CardstockFont/fallback(_:size:weight:)``, from the precomputed design.

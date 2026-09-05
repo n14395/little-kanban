@@ -53,7 +53,11 @@ struct CaptureGlyphs: View {
     /// A rule rather than a measurement per platform, because the four sites
     /// draw the same pair at four sizes and nothing but the size differs. Nudged
     /// at one of them it would stop being the same control.
-    static func width(_ size: CGFloat) -> CGFloat { size * 3.5 }
+    /// `nonisolated` because it is arithmetic and its callers are not all on
+    /// the main actor: `BoardToolbar.Metrics` is a plain value type that sizes
+    /// a row without a view in sight, and a `View`'s statics are `@MainActor`
+    /// by inheritance whether or not they touch anything that needs it.
+    nonisolated static func width(_ size: CGFloat) -> CGFloat { size * 3.5 }
 
     var body: some View {
         HStack(spacing: Self.gap(size)) {

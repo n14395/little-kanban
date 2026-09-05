@@ -564,7 +564,10 @@ struct BoardTaskCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 if !task.note.isEmpty, density.showsDetail {
-                    Text(task.note)
+                    // Tinted and not underlined: the card is the control here,
+                    // and a link that took the click would be a card you could
+                    // not reliably select or drag. See ``TaskLinks``.
+                    Text(TaskLinks.highlighted(task.note, tint: palette.accent))
                         .font(palette.ui(metrics.noteSize, .medium, relativeTo: .caption))
                         .lineSpacing(1.5)
                         .foregroundStyle(palette.inkText(0.5))

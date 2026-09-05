@@ -2313,16 +2313,37 @@ friday" has confirmed nothing at all. `CapturePreview.spellOut` keeps the words
 for today and tomorrow — the two days nobody is checking a date on — and writes
 "Fri 18 Sep" for everything past them.
 
-**Three things it deliberately declines to guess at.** An unmatched `#thing`
-stays in the title rather than minting a label: a typo would otherwise become a
-permanent entry in the board's vocabulary, spelled wrong, found weeks later in
-the label manager. `#1 rewrite` is a rank somebody wrote, not a label called
-"1" — a digit after the hash is the one shape never worth guessing at. And
-`12/03` does not parse, because it is March in half the world and December in
-the other half; `2026-03-12` is the one numeric form that means the same thing
-everywhere. An impossible date is a typo rather than something to adjust:
-`CalendarDay` resolves 31 February to 3 March, which is right for a value in
-hand and wrong for a thing somebody just typed, so "31 feb" stays in the title.
+**`#roadmap` makes the label it names.** A hash the board has no label for used
+to leave its word in the title, on the argument that a typo would otherwise
+become a permanent entry in the vocabulary — but that traded a typo nobody would
+have kept for a feature nobody could find: `#` was a way of *applying* labels and
+never of making one, and the only feedback that a name was off was a chip that
+did not appear. The typo is what the preview strip is already for. A new label
+wears the `plus` glyph rather than the tag, which is the app's own idiom for
+making one — the label manager's **Create new label** row leads with the same
+glyph — and handing the chip back keeps the words in the title and leaves the
+vocabulary alone. The definition is minted inside the card's own step, so one ⌘Z
+takes both back and no colour is left in the vocabulary for a card that no longer
+exists.
+
+**And the name is matched in whatever case it was typed.** Both ends go through
+`LabelDef.key(from:)`, which lowercases and collapses punctuation, so `#ios`
+finds the seed called "iOS" and `#Infra-Work` finds "Infra Work" — the case
+somebody types a name in is never the difference between wearing a label and
+minting a second one beside it. The board's stored *key* is slugged before it is
+compared as well, since a key that arrived in an imported file need not be one
+already.
+
+**Three things it still declines to guess at.** A payload with nothing
+alphanumeric in it — `#--` — is not a label: `LabelDef.key(from:)` answers that
+with a fresh unique key, so it would mint a row nobody could ever type again.
+`#1 rewrite` is a rank somebody wrote, not a label called "1" — a digit after the
+hash is the one shape never worth guessing at. And `12/03` does not parse,
+because it is March in half the world and December in the other half;
+`2026-03-12` is the one numeric form that means the same thing everywhere. An
+impossible date is a typo rather than something to adjust: `CalendarDay` resolves
+31 February to 3 March, which is right for a value in hand and wrong for a thing
+somebody just typed, so "31 feb" stays in the title.
 
 **The readings are passed into `mintTask` rather than set afterwards.** A card
 made and then given a due date, a priority and two labels through the ordinary
@@ -2331,9 +2352,13 @@ Minting it whole makes it one step, and it settles what the feed says too: a
 card born with a due date logs `.created` and nothing else, exactly as one born
 with Settings ▸ **New tasks are due** already did. The feed is for things that
 happened *to* a card, and none of this happened to it — it is how the card
-arrived. The label keys are filtered against the board a second time at mint,
-because a draft can outlive the label it named if the manager is open in another
-window while somebody types.
+arrived. The label keys are read against the board a second time at mint —
+`landedLabelKeys` — because a draft can outlive the label it named if the manager
+is open in another window while somebody types: a key the board still has answers
+for itself, a name the parse marked new is created there, and a key that is
+neither is dropped. The key that lands on the card is the one `createLabel`
+returns rather than the parse's, because the name is trimmed and capped on the
+way in and a very long `#…` slugs to a shorter key than the one that was read.
 
 **Only the two fields where a person types a whole card on one line and commits
 it with ⏎** read the grammar: `BoardTaskComposer` and the menu bar extra's quick

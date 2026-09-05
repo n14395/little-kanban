@@ -490,10 +490,30 @@ import Testing
         #expect(store.selection == Set(filed))
     }
 
-    /// Every item on the Task menu, dead — bar the one whose whole purpose is a
-    /// filed card. Task ▸ Restore Task is the Archive's own verb on the menu
-    /// bar, the same one the card's context menu has always offered there, and
-    /// it is live exactly where the others are not.
+    /// The commands that stay live on a card that is off the board, named once
+    /// and read by both tests below.
+    ///
+    /// Two hand-kept lists of the same set is how this suite went stale: adding
+    /// Copy Link taught ``AppCommand/applies(to:in:)`` about it and left the
+    /// expectation here spelling out five, so the *code* was right and the test
+    /// failed. One constant, two readers.
+    private static let livesOnAFiledCard: Set<AppCommand> = [
+        .trashTask, .copyTask, .copyLink, .deselect, .openTask, .unarchiveTask,
+    ]
+
+    /// Every item on the Task menu that is aimed at the selection, dead — bar
+    /// the ones that only read a card.
+    ///
+    /// Task ▸ Restore Task is the Archive's own verb on the menu bar, the same
+    /// one the card's context menu has always offered there, and it is live
+    /// exactly where the others are not. Open Task and Copy Link are live for
+    /// ``livesOnAFiledCard``'s reason: reading a filed card is not editing one.
+    ///
+    /// **`needsSelection` is what makes this a rule rather than a list.** The
+    /// Task menu also carries Archive Completed and Archive Completed in Inbox,
+    /// which act on the *board* rather than on what is selected — walking the
+    /// menu without that filter asked them a question they are not an answer
+    /// to, and the next board-level item put on this menu would break it again.
     @Test func everyTaskCommandIsDisabledForASelectionOfFiledCards() {
         let store = store()
         let cards = filed.compactMap { store[$0] }
@@ -503,7 +523,8 @@ import Testing
         #expect(AppCommand.unarchiveTask.isEnabled(for: cards, in: store))
         #expect(cards.allSatisfy { AppCommand.unarchiveTask.applies(to: $0, in: store) })
 
-        for command in AppCommand.commands(in: .task) where command != .unarchiveTask {
+        for command in AppCommand.commands(in: .task)
+        where command.needsSelection && !Self.livesOnAFiledCard.contains(command) {
             #expect(command.isEnabled(for: cards, in: store) == false,
                     "Task ▸ \(command.title) is live on a selection that is off the board")
             // And nothing for it to act on, so the menu passes the store
@@ -537,14 +558,18 @@ import Testing
     }
 
     /// The contrast that makes the rule a decision rather than "disable
-    /// everything": four commands still apply to a filed card, because reading
-    /// one, copying its code or throwing it away are all things a person does
-    /// in an archive.
+    /// everything": ``livesOnAFiledCard`` still applies, because reading a card,
+    /// copying its code, linking to it, restoring it and throwing it away are
+    /// all things a person does in an archive.
+    ///
+    /// Held from the other end too — this walks every command there is rather
+    /// than one menu, so a new one that quietly answers `true` for a filed card
+    /// fails here whichever menu it was put on.
     @Test func theCommandsThatStillApplyToAFiledCardAreTheOnesWeNamed() throws {
         let store = store()
         let card = try #require(store[TestBoard.cafe])
         let live = AppCommand.allCases.filter { $0.needsSelection && $0.applies(to: card, in: store) }
-        #expect(Set(live) == [.trashTask, .copyTask, .deselect, .openTask, .unarchiveTask])
+        #expect(Set(live) == Self.livesOnAFiledCard)
     }
 
     /// The rule has to live in the store, not in the menu that usually asks it.

@@ -35,6 +35,12 @@ struct PhoneDetailSheet: View {
     let task: TaskItem
 
     @FocusState private var focusedField: TaskField?
+    /// Whose description has the caret in it. The desk's ``TaskInspector``
+    /// carries the same, and says there why the description keeps its own focus
+    /// instead of joining `focusedField`.
+    @State private var noteEditorID: TaskItem.ID?
+
+    private var isEditingNote: Bool { noteEditorID == task.id }
 
     var body: some View {
         ScrollView {
@@ -119,11 +125,22 @@ struct PhoneDetailSheet: View {
         .taskUserActivity(task)
         .onChange(of: focusedField) { previous, current in
             if let previous { store.endEditing(previous, on: task.id, scope: .sheet) }
+            // The title taking the keyboard puts the description down; the two
+            // hold their focus in different places, so nothing does it for them.
+            if current != nil { noteEditorID = nil }
             if let current { store.beginEditing(current, on: task.id, scope: .sheet) }
+        }
+        .onChange(of: noteEditorID) { previous, current in
+            if let previous { store.endEditing(.note, on: previous, scope: .sheet) }
+            // And the description taking it puts the title down.
+            if current != nil { focusedField = nil }
+            if let current { store.beginEditing(.note, on: current, scope: .sheet) }
         }
         .onAppear { claimPendingFocus() }
         .onDisappear {
             if let field = focusedField { store.endEditing(field, on: task.id, scope: .sheet) }
+            if let owner = noteEditorID { store.endEditing(.note, on: owner, scope: .sheet) }
+            noteEditorID = nil
         }
     }
 
@@ -204,20 +221,23 @@ struct PhoneDetailSheet: View {
             .accessibilityLabel("Title")
     }
 
-    /// Keeps its vertical axis: a description is meant to hold paragraphs.
+    /// The description. A text view rather than a field, for the two things a
+    /// field could not do — see ``DescriptionEditor``. The desk's panel draws
+    /// the same control.
     private var noteField: some View {
-        TextField("Add a description", text: binding(.note), axis: .vertical)
-            .textFieldStyle(.plain)
-            .font(palette.ui(14.5, .medium, relativeTo: .subheadline))
-            .lineSpacing(5)
-            .foregroundStyle(palette.ink(0.62))
-            .focused($focusedField, equals: .note)
+        DescriptionEditor(
+            text: binding(.note),
+            isEditing: Binding(
+                get: { isEditingNote },
+                set: { noteEditorID = $0 ? task.id : nil }
+            ),
+            size: 14.5,
+            lineSpacing: 5,
             // A one-line description is 21pt of text in a sheet full of 44pt
-            // controls; the minimum keeps the empty field a target rather than
-            // a hairline, and grows past it as paragraphs arrive.
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .background { focusCatcher(.note) }
-            .accessibilityLabel("Description")
+            // controls; the minimum keeps the empty description a target rather
+            // than a hairline, and it grows past it as paragraphs arrive.
+            minHeight: 44
+        )
     }
 
     /// A text field's own hit area is the height of its text, so the space the
@@ -236,6 +256,13 @@ struct PhoneDetailSheet: View {
     /// `.submitLabel(.done)` this sheet used to paint on a wrapping title.
     private func dismissKeyboard() {
         focusedField = nil
+        // The description is not one of `focusedField`'s, so it is put down by
+        // name. The resign below reaches it too and the text view would report
+        // its own end a moment later, but Done has to mean *done* in the frame
+        // it was pressed in — a description that stayed in its editing dress for
+        // a beat would show the keyboard leaving and the links coming back as
+        // two separate events.
+        noteEditorID = nil
         UIApplication.shared.sendAction(
             #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
         )

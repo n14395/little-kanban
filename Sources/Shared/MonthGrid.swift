@@ -234,16 +234,22 @@ extension MonthGrid {
 
     /// Shared, for ``TaskItem``'s reason: a `DateFormatter` is an ICU object
     /// dear enough to matter when every render of the grid builds forty-two
-    /// spoken labels and a title. Configured once, then only ever read — which
-    /// `Formatter` documents as safe.
-    private nonisolated(unsafe) static let currentMonthTitle: DateFormatter = {
+    /// spoken labels and a title. Configured once, then only ever read.
+    ///
+    /// **`nonisolated`, not `nonisolated(unsafe)`.** `DateFormatter` is
+    /// `Sendable` now, so the opt-out has nothing left to opt out of and the
+    /// compiler says so. ``TaskItem/relative`` still needs the unsafe spelling
+    /// — a `RelativeDateTimeFormatter` is not `Sendable` — which is why the two
+    /// no longer match.
+    private nonisolated static let currentMonthTitle: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = .current
         formatter.setLocalizedDateFormatFromTemplate("MMMM y")
         return formatter
     }()
 
-    private nonisolated(unsafe) static let currentSpokenDay: DateFormatter = {
+    /// As ``currentMonthTitle``, and `nonisolated` for its reason.
+    private nonisolated static let currentSpokenDay: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = .current
         formatter.dateStyle = .full

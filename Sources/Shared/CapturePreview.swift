@@ -86,7 +86,12 @@ struct CapturePreview: View {
         switch meaning {
         case .due: "calendar"
         case .priority: "flag.fill"
-        case .label: "tag.fill"
+        // **A label the board does not have yet wears the `plus`**, which is
+        // the app's own idiom for making one — the label manager's *Create new
+        // label* row leads with the same glyph. A chip that read exactly like
+        // the four beside it would be the one place the grammar did something
+        // permanent to the board without saying so.
+        case .label(_, _, let isNew): isNew ? "plus" : "tag.fill"
         }
     }
 
@@ -97,7 +102,7 @@ struct CapturePreview: View {
         switch meaning {
         case .due(let day): Self.spellOut(day, from: dayClock.today)
         case .priority(let priority): priority.displayName
-        case .label(_, let name): name
+        case .label(_, let name, _): name
         }
     }
 
@@ -125,9 +130,12 @@ struct CapturePreview: View {
         case .priority(let priority):
             Text("Remove priority \(priority.displayName)",
                  comment: "VoiceOver label for a quick-capture preview chip carrying a priority")
-        case .label(_, let name):
-            Text("Remove label \(name)",
-                 comment: "VoiceOver label for a quick-capture preview chip carrying a task label")
+        case .label(_, let name, let isNew):
+            isNew
+                ? Text("Remove new label \(name)",
+                       comment: "VoiceOver label for a quick-capture preview chip carrying a label the board does not have yet")
+                : Text("Remove label \(name)",
+                       comment: "VoiceOver label for a quick-capture preview chip carrying a task label")
         }
     }
 }

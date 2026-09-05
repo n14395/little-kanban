@@ -99,6 +99,21 @@ struct TaskInspector: View {
     /// `task` underneath a live focus, so the snapshot is closed against the
     /// task that was actually being edited.
     @State private var focusOwnerID: TaskItem.ID?
+    /// Whose description has the caret in it, or `nil` for none.
+    ///
+    /// **The description is not in `focusedField`, and cannot be.** It is a text
+    /// view rather than a SwiftUI control — see ``DescriptionEditor`` — so it
+    /// takes first responder itself and `@FocusState` never hears about it;
+    /// written there, the value would be set on a field nothing claims and
+    /// dropped. So it keeps its own state, and the two are held apart by hand
+    /// below: whichever of them takes the keyboard puts the other down.
+    ///
+    /// A task id rather than a flag for ``focusOwnerID``'s reason: selecting
+    /// another card swaps `task` underneath, and an edit left standing would
+    /// hand the *next* card's description a caret nobody put there.
+    @State private var noteEditorID: TaskItem.ID?
+
+    private var isEditingNote: Bool { noteEditorID == task.id }
 
     var body: some View {
         ScrollView {
@@ -133,7 +148,17 @@ struct TaskInspector: View {
                 store.endEditing(previous, on: owner, scope: .desk)
             }
             focusOwnerID = current == nil ? nil : task.id
+            // The title taking the keyboard puts the description down. The two
+            // hold their focus in different places, so nothing does this for
+            // them — see ``noteEditorID``.
+            if current != nil { noteEditorID = nil }
             if let current { store.beginEditing(current, on: task.id, scope: .desk) }
+        }
+        .onChange(of: noteEditorID) { previous, current in
+            if let previous { store.endEditing(.note, on: previous, scope: .desk) }
+            // And the description taking it puts the title down.
+            if current != nil { focusedField = nil }
+            if let current { store.beginEditing(.note, on: current, scope: .desk) }
         }
         .onChange(of: task.id) { previousID, _ in
             if let field = focusedField, let owner = focusOwnerID, owner == previousID {
@@ -141,6 +166,7 @@ struct TaskInspector: View {
             }
             focusOwnerID = nil
             focusedField = nil
+            noteEditorID = nil
         }
         // Closing the panel mid-edit takes the field out of the hierarchy;
         // whether SwiftUI clears `focusedField` first is not guaranteed, and a
@@ -152,6 +178,7 @@ struct TaskInspector: View {
                 store.endEditing(field, on: owner, scope: .desk)
             }
             focusOwnerID = nil
+            noteEditorID = nil
         }
         .onAppear { claimPendingFocus() }
         .onChange(of: store.pendingTitleFocusID) { _, _ in claimPendingFocus() }
@@ -306,16 +333,21 @@ struct TaskInspector: View {
             .accessibilityLabel("Title")
     }
 
+    /// The description. A text view rather than a field — see
+    /// ``DescriptionEditor``, which is where the two things a field could not do
+    /// are argued: following a link, and putting the caret where the pointer
+    /// came down.
     private var noteField: some View {
-        TextField("Add a description", text: binding(.note), axis: .vertical)
-            .textFieldStyle(.plain)
-            .font(palette.ui(metrics.noteSize, .medium, relativeTo: .subheadline))
-            .lineSpacing(4)
-            .foregroundStyle(palette.ink(0.62))
-            .focused($focusedField, equals: .note)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .fieldHitArea(minHeight: metrics.fieldHit) { focusedField = .note }
-            .accessibilityLabel("Description")
+        DescriptionEditor(
+            text: binding(.note),
+            isEditing: Binding(
+                get: { isEditingNote },
+                set: { noteEditorID = $0 ? task.id : nil }
+            ),
+            size: metrics.noteSize,
+            lineSpacing: 4,
+            minHeight: metrics.fieldHit
+        )
     }
 
     private func binding(_ field: TaskField) -> Binding<String> {

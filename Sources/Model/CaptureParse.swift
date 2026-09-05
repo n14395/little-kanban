@@ -35,14 +35,33 @@ struct CaptureParse: Equatable, Sendable {
 
     var isPlain: Bool { taken.isEmpty }
 
+    /// The labels this line named that the board has no definition for, in
+    /// written order: the key they will be stored under and the name exactly as
+    /// it was typed.
+    ///
+    /// Read off ``taken`` rather than stored beside ``labelKeys`` so the two
+    /// cannot disagree — a token handed back leaves both at once. The mint
+    /// creates these; nothing here touches the store.
+    var newLabels: [(key: String, name: String)] {
+        var seen: Set<String> = []
+        return taken.compactMap { token in
+            guard case .label(let key, let name, true) = token.meaning, seen.insert(key).inserted
+            else { return nil }
+            return (key, name)
+        }
+    }
+
     /// One claimed token: what it means, and what it looked like.
     struct Token: Equatable, Hashable, Sendable, Identifiable {
         enum Meaning: Equatable, Hashable, Sendable {
             case due(CalendarDay)
             case priority(Priority)
             /// The name as well as the key, because the chip explaining this
-            /// token says "Bug" and the store needs `bug`.
-            case label(key: String, name: String)
+            /// token says "Bug" and the store needs `bug`. `isNew` is set for a
+            /// name no label on the board answers to: the mint makes that one
+            /// — see ``BoardStore/mintTask`` — and the preview wears a
+            /// different glyph so it is said before it happens.
+            case label(key: String, name: String, isNew: Bool)
         }
 
         var meaning: Meaning
@@ -114,7 +133,7 @@ struct CaptureParse: Equatable, Sendable {
             case .priority(let priority): parse.priority = priority
             // Deduped, because `#bug #bug` is one label and `toggleLabel`
             // applied twice is none.
-            case .label(let key, _): if !parse.labelKeys.contains(key) { parse.labelKeys.append(key) }
+            case .label(let key, _, _): if !parse.labelKeys.contains(key) { parse.labelKeys.append(key) }
             }
         }
         return parse
@@ -128,6 +147,9 @@ struct CaptureParse: Equatable, Sendable {
     /// crash #bug." and mean the label. A hyphen survives, because it is what
     /// `LabelDef.key(from:)` puts *inside* a slug: `#infra-work` is one label,
     /// not a label and a subtraction.
+    ///
+    /// A `#` the board has no label for is a label it is about to have, marked
+    /// `isNew` and made at the mint. Nothing here writes to the store.
     private static func sigil(_ word: Substring, labels: [LabelDef]) -> Token.Meaning? {
         guard let first = word.first, first == "!" || first == "#" else { return nil }
         var payload = word.dropFirst()
@@ -147,16 +169,37 @@ struct CaptureParse: Equatable, Sendable {
         // `#1 priority` is a rank somebody wrote, not a label called "1". A
         // digit after the hash is the one shape that is never worth guessing at.
         guard !lead.isNumber else { return nil }
+        // And a payload with nothing alphanumeric in it is not a name at all:
+        // `LabelDef.key(from:)` answers `#--` with a fresh unique key, so this
+        // is what stops that minting a label nobody could ever type again.
+        guard payload.contains(where: { $0.isLetter || $0.isNumber }) else { return nil }
 
-        // **Only labels the board already has.** An unmatched `#thing` stays in
-        // the title rather than minting a label: a typo would otherwise become
-        // a permanent entry in the board's vocabulary, spelled wrong, and the
-        // user would find out about it in the label manager weeks later. The
-        // preview showing nothing taken is the feedback that the name is off.
+        // **A label is matched on its slug, at both ends.** `#ios` finds the
+        // seed called "iOS" and `#Infra-Work` finds "Infra Work", because
+        // `LabelDef.key(from:)` lowercases and collapses punctuation — so the
+        // case somebody types a name in is never the difference between wearing
+        // a label and minting a second one beside it. The board's *key* is
+        // slugged too rather than compared raw: a key that arrived in an
+        // imported file need not already be one.
         let slug = LabelDef.key(from: String(payload))
-        guard let match = labels.first(where: { $0.key == slug || LabelDef.key(from: $0.name) == slug })
-        else { return nil }
-        return .label(key: match.key, name: match.name)
+        if let match = labels.first(where: {
+            LabelDef.key(from: $0.key) == slug || LabelDef.key(from: $0.name) == slug
+        }) {
+            return .label(key: match.key, name: match.name, isNew: false)
+        }
+
+        // **A name the board does not have yet is one it is about to have.**
+        // Typing `#roadmap` is somebody naming a label, and leaving the word in
+        // the title left them with nothing said and no way to find out why —
+        // the label manager was the only route to a new name. The typo this
+        // used to guard against is exactly what the preview strip answers: the
+        // chip names the label before the card exists, and handing it back
+        // keeps the words in the title.
+        //
+        // The name is the payload exactly as typed — `#Roadmap` makes a label
+        // called "Roadmap" — and the key is its slug, which is how the next
+        // `#roadmap` finds it.
+        return .label(key: slug, name: String(payload), isNew: true)
     }
 
     // MARK: - The date

@@ -825,7 +825,12 @@ struct BoardToolbar: View {
 
     /// The bar's own coordinate space, so the field's frame and the panel's
     /// offset are the same numbers.
-    private static let barSpace = "Cardstock.toolbar"
+    ///
+    /// `nonisolated` because `onGeometryChange` reads it from a `@Sendable`
+    /// closure, and a `View`'s statics are `@MainActor` by inheritance. A
+    /// `String` is `Sendable`, so there is nothing here to make safe — only an
+    /// isolation the name never needed.
+    private nonisolated static let barSpace = "Cardstock.toolbar"
 
     /// The field, folded.
     ///

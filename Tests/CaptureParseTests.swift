@@ -92,17 +92,60 @@ import Testing
         #expect(parse.labelKeys == ["infra-work"])
     }
 
-    /// The board's vocabulary is the board's. A typo would otherwise become a
-    /// permanent label, spelled wrong.
-    @Test func anUnknownLabelStaysInTheTitle() {
+    /// A name the board does not have yet is one it is about to have: `#` is
+    /// somebody naming a label, and leaving the word in the title said nothing
+    /// and offered no way to find out why. The chip is what keeps that from
+    /// being silent — see `CapturePreview`.
+    @Test func anUnknownLabelIsANewLabel() {
         let parse = Self.read("Fix the crash #nonsense")
-        #expect(parse.isPlain)
-        #expect(parse.labelKeys.isEmpty)
+        #expect(parse.title == "Fix the crash")
+        #expect(parse.labelKeys == ["nonsense"])
+        #expect(parse.newLabels.map(\.key) == ["nonsense"])
     }
 
-    @Test func aLabelIsFoundByItsNameAsWellAsItsKey() {
-        // The seed's key is `ios` and its name is "iOS"; both should land.
-        #expect(Self.read("Check the sheet #iOS").labelKeys == ["ios"])
+    /// The key is the slug; the *name* is the spelling it was typed in, because
+    /// that is what the chip and the label manager will show.
+    @Test func aNewLabelKeepsTheSpellingItWasTypedIn() {
+        let parse = Self.read("Draft the post #Roadmap")
+        #expect(parse.labelKeys == ["roadmap"])
+        #expect(parse.newLabels.map(\.name) == ["Roadmap"])
+    }
+
+    /// One label named twice is one new label, not two rows in the vocabulary.
+    @Test func theSameNewLabelTwiceIsOneNewLabel() {
+        #expect(Self.read("Fix the #nonsense crash #Nonsense").newLabels.map(\.key) == ["nonsense"])
+    }
+
+    /// The one shape that must never mint: a payload with nothing alphanumeric
+    /// in it slugs to a fresh unique key — see `LabelDef.key(from:)` — so it
+    /// would make a label nobody could ever type a second time.
+    @Test func aPayloadOfPunctuationIsNotALabel() {
+        #expect(Self.read("Write up the #-- keys").isPlain)
+    }
+
+    /// The seed's key is `ios` and its name is "iOS". Every spelling of it
+    /// lands on that one label rather than minting a second one beside it —
+    /// which is what makes `LabelDef.key(from:)` the thing both ends are
+    /// compared through.
+    @Test func aLabelIsFoundInAnyCase() {
+        for spelling in ["#ios", "#iOS", "#IOS"] {
+            let parse = Self.read("Check the sheet \(spelling)")
+            #expect(parse.labelKeys == ["ios"], "\(spelling)")
+            #expect(parse.newLabels.isEmpty, "\(spelling) minted a label beside iOS")
+            #expect(parse.taken.first?.meaning == .label(key: "ios", name: "iOS", isNew: false),
+                    "\(spelling) should wear the label's own name")
+        }
+    }
+
+    /// A key that arrived in an imported board file need not be a slug already,
+    /// so the *board's* key is slugged before it is compared as well.
+    @Test func aStoredKeyThatIsNotASlugIsStillFound() {
+        let labels = [LabelDef(key: "Infra-Work", name: "Something Else",
+                               light: LabelTone.inkPair.light, dark: LabelTone.inkPair.dark)]
+        let parse = CaptureParse.parse("Move the runners #infra-work", labels: labels,
+                                       today: Self.wednesday, calendar: Self.calendar)
+        #expect(parse.labelKeys == ["Infra-Work"], "the label's own key is what a task stores")
+        #expect(parse.newLabels.isEmpty)
     }
 
     @Test func aHashFollowedByADigitIsARankNotALabel() {
@@ -337,14 +380,75 @@ import Testing
         #expect(store.draftRejections.isEmpty)
     }
 
-    /// The parse names labels the board had when it was made; the mint filters
-    /// against the labels the board has now.
-    @Test func aLabelDeletedMidDraftDoesNotReachTheCard() throws {
-        let (store, _) = composing("Fix the crash #bug")
-        let capture = store.draftParse
-        #expect(capture.labelKeys == ["bug"])
-        store.deleteLabel("bug")
+    /// A name the board has never seen joins its vocabulary rather than being
+    /// left in the title, wearing the spelling it was typed in.
+    @Test func anUnknownLabelIsMintedWithTheCard() throws {
+        let (store, _) = composing("Draft the post #Roadmap")
         let id = try #require(store.commitDraft())
-        #expect(store[id]?.labelKeys.isEmpty == true)
+        let task = try #require(store[id])
+        #expect(task.title == "Draft the post")
+        #expect(task.labelKeys == ["roadmap"])
+        #expect(store.label(forKey: "roadmap")?.name == "Roadmap")
+    }
+
+    /// And it costs one ⌘Z, which takes the definition back with the card: a
+    /// colour left in the vocabulary for a card that no longer exists is what
+    /// minting it inside the step avoids.
+    @Test func aMintedLabelGoesBackWithItsCard() throws {
+        let (store, undo) = composing("Draft the post #roadmap")
+        step(undo) { store.commitDraft() }
+        #expect(undo.actionNames == ["New Task"])
+        undo.undo()
+        #expect(store.label(forKey: "roadmap") == nil, "one ⌘Z left the label behind")
+    }
+
+    /// `#ios` is the seed called "iOS", not a second label beside it — the case
+    /// somebody types a name in is never the difference between wearing a label
+    /// and making one.
+    @Test func aLabelTypedInAnotherCaseIsTheSameLabel() throws {
+        let (store, _) = composing("Check the sheet #ios")
+        let before = store.labels.count
+        let id = try #require(store.commitDraft())
+        #expect(store[id]?.labelKeys == ["ios"])
+        #expect(store.labels.count == before, "#ios minted a second label beside iOS")
+        #expect(store.label(forKey: "ios")?.name == "iOS")
+    }
+
+    /// The switch off is the switch off: no card wears a label and no label is
+    /// made, whatever the line says.
+    @Test func theSwitchOffMintsNothingEither() throws {
+        let (store, _) = composing("Draft the post #roadmap")
+        store.interpretsCapture = false
+        let id = try #require(store.commitDraft())
+        #expect(store[id]?.title == "Draft the post #roadmap")
+        #expect(store.label(forKey: "roadmap") == nil)
+    }
+
+    /// Handing the chip back keeps the words in the title *and* leaves the
+    /// board's vocabulary alone, which is the half a new label adds to the
+    /// escape hatch.
+    @Test func aRefusedNewLabelIsNeverMade() throws {
+        let (store, _) = composing("Draft the post #roadmap")
+        store.rejectFromDraft(try #require(store.draftParse.taken.first))
+        let id = try #require(store.commitDraft())
+        #expect(store[id]?.title == "Draft the post #roadmap")
+        #expect(store.label(forKey: "roadmap") == nil)
+    }
+
+    /// The line is re-read at the ⏎ against the labels the board has *then*, so
+    /// a label deleted while the composer is open is read as a new one from
+    /// that moment — the chip under the field changes with it, which is the
+    /// user seeing the same thing the mint is about to do. The alternative is a
+    /// `#bug` that silently means nothing because of something that happened in
+    /// another window.
+    @Test func aLabelDeletedMidDraftIsReadAsANewOne() throws {
+        let (store, _) = composing("Fix the crash #bug")
+        #expect(store.draftParse.newLabels.isEmpty, "the seed's Bug is not a new label")
+        store.deleteLabel("bug")
+        #expect(store.draftParse.newLabels.map(\.key) == ["bug"])
+
+        let id = try #require(store.commitDraft())
+        #expect(store[id]?.labelKeys == ["bug"])
+        #expect(store.label(forKey: "bug")?.name == "bug", "the card wears a definition that exists")
     }
 }

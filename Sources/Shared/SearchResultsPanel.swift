@@ -135,7 +135,10 @@ struct SearchResultsPanel: View {
                     // that tells two cards with similar titles apart — and the
                     // first line is where people put the sentence that does it.
                     if let note = Self.firstLine(of: task.note) {
-                        Text(note)
+                        // Tinted and not underlined, as the card's preview is:
+                        // the row is a button that opens the task, and the link
+                        // is live once you are there. See ``TaskLinks``.
+                        Text(TaskLinks.highlighted(note, tint: palette.accent))
                             .font(palette.ui(metrics.noteSize, .medium, relativeTo: .caption))
                             .foregroundStyle(palette.inkText(0.5))
                             .lineLimit(1)

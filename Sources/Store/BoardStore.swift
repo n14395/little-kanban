@@ -1854,7 +1854,11 @@ final class BoardStore {
         remoteChangeObserver = NotificationCenter.default.addObserver(
             forName: .NSPersistentStoreRemoteChange, object: nil, queue: .main
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.mergeRemoteChanges() }
+            // The `Bool` says whether anything was adopted, which is a fact for
+            // whoever *asked* for a merge — a push nobody asked for has no
+            // caller to tell, so it is dropped rather than returned out of the
+            // closure and silently ignored.
+            MainActor.assumeIsolated { _ = self?.mergeRemoteChanges() }
         }
     }
 
@@ -5312,17 +5316,48 @@ final class BoardStore {
             priority: capture?.priority ?? .default,
             activity: [ActivityEntry(kind)]
         )
-        // Filtered against the board's own labels a second time: the parse was
-        // made against them, but a draft can outlive the label it named if the
-        // manager is open in another window while somebody types.
-        task.labelKeys = (capture?.labelKeys ?? []).filter { label(forKey: $0) != nil }
         task.placement = placement
         undoable(String(localized: "New Task", comment: "Undo action name for adding a task")) {
+            // Inside the step, because a `#roadmap` nobody has used before
+            // mints its definition here: one ⏎ costs one ⌘Z, and it takes the
+            // label back with the card rather than leaving a colour in the
+            // vocabulary for a card that no longer exists.
+            if let capture { task.labelKeys = landedLabelKeys(for: capture) }
             nextSerial += 1
             tasks.append(task)
             scheduleSave()
         }
         return task.id
+    }
+
+    /// The keys a capture's labels actually land on, minting the definitions
+    /// the board does not have yet.
+    ///
+    /// **Read against the board a second time**, because the parse was made
+    /// against the labels as they were: a draft can outlive the label it named
+    /// if the manager is open in another window while somebody types. A key the
+    /// board has answers for itself; a name the parse marked new is created
+    /// here; and a key that is neither — the label was deleted mid-draft — is
+    /// dropped, as it always was.
+    ///
+    /// The key comes back from ``createLabel(named:)`` rather than being
+    /// assumed to be the parse's: the name is trimmed and capped on the way in,
+    /// so a very long `#…` slugs to a shorter key than the one that was read,
+    /// and taking the parse's would leave the card wearing a key no definition
+    /// answers to.
+    ///
+    /// Called from inside the mint's own step so the definition and the card
+    /// are one ⌘Z — a nested `undoable` runs its body bare.
+    private func landedLabelKeys(for capture: CaptureParse) -> [String] {
+        let names = Dictionary(capture.newLabels.map { ($0.key, $0.name) },
+                               uniquingKeysWith: { first, _ in first })
+        var landed: [String] = []
+        for key in capture.labelKeys {
+            let resolved = label(forKey: key) != nil ? key : names[key].flatMap { createLabel(named: $0) }
+            guard let resolved, !landed.contains(resolved) else { continue }
+            landed.append(resolved)
+        }
+        return landed
     }
 
     /// The prefix a code is minted under: the destination board's, or the
