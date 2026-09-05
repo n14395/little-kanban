@@ -1,6 +1,6 @@
 import SwiftUI
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// 7.1's claims, held as numbers.
 ///

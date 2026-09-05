@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// Per-column WIP limits — ``BoardColumn/limit`` and ``BoardStore/load(ofColumn:)``.
 ///

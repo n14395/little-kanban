@@ -230,7 +230,7 @@ struct AppIconAsset: Hashable, Sendable {
 
 /// The nine rectangles, and the box they are measured in.
 ///
-/// Straight off `cardstock-icon-4f.svg`: three columns at x = 20, 41 and
+/// Straight off `little-kanban-icon-4f.svg`: three columns at x = 20, 41 and
 /// 62, each 18 wide, each led by a 5-tall header rule at y = 24 with 13-tall
 /// cards under it. The stacks are **2, 3 and 1** rather than a tidy descent,
 /// which is the whole point of the drawing — a board is not a staircase, it is

@@ -6,7 +6,7 @@ import XCTest
 /// edge of the desk's inspector and the phone's sheet alike. That line was the
 /// one thing on the panel nothing could be done with: a code cannot be edited,
 /// it names nothing the user chose, and every route that needs one carries it
-/// already — the `cardstock://` link, the reminder, the export, Spotlight,
+/// already — the `littlekanban://` link, the reminder, the export, Spotlight,
 /// the plain-text half of a drag. It cost the first line above the title on the
 /// surface where the title is the point, so it is gone. See **Codes**.
 ///
@@ -19,9 +19,9 @@ import XCTest
 /// **Both idioms**, because the line was in both panels and was taken out of
 /// both:
 ///
-///     xcodebuild test -scheme CardstockUITests \
+///     xcodebuild test -scheme LittleKanbanUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-///       -only-testing:CardstockUITests/EditorHeaderTests
+///       -only-testing:LittleKanbanUITests/EditorHeaderTests
 final class EditorHeaderTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -33,8 +33,8 @@ final class EditorHeaderTests: XCTestCase {
         // Straight into the editor for a seeded card, rather than tapping
         // through a board whose contents the last run may have rearranged.
         app.launchArguments = [
-            "-CardstockSkipFirstRun", "YES",
-            "-CardstockOpenSheet", "NW-118",
+            "-LittleKanbanSkipFirstRun", "YES",
+            "-LittleKanbanOpenSheet", "NW-118",
         ]
         app.launch()
 

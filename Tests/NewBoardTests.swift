@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// A board made on another device, arriving.
 ///

@@ -110,7 +110,7 @@ struct AboutView: View {
     static var displayName: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
             ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
-            ?? "Cardstock"
+            ?? "Little Kanban"
     }
 
     /// "Version 1.0 (1)" — the marketing version people quote, and the build

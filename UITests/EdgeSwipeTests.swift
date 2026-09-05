@@ -17,9 +17,9 @@ import XCTest
 /// surfaces and different assertions — but they are one gesture and one bug if
 /// it regresses, which is why they are one file:
 ///
-///     xcodebuild test -scheme CardstockUITests \
+///     xcodebuild test -scheme LittleKanbanUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
-///     xcodebuild test -scheme CardstockUITests \
+///     xcodebuild test -scheme LittleKanbanUITests \
 ///       -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)'
 final class EdgeSwipeTests: XCTestCase {
     /// The drawer's own dismiss button. By label, and now the only "Close" on
@@ -39,7 +39,7 @@ final class EdgeSwipeTests: XCTestCase {
             "this half of the gesture belongs to the other idiom"
         )
         let app = XCUIApplication()
-        app.launchArguments = ["-CardstockSkipFirstRun", "YES"]
+        app.launchArguments = ["-LittleKanbanSkipFirstRun", "YES"]
         app.launch()
         return app
     }

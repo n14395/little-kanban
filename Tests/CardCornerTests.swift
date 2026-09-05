@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// The tick, and which corner of a card it is drawn in.
 ///

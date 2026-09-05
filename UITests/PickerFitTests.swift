@@ -20,9 +20,9 @@ import XCTest
 /// controls, and a keyboard that takes a third of the screen rather than half
 /// of it, which is the reason all of this was the phone's.
 ///
-///     xcodebuild test -scheme CardstockUITests \
+///     xcodebuild test -scheme LittleKanbanUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-///       -only-testing:CardstockUITests/PickerFitTests
+///       -only-testing:LittleKanbanUITests/PickerFitTests
 final class PickerFitTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -46,8 +46,8 @@ final class PickerFitTests: XCTestCase {
         XCUIDevice.shared.orientation = orientation
         let app = XCUIApplication()
         app.launchArguments = [
-            "-CardstockSkipFirstRun", "YES",
-            "-CardstockOpenSheet", "NW-118",
+            "-LittleKanbanSkipFirstRun", "YES",
+            "-LittleKanbanOpenSheet", "NW-118",
         ]
         app.launch()
         // The title field: the one element both the phone's sheet and the desk's
@@ -91,8 +91,8 @@ final class PickerFitTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchArguments = [
-            "-CardstockSkipFirstRun", "YES",
-            "-CardstockOpenBoardSettings", "YES",
+            "-LittleKanbanSkipFirstRun", "YES",
+            "-LittleKanbanOpenBoardSettings", "YES",
         ]
         app.launch()
         XCTAssertTrue(app.buttons["Select Icon"].waitForExistence(timeout: 20),

@@ -12,7 +12,7 @@ import UIKit
 
 // MARK: - Deep links
 
-/// How a task is named from outside the app: `cardstock://task/<uuid>`.
+/// How a task is named from outside the app: `littlekanban://task/<uuid>`.
 ///
 /// The uuid is `TaskItem.id` and not `code`. A code is a label — it is minted
 /// from a board's prefix, it is not unique across installs, and it is the half
@@ -29,7 +29,7 @@ enum TaskLink {
 
     /// The activity type Handoff and Spotlight both carry. Declared in
     /// `project.yml` under `NSUserActivityTypes`.
-    static let activityType = "com.n14395.Cardstock.task"
+    static let activityType = "com.n14395.LittleKanban.task"
 
     /// Where every incoming link lands, whichever door it came through — a
     /// pasted URL, a tapped notification, a Handoff, a Spotlight result.
@@ -38,7 +38,7 @@ enum TaskLink {
     static func url(for id: TaskItem.ID) -> URL { AppLink.url(.task(id)) }
 
     /// Puts a task's link on the pasteboard, which is the only thing the app
-    /// can do with a `cardstock://` URL that helps: the link is for pasting
+    /// can do with a `littlekanban://` URL that helps: the link is for pasting
     /// into a note, a commit message or another app, and nothing else here
     /// consumes one. ⌘C already copies the card itself, so this is a separate
     /// verb rather than a second representation on the same copy.
@@ -109,7 +109,7 @@ final class DeepLinkRouter {
     func resolve(in store: BoardStore) {
         guard let url = pending else { return }
         pending = nil
-        // The bundle claims `.cardstock` as its own document type, so the
+        // The bundle claims `.littlekanban` as its own document type, so the
         // system will hand one over from the Finder or from Files whether or
         // not anything here is ready for it. Without this branch the user's own
         // board file arrives at the code below and is told it is not a task
@@ -120,9 +120,9 @@ final class DeepLinkRouter {
         }
         guard let destination = AppLink.destination(of: url) else {
             failure = DeepLinkFailure(
-                title: String(localized: "Cardstock cannot open that link.",
+                title: String(localized: "Little Kanban cannot open that link.",
                               comment: "Alert title for a URL the app cannot interpret"),
-                message: String(localized: "Its links name a task, a board, a column, a view or the Inbox — a task link looks like cardstock://task/ followed by the task's identifier.",
+                message: String(localized: "Its links name a task, a board, a column, a view or the Inbox — a task link looks like littlekanban://task/ followed by the task's identifier.",
                                 comment: "Alert body explaining the shapes of link the app understands")
             )
             return
@@ -247,7 +247,7 @@ final class DeepLinkRouter {
 }
 
 extension View {
-    /// Every way into the app from outside it: a `cardstock://` URL, a
+    /// Every way into the app from outside it: a `littlekanban://` URL, a
     /// notification the user tapped, a Handoff from the other platform, and a
     /// Spotlight result. One modifier because they all mean the same thing —
     /// open this task — and a link that names nothing must say so on all four.
@@ -397,7 +397,7 @@ final class TaskSpotlightIndex {
 /// An intent can run in a process the user never brought to the front, so it
 /// cannot wait for a view to hand it anything: the app registers its store as
 /// it is built, before any scene exists. There is exactly one store in this app
-/// — see `CardstockApp` — and making a second one here would give the
+/// — see `LittleKanbanApp` — and making a second one here would give the
 /// intent a board of its own to write over the real one with.
 @MainActor
 enum TaskIntentBridge {
@@ -422,7 +422,7 @@ enum TaskIntentError: Swift.Error, CustomLocalizedStringResourceConvertible {
     var localizedStringResource: LocalizedStringResource {
         switch self {
         case .notReady:
-            LocalizedStringResource("Cardstock is still starting up. Try again in a moment.",
+            LocalizedStringResource("Little Kanban is still starting up. Try again in a moment.",
                                     comment: "Shortcuts error: the app has not finished launching")
         case .noSuchColumn:
             LocalizedStringResource("That column is not on this board any more.",
@@ -519,7 +519,7 @@ struct ColumnEntityQuery: EntityQuery {
 struct AddTaskIntent: AppIntent {
     static let title: LocalizedStringResource = "Add Task"
     static let description = IntentDescription(
-        "Adds a task to Cardstock. With no column given it goes to the Inbox."
+        "Adds a task to Little Kanban. With no column given it goes to the Inbox."
     )
     /// The board is written whether or not anything is on screen, so there is
     /// no reason to take the user out of what they were doing.
@@ -538,7 +538,7 @@ struct AddTaskIntent: AppIntent {
     var due: Date?
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Add \(\.$taskTitle) to Cardstock") {
+        Summary("Add \(\.$taskTitle) to Little Kanban") {
             \.$board
             \.$column
             \.$due
@@ -573,7 +573,7 @@ struct AddTaskIntent: AppIntent {
 /// "what am I meant to be doing".
 struct ShowTodayIntent: AppIntent {
     static let title: LocalizedStringResource = "Show Today"
-    static let description = IntentDescription("Opens the Today view in Cardstock.")
+    static let description = IntentDescription("Opens the Today view in Little Kanban.")
     static let openAppWhenRun = true
 
     @MainActor
@@ -594,7 +594,7 @@ struct ShowTodayIntent: AppIntent {
     }
 }
 
-struct CardstockShortcuts: AppShortcutsProvider {
+struct LittleKanbanShortcuts: AppShortcutsProvider {
     @AppShortcutsBuilder
     static var appShortcuts: [AppIntents.AppShortcut] {
         AppIntents.AppShortcut(

@@ -18,8 +18,8 @@ import XCTest
 /// **Both idioms**, and the board is re-seeded first — the simulator keeps
 /// whatever the last run left, and this reads positions:
 ///
-///     xcrun simctl uninstall <device> com.n14395.Cardstock
-///     xcodebuild test -scheme CardstockUITests \
+///     xcrun simctl uninstall <device> com.n14395.LittleKanban
+///     xcodebuild test -scheme LittleKanbanUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ///
 /// The phone was skipped here until its board pages stopped being a `List`:
@@ -56,8 +56,8 @@ final class CardDropTargetTests: XCTestCase {
         // reason; this one was written before the phone landed anywhere else
         // and was left behind when it did.
         app.launchArguments = [
-            "-CardstockSkipFirstRun", "YES",
-            "-CardstockTab", "board",
+            "-LittleKanbanSkipFirstRun", "YES",
+            "-LittleKanbanTab", "board",
         ]
         app.launch()
         // Backlog by name, which both idioms draw: a chip on the phone, a column

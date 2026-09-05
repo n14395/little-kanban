@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// **Settings ▸ Delete everything…**, which used to be *Reset to the sample
 /// board* and used to hand people the sample whether they wanted it or not.
@@ -92,7 +92,7 @@ import Testing
     // MARK: What the picker says
 
     /// The picker is the same five rows either way; the words around them are
-    /// not, and a modal that says *Welcome to Cardstock* while it is about
+    /// not, and a modal that says *Welcome to Little Kanban* while it is about
     /// to replace somebody's board is the failure this arrangement exists to
     /// avoid.
     @Test func theTwoOccasionsDoNotSayTheSameThing() {

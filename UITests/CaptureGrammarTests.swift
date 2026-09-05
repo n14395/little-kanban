@@ -17,9 +17,9 @@ import XCTest
 /// `UITests/PadCaptureTests`, which is what proves that button reaches this
 /// field in the first place.
 ///
-///     xcodebuild test -scheme CardstockUITests \
+///     xcodebuild test -scheme LittleKanbanUITests \
 ///       -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)' \
-///       -only-testing:CardstockUITests/CaptureGrammarTests
+///       -only-testing:LittleKanbanUITests/CaptureGrammarTests
 final class CaptureGrammarTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -33,7 +33,7 @@ final class CaptureGrammarTests: XCTestCase {
         )
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
-        app.launchArguments = ["-CardstockSkipFirstRun", "YES"]
+        app.launchArguments = ["-LittleKanbanSkipFirstRun", "YES"]
         app.launch()
 
         let capture = app.buttons["New task"]

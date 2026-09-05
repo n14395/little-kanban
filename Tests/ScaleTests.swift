@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// Somewhere for a measured value to go that the optimiser cannot see through.
 ///

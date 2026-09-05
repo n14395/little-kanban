@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// Where a column of a saved view stops and the next one starts.
 ///

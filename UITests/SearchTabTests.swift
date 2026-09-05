@@ -14,9 +14,9 @@ import XCTest
 /// **iPhone simulator only** — the iPad has no tab bar and searches from its
 /// toolbar, where the field is the control and there is no title to take.
 ///
-///     xcodebuild test -scheme CardstockUITests \
+///     xcodebuild test -scheme LittleKanbanUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-///       -only-testing:CardstockUITests/SearchTabTests
+///       -only-testing:LittleKanbanUITests/SearchTabTests
 final class SearchTabTests: XCTestCase {
     /// The header's title, found by identifier rather than by label, for
     /// `SavedViewTitleTests`' reason: the words a title uses are words the
@@ -39,7 +39,7 @@ final class SearchTabTests: XCTestCase {
         )
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
-        app.launchArguments = ["-CardstockSkipFirstRun", "YES", "-CardstockTab", "board"]
+        app.launchArguments = ["-LittleKanbanSkipFirstRun", "YES", "-LittleKanbanTab", "board"]
         app.launch()
         XCTAssertTrue(app.buttons["Show boards"].waitForExistence(timeout: 15), "no board")
         return app

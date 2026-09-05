@@ -10,7 +10,7 @@ import OSLog
 /// within half a second of the next edit. Nothing here is on a path the user is
 /// watching, so nothing here has anything to report.
 enum WidgetDigestFile {
-    private static let logger = Logger(subsystem: "com.n14395.Cardstock", category: "widgets")
+    private static let logger = Logger(subsystem: "com.n14395.LittleKanban", category: "widgets")
 
     /// Sorted keys and no pretty-printing: the app compares the bytes it is
     /// about to write against the bytes it wrote last to decide whether the

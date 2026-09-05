@@ -1,4 +1,4 @@
-name: Cardstock
+name: LittleKanban
 options:
   bundleIdPrefix: com.n14395
   createIntermediateGroups: true
@@ -16,7 +16,7 @@ settings:
     SWIFT_EMIT_LOC_STRINGS: YES
 
 targets:
-  Cardstock:
+  LittleKanban:
     type: application
     supportedDestinations: [macOS, iOS]
     sources:
@@ -24,13 +24,13 @@ targets:
         # The widget extension's own code. It sits under `Sources/` so that the
         # suite's source-tree rules — no unlocalised prose, no `Text(verbatim:)`
         # carrying words — apply to it like everything else, and it is excluded
-        # here because it is compiled into `CardstockWidgets` below. What the
+        # here because it is compiled into `LittleKanbanWidgets` below. What the
         # two targets *share* is `Sources/Widgets/`, which stays in both.
         excludes:
           - "WidgetExtension"
           # The share extension's own code, for `WidgetExtension`'s reason: it
           # is under `Sources/` so the suite's source-tree rules apply to it,
-          # and it is compiled into `CardstockShare` below rather than here.
+          # and it is compiled into `LittleKanbanShare` below rather than here.
           # What the two targets *share* is `Sources/Capture/`, which stays in
           # both — the same arrangement `Sources/Widgets/` is.
           - "ShareExtension"
@@ -61,7 +61,16 @@ targets:
     info:
       path: Resources/Info.plist
       properties:
-        CFBundleDisplayName: Cardstock
+        CFBundleDisplayName: Little Kanban
+        # **Stated, rather than left to `$(PRODUCT_NAME)`.** The two used to be
+        # the same string because the product was called `Simple Kanban`, space
+        # and all — which is what forced the module name to `Simple_Kanban` and
+        # put a space in every TEST_HOST path. `PRODUCT_NAME` is `LittleKanban`
+        # now, one word, so the filesystem and the module get a clean name; this
+        # is the name a *person* reads, and macOS shows it in the app menu, the
+        # Dock and Finder. Untied here so neither has to compromise for the
+        # other, and `PackagingTests` holds both to what they say.
+        CFBundleName: Little Kanban
         # Both come from the build settings below rather than being written
         # twice: a literal here drifts from MARKETING_VERSION the first time
         # anyone bumps it, and the About panel reads the plist.
@@ -79,31 +88,31 @@ targets:
         # type the bundle does not declare is registered dynamically and
         # resolves to one that conforms to nothing.
         UTExportedTypeDeclarations:
-          - UTTypeIdentifier: com.n14395.Cardstock.task
-            UTTypeDescription: Cardstock Task
+          - UTTypeIdentifier: com.n14395.LittleKanban.task
+            UTTypeDescription: Little Kanban Task
             UTTypeConformsTo:
               - public.data
-          - UTTypeIdentifier: com.n14395.Cardstock.subtask
-            UTTypeDescription: Cardstock Sub-task
+          - UTTypeIdentifier: com.n14395.LittleKanban.subtask
+            UTTypeDescription: Little Kanban Sub-task
             UTTypeConformsTo:
               - public.data
-          - UTTypeIdentifier: com.n14395.Cardstock.column
-            UTTypeDescription: Cardstock Column
+          - UTTypeIdentifier: com.n14395.LittleKanban.column
+            UTTypeDescription: Little Kanban Column
             UTTypeConformsTo:
               - public.data
-          - UTTypeIdentifier: com.n14395.Cardstock.label
-            UTTypeDescription: Cardstock Label
+          - UTTypeIdentifier: com.n14395.LittleKanban.label
+            UTTypeDescription: Little Kanban Label
             UTTypeConformsTo:
               - public.data
           # The export/import document (6.2). JSON rather than opaque data, so
-          # a .cardstock file opens in a text editor without an argument.
-          - UTTypeIdentifier: com.n14395.Cardstock.board
-            UTTypeDescription: Cardstock Board
+          # a .littlekanban file opens in a text editor without an argument.
+          - UTTypeIdentifier: com.n14395.LittleKanban.board
+            UTTypeDescription: Little Kanban Board
             UTTypeConformsTo:
               - public.json
             UTTypeTagSpecification:
               public.filename-extension:
-                - cardstock
+                - littlekanban
         # Markdown belongs to nobody here, so it is imported rather than
         # exported. Without this the Markdown export's save panel has no
         # extension to offer and writes a .txt.
@@ -116,25 +125,25 @@ targets:
               public.filename-extension:
                 - md
                 - markdown
-        # cardstock://task/<uuid> — parsed by `TaskLink` (6.11). The code
+        # littlekanban://task/<uuid> — parsed by `TaskLink` (6.11). The code
         # that reads a URL is never handed one the bundle has not claimed.
         CFBundleURLTypes:
-          - CFBundleURLName: com.n14395.Cardstock.task-link
+          - CFBundleURLName: com.n14395.LittleKanban.task-link
             CFBundleTypeRole: Editor
             CFBundleURLSchemes:
-              - cardstock
+              - littlekanban
         # The activity Handoff and Spotlight continue. The system hands one over
         # only to a bundle that says it can take it.
         NSUserActivityTypes:
-          - com.n14395.Cardstock.task
-        # What makes the board document the app's own: a .cardstock file
+          - com.n14395.LittleKanban.task
+        # What makes the board document the app's own: a .littlekanban file
         # takes the app's icon and opens here.
         CFBundleDocumentTypes:
-          - CFBundleTypeName: Cardstock Board
+          - CFBundleTypeName: Little Kanban Board
             CFBundleTypeRole: Editor
             LSHandlerRank: Owner
             LSItemContentTypes:
-              - com.n14395.Cardstock.board
+              - com.n14395.LittleKanban.board
         # An opened board file is read and merged, never edited where it lies,
         # so it is read in place rather than copied into the app's Inbox — that
         # copy would be litter nothing here ever deletes. Declaring it also
@@ -167,8 +176,8 @@ targets:
           - remote-notification
     settings:
       base:
-        PRODUCT_NAME: Cardstock
-        PRODUCT_BUNDLE_IDENTIFIER: com.n14395.Cardstock
+        PRODUCT_NAME: LittleKanban
+        PRODUCT_BUNDLE_IDENTIFIER: com.n14395.LittleKanban
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: NO
@@ -192,12 +201,12 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
         # **Sync is on.** These three files carry the iCloud container
-        # `iCloud.com.n14395.Cardstock` and the push environment on top of
+        # `iCloud.com.n14395.LittleKanban` and the push environment on top of
         # the sandbox keys; the App ID and the container are registered under
         # the team above, which is what `xcodebuild -allowProvisioningUpdates`
         # did the first time a build carrying them was signed. A build whose
         # team cannot reach that container fails to sign, and `./build.sh` with
-        # it — the plain `Resources/Cardstock.entitlements` is still there,
+        # it — the plain `Resources/LittleKanban.entitlements` is still there,
         # and pointing the macOS line back at it puts the app on the local
         # SwiftData store with sync off.
         #
@@ -206,13 +215,13 @@ targets:
         # container, because asking for one the build was not signed for is not
         # an error anybody can catch — it is a trap on CoreData's own queue,
         # which is exactly how this app used to die on its second launch.
-        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Resources/Cardstock-CloudKit.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Resources/LittleKanban-CloudKit.entitlements
         # iOS gets its own file rather than sharing the Mac's: the sandbox keys
         # there are macOS-only, and only the iCloud pair is common. There is no
         # non-CloudKit iOS file because iOS needs no entitlement to run the
         # local store — the setting appears only when sync is switched on.
-        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: Resources/Cardstock-iOS-CloudKit.entitlements
-        CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Resources/Cardstock-iOS-CloudKit.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: Resources/LittleKanban-iOS-CloudKit.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Resources/LittleKanban-iOS-CloudKit.entitlements
         # macOS reads its own code signature and needs no flag. iOS has no
         # public API for that — `SecTask` is macOS-only — so it is told, here,
         # beside the entitlements file it has to agree with.
@@ -227,20 +236,20 @@ targets:
         # answered `CKAccountStatusNoAccount` rather than trapping, only because
         # no iCloud account was signed in on that device — sign one in and the
         # entitlement check is what is left to fail.
-        SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]: $(inherited) CARDSTOCK_CLOUDKIT
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]: $(inherited) LITTLEKANBAN_CLOUDKIT
     dependencies:
       # Embedded into the app, which is the only way a widget extension ships:
       # the system finds it inside the bundle that owns it, and the App Group
       # they share is what lets it read anything. XcodeGen copies it into
       # `PlugIns/` on both platforms.
-      - target: CardstockWidgets
+      - target: LittleKanbanWidgets
       # The share sheet, embedded for the same reason and on both platforms:
       # macOS puts it in the Share menu once Launch Services has seen the app,
-      # iOS puts it in the share sheet. See `CardstockShare` below.
-      - target: CardstockShare
+      # iOS puts it in the share sheet. See `LittleKanbanShare` below.
+      - target: LittleKanbanShare
     scheme:
       testTargets:
-        - CardstockTests
+        - LittleKanbanTests
       gatherCoverageData: false
 
   # The widgets (macOS and iPadOS; the phone gets them too, because a widget
@@ -259,7 +268,7 @@ targets:
   # registers what it finds in `Bundle.main`, which inside an extension is the
   # extension. Without them a widget wearing Spectral draws in the system serif,
   # which is the one difference a person would notice at a glance.
-  CardstockWidgets:
+  LittleKanbanWidgets:
     type: app-extension
     supportedDestinations: [macOS, iOS]
     sources:
@@ -284,7 +293,7 @@ targets:
     info:
       path: Resources/WidgetsInfo.plist
       properties:
-        CFBundleDisplayName: Cardstock
+        CFBundleDisplayName: Little Kanban
         # From the build settings for the app's reason, and they must *match*
         # the app's: a bundle whose embedded extension disagrees about either is
         # rejected at submission and refuses to install from a .dmg.
@@ -295,8 +304,8 @@ targets:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
       base:
-        PRODUCT_NAME: CardstockWidgets
-        PRODUCT_BUNDLE_IDENTIFIER: com.n14395.Cardstock.Widgets
+        PRODUCT_NAME: LittleKanbanWidgets
+        PRODUCT_BUNDLE_IDENTIFIER: com.n14395.LittleKanban.Widgets
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: NO
@@ -311,14 +320,14 @@ targets:
         # The App Group, and on macOS the sandbox that makes granting it
         # possible. There is no iCloud container here and no network client: the
         # extension reads one file the app wrote. See `Sources/Widgets/WidgetShare.swift`.
-        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Resources/CardstockWidgets.entitlements
-        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: Resources/CardstockWidgets-iOS.entitlements
-        CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Resources/CardstockWidgets-iOS.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Resources/LittleKanbanWidgets.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: Resources/LittleKanbanWidgets-iOS.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Resources/LittleKanbanWidgets-iOS.entitlements
 
   # The share sheet: text or a link from any app becomes an Inbox card.
   #
   # **It shares source with the app rather than a framework**, the way
-  # `CardstockWidgets` does and for the same reasons. What crosses is
+  # `LittleKanbanWidgets` does and for the same reasons. What crosses is
   # `Sources/Capture/` — the capture, the rules that turn a payload into one,
   # and the folder in the App Group it is written to — plus the theme layer and
   # `Sources/Widgets/`, which is how the sheet knows the App Group's name and
@@ -327,7 +336,7 @@ targets:
   #
   # `Resources/Fonts` is here for the widgets' reason: `FontCatalog` registers
   # what it finds in `Bundle.main`, which inside an extension is the extension.
-  CardstockShare:
+  LittleKanbanShare:
     type: app-extension
     supportedDestinations: [macOS, iOS]
     sources:
@@ -348,7 +357,7 @@ targets:
     info:
       path: Resources/ShareInfo.plist
       properties:
-        CFBundleDisplayName: Cardstock
+        CFBundleDisplayName: Little Kanban
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         NSHumanReadableCopyright: "Copyright © 2026 Nicholas Fay. All rights reserved."
@@ -370,8 +379,8 @@ targets:
               NSExtensionActivationSupportsWebURLWithMaxCount: 1
     settings:
       base:
-        PRODUCT_NAME: CardstockShare
-        PRODUCT_BUNDLE_IDENTIFIER: com.n14395.Cardstock.Share
+        PRODUCT_NAME: LittleKanbanShare
+        PRODUCT_BUNDLE_IDENTIFIER: com.n14395.LittleKanban.Share
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: NO
@@ -386,9 +395,9 @@ targets:
         # The App Group, and on macOS the sandbox that makes granting it
         # possible. No iCloud container and no network client: this bundle
         # writes one file into the group and the app drains it.
-        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Resources/CardstockShare.entitlements
-        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: Resources/CardstockShare-iOS.entitlements
-        CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Resources/CardstockShare-iOS.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Resources/LittleKanbanShare.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: Resources/LittleKanbanShare-iOS.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Resources/LittleKanbanShare-iOS.entitlements
 
   # A target of its own, and a scheme of its own, deliberately. Drag and drop
   # is the one interaction in this app that no unit test can reach: the store
@@ -397,56 +406,56 @@ targets:
   # host Mac's pointer fights whoever is using the machine, which is a lesson
   # this project learned the hard way and wrote down in the README.
   #
-  #     xcodebuild test -scheme CardstockUITests \
+  #     xcodebuild test -scheme LittleKanbanUITests \
   #       -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M4)'
   #
-  # Out of the main scheme so `-scheme Cardstock` keeps running exactly the
+  # Out of the main scheme so `-scheme LittleKanban` keeps running exactly the
   # unit suites it always has, on both platforms, with no simulator needed.
-  CardstockUITests:
+  LittleKanbanUITests:
     type: bundle.ui-testing
     supportedDestinations: [iOS]
     sources:
       - path: UITests
     dependencies:
-      - target: Cardstock
+      - target: LittleKanban
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
-        PRODUCT_BUNDLE_IDENTIFIER: com.n14395.CardstockUITests
+        PRODUCT_BUNDLE_IDENTIFIER: com.n14395.LittleKanbanUITests
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: P52946XHRJ
         TARGETED_DEVICE_FAMILY: "1,2"
-        TEST_TARGET_NAME: Cardstock
+        TEST_TARGET_NAME: LittleKanban
 
-  CardstockTests:
+  LittleKanbanTests:
     type: bundle.unit-test
     supportedDestinations: [macOS, iOS]
     sources:
       - path: Tests
     dependencies:
-      - target: Cardstock
+      - target: LittleKanban
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
-        PRODUCT_BUNDLE_IDENTIFIER: com.n14395.CardstockTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.n14395.LittleKanbanTests
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: P52946XHRJ
         TARGETED_DEVICE_FAMILY: "1,2"
         # XcodeGen derives the host path from the *target* name, which is
-        # `Cardstock` here only by coincidence — PRODUCT_NAME is what names the
+        # `LittleKanban` here only by coincidence — PRODUCT_NAME is what names the
         # bundle, and the executable sits in a different place on each platform.
         # Spelled out rather than inferred, so a PRODUCT_NAME change cannot
         # quietly leave the suite hosted on a bundle that is not there.
-        TEST_HOST[sdk=macosx*]: "$(BUILT_PRODUCTS_DIR)/Cardstock.app/Contents/MacOS/Cardstock"
-        TEST_HOST[sdk=iphone*]: "$(BUILT_PRODUCTS_DIR)/Cardstock.app/Cardstock"
+        TEST_HOST[sdk=macosx*]: "$(BUILT_PRODUCTS_DIR)/LittleKanban.app/Contents/MacOS/LittleKanban"
+        TEST_HOST[sdk=iphone*]: "$(BUILT_PRODUCTS_DIR)/LittleKanban.app/LittleKanban"
 
 schemes:
-  CardstockUITests:
+  LittleKanbanUITests:
     build:
       targets:
-        Cardstock: [run, test]
-        CardstockUITests: [test]
+        LittleKanban: [run, test]
+        LittleKanbanUITests: [test]
     test:
       targets:
-        - CardstockUITests
+        - LittleKanbanUITests
       gatherCoverageData: false

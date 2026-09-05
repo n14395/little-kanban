@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// The final Phase B undo harness: the six questions the contract's §1 makes
 /// claims about, asked directly rather than inferred from the mutation suites.

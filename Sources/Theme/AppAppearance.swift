@@ -19,7 +19,7 @@ enum AppAppearance: String, CaseIterable, Identifiable, Codable, Sendable {
 
     var id: String { rawValue }
 
-    static let storageKey = "CardstockAppearance"
+    static let storageKey = "LittleKanbanAppearance"
 
     var label: String {
         switch self {

@@ -4,13 +4,13 @@ import Testing
 #if os(macOS)
 import Security
 #endif
-@testable import Cardstock
+@testable import LittleKanban
 
 /// The one rule that stands between this app and a launch that lasts half a
 /// second: **never name a CloudKit container this build was not signed for.**
 ///
 /// The defect these pin was not a bug in the sync code. `BoardSyncStore` asked
-/// for `iCloud.com.n14395.Cardstock` on a build carrying the plain
+/// for `iCloud.com.n14395.LittleKanban` on a build carrying the plain
 /// entitlements, wrapped in a `do`/`catch` that could never fire, because
 /// `ModelContainer.init` succeeds and CoreData then traps on
 /// `com.apple.coredata.cloudkit.queue` inside

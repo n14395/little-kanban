@@ -1,22 +1,22 @@
 #!/bin/bash
-# Cardstock — build, package, sign and publish.
+# Little Kanban — build, package, sign and publish.
 #
-#   ./build.sh                 build the production build/Cardstock.app
-#   ./build.sh --dmg           …and package it into build/Cardstock.dmg
+#   ./build.sh                 build the production build/LittleKanban.app
+#   ./build.sh --dmg           …and package it into build/LittleKanban.dmg
 #   ./build.sh --sign          …Developer ID sign the .app and .dmg, notarize and staple
-#   ./build.sh --publish vN.N  tag, push and cut a GitHub release from build/Cardstock.dmg
+#   ./build.sh --publish vN.N  tag, push and cut a GitHub release from build/LittleKanban.dmg
 #
 # Flags combine — `./build.sh --sign --publish v1.2` signs, notarizes and releases in
-# one go. `--publish` on its own does not rebuild: it requires build/Cardstock.dmg to
+# one go. `--publish` on its own does not rebuild: it requires build/LittleKanban.dmg to
 # already exist.
 set -euo pipefail
 cd "$(dirname "$0")"
 
-APP_NAME="Cardstock"
+APP_NAME="LittleKanban"
 BUILD_DIR="$PWD/build"
 APP_PATH="$BUILD_DIR/$APP_NAME.app"
 DMG_PATH="$BUILD_DIR/$APP_NAME.dmg"
-BUNDLE_ID="com.n14395.Cardstock"
+BUNDLE_ID="com.n14395.LittleKanban"
 
 # Exported from ~/.zshrc. The literal fallback keeps the script working when it is
 # run from a shell that never sourced it (cron, a GUI runner, `env -i`).
@@ -220,13 +220,13 @@ build_app() {
     # when one is merely edited, which is exactly the difference that matters.
     # Keying on the files themselves would rewrite the project on every save and
     # cost a full rebuild each time.
-    local pbxproj="Cardstock.xcodeproj/project.pbxproj"
+    local pbxproj="LittleKanban.xcodeproj/project.pbxproj"
     # `-nt` is true when the left file exists and the right one does not, which
-    # is the fresh-clone case: Cardstock.xcodeproj is gitignored, so there is
+    # is the fresh-clone case: LittleKanban.xcodeproj is gitignored, so there is
     # no project at all until this generates one.
     if [[ project.yml -nt $pbxproj ]] \
         || [[ -n $(find Sources Resources -type d -newer "$pbxproj" -print -quit 2>/dev/null) ]]; then
-        step "Regenerating Cardstock.xcodeproj (the file list has moved)"
+        step "Regenerating LittleKanban.xcodeproj (the file list has moved)"
         xcodegen generate
     fi
 
@@ -235,15 +235,15 @@ build_app() {
     # A single multiplatform target serves both macOS and iOS, so the
     # destination has to be explicit: left to itself xcodebuild is free to pick
     # an iOS simulator and we would package the wrong slice.
-    xcb -project Cardstock.xcodeproj -scheme Cardstock \
+    xcb -project LittleKanban.xcodeproj -scheme LittleKanban \
         -configuration Release -destination 'platform=macOS' \
         -derivedDataPath "$derived" build
 
     rm -rf "$APP_PATH"
     # Out of DerivedData and into build/, where --dmg and --sign expect it.
-    # PRODUCT_NAME and APP_NAME are both "Cardstock" now, so this is a copy
+    # PRODUCT_NAME and APP_NAME are both "LittleKanban" now, so this is a copy
     # rather than the rename it used to double as.
-    ditto "$derived/Build/Products/Release/Cardstock.app" "$APP_PATH"
+    ditto "$derived/Build/Products/Release/LittleKanban.app" "$APP_PATH"
     refresh_icns
     echo "    $APP_PATH"
 }
@@ -258,7 +258,7 @@ refresh_icns() {
     step "Rebuilding AppIcon.icns from the icon catalogue"
     local appiconset="Resources/Assets.xcassets/AppIcon.appiconset"
     local staging iconset size
-    staging="$(mktemp -d "${TMPDIR:-/tmp}/cardstock-icns.XXXXXX")"
+    staging="$(mktemp -d "${TMPDIR:-/tmp}/littlekanban-icns.XXXXXX")"
     iconset="$staging/AppIcon.iconset"
     mkdir "$iconset"
     for size in 16 32 128 256 512; do

@@ -25,9 +25,9 @@ import XCTest
 ///
 /// **iPhone simulator only** — the "+" is on the phone's floating bar.
 ///
-///     xcodebuild test -scheme CardstockUITests \
+///     xcodebuild test -scheme LittleKanbanUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-///       -only-testing:CardstockUITests/QuickCaptureTests
+///       -only-testing:LittleKanbanUITests/QuickCaptureTests
 final class QuickCaptureTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -41,8 +41,8 @@ final class QuickCaptureTests: XCTestCase {
 
         let app = XCUIApplication()
         app.launchArguments = [
-            "-CardstockSkipFirstRun", "YES",
-            "-CardstockTab", "board",
+            "-LittleKanbanSkipFirstRun", "YES",
+            "-LittleKanbanTab", "board",
             // Both doors the panel can already be through on the way in: the
             // harness flag `InboxDragTests` uses, and the user preference
             // Settings ▸ Board offers. `isInboxOpen` is initialised from the
@@ -51,8 +51,8 @@ final class QuickCaptureTests: XCTestCase {
             // definitely down. Left to the device, it is not: this test failed
             // its own precondition on a simulator where an earlier run had left
             // the preference on.
-            "-CardstockShowInbox", "NO",
-            "-CardstockOpenInboxAtLaunch", "NO",
+            "-LittleKanbanShowInbox", "NO",
+            "-LittleKanbanOpenInboxAtLaunch", "NO",
         ]
         app.launch()
 

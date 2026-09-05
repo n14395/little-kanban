@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// The one shortcut vocabulary, read the way the three surfaces that consume it
 /// read it: the menu bar declares items from it, the board matches key presses
@@ -571,7 +571,7 @@ import Testing
     @Test func bothScenesDeclareTheSameMenuBar() throws {
         let root = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let text = try String(
-            contentsOf: root.appending(path: "Sources/App/CardstockApp.swift"), encoding: .utf8
+            contentsOf: root.appending(path: "Sources/App/LittleKanbanApp.swift"), encoding: .utf8
         )
         // Once for the desk's `Window`, once for the touch platforms'
         // `WindowGroup` — the same commands, built from the same list.

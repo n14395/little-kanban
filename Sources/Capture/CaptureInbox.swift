@@ -23,7 +23,7 @@ import OSLog
 /// copy of something the user typed, so a capture that cannot be decoded is set
 /// aside — see ``reject(_:)`` — rather than deleted or retried forever.
 enum CaptureInbox {
-    private static let logger = Logger(subsystem: "com.n14395.Cardstock", category: "capture")
+    private static let logger = Logger(subsystem: "com.n14395.LittleKanban", category: "capture")
 
     /// Beside the widgets' folder rather than at the root of the container,
     /// which is what `WidgetShare.digestURL` left room for.

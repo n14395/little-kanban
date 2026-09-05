@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// The starters offered on first launch (7.5), and the shape a template has to
 /// be in for `BoardStore.importBoard` to be able to take it.

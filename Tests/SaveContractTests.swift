@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// C6's first half, asked of the store rather than read out of it: every public
 /// method that changes board data has to reach the disk.

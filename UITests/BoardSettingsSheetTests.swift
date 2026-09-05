@@ -12,9 +12,9 @@ import XCTest
 /// **iOS simulator**, both idioms: the sheet is the same view on the phone and
 /// the iPad, and on the desk at its own sizes.
 ///
-///     xcodebuild test -scheme CardstockUITests \
+///     xcodebuild test -scheme LittleKanbanUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-///       -only-testing:CardstockUITests/BoardSettingsSheetTests
+///       -only-testing:LittleKanbanUITests/BoardSettingsSheetTests
 final class BoardSettingsSheetTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -32,8 +32,8 @@ final class BoardSettingsSheetTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchArguments = [
-            "-CardstockSkipFirstRun", "YES",
-            "-CardstockOpenBoardSettings", "YES",
+            "-LittleKanbanSkipFirstRun", "YES",
+            "-LittleKanbanOpenBoardSettings", "YES",
         ]
         app.launch()
         XCTAssertTrue(

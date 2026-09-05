@@ -210,7 +210,7 @@ struct SettingsView: View {
                 .environment(store)
         }
         // iOS only. The desk opens the browser as a window of its own — see the
-        // `themes` scene in `CardstockApp` for why — and a phone has no such
+        // `themes` scene in `LittleKanbanApp` for why — and a phone has no such
         // thing to open.
         #if os(iOS)
         .sheet(isPresented: $isBrowsingThemes) {
@@ -447,7 +447,7 @@ struct SettingsView: View {
                     note: themeNote
                 ) {
                     #if os(macOS)
-                    openWindow(id: CardstockApp.themesWindowID)
+                    openWindow(id: LittleKanbanApp.themesWindowID)
                     #else
                     isBrowsingThemes = true
                     #endif
@@ -875,7 +875,7 @@ struct SettingsView: View {
     private var syncExplanation: String {
         guard SyncPreference.isAvailable else {
             return String(
-                localized: "This copy of Cardstock was not built for iCloud, so your board stays on this device. Everything still saves locally, and you can export it at any time.",
+                localized: "This copy of Little Kanban was not built for iCloud, so your board stays on this device. Everything still saves locally, and you can export it at any time.",
                 comment: "Settings note when the build carries no iCloud entitlement"
             )
         }
@@ -914,7 +914,7 @@ struct SettingsView: View {
     @ViewBuilder
     private var transferRows: some View {
         action(String(localized: "Export board…", comment: "Settings row that writes the board out as a file"),
-               note: String(localized: "One .cardstock document holding every board, task and label.",
+               note: String(localized: "One .littlekanban document holding every board, task and label.",
                             comment: "Settings note under the board export row")) {
             isExportingBoard = true
         }

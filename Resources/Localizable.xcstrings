@@ -894,13 +894,13 @@
         }
       }
     },
-    "About Cardstock" : {
+    "About Little Kanban" : {
       "comment" : "App menu item",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "About Cardstock"
+            "value" : "About Little Kanban"
           }
         }
       }
@@ -959,12 +959,12 @@
         }
       }
     },
-    "Add ${taskTitle} to Cardstock" : {
+    "Add ${taskTitle} to Little Kanban" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Add ${taskTitle} to Cardstock"
+            "value" : "Add ${taskTitle} to Little Kanban"
           }
         }
       }
@@ -1159,7 +1159,7 @@
       }
     },
     "Add to Inbox" : {
-      "comment" : "Title of the share sheet that captures into Cardstock",
+      "comment" : "Title of the share sheet that captures into Little Kanban",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1212,12 +1212,12 @@
         }
       }
     },
-    "Adds a task to Cardstock. With no column given it goes to the Inbox." : {
+    "Adds a task to Little Kanban. With no column given it goes to the Inbox." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Adds a task to Cardstock. With no column given it goes to the Inbox."
+            "value" : "Adds a task to Little Kanban. With no column given it goes to the Inbox."
           }
         }
       }
@@ -2653,7 +2653,7 @@
       }
     },
     "Copy Link" : {
-      "comment" : "Task menu item that puts the task's cardstock:// link on the pasteboard",
+      "comment" : "Task menu item that puts the task's littlekanban:// link on the pasteboard",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3755,12 +3755,12 @@
         }
       }
     },
-    "Find tasks in Cardstock" : {
+    "Find tasks in Little Kanban" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Find tasks in Cardstock"
+            "value" : "Find tasks in Little Kanban"
           }
         }
       }
@@ -4587,13 +4587,13 @@
         }
       }
     },
-    "Its links name a task, a board, a column, a view or the Inbox — a task link looks like cardstock://task/ followed by the task's identifier." : {
+    "Its links name a task, a board, a column, a view or the Inbox — a task link looks like littlekanban://task/ followed by the task's identifier." : {
       "comment" : "Alert body explaining the shapes of link the app understands",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Its links name a task, a board, a column, a view or the Inbox — a task link looks like cardstock://task/ followed by the task's identifier."
+            "value" : "Its links name a task, a board, a column, a view or the Inbox — a task link looks like littlekanban://task/ followed by the task's identifier."
           }
         }
       }
@@ -6092,13 +6092,13 @@
         }
       }
     },
-    "One .cardstock document holding every board, task and label." : {
+    "One .littlekanban document holding every board, task and label." : {
       "comment" : "Settings note under the board export row",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "One .cardstock document holding every board, task and label."
+            "value" : "One .littlekanban document holding every board, task and label."
           }
         }
       }
@@ -6193,22 +6193,22 @@
         }
       }
     },
-    "Opens a task in Cardstock." : {
+    "Opens a task in Little Kanban." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Opens a task in Cardstock."
+            "value" : "Opens a task in Little Kanban."
           }
         }
       }
     },
-    "Opens the Today view in Cardstock." : {
+    "Opens the Today view in Little Kanban." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Opens the Today view in Cardstock."
+            "value" : "Opens the Today view in Little Kanban."
           }
         }
       }
@@ -7952,13 +7952,13 @@
     "Show Trash" : {
       "comment" : "View menu item that opens the trash"
     },
-    "Shown in the Dock while Cardstock is running." : {
+    "Shown in the Dock while Little Kanban is running." : {
       "comment" : "Note under the large app icon, on the desk only",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Shown in the Dock while Cardstock is running."
+            "value" : "Shown in the Dock while Little Kanban is running."
           }
         }
       }
@@ -7985,45 +7985,45 @@
         }
       }
     },
-    "Cardstock" : {
+    "Little Kanban" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cardstock"
+            "value" : "Little Kanban"
           }
         }
       }
     },
-    "Cardstock cannot open that link." : {
+    "Little Kanban cannot open that link." : {
       "comment" : "Alert title for a URL the app cannot interpret",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cardstock cannot open that link."
+            "value" : "Little Kanban cannot open that link."
           }
         }
       }
     },
-    "Cardstock is not allowed to send notifications, so due dates will not remind you. You can allow them in System Settings." : {
+    "Little Kanban is not allowed to send notifications, so due dates will not remind you. You can allow them in System Settings." : {
       "comment" : "Shown in settings when notification permission has been refused",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cardstock is not allowed to send notifications, so due dates will not remind you. You can allow them in System Settings."
+            "value" : "Little Kanban is not allowed to send notifications, so due dates will not remind you. You can allow them in System Settings."
           }
         }
       }
     },
-    "Cardstock is still starting up. Try again in a moment." : {
+    "Little Kanban is still starting up. Try again in a moment." : {
       "comment" : "Shortcuts error: the app has not finished launching",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cardstock is still starting up. Try again in a moment."
+            "value" : "Little Kanban is still starting up. Try again in a moment."
           }
         }
       }
@@ -8626,13 +8626,13 @@
         }
       }
     },
-    "That could not be saved. Try again, or add it in Cardstock." : {
+    "That could not be saved. Try again, or add it in Little Kanban." : {
       "comment" : "Share sheet error when the capture could not be written to disk",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "That could not be saved. Try again, or add it in Cardstock."
+            "value" : "That could not be saved. Try again, or add it in Little Kanban."
           }
         }
       }
@@ -8835,13 +8835,13 @@
         }
       }
     },
-    "The board file was saved by a newer version of Cardstock (format %lld)." : {
+    "The board file was saved by a newer version of Little Kanban (format %lld)." : {
       "comment" : "Error shown when a saved board is too new for this build to read",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The board file was saved by a newer version of Cardstock (format %lld)."
+            "value" : "The board file was saved by a newer version of Little Kanban (format %lld)."
           }
         }
       }
@@ -9099,24 +9099,24 @@
         }
       }
     },
-    "This copy of Cardstock is not set up for sharing." : {
+    "This copy of Little Kanban is not set up for sharing." : {
       "comment" : "Share sheet error when the build is not entitled to the App Group",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This copy of Cardstock is not set up for sharing."
+            "value" : "This copy of Little Kanban is not set up for sharing."
           }
         }
       }
     },
-    "This copy of Cardstock was not built for iCloud, so your board stays on this device. Everything still saves locally, and you can export it at any time." : {
+    "This copy of Little Kanban was not built for iCloud, so your board stays on this device. Everything still saves locally, and you can export it at any time." : {
       "comment" : "Settings note when the build carries no iCloud entitlement",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This copy of Cardstock was not built for iCloud, so your board stays on this device. Everything still saves locally, and you can export it at any time."
+            "value" : "This copy of Little Kanban was not built for iCloud, so your board stays on this device. Everything still saves locally, and you can export it at any time."
           }
         }
       }
@@ -9756,13 +9756,13 @@
         }
       }
     },
-    "Welcome to Cardstock" : {
+    "Welcome to Little Kanban" : {
       "comment" : "First-run picker title",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Welcome to Cardstock"
+            "value" : "Welcome to Little Kanban"
           }
         }
       }
@@ -9956,13 +9956,13 @@
         }
       }
     },
-    "Your board was saved by a newer version of Cardstock (format %lld)." : {
+    "Your board was saved by a newer version of Little Kanban (format %lld)." : {
       "comment" : "Alert title when the saved board is too new to read",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Your board was saved by a newer version of Cardstock (format %lld)."
+            "value" : "Your board was saved by a newer version of Little Kanban (format %lld)."
           }
         }
       }

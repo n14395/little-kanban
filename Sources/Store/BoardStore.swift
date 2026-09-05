@@ -140,7 +140,7 @@ enum BoardStoreError: LocalizedError, Equatable, Sendable, Identifiable {
             String(localized: "Your board could not be read.",
                    comment: "Alert title when the saved board is corrupt")
         case .load(.newerVersion(let version, _)):
-            String(localized: "Your board was saved by a newer version of Cardstock (format \(version)).",
+            String(localized: "Your board was saved by a newer version of Little Kanban (format \(version)).",
                    comment: "Alert title when the saved board is too new to read")
         case .save(let message):
             String(localized: "The board could not be saved. \(message)",
@@ -521,7 +521,7 @@ enum SubtaskCaret: Hashable, Sendable {
 /// Board state and every mutation the design defines.
 ///
 /// This is a port of the `Component extends DCLogic` class in
-/// the design spec (see `cardstock design spec.zip`): same state fields,
+/// the design spec (see `littlekanban design spec.zip`): same state fields,
 /// same transition rules.
 ///
 /// **One file, on purpose — splitting it was tried and reverted.** The
@@ -787,11 +787,11 @@ final class BoardStore {
 
     var isInspectorOpen: Bool = !BoardStore.inspectorHiddenAtLaunch
 
-    /// `-CardstockHideInspector YES`, for the same reason the Inbox has a
+    /// `-LittleKanbanHideInspector YES`, for the same reason the Inbox has a
     /// launch argument: a UI test needs a column beside the panel, and on an
     /// iPad in portrait the inspector is holding that room.
     #if DEBUG
-    static let inspectorHiddenAtLaunch = UserDefaults.standard.bool(forKey: "CardstockHideInspector")
+    static let inspectorHiddenAtLaunch = UserDefaults.standard.bool(forKey: "LittleKanbanHideInspector")
     #else
     static let inspectorHiddenAtLaunch = false
     #endif
@@ -838,9 +838,9 @@ final class BoardStore {
     /// is not a verification — it is a fight with whoever is using the machine.
     /// So there is a launch argument, the same shape as `FirstRun`'s pair:
     ///
-    ///     xcrun simctl launch <device> com.n14395.Cardstock -CardstockShowInbox YES
+    ///     xcrun simctl launch <device> com.n14395.LittleKanban -LittleKanbanShowInbox YES
     #if DEBUG
-    static let inboxOpensAtLaunch = UserDefaults.standard.bool(forKey: "CardstockShowInbox")
+    static let inboxOpensAtLaunch = UserDefaults.standard.bool(forKey: "LittleKanbanShowInbox")
     #else
     static let inboxOpensAtLaunch = false
     #endif
@@ -1004,7 +1004,7 @@ final class BoardStore {
         }
     }
 
-    static let sortOrderKey = "CardstockSortOrder"
+    static let sortOrderKey = "LittleKanbanSortOrder"
 
     /// When the board last reached the disk, for the status bar. `nil` until
     /// this session has saved something.
@@ -1285,7 +1285,7 @@ final class BoardStore {
         // **Last, so it is the last word.** These ran at the end of `init`,
         // which was before any of the above — fine while nothing here touched
         // the surface, and wrong the moment a launch landed somewhere by
-        // default: `-CardstockTab board` set the board and this method put
+        // default: `-LittleKanbanTab board` set the board and this method put
         // Today back over it. A launch argument is a person at a terminal saying
         // where to open, and it beats what was stored.
         applyLaunchOverrides()
@@ -2476,44 +2476,44 @@ final class BoardStore {
     /// individual tabs can be driven from `simctl launch` or a UI test without
     /// scripting taps. The sheet takes either a task's `code` or its UUID:
     ///
-    ///     xcrun simctl launch <device> com.n14395.Cardstock -CardstockOpenSheet NW-118
-    ///     xcrun simctl launch <device> com.n14395.Cardstock -CardstockOpenDrawer YES
-    ///     xcrun simctl launch <device> com.n14395.Cardstock -CardstockOpenSettings YES
-    ///     xcrun simctl launch <device> com.n14395.Cardstock -CardstockOpenTrash YES
-    ///     xcrun simctl launch <device> com.n14395.Cardstock -CardstockOpenBoardSettings YES
-    ///     xcrun simctl launch <device> com.n14395.Cardstock -CardstockTab search
-    ///     xcrun simctl launch <device> com.n14395.Cardstock -CardstockOpenLink cardstock://new
+    ///     xcrun simctl launch <device> com.n14395.LittleKanban -LittleKanbanOpenSheet NW-118
+    ///     xcrun simctl launch <device> com.n14395.LittleKanban -LittleKanbanOpenDrawer YES
+    ///     xcrun simctl launch <device> com.n14395.LittleKanban -LittleKanbanOpenSettings YES
+    ///     xcrun simctl launch <device> com.n14395.LittleKanban -LittleKanbanOpenTrash YES
+    ///     xcrun simctl launch <device> com.n14395.LittleKanban -LittleKanbanOpenBoardSettings YES
+    ///     xcrun simctl launch <device> com.n14395.LittleKanban -LittleKanbanTab search
+    ///     xcrun simctl launch <device> com.n14395.LittleKanban -LittleKanbanOpenLink littlekanban://new
     private func applyLaunchOverrides() {
         let defaults = UserDefaults.standard
-        if let identifier = defaults.string(forKey: "CardstockOpenSheet"),
+        if let identifier = defaults.string(forKey: "LittleKanbanOpenSheet"),
            let task = task(matching: identifier) {
             sheetID = task.id
         }
-        if defaults.bool(forKey: "CardstockOpenDrawer") {
+        if defaults.bool(forKey: "LittleKanbanOpenDrawer") {
             isNavDrawerOpen = true
         }
-        if defaults.bool(forKey: "CardstockOpenSettings") {
+        if defaults.bool(forKey: "LittleKanbanOpenSettings") {
             isShowingSettings = true
         }
-        if defaults.bool(forKey: "CardstockOpenTrash") {
+        if defaults.bool(forKey: "LittleKanbanOpenTrash") {
             isShowingTrash = true
         }
         // The board's own settings, on whichever board the launch settles on.
         // The one surface here that is a *sheet on macOS too*, and so the one a
         // desk screenshot needs a way in to that is not a right-click.
-        if defaults.bool(forKey: "CardstockOpenBoardSettings"), let board = activeBoardID {
+        if defaults.bool(forKey: "LittleKanbanOpenBoardSettings"), let board = activeBoardID {
             boardSettings = BoardSettingsRequest(board: board)
         }
-        // A `cardstock://` link, queued exactly as an arriving one is — the
+        // A `littlekanban://` link, queued exactly as an arriving one is — the
         // scene resolves it when it appears, which is the same path a cold
         // launch from a widget takes and therefore the same order of state
         // changes. The alternative, `simctl openurl`, stops to ask "Open in
-        // Cardstock?" and needs a tap of its own, which is precisely the
+        // Little Kanban?" and needs a tap of its own, which is precisely the
         // thing these arguments exist to avoid.
-        if let raw = defaults.string(forKey: "CardstockOpenLink"), let url = URL(string: raw) {
+        if let raw = defaults.string(forKey: "LittleKanbanOpenLink"), let url = URL(string: raw) {
             TaskLink.router.open(url)
         }
-        if let raw = defaults.string(forKey: "CardstockTab"), let parsed = PhoneTab(rawValue: raw) {
+        if let raw = defaults.string(forKey: "LittleKanbanTab"), let parsed = PhoneTab(rawValue: raw) {
             // `selectTab` rather than the field, because a tab names a *surface*
             // as well: asking for the Board tab and arriving on Today — which is
             // where a launch lands now — is not what the argument says. It is
@@ -3598,7 +3598,7 @@ final class BoardStore {
     /// navigation alone, for callers that already have the card's detail open
     /// and only want the board behind it put right. This is the whole errand,
     /// and it has three callers that mean exactly the same thing by it: a
-    /// `cardstock://` link, a Spotlight or notification tap, and a result
+    /// `littlekanban://` link, a Spotlight or notification tap, and a result
     /// chosen from the search panel.
     ///
     /// The query goes first. A result the user has chosen has ended the search

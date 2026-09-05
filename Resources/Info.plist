@@ -5,19 +5,19 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Cardstock</string>
+	<string>Little Kanban</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
 			<key>CFBundleTypeName</key>
-			<string>Cardstock Board</string>
+			<string>Little Kanban Board</string>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>LSHandlerRank</key>
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>com.n14395.Cardstock.board</string>
+				<string>com.n14395.LittleKanban.board</string>
 			</array>
 		</dict>
 	</array>
@@ -30,7 +30,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>$(PRODUCT_NAME)</string>
+	<string>Little Kanban</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -41,10 +41,10 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>com.n14395.Cardstock.task-link</string>
+			<string>com.n14395.LittleKanban.task-link</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>cardstock</string>
+				<string>littlekanban</string>
 			</array>
 		</dict>
 	</array>
@@ -60,7 +60,7 @@
 	<string>Copyright © 2026 Nicholas Fay. All rights reserved.</string>
 	<key>NSUserActivityTypes</key>
 	<array>
-		<string>com.n14395.Cardstock.task</string>
+		<string>com.n14395.LittleKanban.task</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>
@@ -92,9 +92,9 @@
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>Cardstock Task</string>
+			<string>Little Kanban Task</string>
 			<key>UTTypeIdentifier</key>
-			<string>com.n14395.Cardstock.task</string>
+			<string>com.n14395.LittleKanban.task</string>
 		</dict>
 		<dict>
 			<key>UTTypeConformsTo</key>
@@ -102,9 +102,9 @@
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>Cardstock Sub-task</string>
+			<string>Little Kanban Sub-task</string>
 			<key>UTTypeIdentifier</key>
-			<string>com.n14395.Cardstock.subtask</string>
+			<string>com.n14395.LittleKanban.subtask</string>
 		</dict>
 		<dict>
 			<key>UTTypeConformsTo</key>
@@ -112,9 +112,9 @@
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>Cardstock Column</string>
+			<string>Little Kanban Column</string>
 			<key>UTTypeIdentifier</key>
-			<string>com.n14395.Cardstock.column</string>
+			<string>com.n14395.LittleKanban.column</string>
 		</dict>
 		<dict>
 			<key>UTTypeConformsTo</key>
@@ -122,9 +122,9 @@
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>Cardstock Label</string>
+			<string>Little Kanban Label</string>
 			<key>UTTypeIdentifier</key>
-			<string>com.n14395.Cardstock.label</string>
+			<string>com.n14395.LittleKanban.label</string>
 		</dict>
 		<dict>
 			<key>UTTypeConformsTo</key>
@@ -132,14 +132,14 @@
 				<string>public.json</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>Cardstock Board</string>
+			<string>Little Kanban Board</string>
 			<key>UTTypeIdentifier</key>
-			<string>com.n14395.Cardstock.board</string>
+			<string>com.n14395.LittleKanban.board</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
 				<array>
-					<string>cardstock</string>
+					<string>littlekanban</string>
 				</array>
 			</dict>
 		</dict>

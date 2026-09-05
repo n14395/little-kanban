@@ -243,7 +243,7 @@ enum BoardFileError: LocalizedError, Equatable, Sendable {
             String(localized: "The board file could not be read.",
                    comment: "Error shown when a saved board is corrupt or not a board file")
         case .newerVersion(let version):
-            String(localized: "The board file was saved by a newer version of Cardstock (format \(version)).",
+            String(localized: "The board file was saved by a newer version of Little Kanban (format \(version)).",
                    comment: "Error shown when a saved board is too new for this build to read")
         }
     }
@@ -260,9 +260,9 @@ enum BoardFileError: LocalizedError, Equatable, Sendable {
 struct BoardFile: Sendable {
     var url: URL
 
-    private static let logger = Logger(subsystem: "com.n14395.Cardstock", category: "persistence")
+    private static let logger = Logger(subsystem: "com.n14395.LittleKanban", category: "persistence")
 
-    /// `~/Library/Application Support/Cardstock/board.json` on both platforms.
+    /// `~/Library/Application Support/LittleKanban/board.json` on both platforms.
     static let `default`: BoardFile = {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL.temporaryDirectory
@@ -273,9 +273,9 @@ struct BoardFile: Sendable {
         // handed a throwaway file, so the app's own file steps aside first.
         guard !isRunningTests else {
             return BoardFile(url: URL.temporaryDirectory
-                .appending(path: "CardstockTestHost-\(UUID().uuidString)/board.json"))
+                .appending(path: "LittleKanbanTestHost-\(UUID().uuidString)/board.json"))
         }
-        return BoardFile(url: base.appending(path: "Cardstock/board.json"))
+        return BoardFile(url: base.appending(path: "LittleKanban/board.json"))
     }()
 
     /// True when this process was launched by a test runner rather than by a

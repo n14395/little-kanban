@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import UserNotifications
-@testable import Cardstock
+@testable import LittleKanban
 
 /// The line between the board and the person looking at it.
 ///
@@ -130,7 +130,7 @@ import UserNotifications
         UserDefaults.standard.set(false, forKey: Preferences.subtaskSoundKey)
         UserDefaults.standard.set(CompletionSound.bowl.rawValue, forKey: CompletionSound.subtaskStorageKey)
         // Notifications — on or off, and the time of day.
-        let suite = try #require(UserDefaults(suiteName: "CardstockTests-\(UUID().uuidString)"))
+        let suite = try #require(UserDefaults(suiteName: "LittleKanbanTests-\(UUID().uuidString)"))
         let scheduler = NotificationScheduler(center: nil, defaults: suite)
         scheduler.isEnabled = false
         scheduler.reminderHour = 6
@@ -150,8 +150,8 @@ import UserNotifications
 
         let text = try temp.text()
         for key in [AppAppearance.storageKey, BoardStore.sortOrderKey,
-                    "CardstockRemindersEnabled", "CardstockReminderHour",
-                    "CardstockReminderMinute"] {
+                    "LittleKanbanRemindersEnabled", "LittleKanbanReminderHour",
+                    "LittleKanbanReminderMinute"] {
             #expect(!text.contains(key), "\(key) is written into the board file")
         }
         #expect(!text.contains("dueDate"), "the sort order reached the board file")

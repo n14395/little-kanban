@@ -1,4 +1,4 @@
-# Cardstock
+# Little Kanban
 
 A Kanban board for macOS and iOS. Many boards, one global Inbox, one file — with
 three surfaces over the same data: a Mac window, an iPad split view and an
@@ -50,11 +50,11 @@ Built in SwiftUI, offline-first, with optional iCloud sync.
 ## Building
 
 ```sh
-xcodegen generate      # writes Cardstock.xcodeproj from project.yml
-open Cardstock.xcodeproj
+xcodegen generate      # writes LittleKanban.xcodeproj from project.yml
+open LittleKanban.xcodeproj
 ```
 
-`project.yml` is the source of truth; `Cardstock.xcodeproj` is generated and
+`project.yml` is the source of truth; `LittleKanban.xcodeproj` is generated and
 git-ignored. There are no filesystem-synchronized groups, so **new files need
 `xcodegen generate` before they compile** — a file that isn't regenerated into
 the project is a file in no target.
@@ -62,10 +62,10 @@ the project is a file in no target.
 From the command line:
 
 ```sh
-xcodebuild -project Cardstock.xcodeproj -scheme Cardstock \
+xcodebuild -project LittleKanban.xcodeproj -scheme LittleKanban \
   -destination 'platform=macOS' build
 
-xcodebuild -project Cardstock.xcodeproj -scheme Cardstock \
+xcodebuild -project LittleKanban.xcodeproj -scheme LittleKanban \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
 ```
 
@@ -73,7 +73,7 @@ If `xcode-select -p` points at the Command Line Tools, prefix commands with
 `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`.
 
 A first launch with no board file opens the starter picker. Pass
-`-CardstockSkipFirstRun YES` to get past it; `DEBUG` builds read several
+`-LittleKanbanSkipFirstRun YES` to get past it; `DEBUG` builds read several
 other launch arguments for opening a surface directly (see [DESIGN.md](DESIGN.md)).
 
 ## Testing
@@ -82,10 +82,10 @@ Unit tests use [Swift Testing](https://github.com/swiftlang/swift-testing) and
 run from the app's own scheme on either destination:
 
 ```sh
-xcodebuild test -project Cardstock.xcodeproj -scheme Cardstock \
+xcodebuild test -project LittleKanban.xcodeproj -scheme LittleKanban \
   -destination 'platform=macOS'
 
-xcodebuild test -project Cardstock.xcodeproj -scheme Cardstock \
+xcodebuild test -project LittleKanban.xcodeproj -scheme LittleKanban \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
@@ -96,7 +96,7 @@ green macOS run says nothing about iOS — run both. Use
 UI tests are XCUITest on a scheme of their own, iOS simulator only:
 
 ```sh
-xcodebuild test -project Cardstock.xcodeproj -scheme CardstockUITests \
+xcodebuild test -project LittleKanban.xcodeproj -scheme LittleKanbanUITests \
   -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M4)'
 ```
 
@@ -136,7 +136,7 @@ nothing else mutates a board.
 ## Data and sync
 
 The board is a single JSON file at
-`~/Library/Application Support/Cardstock/board.json` on both platforms, at
+`~/Library/Application Support/LittleKanban/board.json` on both platforms, at
 format version 16. Older files migrate forward on read; corrupt or
 newer-than-this-build files are quarantined rather than overwritten, and rolling
 backups are kept alongside.
@@ -144,7 +144,7 @@ backups are kept alongside.
 iCloud sync mirrors the same board into CloudKit's private database via
 SwiftData. It is enabled through the `-CloudKit` entitlement files named in
 `project.yml`; pointing the macOS `CODE_SIGN_ENTITLEMENTS` line back at
-`Resources/Cardstock.entitlements` turns it off and leaves the app on the
+`Resources/LittleKanban.entitlements` turns it off and leaves the app on the
 local store, with no other changes needed.
 
 Sync is same-person-multi-device. There is no sharing or collaboration.
@@ -152,7 +152,7 @@ Sync is same-person-multi-device. There is no sharing or collaboration.
 ## Release builds
 
 ```sh
-./build.sh                 # build/Cardstock.app
+./build.sh                 # build/LittleKanban.app
 ./build.sh --dmg           # …and package it
 ./build.sh --sign          # …Developer ID sign, notarize and staple
 ./build.sh --publish v1.0  # …tag and cut a GitHub release

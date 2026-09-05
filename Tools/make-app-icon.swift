@@ -1,5 +1,5 @@
 //
-// Draws every app icon Cardstock ships with and writes the asset catalogue
+// Draws every app icon Little Kanban ships with and writes the asset catalogue
 // that names them.
 //
 //     Tools/make-app-icons                 # writes into Resources/Assets.xcassets

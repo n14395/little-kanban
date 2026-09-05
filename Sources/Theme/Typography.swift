@@ -15,7 +15,7 @@ import UIKit
 /// ``Palette/display(_:relativeTo:)``, because the palette is the one value that
 /// travels down the environment and a font that came from a global would go on
 /// drawing in the old face for a frame after the theme changed.
-enum CardstockFont {
+enum LittleKanbanFont {
     /// The weights the app asks for, as CSS numbers so that they add to a
     /// theme's baseline without a table in between. See ``ThemeFont/weight``.
     enum Weight: Int, CaseIterable, Sendable {
@@ -36,7 +36,7 @@ enum CardstockFont {
         }
 
         /// The same weight as AppKit and UIKit spell it, for the one control
-        /// that takes a ``CardstockFont/Platform`` rather than a `Font`.
+        /// that takes a ``LittleKanbanFont/Platform`` rather than a `Font`.
         var platformEquivalent: Platform.Weight {
             switch self {
             case .regular: .regular
@@ -97,7 +97,7 @@ enum CardstockFont {
 }
 
 
-extension CardstockFont.Platform {
+extension LittleKanbanFont.Platform {
     /// This face with a slant put on it, or `nil` where the descriptor will not
     /// make one — the platform's version of the shear
     /// ``ResolvedThemeFace/font(_:_:relativeTo:)`` asks SwiftUI for when a family
@@ -107,27 +107,27 @@ extension CardstockFont.Platform {
     /// one and `.traitItalic` on the other, and building a font from a descriptor
     /// can fail on one and not the other. Both differences are spent here rather
     /// than at the call site.
-    var obliqued: CardstockFont.Platform? {
+    var obliqued: LittleKanbanFont.Platform? {
         #if os(macOS)
-        return CardstockFont.Platform(
+        return LittleKanbanFont.Platform(
             descriptor: fontDescriptor.withSymbolicTraits(.italic), size: 0
         )
         #else
         guard let slanted = fontDescriptor.withSymbolicTraits(.traitItalic) else { return nil }
-        return CardstockFont.Platform(descriptor: slanted, size: 0)
+        return LittleKanbanFont.Platform(descriptor: slanted, size: 0)
         #endif
     }
 
     /// This face redrawn as a serif, for the stand-in a missing family gets.
-    var serifed: CardstockFont.Platform? {
+    var serifed: LittleKanbanFont.Platform? {
         guard let serif = fontDescriptor.withDesign(.serif) else { return nil }
-        return CardstockFont.Platform(descriptor: serif, size: 0)
+        return LittleKanbanFont.Platform(descriptor: serif, size: 0)
     }
 }
 
 /// A theme face resolved against this machine, once.
 ///
-/// ``CardstockFont/font(_:size:step:relativeTo:)`` answers the same
+/// ``LittleKanbanFont/font(_:size:step:relativeTo:)`` answers the same
 /// question, but it answers it through ``FontCatalog`` — a lock and a
 /// string-keyed hash — on **every** `.font(...)` in the app, on every body
 /// evaluation, which on a scrolling board is hundreds of round-trips per
@@ -136,7 +136,7 @@ extension CardstockFont.Platform {
 /// read. See ``Palette/ui(_:_:relativeTo:)``.
 struct ResolvedThemeFace: Equatable, Sendable {
     private let face: ThemeFont
-    /// One slot per ``CardstockFont/Weight``, in `allCases` order; `nil`
+    /// One slot per ``LittleKanbanFont/Weight``, in `allCases` order; `nil`
     /// where this machine has no such family and the system face stands in.
     private let names: [String?]
     /// The slant will be sheared onto an upright — the family has no italic.
@@ -146,7 +146,7 @@ struct ResolvedThemeFace: Equatable, Sendable {
 
     init(_ face: ThemeFont) {
         self.face = face
-        self.names = CardstockFont.Weight.allCases.map { step in
+        self.names = LittleKanbanFont.Weight.allCases.map { step in
             FontCatalog.postScriptName(
                 family: face.family, weight: Self.clamped(face.weight, step: step),
                 italic: face.isItalic
@@ -157,10 +157,10 @@ struct ResolvedThemeFace: Equatable, Sendable {
     }
 
     func font(
-        _ size: CGFloat, _ step: CardstockFont.Weight = .regular,
+        _ size: CGFloat, _ step: LittleKanbanFont.Weight = .regular,
         relativeTo textStyle: Font.TextStyle = .body
     ) -> Font {
-        let index = CardstockFont.Weight.allCases.firstIndex(of: step) ?? 0
+        let index = LittleKanbanFont.Weight.allCases.firstIndex(of: step) ?? 0
         guard let name = names[index] else { return fallback(size: size, step: step) }
         let font = Font.custom(name, size: size, relativeTo: textStyle)
         return shearsItalic ? font.italic() : font
@@ -175,10 +175,10 @@ struct ResolvedThemeFace: Equatable, Sendable {
     /// platform font is a fixed number of points and does not. So the growing
     /// happens at the call site, through the `ScaledMetric` the rest of the
     /// app's fixed sizes go through, and what reaches here is the answer.
-    func platformFont(_ size: CGFloat, _ step: CardstockFont.Weight = .regular)
-        -> CardstockFont.Platform {
-        let index = CardstockFont.Weight.allCases.firstIndex(of: step) ?? 0
-        guard let name = names[index], let font = CardstockFont.Platform(name: name, size: size)
+    func platformFont(_ size: CGFloat, _ step: LittleKanbanFont.Weight = .regular)
+        -> LittleKanbanFont.Platform {
+        let index = LittleKanbanFont.Weight.allCases.firstIndex(of: step) ?? 0
+        guard let name = names[index], let font = LittleKanbanFont.Platform(name: name, size: size)
         else { return platformFallback(size: size, step: step) }
         // A family with no slanted face gets a synthesised oblique, which is the
         // platform's version of the shear `font(_:_:relativeTo:)` asks SwiftUI
@@ -190,32 +190,32 @@ struct ResolvedThemeFace: Equatable, Sendable {
     /// ``platformFont(_:_:)``'s stand-in, from the same precomputed design the
     /// SwiftUI fallback uses — a theme built on a font this machine does not
     /// have still reads as the *kind* of face it was set in.
-    private func platformFallback(size: CGFloat, step: CardstockFont.Weight)
-        -> CardstockFont.Platform {
+    private func platformFallback(size: CGFloat, step: LittleKanbanFont.Weight)
+        -> LittleKanbanFont.Platform {
         let weight = Self.clamped(face.weight, step: step)
-        let system = CardstockFont.Platform.systemFont(
+        let system = LittleKanbanFont.Platform.systemFont(
             ofSize: size,
-            weight: CardstockFont.Weight(rawValue: weight)?.platformEquivalent ?? .regular
+            weight: LittleKanbanFont.Weight(rawValue: weight)?.platformEquivalent ?? .regular
         )
         guard fallbackDesign == .serif else { return system }
         return system.serifed ?? system
     }
 
-    /// ``CardstockFont/fallback(_:size:weight:)``, from the precomputed design.
-    private func fallback(size: CGFloat, step: CardstockFont.Weight) -> Font {
+    /// ``LittleKanbanFont/fallback(_:size:weight:)``, from the precomputed design.
+    private func fallback(size: CGFloat, step: LittleKanbanFont.Weight) -> Font {
         let weight = Self.clamped(face.weight, step: step)
         let system = Font.system(
             size: size,
-            weight: CardstockFont.Weight(rawValue: weight)?.systemEquivalent ?? .regular,
+            weight: LittleKanbanFont.Weight(rawValue: weight)?.systemEquivalent ?? .regular,
             design: fallbackDesign
         )
         return face.isItalic ? system.italic() : system
     }
 
     /// The face's baseline plus the step, held to the axis — the same sum
-    /// ``CardstockFont/font(_:size:step:relativeTo:)`` makes.
-    private static func clamped(_ base: Int, step: CardstockFont.Weight) -> Int {
-        min(max(base + step.rawValue - CardstockFont.Weight.regular.rawValue, 100), 900)
+    /// ``LittleKanbanFont/font(_:size:step:relativeTo:)`` makes.
+    private static func clamped(_ base: Int, step: LittleKanbanFont.Weight) -> Int {
+        min(max(base + step.rawValue - LittleKanbanFont.Weight.regular.rawValue, 100), 900)
     }
 }
 

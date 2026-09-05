@@ -24,10 +24,10 @@ import XCTest
 /// phone draws `PhoneTaskCard` and the iPad `BoardTaskCard`, and the Inbox is
 /// the other surface a card can be dragged in.
 ///
-///     xcrun simctl uninstall <device> com.n14395.Cardstock
-///     xcodebuild test -scheme CardstockUITests \
+///     xcrun simctl uninstall <device> com.n14395.LittleKanban
+///     xcodebuild test -scheme LittleKanbanUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-///       -only-testing:CardstockUITests/HeldCardTests
+///       -only-testing:LittleKanbanUITests/HeldCardTests
 final class HeldCardTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -66,14 +66,14 @@ final class HeldCardTests: XCTestCase {
     private func launched(showingInbox: Bool) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
-            "-CardstockSkipFirstRun", "YES",
-            "-CardstockTab", "board",
+            "-LittleKanbanSkipFirstRun", "YES",
+            "-LittleKanbanTab", "board",
             // The iPad's answer to "the card opened" is its inspector, so it
             // has to start shut — open, its closer is on screen before
             // anything has been tapped and the test proves nothing. The phone
             // has no inspector and ignores this.
-            "-CardstockHideInspector", "YES",
-        ] + (showingInbox ? ["-CardstockShowInbox", "YES"] : [])
+            "-LittleKanbanHideInspector", "YES",
+        ] + (showingInbox ? ["-LittleKanbanShowInbox", "YES"] : [])
         app.launch()
         return app
     }

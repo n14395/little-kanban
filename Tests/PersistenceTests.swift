@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// Everything about the board file. A bug here loses the user's work, so the
 /// v1 fixtures are checked field by field rather than merely "it decoded", and
@@ -440,6 +440,6 @@ import Testing
         let path = BoardFile.default.url.path(percentEncoded: false)
         #expect(path.hasPrefix(URL.temporaryDirectory.path(percentEncoded: false)),
                 "BoardFile.default resolved to \(path) while running under a test runner")
-        #expect(!path.contains("Application Support/Cardstock/board.json"))
+        #expect(!path.contains("Application Support/LittleKanban/board.json"))
     }
 }

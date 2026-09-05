@@ -44,7 +44,7 @@ enum CloudKitEntitlement {
               let value = SecTaskCopyValueForEntitlement(task, key as CFString, nil)
         else { return [] }
         return value as? [String] ?? []
-        #elseif CARDSTOCK_CLOUDKIT
+        #elseif LITTLEKANBAN_CLOUDKIT
         return [SyncSchema.cloudContainerID]
         #else
         return []

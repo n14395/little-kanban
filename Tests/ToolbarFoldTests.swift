@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// When the board's header runs out of width and folds its search field into a
 /// button.

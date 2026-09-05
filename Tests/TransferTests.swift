@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import UniformTypeIdentifiers
-@testable import Cardstock
+@testable import LittleKanban
 
 /// The drag payloads. Their `plainText` is not a rendering detail: it is what a
 /// card dropped into a text editor leaves behind, and what Phase E's ⌘C will put

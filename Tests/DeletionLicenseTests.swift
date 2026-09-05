@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// Deletion needs a deletion — the licence, after the third data loss.
 ///

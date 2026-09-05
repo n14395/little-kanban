@@ -4,7 +4,7 @@ import Foundation
 import ServiceManagement
 import os
 
-/// The "start Cardstock when I log in" switch.
+/// The "start Little Kanban when I log in" switch.
 ///
 /// `SMAppService.mainApp` rather than a login-item helper or a
 /// `LaunchAgents` plist: it is the only route a sandboxed, notarized app has,
@@ -18,7 +18,7 @@ import os
 /// what a failed registration needs, so the row can go back to off instead of
 /// lying.
 enum LaunchAtLogin {
-    private static let logger = Logger(subsystem: "com.n14395.Cardstock", category: "login")
+    private static let logger = Logger(subsystem: "com.n14395.LittleKanban", category: "login")
 
     /// What the system says, which is what the switch shows.
     static var isOn: Bool {

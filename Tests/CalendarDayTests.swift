@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 @Suite struct CalendarDayTests {
     private func calendar(_ identifier: String) -> Calendar {

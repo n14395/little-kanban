@@ -27,9 +27,9 @@ import XCTest
 /// **iPhone simulator only** — the chips are the phone's portrait switcher. The
 /// iPad draws the board itself, with the desk's header menu on every column.
 ///
-///     xcodebuild test -scheme CardstockUITests \
+///     xcodebuild test -scheme LittleKanbanUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17' \
-///       -only-testing:CardstockUITests/ColumnChipMenuTests
+///       -only-testing:LittleKanbanUITests/ColumnChipMenuTests
 final class ColumnChipMenuTests: XCTestCase {
     /// The second seeded column, not the first: "opened the right column" is
     /// not a claim a first-column fixture can fail.
@@ -46,9 +46,9 @@ final class ColumnChipMenuTests: XCTestCase {
         )
         let app = XCUIApplication()
         app.launchArguments = [
-            "-CardstockSkipFirstRun", "YES",
-            "-CardstockTab", "board",
-            "-CardstockShowInbox", "NO",
+            "-LittleKanbanSkipFirstRun", "YES",
+            "-LittleKanbanTab", "board",
+            "-LittleKanbanShowInbox", "NO",
         ]
         app.launch()
         return app

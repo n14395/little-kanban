@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// The twelve preferences added at once, and what each one actually changes.
 ///
@@ -25,7 +25,7 @@ import Testing
     /// why `trashRetention`, `defaultDueDate` and `weekMeaning` are properties
     /// there rather than reads of a global at each use.
     private func suite(_ pairs: [String: Any]) -> UserDefaults {
-        let name = "CardstockTests.\(UUID().uuidString)"
+        let name = "LittleKanbanTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
         for (key, value) in pairs { defaults.set(value, forKey: key) }
         return defaults

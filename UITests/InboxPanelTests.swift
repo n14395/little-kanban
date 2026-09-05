@@ -32,7 +32,7 @@ import XCTest
 ///
 /// **iPhone only** — the iPad's Inbox stands beside the board as a panel.
 ///
-///     xcodebuild test -scheme CardstockUITests \
+///     xcodebuild test -scheme LittleKanbanUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17e'
 final class InboxPanelTests: XCTestCase {
     override func setUp() {
@@ -46,8 +46,8 @@ final class InboxPanelTests: XCTestCase {
     private func opened() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
-            "-CardstockSkipFirstRun", "YES",
-            "-CardstockShowInbox", "YES",
+            "-LittleKanbanSkipFirstRun", "YES",
+            "-LittleKanbanShowInbox", "YES",
         ]
         app.launch()
         return app
@@ -188,7 +188,7 @@ final class InboxPanelTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
 
         let app = XCUIApplication()
-        app.launchArguments = ["-CardstockSkipFirstRun", "YES"]
+        app.launchArguments = ["-LittleKanbanSkipFirstRun", "YES"]
         app.launch()
 
         let slot = app.buttons["Inbox"].firstMatch

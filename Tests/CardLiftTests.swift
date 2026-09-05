@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// A lift is not a drag, and what is drawn over a card must not confuse them.
 ///

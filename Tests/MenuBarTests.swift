@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// What the menu bar grew, and the three kinds of thing that can go wrong with a
 /// menu item: it acts on nothing, it is live when it cannot act, or it raises a

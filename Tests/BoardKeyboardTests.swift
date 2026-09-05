@@ -3,7 +3,7 @@
 import Foundation
 import SwiftUI
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// How the arrows move around the board. `BoardFocusMap` is the rule, held
 /// apart from the view so it can be asked rather than clicked at.

@@ -17,9 +17,9 @@ import XCTest
 ///
 /// **iPhone simulator only** — the iPad has no tab bar; it has a source list.
 ///
-///     xcodebuild test -scheme CardstockUITests \
+///     xcodebuild test -scheme LittleKanbanUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17' \
-///       -only-testing:CardstockUITests/TabRailTests
+///       -only-testing:LittleKanbanUITests/TabRailTests
 final class TabRailTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -63,7 +63,7 @@ final class TabRailTests: XCTestCase {
         // suite is about is the one the board is drawn in, three columns wide
         // under a header that has given up its chips. `ColumnStripTests` names
         // the tab for the same reason.
-        app.launchArguments = ["-CardstockSkipFirstRun", "YES", "-CardstockTab", "board"]
+        app.launchArguments = ["-LittleKanbanSkipFirstRun", "YES", "-LittleKanbanTab", "board"]
         app.launch()
 
         // The quick-capture button is the bar's far end and is the one control
@@ -167,7 +167,7 @@ final class TabRailTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
 
         let app = XCUIApplication()
-        app.launchArguments = ["-CardstockSkipFirstRun", "YES", "-CardstockTab", "board"]
+        app.launchArguments = ["-LittleKanbanSkipFirstRun", "YES", "-LittleKanbanTab", "board"]
         app.launch()
 
         let inbox = app.buttons["Inbox"].firstMatch

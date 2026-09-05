@@ -12,7 +12,7 @@ import XCTest
 ///
 /// **iPhone simulator only** — the iPad has no strip; it has the board.
 ///
-///     xcodebuild test -scheme CardstockUITests \
+///     xcodebuild test -scheme LittleKanbanUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 final class ColumnStripTests: XCTestCase {
     override func setUp() {
@@ -35,12 +35,12 @@ final class ColumnStripTests: XCTestCase {
 
         let app = XCUIApplication()
         app.launchArguments = [
-            "-CardstockSkipFirstRun", "YES",
+            "-LittleKanbanSkipFirstRun", "YES",
             // The board, said out loud. A launch lands on **Today** now — see
             // `BoardStore.landingSurface` — and Today has no columns, so a suite
             // about the column strip has to name the surface the strip is on
             // rather than take it for granted.
-            "-CardstockTab", "board",
+            "-LittleKanbanTab", "board",
         ]
         app.launch()
 
@@ -82,7 +82,7 @@ final class ColumnStripTests: XCTestCase {
         XCUIDevice.shared.orientation = .landscapeLeft
 
         let app = XCUIApplication()
-        app.launchArguments = ["-CardstockSkipFirstRun", "YES", "-CardstockTab", "board"]
+        app.launchArguments = ["-LittleKanbanSkipFirstRun", "YES", "-LittleKanbanTab", "board"]
         app.launch()
 
         // The seed board's columns, in board order. A page's heading is the pill

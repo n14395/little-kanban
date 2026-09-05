@@ -70,7 +70,7 @@ struct BoardCommands: Commands {
         // its ⌘, on the app menu; ours would be a second one beside it, so the
         // `.app` section is empty there and this block is not hung at all.
         //
-        // iPadOS puts an item there too — `Cardstock Settings…`, wired to
+        // iPadOS puts an item there too — `Little Kanban Settings…`, wired to
         // `orderFrontPreferencesPanel:` — for an app that has no `Settings`
         // scene to open. Declaring ours *after* it is not a duplicate item but a
         // duplicate **key**, and UIKit does not merely resolve that in somebody's
@@ -125,7 +125,7 @@ struct BoardCommands: Commands {
         // itself rather than two that disagree. The iPad reaches it through
         // Settings, which is where its own About row already lives.
         CommandGroup(replacing: .appInfo) {
-            Button(String(localized: "About Cardstock", comment: "App menu item")) {
+            Button(String(localized: "About Little Kanban", comment: "App menu item")) {
                 openAbout()
             }
         }
@@ -667,11 +667,11 @@ struct BoardCommands: Commands {
 
     #if os(macOS)
     private func openAbout() {
-        openWindow(id: CardstockApp.aboutWindowID)
+        openWindow(id: LittleKanbanApp.aboutWindowID)
     }
 
     private func openThemes() {
-        openWindow(id: CardstockApp.themesWindowID)
+        openWindow(id: LittleKanbanApp.themesWindowID)
     }
     #else
     /// Unreachable: ``AppCommand/themes`` is `.desk` only, so no item for it is

@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// A field edited on a surface is one *session*: focus, any amount of change,
 /// blur. What is asserted here is that a session leaves exactly one line in the

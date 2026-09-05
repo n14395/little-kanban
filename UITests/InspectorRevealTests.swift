@@ -20,8 +20,8 @@ import XCTest
 /// **iPad only.** The phone draws one column per page and has no panel beside
 /// it; its detail is a sheet over the whole screen.
 ///
-///     xcrun simctl uninstall <device> com.n14395.Cardstock
-///     xcodebuild test -scheme CardstockUITests \
+///     xcrun simctl uninstall <device> com.n14395.LittleKanban
+///     xcodebuild test -scheme LittleKanbanUITests \
 ///       -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)'
 final class InspectorRevealTests: XCTestCase {
     override func setUp() {
@@ -50,9 +50,9 @@ final class InspectorRevealTests: XCTestCase {
 
         let app = XCUIApplication()
         app.launchArguments = [
-            "-CardstockSkipFirstRun", "YES",
+            "-LittleKanbanSkipFirstRun", "YES",
             // The panel has to *arrive* for there to be anything to measure.
-            "-CardstockHideInspector", "YES",
+            "-LittleKanbanHideInspector", "YES",
         ]
         app.launch()
 
@@ -119,8 +119,8 @@ final class InspectorRevealTests: XCTestCase {
 
         let app = XCUIApplication()
         app.launchArguments = [
-            "-CardstockSkipFirstRun", "YES",
-            "-CardstockHideInspector", "YES",
+            "-LittleKanbanSkipFirstRun", "YES",
+            "-LittleKanbanHideInspector", "YES",
         ]
         app.launch()
 

@@ -225,7 +225,7 @@ struct TaskInspector: View {
     /// editor on both platforms, and it is the one thing on this panel that
     /// nothing can do anything with: it cannot be edited, it names nothing the
     /// user chose, and it is already carried by every route that needs it — the
-    /// `cardstock://` link Copy Link puts on the pasteboard, the due-date
+    /// `littlekanban://` link Copy Link puts on the pasteboard, the due-date
     /// reminder, the Markdown export, Spotlight, and the search field, which
     /// still finds a card by its code. What it cost was the first line of the
     /// panel, above the title, on the surface where the title is the point.

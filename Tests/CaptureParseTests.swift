@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// The grammar a typed title is read with, and the two rules that stop it
 /// eating words nobody offered it: a sigil is consent, and a date has to be at

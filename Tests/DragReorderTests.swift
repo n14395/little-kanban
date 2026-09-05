@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// Where a dragged card is allowed to land, asked of every pair on the board.
 ///

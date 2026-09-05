@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// The selection as a set, and the bulk commands it exists for.
 @MainActor

@@ -1,4 +1,4 @@
-# Cardstock — design notes
+# Little Kanban — design notes
 
 The long-form companion to [README.md](README.md): why each surface is laid out
 the way it is, how drag and drop resolves, what the sync layer will and will not
@@ -10,7 +10,7 @@ file, three surfaces over one board: a Mac window, an iPad split view and an
 iPhone screen.
 
 Built in SwiftUI from the Claude Design spec archived in
-`cardstock design spec.zip`.
+`littlekanban design spec.zip`.
 
 ## Requirements
 
@@ -22,13 +22,13 @@ Built in SwiftUI from the Claude Design spec archived in
 ## Building
 
 ```sh
-xcodegen generate      # writes Cardstock.xcodeproj from project.yml
-open Cardstock.xcodeproj
+xcodegen generate      # writes LittleKanban.xcodeproj from project.yml
+open LittleKanban.xcodeproj
 ```
 
-`Cardstock.xcodeproj` is generated and git-ignored; `project.yml` is the source of
+`LittleKanban.xcodeproj` is generated and git-ignored; `project.yml` is the source of
 truth. One multiplatform app target builds both destinations, with the widget
-extension — `CardstockWidgets`, also multiplatform — embedded in it.
+extension — `LittleKanbanWidgets`, also multiplatform — embedded in it.
 
 **New files need `xcodegen generate` before they compile.** The project has no
 file-system-synchronized groups, so a file written and not regenerated into is a
@@ -37,8 +37,8 @@ file in no target.
 From the command line:
 
 ```sh
-xcodebuild -project Cardstock.xcodeproj -scheme Cardstock -destination 'platform=macOS' build
-xcodebuild -project Cardstock.xcodeproj -scheme Cardstock \
+xcodebuild -project LittleKanban.xcodeproj -scheme LittleKanban -destination 'platform=macOS' build
+xcodebuild -project LittleKanban.xcodeproj -scheme LittleKanban \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
 ```
 
@@ -47,7 +47,7 @@ Command Line Tools), prefix commands with
 `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`.
 
 The unit tests run from the same scheme on either destination — see **Tests**.
-`build.sh` wraps the release path instead: it produces `build/Cardstock.app`,
+`build.sh` wraps the release path instead: it produces `build/LittleKanban.app`,
 and `--dmg`, `--sign` (Developer ID, notarize, staple) and `--publish vN.N` take
 it the rest of the way. `./build.sh --help` prints the lot.
 
@@ -58,7 +58,7 @@ icon, and the String Catalog is synced from the compiler's own extraction — se
 platforms.
 
 A build run against a machine with no `board.json` comes up on the first-run
-picker. `-CardstockSkipFirstRun YES` gets past it; see **First run**.
+picker. `-LittleKanbanSkipFirstRun YES` gets past it; see **First run**.
 
 ## Layout
 
@@ -68,11 +68,11 @@ build.sh               release build: .app, .dmg, signing, notarization, GitHub 
 Tools/
   make-app-icon.swift  draws the app icon: all eleven PNGs *and* the appiconset's
                        Contents.json, so a slot and its image cannot drift apart
-  cardstock-icon-4f.svg
+  little-kanban-icon-4f.svg
                        the design it transcribes, kept beside it so the numbers
                        in one can be checked against the other
 Sources/
-  App/                 CardstockApp scene, RootView's size-class switch and undo-manager
+  App/                 LittleKanbanApp scene, RootView's size-class switch and undo-manager
                        handover; BoardCommands — the menu bar, on both platforms, and AppWindowState;
                        FirstRunView — the starter picker a first launch comes up on;
                        AboutView and AppInfo — the macOS About window's panel;
@@ -158,7 +158,7 @@ Resources/
                        the colour UILaunchScreen names, in both schemes
   Localizable.xcstrings  the String Catalog every user-facing string extracts into
   PrivacyInfo.xcprivacy  the required-reason API declarations a submission is read for
-  Cardstock.entitlements  sandbox, user-selected files, the network client
+  LittleKanban.entitlements  sandbox, user-selected files, the network client
                        sync needs, and the App Group the widgets read through —
                        spelled with the team id on macOS and without it on iOS, which is
                        why there are five of these files and not one
@@ -642,7 +642,7 @@ same for the window and answers the sheet question.
 
 Every list in the design is drawn with content in it, so each one had no
 appearance when it was empty and rendered as blank space. `EmptyStateView` is
-the shared control — an SF Symbol, a headline in `CardstockFont.serif`, a
+the shared control — an SF Symbol, a headline in `LittleKanbanFont.serif`, a
 line of body copy, and at most one button — with the usual `Metrics.desk` /
 `Metrics.sheet` presets. `.desk` is sized to fit a 272pt board column as well as
 the 372pt inspector, so there is no third preset.
@@ -1206,10 +1206,10 @@ that never went anywhere.
 store calls behind a drag are unit-tested and pass whether or not anything on
 screen is wired to them; what a drag exercises is the wiring, and which container
 gets the gesture first. It is a separate target with a **separate scheme**, so
-`-scheme Cardstock` still runs exactly the unit suites it always has:
+`-scheme LittleKanban` still runs exactly the unit suites it always has:
 
-    xcrun simctl uninstall <device> com.n14395.Cardstock
-    xcodebuild test -scheme CardstockUITests \
+    xcrun simctl uninstall <device> com.n14395.LittleKanban
+    xcodebuild test -scheme LittleKanbanUITests \
       -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M4)'
 
 The uninstall is the fixture: the board is seeded on first launch and the
@@ -1226,9 +1226,9 @@ synthetic taps from outside, and driving the host Mac's pointer is a fight with
 whoever is using it rather than a verification. So there is a DEBUG launch
 argument beside `FirstRun`'s pair:
 
-    xcrun simctl launch <device> com.n14395.Cardstock -CardstockShowInbox YES
+    xcrun simctl launch <device> com.n14395.LittleKanban -LittleKanbanShowInbox YES
 
-`-CardstockHideInspector YES` is its pair, for the same reason: on an iPad in
+`-LittleKanbanHideInspector YES` is its pair, for the same reason: on an iPad in
 portrait the inspector is holding the room the panel needs, and a UI test that
 wants a column beside the panel has to close it.
 
@@ -1280,7 +1280,7 @@ header of both task panels — the desk's inspector and the phone's sheet — un
 it was taken out of them: it is the one thing on that panel nothing can be done
 with, it names nothing the user chose, and it cost the first line above the title
 on the surface where the title is the point. Where it *does* show is everywhere
-the app has to name a card outside itself — the `cardstock://` link Copy Link
+the app has to name a card outside itself — the `littlekanban://` link Copy Link
 puts on the pasteboard, the plain-text half of a drag, the due-date reminder,
 Spotlight, the Markdown export, and macOS's quick-add confirmation — plus the
 Trash row, where two cards with the same title have to be told apart. The search
@@ -2968,7 +2968,7 @@ then what the card is like. **No labels**: they were on that line for one build
 and came straight out — a card carries any number of them, they are the widest
 thing the line can be asked to hold, and none of them tells one result from
 another. Choosing one goes there — `BoardStore.reveal(_:)`, which is the same
-call a `cardstock://` link makes: the card's board (or the Inbox panel), the
+call a `littlekanban://` link makes: the card's board (or the Inbox panel), the
 card selected, its detail open, and the query cleared behind it.
 
 `BoardStore.searchResults` is the list, and it is the *only* thing the query
@@ -3958,7 +3958,7 @@ iPadOS 26 draws a menu bar for every app, and this one declared no commands into
 it: the iPad got the system's default File, Edit and View with nothing of the
 app's in any of them, while the shortcuts sheet went on teaching keys that
 reached nobody. `.commands { BoardCommands(...) }` is now on both scenes, built
-from the same vocabulary, and `MenuDeclarationTests` reads `CardstockApp.swift`
+from the same vocabulary, and `MenuDeclarationTests` reads `LittleKanbanApp.swift`
 as text to say so — a one-line modifier is exactly the kind of thing that can be
 deleted without another test noticing.
 
@@ -4245,7 +4245,7 @@ bulk step, where `registerUndo` bails, and the user's half-typed title would fol
 into the paste. The session state moves once, after the step closes.
 
 **Copy Link** is a separate verb on both cards' context menus and puts
-`cardstock://task/<uuid>` on the pasteboard. It is not a second
+`littlekanban://task/<uuid>` on the pasteboard. It is not a second
 representation on the ⌘C payload: that copy is *the card*, meant to paste back as
 a card or as a line of prose, while the link is a reference to a card that stays
 here. See **System integration** for what happens when one is opened.
@@ -4515,7 +4515,7 @@ drawer instead of a sidebar.
 
 **The layout is chosen by the idiom *and* the size class, not by OS and not by
 either one alone.** `RootSurface.resolve(idiom:horizontalSizeClass:)` in
-`CardstockApp.swift` is the whole decision, and each half answers a different
+`LittleKanbanApp.swift` is the whole decision, and each half answers a different
 question: the **idiom** says which device this is, the **horizontal size class**
 says how much of it this window has. `.pad` needs both.
 
@@ -4763,7 +4763,7 @@ other six the menu declares are in no card's vocabulary either way.
 ## Drag and drop
 
 A card in flight carries `TaskTransfer` — its id, title and code — under the
-app's own exported type, `com.n14395.Cardstock.task`, declared in
+app's own exported type, `com.n14395.LittleKanban.task`, declared in
 `project.yml` under `UTExportedTypeDeclarations` because a type the bundle does
 not declare is registered dynamically and resolves to one that conforms to
 nothing. The payload used to be the id as a bare `String`, which meant a column
@@ -4774,7 +4774,7 @@ card dropped into a text editor leaves behind, and is what ⌘C will put on the
 pasteboard. Checklist rows have their own, `SubtaskTransfer`, which carries the
 task it came from so a row cannot land in the other surface's checklist for a
 different task. **Columns have a third**, `ColumnTransfer`, under
-`com.n14395.Cardstock.column`, and it carries the *board* for the same
+`com.n14395.LittleKanban.column`, and it carries the *board* for the same
 reason: `moveColumn` is defined over the active board, and a second macOS window
 can be showing another one.
 
@@ -5689,9 +5689,9 @@ attached would pass it whatever the layout did.
 ## Persistence
 
 The board is saved as one JSON document — `BoardSnapshot`, written by
-`BoardFile` to `Application Support/Cardstock/board.json`. On macOS the app
+`BoardFile` to `Application Support/LittleKanban/board.json`. On macOS the app
 is sandboxed, so that resolves inside
-`~/Library/Containers/com.n14395.Cardstock/Data/`.
+`~/Library/Containers/com.n14395.LittleKanban/Data/`.
 
 A document rather than a database on purpose: `BoardStore` holds plain value
 types, so the whole board encodes in one pass and the port of the spec's logic
@@ -6120,7 +6120,7 @@ marker is picked from a group its pane holds alone, so a marker two panes could
 show cannot pass the suite while the strip does nothing.
 
 The version is at the bottom of the iOS sheet, in a 44pt row reading
-"Cardstock · Version 1.0 (1)"; macOS has the app menu's About window instead.
+"Little Kanban · Version 1.0 (1)"; macOS has the app menu's About window instead.
 
 macOS reaches it through ⌘, and nothing else has to be built. **iOS has three
 doors, all of which had to be added**: a Settings row at the foot of the phone's
@@ -6143,7 +6143,7 @@ preference and belongs in `UserDefaults`.** A preference in the snapshot costs
 twice: it is a schema change needing a version bump and a migration (C7), and it
 *travels*, so an import reaches across and changes the importing machine.
 
-- **Appearance** — `@AppStorage("CardstockAppearance")`, an `AppAppearance`.
+- **Appearance** — `@AppStorage("LittleKanbanAppearance")`, an `AppAppearance`.
   This is the spec's `state.dark`, the one state field dropped during the port,
   back as a preference. `RootView` resolves `appearance.colorScheme ?? colorScheme`
   into the palette *and* applies `.preferredColorScheme` below it, because
@@ -6159,7 +6159,7 @@ twice: it is a schema change needing a version bump and a migration (C7), and it
   dark board. It has caught the About panel, the first-run picker, the iOS
   settings sheet and the save-failure banner, so each of the five now builds its
   own `Palette` from the override and the colour scheme, and
-  `SystemWiringTests` holds the rule: no `ViewModifier` in `CardstockApp.swift`
+  `SystemWiringTests` holds the rule: no `ViewModifier` in `LittleKanbanApp.swift`
   reads the palette out of the environment.
 - **Sort order** — `UserDefaults`, key `BoardStore.sortOrderKey`, read back only by
   `BoardStore.restored()` so a preview or a test never picks up the developer's
@@ -6169,8 +6169,8 @@ twice: it is a schema change needing a version bump and a migration (C7), and it
   so `allowsCardDrag` is false for the other three. It applies where manual order
   is the ordering — a board's columns and the Inbox — and not to saved views, which
   impose orderings of their own.
-- **Reminders** — `UserDefaults`, keys `CardstockRemindersEnabled`,
-  `CardstockReminderHour`, `CardstockReminderMinute`, owned by
+- **Reminders** — `UserDefaults`, keys `LittleKanbanRemindersEnabled`,
+  `LittleKanbanReminderHour`, `LittleKanbanReminderMinute`, owned by
   `NotificationScheduler` rather than read by the view. The scheduler has to *act*
   on a change — moving the time of day moves every pending request — so the switch
   and the picker bind to `NotificationScheduler.shared` and it writes the defaults
@@ -6351,7 +6351,7 @@ twice: it is a schema change needing a version bump and a migration (C7), and it
   `applyStoredPreferences()` runs on the `restored(…)` path alone, so a store
   built any other way — a test, a preview — is untouched by any of it. The DEBUG
   launch overrides moved to the end of it from the end of `init`, which is where
-  they have to be: `-CardstockTab board` set the board and the stored
+  they have to be: `-LittleKanbanTab board` set the board and the stored
   preferences then put Today back over it. A launch argument is a person at a
   terminal saying where to open, and it beats what was stored.
 
@@ -6384,7 +6384,7 @@ twice: it is a schema change needing a version bump and a migration (C7), and it
 
 ### Export and import
 
-`.cardstock` is a JSON document declared by the bundle
+`.littlekanban` is a JSON document declared by the bundle
 (`UTExportedTypeDeclarations` and `CFBundleDocumentTypes` in `project.yml`,
 `UTType.simpleKanbanBoard` in code) and written through `BoardFile.encoder()` — the
 same encoder `board.json` is written with, so an export and a board file are one
@@ -6416,7 +6416,7 @@ it would quietly discard the history the JSON keeps.
   `BoardStore.placed` on the way in, so a card naming a column that did not come
   with the file lands in the Inbox rather than nowhere.
 
-**Three doors hand the app a file** — the import panel, a `.cardstock`
+**Three doors hand the app a file** — the import panel, a `.littlekanban`
 double-clicked in the Finder, and the same tapped in Files — and all three go
 through `SettingsNotice.importing(_:into:)`, so all three claim the sandbox's
 security scope (`BoardImportFile.read`), merge by the same rule, and *say what
@@ -6437,7 +6437,7 @@ panel should sheet onto the window rather than onto the Settings pane. Nothing i
 `source: .unbuilt` any more; the case stays in `AppCommandSource` so the next
 unbuilt command is declared rather than omitted.
 
-The macOS build is sandboxed, so `Resources/Cardstock.entitlements` grants
+The macOS build is sandboxed, so `Resources/LittleKanban.entitlements` grants
 `com.apple.security.files.user-selected.read-write` (it was read-only, which is
 enough to open a file and not to save one). `build.sh --sign` reads the
 entitlements back off the built binary, drops `get-task-allow` and re-applies them,
@@ -6531,7 +6531,7 @@ the user anything.
 
 ### Deep links, Handoff and Spotlight
 
-`cardstock://task/<uuid>`. The uuid and not the `code`: a code is minted per
+`littlekanban://task/<uuid>`. The uuid and not the `code`: a code is minted per
 board, is not unique across installs, and is the half a person retypes. `TaskLink`
 parses strictly, so a URL that is not one of ours is never mistaken for a task
 that has gone away.
@@ -6555,7 +6555,7 @@ rather than the one this platform was assumed to have: `isInspectorOpen` on both
 and on iOS also `sheetID`, the column, the tab and closing the drawer. The two do
 not collide — the phone has no inspector and the iPad presents no sheet, and each
 surface reads only the state it has. It used to branch `#if os(iOS)` straight
-into the phone's state, so on an iPad a `cardstock://` link, a notification
+into the phone's state, so on an iPad a `littlekanban://` link, a notification
 tap, a Handoff or a Spotlight hit selected the task and then showed **nothing at
 all** whenever the panel was closed. An archived task opens the Archive and skips
 the tab move.
@@ -6619,7 +6619,7 @@ Three rules the verbs share:
   toggling, because a rule saying *put the Urgent label on this* must mean that
   whether or not the label is there — a Shortcut run twice must not undo itself.
 
-Only **Complete** joins Add Task and Show Today in `CardstockShortcuts`.
+Only **Complete** joins Add Task and Show Today in `LittleKanbanShortcuts`.
 Registration buys a *spoken* phrase, and every other verb needs a card named
 first, which is not a thing anybody says to Siri; all of them are reachable from
 the Shortcuts editor regardless. `OpenTaskIntent` is the one with
@@ -6628,7 +6628,7 @@ it goes through `BoardStore.reveal`, the same call a deep link and a tapped
 notification make.
 
 `AddTaskIntent` has `openAppWhenRun = false` and therefore depends entirely on the
-store being registered before any scene exists: `CardstockApp.init()` builds it
+store being registered before any scene exists: `LittleKanbanApp.init()` builds it
 and calls `TaskIntentBridge.adopt(store)`. On `.onAppear` instead, a cold launch
 driven by an intent would perform before the first render and fail with "still
 starting up". `SystemWiringTests` asserts both the call and its position.
@@ -6651,9 +6651,9 @@ column that has since been deleted falls back to the Inbox rather than erroring.
 
 ### The share sheet
 
-`CardstockShare` is an app extension on **both** platforms: text or a link
+`LittleKanbanShare` is an app extension on **both** platforms: text or a link
 shared from any app becomes an Inbox card. It is the phone's equivalent of the
-desk's menu bar quick add, and on the desk it is what puts Cardstock in
+desk's menu bar quick add, and on the desk it is what puts Little Kanban in
 Safari's Share menu.
 
 **The extension writes one file and does nothing else.** It never opens
@@ -6720,7 +6720,7 @@ fails silently in its own way. Two things need a person:
   System Settings ▸ Extensions ▸ Sharing. A build run out of `build/` may not
   show up at all, and that is not a bug in the code.
 
-Both bundle identifiers — `com.n14395.Cardstock.Share` on each platform —
+Both bundle identifiers — `com.n14395.LittleKanban.Share` on each platform —
 need App IDs with the App Group capability. Automatic signing with
 `-allowProvisioningUpdates` mints them the way it did for the widgets, but the
 first build of this target needs the network and the team.
@@ -6745,7 +6745,7 @@ version bump — never as a case on `ActivityEntry.Kind`.
 Four widgets, on **macOS and iPadOS** — and on the phone too, because a widget
 extension that supports iOS supports every iOS device and refusing to draw on
 one would be a worse answer than drawing. They are a target of their own,
-`CardstockWidgets`, embedded in the app.
+`LittleKanbanWidgets`, embedded in the app.
 
 | Widget | Sizes | Shows | Configured with |
 | --- | --- | --- | --- |
@@ -6861,7 +6861,7 @@ fresh install shows before the app has been opened.
 
 ### Links
 
-`AppLink` is the vocabulary: `cardstock://` plus a task, a board, a column, a
+`AppLink` is the vocabulary: `littlekanban://` plus a task, a board, a column, a
 view, the Inbox, or a new capture. The app has answered the first since links
 existed — `TaskLink` now delegates to it — and the other five are what a widget
 taps into. They are one type rather than five call sites building strings because
@@ -6870,7 +6870,7 @@ a shape that drifted would be a widget whose taps do nothing.
 
 A column link carries the column's id and not its board's, so a column moved to
 another board keeps working and lands on the board it is on *now*. A host with
-anything after it — `cardstock://inbox/…` — is refused rather than read as the
+anything after it — `littlekanban://inbox/…` — is refused rather than read as the
 bare host, so a destination a later version might mean by it cannot be silently
 swallowed.
 
@@ -6896,7 +6896,7 @@ Pro 11": twenty attempts over a second and a half, the field reporting `nil`
 focus after every one. What the user saw was a panel on the right card with an
 empty title, no caret, and the first thing typed going nowhere — plus, because
 the editor was competing with the Inbox panel for a width that does not hold
-both, sometimes no editor at all. `cardstock://new` now calls exactly what
+both, sometimes no editor at all. `littlekanban://new` now calls exactly what
 the toolbar's `+` calls, and `BoardStore.inboxOpensBesideTheBoard` is what picks
 between the two. What happens *after* the title is typed is the iPad's own rule
 — see **A card made here opens in the editor** — so the widget's capture ends in
@@ -6987,8 +6987,8 @@ it so that the suite's source-tree rules — no unlocalised prose, no
 ## First run
 
 A first launch is three questions, all answered before any window is drawn: no
-board file on disk, `CardstockChoseStarter` not yet set, and the process is
-not the test host. When all three hold, `CardstockApp.init()` builds
+board file on disk, `LittleKanbanChoseStarter` not yet set, and the process is
+not the test host. When all three hold, `LittleKanbanApp.init()` builds
 `FirstRun.emptyStore()` — a store with **no tasks, no boards and no labels** —
 and the root covers it with `FirstRunView`: a `fullScreenCover` on iOS, a `sheet`
 on macOS, `interactiveDismissDisabled` and no Skip button.
@@ -7022,7 +7022,7 @@ list, and `BoardTemplate` is a board, its columns, its labels and its cards in
 the shape `importBoard` already takes.
 
 Both hooks a harness needs are `DEBUG`-only launch arguments —
-`-CardstockFirstRun YES` forces the picker, `-CardstockSkipFirstRun YES`
+`-LittleKanbanFirstRun YES` forces the picker, `-LittleKanbanSkipFirstRun YES`
 suppresses it. **The forced one is pointed at a throwaway file**, not
 `BoardFile.default`: an empty store aimed at somebody's real board would write
 over it on the next flush, which it did once before the file was redirected.
@@ -7039,7 +7039,7 @@ Both sites present through
 so the cover-on-iOS/sheet-on-macOS choice and the metrics that go with it cannot
 drift apart. `FirstRunView.Occasion` carries the three strings that differ, on
 the enum rather than in the view so `StartingOverTests` can read them — a picker
-that still says *Welcome to Cardstock* while it replaces somebody's board is
+that still says *Welcome to Little Kanban* while it replaces somebody's board is
 the failure the split exists to prevent.
 
 Two differences from a first launch, both about there being something to lose:
@@ -7454,7 +7454,7 @@ mirrorless stores decline.
 that something is being checked, and a device with sync switched off, no iCloud
 account, or a build carrying no entitlement has no such thing to offer: the list
 simply bounces. That is also why the gesture cannot be driven on a simulator,
-where `CARDSTOCK_CLOUDKIT` is off by construction — see
+where `LITTLEKANBAN_CLOUDKIT` is off by construction — see
 **`iphoneos*`, not `iphone*`**.
 
 **The bounce comes with it.** Every card surface asks for
@@ -7556,11 +7556,11 @@ schema is therefore stored as something CloudKit has natively: the due day as
 ### It is on, and what turning it on took
 
 The capability was a **provisioning step** rather than a code one, and that step
-is done: the App ID `com.n14395.Cardstock` is registered under team
+is done: the App ID `com.n14395.LittleKanban` is registered under team
 `P52946XHRJ` with iCloud ▸ CloudKit and push, and the container
-`iCloud.com.n14395.Cardstock` exists. `xcodebuild -allowProvisioningUpdates`
+`iCloud.com.n14395.LittleKanban` exists. `xcodebuild -allowProvisioningUpdates`
 did it — the Xcode account session was already good, so no dialog appeared — and
-the profiles it wrote are *Mac Team Provisioning Profile: com.n14395.Cardstock*
+the profiles it wrote are *Mac Team Provisioning Profile: com.n14395.LittleKanban*
 and its iOS twin, both carrying `icloud-container-identifiers` and
 `aps-environment`. All three `CODE_SIGN_ENTITLEMENTS` lines in `project.yml` now
 point at the `-CloudKit` files and the compilation condition beneath them is
@@ -7580,7 +7580,7 @@ record the result here, then promote (the dashboard steps are at the end of the
 checklist).
 
 **To put it back**, point the macOS `CODE_SIGN_ENTITLEMENTS` line at the plain
-`Resources/Cardstock.entitlements` and comment the condition out. Nothing else
+`Resources/LittleKanban.entitlements` and comment the condition out. Nothing else
 changes: `BoardSyncStore` reads the entitlement rather than being told about it,
 and a build without one runs the same records locally — the board is saved, and
 Settings ▸ Sync says it is not travelling.
@@ -7629,7 +7629,7 @@ is a preference:
   bundle on disk — two frameworks, one fact.
 - **iOS has no public API for it** (`SecTask` is macOS-only in the SDK, and the
   private spelling is not worth a rejection), so it reads the
-  `CARDSTOCK_CLOUDKIT` compilation condition, set beside the entitlements file
+  `LITTLEKANBAN_CLOUDKIT` compilation condition, set beside the entitlements file
   it has to agree with in `project.yml`.
 
 The suite is a third `nil`: it runs as the app's own test host under the app's own
@@ -7645,7 +7645,7 @@ without an image — which `actool` accepts silently — cannot happen by editin
 and not the other (`PackagingTests.everyAppIconSlotHasItsImage` holds the pairing
 from the other end).
 
-**The mark is a transcription, not an invention.** `Tools/cardstock-icon-4f.svg`
+**The mark is a transcription, not an invention.** `Tools/little-kanban-icon-4f.svg`
 is the design and sits beside the generator so the two can be read together:
 three columns of white cards under their header rules — stacks of **2, 3 and 1**,
 because a board is not a staircase — on a peach-to-violet diagonal, `#FFB48A`
@@ -7688,13 +7688,13 @@ which is what the `com.apple.security.network.client` entitlement is for.
 
 ## Tests
 
-`CardstockTests` is a Swift Testing target — `import Testing`, `@Test`,
+`LittleKanbanTests` is a Swift Testing target — `import Testing`, `@Test`,
 `#expect`, `#require`, no XCTest — and it builds for both destinations off the
 same scheme:
 
 ```sh
-xcodebuild test -project Cardstock.xcodeproj -scheme Cardstock -destination 'platform=macOS'
-xcodebuild test -project Cardstock.xcodeproj -scheme Cardstock \
+xcodebuild test -project LittleKanban.xcodeproj -scheme LittleKanban -destination 'platform=macOS'
+xcodebuild test -project LittleKanban.xcodeproj -scheme LittleKanban \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
@@ -7767,7 +7767,7 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `ExportImportTests` | the export document — every field through an encode and a decode, the bytes matching what `BoardFile` writes so an export and a `board.json` are one format, and the exporter being handed the whole board rather than the visible one. Then the **merge**, which is where an import destroys work: both sets of tasks kept, an id collision keeping *both* cards under two ids, a code collision re-minted on the arriving card, the serial climbing above both files so the next code is free, the label vocabulary growing without being rewritten, the arriving board landing beside the one already here, a column id already in use re-minted, a board already here keeping its name and gaining only the columns it is missing, the placement invariant holding after a stranger's file is folded in, the same file twice costing nothing and no ⌘Z — collision included — and neither the accent nor the active board being the file's to change. Plus a corrupt, newer or older file each answered properly, the Markdown export's shape, and the board type matching what `project.yml` declares |
 | `BackupRestoreTests` | `BoardFile.restore(from:)` and the caller it waited for — an older backup migrated on the way in, a damaged or newer one failing loudly rather than restoring an empty board, a restore replacing the live board as one ⌘Z that comes off cleanly, the board as it stood copied aside before it goes, a restore that could not read its backup costing nothing at all, and the race Phase A's per-URL write ordering exists for: a debounced write armed *before* a restore — from this store, and from a second store over the same path, where nothing can reach in and cancel it — dropped rather than landing on top of the restored board |
 | `NotificationTests` | due-date reminders against a fake `TaskNotificationCenter` and a throwaway defaults suite, never the machine's own — one request per due date and no more, a change rescheduling under the same identifier rather than adding a second, completing, reopening, archiving, deleting and undoing a delete each cancelling or restoring, no due date scheduling nothing however much the card is edited, a day already gone scheduling nothing, and the 64 nearest kept when the board wants more than the system will hold. Then the identifier: the task's id through every rename, move, archive and delete, and never anything that changes. Then permission: asked on the first due date *set* rather than at launch, never twice, never after a refusal, nothing published while it is refused or the switch is off, and everything the board wanted published the moment it arrives |
-| `DeepLinkTests` | `cardstock://task/<uuid>` — round-tripping the id, matched without regard to case, and six URLs that are not ours naming nothing; a link selecting its task and opening the surface it lives on, switching boards, opening the Archive, and clearing a query that would hide it; a link to a task that has gone and a malformed one each saying so, in different words, rather than failing silently; a link arriving before the scene, consumed by the resolve that reads it, and the same link twice counting twice. Then the *other* thing `onOpenURL` is handed: a `.cardstock` file opened from the Finder or from Files, merged as one undoable "Import Board" and reported on its own channel, and a file that is not a board saying so and leaving the board alone rather than being rejected as a broken link. Plus the scheme and the activity type declared in the bundle, without which nothing is ever handed to `onOpenURL` and every other probe here still passes |
+| `DeepLinkTests` | `littlekanban://task/<uuid>` — round-tripping the id, matched without regard to case, and six URLs that are not ours naming nothing; a link selecting its task and opening the surface it lives on, switching boards, opening the Archive, and clearing a query that would hide it; a link to a task that has gone and a malformed one each saying so, in different words, rather than failing silently; a link arriving before the scene, consumed by the resolve that reads it, and the same link twice counting twice. Then the *other* thing `onOpenURL` is handed: a `.littlekanban` file opened from the Finder or from Files, merged as one undoable "Import Board" and reported on its own channel, and a file that is not a board saying so and leaving the board alone rather than being rejected as a broken link. Plus the scheme and the activity type declared in the bundle, without which nothing is ever handed to `onOpenURL` and every other probe here still passes |
 | `PreferenceTests` | the line between the board and the person looking at it — the exact key set the board document is allowed to carry, at the top level and on a task and a board; every preference the settings surface offers set at once and the file not moving a byte, read back after a relaunch; the accent being the one setting on that screen that *is* board data, so the probe cannot pass by the store having stopped saving; session state changing nothing while the active board does; an in-memory store leaving no preference behind on the machine it ran on; and an imported file unable to reach across and change this machine's |
 | `IntentTests` | `AddTaskIntent` and `ShowTodayIntent` through `TaskIntentBridge` — no destination landing in the Inbox under an `IN-` code, a named column and a named board each landing where they say and minting from that board's prefix, a due date reaching the card, a column no board has refused rather than guessed at, and the entity queries offering what the board actually has, each column named with its board. All of it on the one store the app is holding, because a second store would be a board of its own written over the real one |
 | `SystemWiringTests` | the handovers every other Phase F suite passes without: the scheduler reconciled from the board, `.systemEntryPoints()` attached to a view, a store adopted into the intent bridge — **from the app's `init()`**, not a view's `.onAppear`, because an intent can perform before any scene exists — both detail surfaces publishing their task for Handoff, the settings surface reachable, and exactly one store over the real file. Read out of the source the way `MenuDeclarationTests` reads the menu: a scene has nothing to enumerate at runtime, and a modifier commented out of a `body` is invisible to everything else. This is `UndoHandoverTests`' question asked of the other joins. The three that were open at the end of Phase F were wrapped in `withKnownIssue` rather than deleted or left red — Swift Testing fails a block that *stops* failing, so wiring one up told the next agent to take the wrapper off in the same run, which is what happened |
@@ -7907,21 +7907,21 @@ carried its own minute `TimelineView`, each tick allocating a fresh
 without scripting taps:
 
 ```sh
-xcrun simctl launch <device> com.n14395.Cardstock -CardstockOpenSheet NW-118
-xcrun simctl launch <device> com.n14395.Cardstock -CardstockOpenDrawer YES
-xcrun simctl launch <device> com.n14395.Cardstock -CardstockTab search
-xcrun simctl launch <device> com.n14395.Cardstock -CardstockOpenSettings YES
-xcrun simctl launch <device> com.n14395.Cardstock -CardstockOpenBoardSettings YES
-xcrun simctl launch <device> com.n14395.Cardstock -CardstockOpenLink cardstock://new
-xcrun simctl launch <device> com.n14395.Cardstock -CardstockFirstRun YES
-xcrun simctl launch <device> com.n14395.Cardstock -CardstockSkipFirstRun YES
+xcrun simctl launch <device> com.n14395.LittleKanban -LittleKanbanOpenSheet NW-118
+xcrun simctl launch <device> com.n14395.LittleKanban -LittleKanbanOpenDrawer YES
+xcrun simctl launch <device> com.n14395.LittleKanban -LittleKanbanTab search
+xcrun simctl launch <device> com.n14395.LittleKanban -LittleKanbanOpenSettings YES
+xcrun simctl launch <device> com.n14395.LittleKanban -LittleKanbanOpenBoardSettings YES
+xcrun simctl launch <device> com.n14395.LittleKanban -LittleKanbanOpenLink littlekanban://new
+xcrun simctl launch <device> com.n14395.LittleKanban -LittleKanbanFirstRun YES
+xcrun simctl launch <device> com.n14395.LittleKanban -LittleKanbanSkipFirstRun YES
 ```
 
 The sheet argument takes either a task's `code` or its UUID, matched
-case-insensitively. The link argument takes any `cardstock://` URL and queues
+case-insensitively. The link argument takes any `littlekanban://` URL and queues
 it exactly as an arriving one is queued, so the four destinations a widget taps
 can be driven without a widget — and without `simctl openurl`, which stops to
-ask "Open in Cardstock?" and needs a tap of its own. It is how the iPad's
+ask "Open in Little Kanban?" and needs a tap of its own. It is how the iPad's
 capture bug above was found and how the fix was confirmed. The last two are about the starter picker, which otherwise
 stands between every one of the others and the board it means to drive: forcing it
 also redirects the session to a throwaway file, so a forced first run cannot write
@@ -7945,11 +7945,11 @@ stale — 131 of them, the first time this was done.
 # marks every string added since as stale.
 rm -rf /tmp/sk-sync-mac /tmp/sk-sync-ios
 for pair in 'platform=macOS:/tmp/sk-sync-mac' 'generic/platform=iOS Simulator:/tmp/sk-sync-ios'; do
-  xcodebuild -project Cardstock.xcodeproj -scheme Cardstock \
+  xcodebuild -project LittleKanban.xcodeproj -scheme LittleKanban \
     -destination "${pair%%:*}" -derivedDataPath "${pair##*:}" build
 done
 # xcstringstool is Xcode's own and is not on the default PATH.
-find /tmp/sk-sync-mac /tmp/sk-sync-ios -name '*.stringsdata' -path '*Cardstock.build*' \
+find /tmp/sk-sync-mac /tmp/sk-sync-ios -name '*.stringsdata' -path '*Little Kanban.build*' \
   | grep -v Tests | sed 's/^/--stringsdata /' | xargs \
   "$(xcode-select -p)/usr/bin/xcstringstool" sync Resources/Localizable.xcstrings
 ```
@@ -8031,8 +8031,8 @@ truncates, so a longer word cannot reflow the row.
 
 The product name, bundle identifier and display name live in `project.yml`
 (`PRODUCT_NAME`, `PRODUCT_BUNDLE_IDENTIFIER`, `CFBundleDisplayName`). The Xcode
-project, target and scheme are `Cardstock` (no space, so command-line
-invocations stay quote-free); the built app is `Cardstock.app`.
+project, target and scheme are `Little Kanban` (no space, so command-line
+invocations stay quote-free); the built app is `LittleKanban.app`.
 
 The wordmark shown in the iOS navigation drawer is in
 `Sources/IOS/PhoneNavDrawer.swift`. It is read off `CFBundleDisplayName` and drawn

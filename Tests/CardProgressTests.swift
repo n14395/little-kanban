@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// The checklist line along the foot of a card, and the fraction above it.
 ///

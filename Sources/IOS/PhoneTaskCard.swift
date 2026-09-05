@@ -425,7 +425,7 @@ struct PhoneTaskRowActions: ViewModifier {
         }
     }
 
-    /// The card's `cardstock://` link — the one verb here that does nothing
+    /// The card's `littlekanban://` link — the one verb here that does nothing
     /// to the board, which is why it never had an edge of its own: a swipe that
     /// silently changed the pasteboard would have been indistinguishable from a
     /// swipe that missed.

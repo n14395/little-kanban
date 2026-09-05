@@ -44,7 +44,7 @@ enum SyncSchema {
 
     /// The board's ubiquity container. Derived from the bundle identifier the
     /// same way Apple's tooling derives it, so the two cannot drift.
-    static let cloudContainerID = "iCloud.com.n14395.Cardstock"
+    static let cloudContainerID = "iCloud.com.n14395.LittleKanban"
 }
 
 // MARK: - Tasks

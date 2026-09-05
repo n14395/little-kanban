@@ -41,7 +41,7 @@ struct ThemeDocument: FileDocument {
         var version: Int
         var themes: [Theme]
 
-        static let marker = "com.n14395.Cardstock.theme"
+        static let marker = "com.n14395.LittleKanban.theme"
         static let currentVersion = 1
     }
 

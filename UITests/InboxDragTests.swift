@@ -27,8 +27,8 @@ import XCTest
 ///
 /// The board is seeded on first launch, so a fresh install is the fixture:
 ///
-///     xcrun simctl uninstall <device> com.n14395.Cardstock
-///     xcodebuild test -scheme CardstockUITests \
+///     xcrun simctl uninstall <device> com.n14395.LittleKanban
+///     xcodebuild test -scheme LittleKanbanUITests \
 ///       -destination 'platform=iOS Simulator,name=iPad Air 13-inch (M4)'
 ///
 /// Without that the second run measures the board the first run left behind —
@@ -53,11 +53,11 @@ final class InboxDragTests: XCTestCase {
         )
         let app = XCUIApplication()
         app.launchArguments = [
-            "-CardstockSkipFirstRun", "YES",
-            "-CardstockShowInbox", "YES",
+            "-LittleKanbanSkipFirstRun", "YES",
+            "-LittleKanbanShowInbox", "YES",
             // On an iPad in portrait the inspector is holding the room the
             // panel needs; with it open there is no column to drag to.
-            "-CardstockHideInspector", "YES",
+            "-LittleKanbanHideInspector", "YES",
         ]
         app.launch()
         return app

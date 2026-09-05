@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// The foot of the source list, and that all three platforms draw the same
 /// thing there.

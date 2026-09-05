@@ -25,7 +25,7 @@ import SwiftData
 /// on: somebody signed in to iCloud who set the app up on two devices expects
 /// the second one to show their board.
 enum SyncPreference {
-    static let storageKey = "CardstockSyncEnabled"
+    static let storageKey = "LittleKanbanSyncEnabled"
 
     /// Whether sync can work in this build at all, which is a fact about how
     /// the app was signed rather than anything the person chose. See
@@ -139,7 +139,7 @@ extension SyncStoring {
 
 @MainActor
 final class BoardSyncStore: SyncStoring {
-    private static let logger = Logger(subsystem: "com.n14395.Cardstock", category: "sync")
+    private static let logger = Logger(subsystem: "com.n14395.LittleKanban", category: "sync")
 
     private(set) var container: ModelContainer
     private var context: ModelContext { container.mainContext }
@@ -426,7 +426,7 @@ final class BoardSyncStore: SyncStoring {
         if vacuuming {
             description.setOption(true as NSNumber, forKey: NSSQLiteManualVacuumOption)
         }
-        let container = NSPersistentContainer(name: "CardstockMaintenance", managedObjectModel: model)
+        let container = NSPersistentContainer(name: "LittleKanbanMaintenance", managedObjectModel: model)
         container.persistentStoreDescriptions = [description]
         var failure: Error?
         container.loadPersistentStores { _, error in failure = error }

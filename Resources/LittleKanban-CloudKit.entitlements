@@ -21,7 +21,7 @@
 	</array>
 	<key>com.apple.developer.icloud-container-identifiers</key>
 	<array>
-		<string>iCloud.com.n14395.Cardstock</string>
+		<string>iCloud.com.n14395.LittleKanban</string>
 	</array>
 	<!-- CloudKit tells the app about a change on another device by pushing a
 	     silent notification; without this the board only catches up on the
@@ -38,7 +38,7 @@
 	     iOS insists it does not, which is why the two files disagree. -->
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>P52946XHRJ.group.com.n14395.Cardstock</string>
+		<string>P52946XHRJ.group.com.n14395.LittleKanban</string>
 	</array>
 </dict>
 </plist>

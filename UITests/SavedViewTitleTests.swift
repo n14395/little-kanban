@@ -15,9 +15,9 @@ import XCTest
 /// with two meanings and no way to tell which one you are about to get. It has
 /// to close the drawer and change nothing.
 ///
-///     xcodebuild test -scheme CardstockUITests \
+///     xcodebuild test -scheme LittleKanbanUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-///       -only-testing:CardstockUITests/SavedViewTitleTests
+///       -only-testing:LittleKanbanUITests/SavedViewTitleTests
 final class SavedViewTitleTests: XCTestCase {
     /// The header's title, found by identifier rather than by label: "Today" is
     /// a word the cards under it also use — a due chip says it — and a query by
@@ -30,7 +30,7 @@ final class SavedViewTitleTests: XCTestCase {
 
     private func launched() -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-CardstockSkipFirstRun", "YES"]
+        app.launchArguments = ["-LittleKanbanSkipFirstRun", "YES"]
         app.launch()
         XCTAssertTrue(app.buttons["Show boards"].waitForExistence(timeout: 15),
                       "the board never came up")

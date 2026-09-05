@@ -445,7 +445,7 @@ struct BoardToolbar: View {
     /// A result the user picked: go to the card, and the search is over.
     /// ``BoardStore/reveal(_:)`` is the whole errand — the card's board, the
     /// card selected, its detail open — and is the same call a
-    /// `cardstock://` link makes.
+    /// `littlekanban://` link makes.
     private func choose(_ id: TaskItem.ID) {
         // The field first, and then the card. `reveal` clears the query, which
         // is a change this view watches — and a watcher that saw the field
@@ -830,7 +830,7 @@ struct BoardToolbar: View {
     /// closure, and a `View`'s statics are `@MainActor` by inheritance. A
     /// `String` is `Sendable`, so there is nothing here to make safe — only an
     /// isolation the name never needed.
-    private nonisolated static let barSpace = "Cardstock.toolbar"
+    private nonisolated static let barSpace = "LittleKanban.toolbar"
 
     /// The field, folded.
     ///

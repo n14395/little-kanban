@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// What the app writes down for its widgets.
 ///
@@ -320,13 +320,13 @@ import Testing
         let strangers = [
             "https://example.com/board/\(SeedData.defaultBoard.id.uuidString)",
             "otherapp://inbox",
-            "cardstock://board/not-a-uuid",
-            "cardstock://board",
-            "cardstock://elsewhere",
+            "littlekanban://board/not-a-uuid",
+            "littlekanban://board",
+            "littlekanban://elsewhere",
             // A host with something after it is not that host with something on
             // the end — it is a shape this build does not know.
-            "cardstock://inbox/\(UUID().uuidString)",
-            "cardstock://new/now",
+            "littlekanban://inbox/\(UUID().uuidString)",
+            "littlekanban://new/now",
         ]
         for text in strangers {
             let url = try #require(URL(string: text), Comment(rawValue: text))
@@ -335,7 +335,7 @@ import Testing
     }
 
     @Test func theSchemeAndHostAreMatchedWithoutRegardToCase() throws {
-        let url = try #require(URL(string: "Cardstock://INBOX"))
+        let url = try #require(URL(string: "LittleKanban://INBOX"))
         #expect(AppLink.destination(of: url) == .inbox)
     }
 }
@@ -484,17 +484,17 @@ import Testing
     /// checked rather than one spelling.
     @Test func everyBundleJoinsTheGroupItsPlatformNames() throws {
         guard SourceTree.isReachable else { return }
-        let mac = ["Cardstock-CloudKit.entitlements", "Cardstock.entitlements",
-                   "CardstockWidgets.entitlements", "CardstockShare.entitlements"]
-        let ios = ["Cardstock-iOS-CloudKit.entitlements", "CardstockWidgets-iOS.entitlements",
-                   "CardstockShare-iOS.entitlements"]
+        let mac = ["LittleKanban-CloudKit.entitlements", "LittleKanban.entitlements",
+                   "LittleKanbanWidgets.entitlements", "LittleKanbanShare.entitlements"]
+        let ios = ["LittleKanban-iOS-CloudKit.entitlements", "LittleKanbanWidgets-iOS.entitlements",
+                   "LittleKanbanShare-iOS.entitlements"]
 
         for file in mac {
-            #expect(try groups(in: file) == ["P52946XHRJ.group.com.n14395.Cardstock"],
+            #expect(try groups(in: file) == ["P52946XHRJ.group.com.n14395.LittleKanban"],
                     "\(file) names another group")
         }
         for file in ios {
-            #expect(try groups(in: file) == ["group.com.n14395.Cardstock"],
+            #expect(try groups(in: file) == ["group.com.n14395.LittleKanban"],
                     "\(file) names another group")
         }
 
@@ -504,12 +504,12 @@ import Testing
         // consistent with each other.
         #if os(macOS)
         #expect(try groups(in: mac[0]) == [WidgetShare.appGroup])
-        #expect(try groups(in: "CardstockWidgets.entitlements") == [WidgetShare.appGroup])
-        #expect(try groups(in: "CardstockShare.entitlements") == [WidgetShare.appGroup])
+        #expect(try groups(in: "LittleKanbanWidgets.entitlements") == [WidgetShare.appGroup])
+        #expect(try groups(in: "LittleKanbanShare.entitlements") == [WidgetShare.appGroup])
         #else
         #expect(try groups(in: ios[0]) == [WidgetShare.appGroup])
-        #expect(try groups(in: "CardstockWidgets-iOS.entitlements") == [WidgetShare.appGroup])
-        #expect(try groups(in: "CardstockShare-iOS.entitlements") == [WidgetShare.appGroup])
+        #expect(try groups(in: "LittleKanbanWidgets-iOS.entitlements") == [WidgetShare.appGroup])
+        #expect(try groups(in: "LittleKanbanShare-iOS.entitlements") == [WidgetShare.appGroup])
         #endif
     }
 
@@ -676,6 +676,6 @@ import Testing
         let kinds = WidgetShare.Kind.all
         #expect(kinds.count == 4)
         #expect(Set(kinds).count == kinds.count)
-        #expect(kinds.allSatisfy { $0.hasPrefix("Cardstock") })
+        #expect(kinds.allSatisfy { $0.hasPrefix("LittleKanban") })
     }
 }

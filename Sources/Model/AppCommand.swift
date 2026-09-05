@@ -722,7 +722,7 @@ enum AppCommand: String, CaseIterable, Identifiable, Sendable {
         case .archiveTask:
             String(localized: "Archive Task", comment: "Task menu item that files the selected task away")
         case .copyLink:
-            String(localized: "Copy Link", comment: "Task menu item that puts the task's cardstock:// link on the pasteboard")
+            String(localized: "Copy Link", comment: "Task menu item that puts the task's littlekanban:// link on the pasteboard")
         case .unarchiveTask:
             String(localized: "Restore Task", comment: "Task menu item that takes a task back out of the archive")
         case .archiveCompleted:

@@ -11,13 +11,13 @@ import SwiftUI
 /// Answered **once**, and before ``BoardStore`` is built: building it is what
 /// creates the file this asks about.
 enum FirstRun {
-    static let storageKey = "CardstockChoseStarter"
+    static let storageKey = "LittleKanbanChoseStarter"
 
     /// The picker stands between a launch argument and the board it means to
     /// drive, so a harness needs to be able to say which it wants:
     ///
-    ///     xcrun simctl launch <device> com.n14395.Cardstock -CardstockFirstRun YES
-    ///     xcrun simctl launch <device> com.n14395.Cardstock -CardstockSkipFirstRun YES
+    ///     xcrun simctl launch <device> com.n14395.LittleKanban -LittleKanbanFirstRun YES
+    ///     xcrun simctl launch <device> com.n14395.LittleKanban -LittleKanbanSkipFirstRun YES
     ///
     /// A *forced* first run is not one: there is a board on this machine, and
     /// `emptyStore` hands the session a throwaway file and no records rather
@@ -25,13 +25,13 @@ enum FirstRun {
     /// write over it the moment the app was quit, and pointed at their iCloud
     /// it would rehearse on every device they own.
     #if DEBUG
-    static let isForced = UserDefaults.standard.bool(forKey: "CardstockFirstRun")
+    static let isForced = UserDefaults.standard.bool(forKey: "LittleKanbanFirstRun")
     #endif
 
     static let isPending: Bool = {
         #if DEBUG
         if isForced { return true }
-        if UserDefaults.standard.bool(forKey: "CardstockSkipFirstRun") { return false }
+        if UserDefaults.standard.bool(forKey: "LittleKanbanSkipFirstRun") { return false }
         #endif
         // The suite launches this app as its test host, and a test host that
         // stops at a modal picker is a test host with no board on it.
@@ -69,7 +69,7 @@ enum FirstRun {
         #if DEBUG
         if isForced {
             file = BoardFile(url: URL.temporaryDirectory
-                .appending(path: "CardstockFirstRun-\(UUID().uuidString)/board.json"))
+                .appending(path: "LittleKanbanFirstRun-\(UUID().uuidString)/board.json"))
             sync = nil
         }
         #endif
@@ -387,14 +387,14 @@ struct FirstRunView: View {
 ///
 /// On the occasion rather than in the view because the difference between the
 /// two is entirely in these three strings — and because a picker that still
-/// says *Welcome to Cardstock* while it is about to replace somebody's
+/// says *Welcome to Little Kanban* while it is about to replace somebody's
 /// board is the failure this whole arrangement exists to avoid, which
 /// `StartingOverTests` can only check if it can read them.
 extension FirstRunView.Occasion {
     var title: String {
         switch self {
         case .firstLaunch:
-            String(localized: "Welcome to Cardstock", comment: "First-run picker title")
+            String(localized: "Welcome to Little Kanban", comment: "First-run picker title")
         case .startingOver:
             String(localized: "Start over", comment: "Starter picker title when a board is being replaced")
         }

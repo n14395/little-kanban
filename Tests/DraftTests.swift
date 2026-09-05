@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
 /// Half-typed text belongs to the task it was typed against, not just to the
 /// surface it was typed on: the inspector and the sheet can be open on

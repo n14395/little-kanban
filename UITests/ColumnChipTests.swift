@@ -16,7 +16,7 @@ import XCTest
 /// **iPhone portrait only** — on its side the phone drops the chips for the
 /// per-page headings, and the iPad has no strip at all.
 ///
-///     xcodebuild test -scheme CardstockUITests \
+///     xcodebuild test -scheme LittleKanbanUITests \
 ///       -destination 'platform=iOS Simulator,name=iPhone 17e'
 final class ColumnChipTests: XCTestCase {
     override func setUp() {
@@ -43,12 +43,12 @@ final class ColumnChipTests: XCTestCase {
 
         let app = XCUIApplication()
         app.launchArguments = [
-            "-CardstockSkipFirstRun", "YES",
+            "-LittleKanbanSkipFirstRun", "YES",
             // The board, said out loud. A launch lands on **Today** now — see
             // `BoardStore.landingSurface` — and Today has no columns, so a suite
             // about the column strip has to name the surface the strip is on
             // rather than take it for granted.
-            "-CardstockTab", "board",
+            "-LittleKanbanTab", "board",
         ]
         app.launch()
 

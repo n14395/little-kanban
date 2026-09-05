@@ -26,7 +26,7 @@ struct MenuBarQuickAdd: Scene {
     @AppStorage(Preferences.menuBarExtraKey) private var isShowing = true
 
     var body: some Scene {
-        MenuBarExtra("Cardstock", systemImage: "checklist", isInserted: $isShowing) {
+        MenuBarExtra("Little Kanban", systemImage: "checklist", isInserted: $isShowing) {
             MenuBarQuickAddView()
                 .environment(store)
         }
@@ -48,7 +48,7 @@ private struct MenuBarQuickAddView: View {
     /// written, and a capture made from another app is exactly the case the
     /// Inbox is for — deciding which board it belongs on is the thing the user
     /// is deferring by capturing at all. Anyone who wants Up Next picks it once.
-    @AppStorage("CardstockQuickAddDestination") private var destinationID = ""
+    @AppStorage("LittleKanbanQuickAddDestination") private var destinationID = ""
     @State private var draft = ""
     /// Tokens handed back out of this draft — the extra's own, because its
     /// field is its own. See ``CapturePreview``.

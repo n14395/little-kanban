@@ -14,7 +14,7 @@ import UIKit
 /// compare rather than re-apply on every keystroke.
 struct DescriptionStyle: Equatable {
     /// The colour type the two text systems take, named here for the reason
-    /// ``CardstockFont/Platform`` is named there: `NSColor` and `UIColor` differ
+    /// ``LittleKanbanFont/Platform`` is named there: `NSColor` and `UIColor` differ
     /// in nothing this asks of them.
     #if os(macOS)
     typealias Ink = NSColor
@@ -22,7 +22,7 @@ struct DescriptionStyle: Equatable {
     typealias Ink = UIColor
     #endif
 
-    var font: CardstockFont.Platform
+    var font: LittleKanbanFont.Platform
     var textColor: Ink
     var linkColor: Ink
     var lineSpacing: CGFloat

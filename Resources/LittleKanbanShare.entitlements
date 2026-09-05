@@ -11,7 +11,7 @@
 	     into the group and the app drains it. See CaptureInbox. -->
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>P52946XHRJ.group.com.n14395.Cardstock</string>
+		<string>P52946XHRJ.group.com.n14395.LittleKanban</string>
 	</array>
 </dict>
 </plist>

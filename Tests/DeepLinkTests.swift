@@ -1,8 +1,8 @@
 import Foundation
 import Testing
-@testable import Cardstock
+@testable import LittleKanban
 
-/// `cardstock://task/<uuid>` — the one vocabulary every way into the app from
+/// `littlekanban://task/<uuid>` — the one vocabulary every way into the app from
 /// outside it speaks: a pasted link, a tapped notification, a Handoff, a
 /// Spotlight result.
 ///
@@ -32,17 +32,17 @@ import Testing
     /// A URL typed by a person, or normalised by whatever passed it along.
     @Test func theSchemeAndHostAreMatchedWithoutRegardToCase() throws {
         let id = TestBoard.cafe
-        let shouty = try #require(URL(string: "Cardstock://TASK/\(id.uuidString.uppercased())"))
+        let shouty = try #require(URL(string: "LittleKanban://TASK/\(id.uuidString.uppercased())"))
         #expect(TaskLink.taskID(in: shouty) == id)
     }
 
     @Test func aURLThatIsNotOneOfOursNamesNothing() throws {
         let strangers = [
             "https://example.com/task/\(TestBoard.cafe.uuidString)",
-            "cardstock://board/\(TestBoard.cafe.uuidString)",
-            "cardstock://task/not-a-uuid",
-            "cardstock://task/",
-            "cardstock://task/NW-122",
+            "littlekanban://board/\(TestBoard.cafe.uuidString)",
+            "littlekanban://task/not-a-uuid",
+            "littlekanban://task/",
+            "littlekanban://task/NW-122",
             "otherapp://task/\(TestBoard.cafe.uuidString)",
         ]
         for text in strangers {
@@ -266,7 +266,7 @@ import Testing
     @Test func theURLSchemeIsDeclaredInTheBundle() throws {
         let declared = try #require(
             Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]],
-            "the test host declares no URL types, so cardstock:// reaches nothing"
+            "the test host declares no URL types, so littlekanban:// reaches nothing"
         )
         let schemes = declared.flatMap { ($0["CFBundleURLSchemes"] as? [String]) ?? [] }
         #expect(schemes.contains(TaskLink.scheme),
@@ -275,14 +275,14 @@ import Testing
 
     // MARK: Opened files
 
-    /// The bundle claims `.cardstock` as its own document type, so the
+    /// The bundle claims `.littlekanban` as its own document type, so the
     /// Finder and Files both hand one to `onOpenURL`. Before this branch the
     /// user's own board file arrived at the link parser and was told it was not
     /// a task link, which is the worst answer available.
     @Test func openingABoardFileImportsItRatherThanRejectingIt() throws {
         let store = TestBoard.store(tasks: TestBoard.tasks(on: SeedData.defaultBoard))
         let before = store.tasks.count
-        let url = try Self.writingAFile(named: "shared.cardstock",
+        let url = try Self.writingAFile(named: "shared.littlekanban",
                                         bytes: ForeignBoard.snapshot().encoded())
         defer { try? FileManager.default.removeItem(at: url) }
 
@@ -297,7 +297,7 @@ import Testing
     @Test func anOpenedFileIsUndoableAsOneStep() throws {
         let (store, undo) = TestBoard.undoing(tasks: TestBoard.tasks(on: SeedData.defaultBoard))
         let before = store.tasks.map(\.id)
-        let url = try Self.writingAFile(named: "shared.cardstock",
+        let url = try Self.writingAFile(named: "shared.littlekanban",
                                         bytes: ForeignBoard.snapshot().encoded())
         defer { try? FileManager.default.removeItem(at: url) }
 
@@ -317,7 +317,7 @@ import Testing
     @Test func openingSomethingThatIsNotABoardSaysSoAndChangesNothing() throws {
         let store = TestBoard.store(tasks: TestBoard.tasks(on: SeedData.defaultBoard))
         let before = store.tasks.map(\.id)
-        let url = try Self.writingAFile(named: "notes.cardstock",
+        let url = try Self.writingAFile(named: "notes.littlekanban",
                                         bytes: Data("this is not a board".utf8))
         defer { try? FileManager.default.removeItem(at: url) }
 
@@ -330,7 +330,7 @@ import Testing
 
     @Test func anOpenedFileNoticeIsDismissible() throws {
         let store = TestBoard.store(tasks: TestBoard.tasks(on: SeedData.defaultBoard))
-        let url = try Self.writingAFile(named: "notes.cardstock", bytes: Data())
+        let url = try Self.writingAFile(named: "notes.littlekanban", bytes: Data())
         defer { try? FileManager.default.removeItem(at: url) }
 
         let router = opened(url, in: store)
