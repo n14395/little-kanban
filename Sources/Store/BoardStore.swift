@@ -103,6 +103,10 @@ enum TaskField: String, Hashable, Sendable, CaseIterable {
     /// One sub-task's text. Unlike the others it needs saying *which* sub-task,
     /// which is why an editing session is keyed by a sub-task id as well.
     case subtask
+    /// The repeat rule, edited as a picker session for `due`'s reason: the
+    /// popover writes through on every tick of the stepper, and finishing has
+    /// to leave one activity entry naming what was settled on.
+    case recurrence
 
     /// Fields that are one line by definition, so a commit folds anything
     /// pasted into them flat.
@@ -557,14 +561,22 @@ final class BoardStore {
     /// What has been thrown away, newest last, still inside its thirty days —
     /// see ``TrashedItem`` and ``sweepTrash()``.
     ///
-    /// **Local to this device.** It rides in `board.json`, which is written on
-    /// every save whether or not CloudKit is on, but it has no record type in
-    /// the sync schema: the two questions "what is on my board" and "what did I
-    /// throw away here" are not the same question, and a trash that arrived from
-    /// another Mac would offer to restore a card this one has never seen. What
-    /// crosses devices is the board — a card trashed on one simply leaves the
-    /// board on both. See `restored(file:sync:)`, which reads the file for this
-    /// even when the board itself came from the records.
+    /// **One bin across every device, since ``StoredTrash``.** It rides in
+    /// `board.json` as it always has, and in the records too: the board is
+    /// shared, so what was thrown off it is part of the same story — a card
+    /// trashed on the Mac can be fished back out on the phone. It used to be
+    /// local to each device, on the argument that "what did I throw away
+    /// *here*" was its own question; what that meant in practice was a card
+    /// that vanished from every other device with no trash row anywhere to
+    /// explain where it went.
+    ///
+    /// Two consequences worth knowing. A restore, a delete, an Empty Trash and
+    /// the sweep all travel — each is a licensed deletion of the row, see
+    /// ``SyncIDs``. And the sweep runs on every device under **that device's
+    /// own retention setting**, so the shortest retention on the account is
+    /// the one the bin effectively keeps: `trashRetention` is a preference,
+    /// not board data, and a shared bin swept by two clocks is emptied by the
+    /// faster one.
     private(set) var trash: [TrashedItem] = []
 
     /// The card on screen saying what the app has just done, or `nil`.
@@ -613,6 +625,13 @@ final class BoardStore {
     /// paths that must *not* stamp — undo, and a board arriving from a file or
     /// from the records — assign the stamp explicitly straight after the list,
     /// which lands on top of what the observer wrote. See ``apply(_:)``.
+    /// When this device last merged each list — the watermark ``SharedList``
+    /// tells an addition from a deletion with. Local to this machine and never
+    /// pushed; see ``BoardSnapshot/viewsSyncedAt``.
+    private(set) var viewsSyncedAt: Date?
+    private(set) var paletteSyncedAt: Date?
+    private(set) var themesSyncedAt: Date?
+
     private(set) var viewsChangedAt: Date?
     private(set) var paletteChangedAt: Date?
     private(set) var themesChangedAt: Date?
@@ -955,6 +974,7 @@ final class BoardStore {
         case text(String)
         case day(CalendarDay?)
         case priority(Priority)
+        case rule(RecurrenceRule?)
     }
 
     /// An open session: the value the field started on, and the entry the
@@ -1143,9 +1163,14 @@ final class BoardStore {
                 try? sync.backfillBoardSymbols(from: local.boards)
                 if let marked = try? sync.load() { synced = marked }
             }
-            // The board came from the records. The trash did not and never
-            // does — see `BoardStore.trash` — so it is read back off the file,
-            // which is written on every save whether sync is on or not.
+            // The board came from the records, and since `StoredTrash` so does
+            // the trash — unioned with the file's, because the file can hold
+            // rows the records have never heard of: the upgrade, where every
+            // bin on every device was local, and the launch push below is what
+            // sends the difference up. A row only the file holds is kept, which
+            // is the recoverable direction; a deletion this device slept
+            // through comes back once and can be deleted again, and the next
+            // one travels.
             //
             // The other three are the ones with two possible answers: the saved
             // views, the palette and the themes are one blob apiece in one
@@ -1162,9 +1187,15 @@ final class BoardStore {
                 tasks: synced.tasks, boards: synced.boards, activeBoardID: synced.activeBoardID,
                 labels: synced.labels, themes: shared.themes,
                 nextSerial: synced.nextSerial,
-                trash: local?.trash ?? [],
+                trash: Self.unionedTrash(records: synced.trash, file: local?.trash ?? []),
                 views: shared.views,
                 savedColors: shared.palette,
+                // The watermarks come out of the merge rather than off the
+                // clock, so each list's only ever says what was actually
+                // heard — see ``SharedList/Outcome``.
+                viewsSyncedAt: shared.viewsSyncedAt,
+                paletteSyncedAt: shared.paletteSyncedAt,
+                themesSyncedAt: shared.themesSyncedAt,
                 viewsChangedAt: shared.viewsChangedAt,
                 paletteChangedAt: shared.paletteChangedAt,
                 themesChangedAt: shared.themesChangedAt,
@@ -1178,6 +1209,14 @@ final class BoardStore {
             store.syncBaseline = .of(synced)
             store.sweepTrash()
             store.sweepDone()
+            // What the merge decided goes back to the records now, not at the
+            // next edit. A session that merged a shared list, moved its
+            // watermark past the outcome and then never happened to save left
+            // the union on this machine alone — and a list item only this
+            // device holds, under a watermark that has moved past it, reads as
+            // a deletion at the next merge. The push is a no-op diff whenever
+            // the merge changed nothing, which is every ordinary launch.
+            store.pushToSync()
             return store
         }
 
@@ -1229,6 +1268,19 @@ final class BoardStore {
             store.pushToSync()
         }
         return store
+    }
+
+    /// The records' bin plus whatever the file holds that they do not.
+    ///
+    /// By id, records first: an entry is immutable, so two devices can only
+    /// agree about one that both hold, and there is no newer side to prefer.
+    /// The file-only remainder is the upgrade's — rows trashed back when every
+    /// bin was local — and it rides at the end, where the launch push finds it
+    /// and sends it up. Display order is by date on the surface either way;
+    /// see `trashedItems`.
+    private static func unionedTrash(records: [TrashedItem], file: [TrashedItem]) -> [TrashedItem] {
+        let held = Set(records.map(\.id))
+        return records + file.filter { !held.contains($0.id) }
     }
 
     /// Hands the scheduler the whole list, which is the only argument it takes.
@@ -1322,6 +1374,9 @@ final class BoardStore {
         trash: [TrashedItem] = [],
         views: [SavedView] = SavedView.seededAll,
         savedColors: [PaletteSwatch] = PaletteSwatch.seed,
+        viewsSyncedAt: Date? = nil,
+        paletteSyncedAt: Date? = nil,
+        themesSyncedAt: Date? = nil,
         viewsChangedAt: Date? = nil,
         paletteChangedAt: Date? = nil,
         themesChangedAt: Date? = nil,
@@ -1354,6 +1409,9 @@ final class BoardStore {
         // written before v15 carries three lists nobody dated, and saying so is
         // what makes the first merge keep both sides. A `didSet` cannot fire
         // during an initialiser, so these are exactly what was handed over.
+        self.viewsSyncedAt = viewsSyncedAt
+        self.paletteSyncedAt = paletteSyncedAt
+        self.themesSyncedAt = themesSyncedAt
         self.viewsChangedAt = viewsChangedAt
         self.paletteChangedAt = paletteChangedAt
         self.themesChangedAt = themesChangedAt
@@ -1448,7 +1506,9 @@ final class BoardStore {
                       activeBoardID: activeBoardID, trash: trash,
                       views: views, palette: savedColors, themes: themes,
                       viewsChangedAt: viewsChangedAt, paletteChangedAt: paletteChangedAt,
-                      themesChangedAt: themesChangedAt)
+                      themesChangedAt: themesChangedAt,
+                      viewsSyncedAt: viewsSyncedAt, paletteSyncedAt: paletteSyncedAt,
+                      themesSyncedAt: themesSyncedAt)
     }
 
     /// Takes on what the load found: a failure to show, and whether saving has
@@ -1677,8 +1737,11 @@ final class BoardStore {
     /// would have been saying it in the present tense, once per pull.
     ///
     /// Compared against exactly what `adoptSyncedBoard` takes and nothing else:
-    /// the trash and the active board stay this device's own across a merge, so
-    /// a difference in one of them is not something arriving.
+    /// the active board stays this device's own across a merge, so a
+    /// difference in it is not something arriving. The trash *is* compared
+    /// since it travels — as a set, because the records hand it back in date
+    /// order and this device appends, and two spellings of the same bin are
+    /// not news.
     ///
     /// **The two shared lists are compared after the merge rule has run, not
     /// before.** What arrives from the records is one of two answers rather
@@ -1688,17 +1751,21 @@ final class BoardStore {
     /// were not the seeded seven, which is a stamp in Settings saying another
     /// device had changed something when none had.
     ///
-    /// The themes are left out on purpose, as they always have been: they are
-    /// resolved at launch — see `restored(file:sync:)` — because repainting the
-    /// window under somebody mid-sentence is worse than showing them yesterday's
-    /// palette until they next open the app.
+    /// The theme *slots* are left out on purpose: which theme is showing stays
+    /// this machine's until the next launch — see `adoptSyncedBoard`, where the
+    /// custom list arrives live and the slots deliberately do not. Comparing
+    /// the whole of `ThemeSettings` here would report news on every pull to any
+    /// pair of devices showing different themes, forever, about a difference
+    /// the merge never adopts.
     private func brings(somethingNew incoming: BoardSnapshot, resolvedTo shared: SharedList.Outcome) -> Bool {
         Self.placed(incoming.tasks, on: incoming.boards) != tasks
             || incoming.boards != boards
             || incoming.labels != labels
             || incoming.nextSerial != nextSerial
+            || Set(incoming.trash) != Set(trash)
             || shared.views != views
             || shared.palette != savedColors
+            || shared.themes.custom != themes.custom
     }
 
     /// What the records' answer about the three shared lists comes to, against
@@ -1721,7 +1788,8 @@ final class BoardStore {
     /// at the one granularity that carries a timestamp — per task, newer
     /// `updatedAt` wins, the same last-writer-wins the schema settles
     /// duplicate records with; see `merging(localTasks:intoRemote:...)` for
-    /// the tasks only one side has. Everything coarser — boards, labels,
+    /// the tasks only one side has, and the block below it for the trash rows,
+    /// which carry a date of their own. Everything coarser — boards, labels,
     /// views, the palette — has no timestamp to argue with, so the records
     /// win, exactly as they do in `mergeRemoteChanges`.
     ///
@@ -1746,6 +1814,20 @@ final class BoardStore {
                 localTasks: tasks, intoRemote: incoming.tasks,
                 keepingLocalOnlyTouchedSince: syncReadBlockedSince
             )
+            // The same question asked of the trash, which carries the one date
+            // that matters: a row made while the records stood unread is this
+            // device's work and they never saw it — dropped here, a card
+            // trashed during the block would be gone from the board *and* the
+            // bin, which is the loss the whole recovery exists to prevent. A
+            // local-only row from before the block is one the records no
+            // longer hold, and with no moment to compare against, keeping is
+            // the answer for it too — a resurrected row can be deleted again.
+            let heldRows = Set(incoming.trash.map(\.id))
+            merged.trash = incoming.trash + trash.filter { mine in
+                guard !heldRows.contains(mine.id) else { return false }
+                guard let blockedSince = syncReadBlockedSince else { return true }
+                return mine.trashedAt >= blockedSince
+            }
             isSyncReadBlocked = false
             syncReadBlockedSince = nil
             let shared = resolvingSharedLists(with: merged, in: sync)
@@ -2065,6 +2147,11 @@ final class BoardStore {
     private func adoptContent(_ content: BoardSnapshot) {
         adopt(
             content,
+            // This session's own, untouched — the paragraph above is why, and
+            // it holds for a file exactly as it did before the trash synced: a
+            // *record set*'s trash is the account's shared bin, a file's is a
+            // moment somebody exported, and only the first is this board's.
+            trash: trash,
             views: content.views,
             // Dated now rather than carried across from the file. An import, a
             // restore and a starter template are all edits somebody is making
@@ -2097,15 +2184,53 @@ final class BoardStore {
         // as this device's editing: only what leaves the board *after* this
         // moment is anybody's deletion.
         syncBaseline = .of(content)
+        // And the three watermarks ``SharedList`` tells an addition from a
+        // deletion with, moved on every merge, not only at launch: a device
+        // that only ever merged while starting up would judge a week of the
+        // other's additions against a week-old mark. Each is the outcome's,
+        // not the clock's — a watermark stamped `.now` on a merge that only
+        // brought a card down ran ahead of every theme still crossing, and
+        // read each one as deleted when it landed; see
+        // ``SharedList/Outcome``. Local to this machine and never pushed; see
+        // ``BoardSnapshot/viewsSyncedAt``.
+        viewsSyncedAt = shared.viewsSyncedAt
+        paletteSyncedAt = shared.paletteSyncedAt
+        themesSyncedAt = shared.themesSyncedAt
         adopt(
             content,
+            // The records' bin, wholesale: the push above sent this device's
+            // additions and its licensed deletions before the read, so what
+            // came back *is* the merge — the same push-first bargain the
+            // tasks ride on.
+            trash: content.trash,
             views: shared.views, viewsChangedAt: shared.viewsChangedAt,
             savedColors: shared.palette, paletteChangedAt: shared.paletteChangedAt
         )
+        // The theme *list* arrives live like the other two; the *slots* do not.
+        // The old rule held the whole of ThemeSettings back until the next
+        // launch, on the argument that repainting the window under somebody
+        // mid-sentence is worse than yesterday's palette — but only the slots
+        // repaint anything. A theme landing in the browser's list paints
+        // nothing until somebody wears it, and holding the list back is what
+        // scenario 17 of the two-device checklist reads as "themes don't
+        // sync". So the customs merge now and the slots stay this machine's
+        // until the next launch, where `restored(file:sync:)` resolves them —
+        // which also keeps ``themesSyncedAt`` above honest: a watermark
+        // stamped without the merge it claims would read every theme made
+        // before it as deleted.
+        //
+        // Set after `adopt`, and the stamp after the list: `themes`' own
+        // `didSet` moves `themesChangedAt` to now, which would claim an edit
+        // this device did not make.
+        themes = ThemeSettings(
+            lightID: themes.lightID, darkID: themes.darkID, custom: shared.themes.custom
+        )
+        themesChangedAt = shared.themesChangedAt
     }
 
     private func adopt(
         _ content: BoardSnapshot,
+        trash: [TrashedItem],
         views: [SavedView], viewsChangedAt: Date?,
         savedColors: [PaletteSwatch], paletteChangedAt: Date?
     ) {
@@ -2346,7 +2471,7 @@ final class BoardStore {
             if let row = state.tasks[index].subtasks.firstIndex(where: { $0.id == key.subtask }) {
                 state.tasks[index].subtasks[row].text = text
             }
-        case .due, .priority: break
+        case .due, .priority, .recurrence: break
         }
         return state
     }
@@ -2406,6 +2531,8 @@ final class BoardStore {
             String(localized: "Set Priority", comment: "Undo action name for changing a task's priority")
         case .subtask:
             String(localized: "Edit Sub-task", comment: "Undo action name for editing a sub-task's text")
+        case .recurrence:
+            String(localized: "Set Repeat", comment: "Undo action name for setting or changing a task's repeat rule")
         }
     }
 
@@ -2440,7 +2567,8 @@ final class BoardStore {
     /// copy rather than offering to overwrite one.
     @discardableResult
     func saveTheme(_ theme: Theme) -> Bool {
-        guard themes.save(theme) else { return false }
+        // Dated as it is saved, for `addView`'s reason.
+        guard themes.save(theme.dated()) else { return false }
         scheduleSave()
         return true
     }
@@ -3758,7 +3886,9 @@ final class BoardStore {
                 : trimmed
         )
         undoable(String(localized: "Add View", comment: "Undo action name for creating a saved view")) {
-            views.append(view)
+            // Dated here rather than in a `didSet`, so undo puts back the date
+            // the view was made under along with the view. See ``DatedItem``.
+            views.append(view.dated())
             scheduleSave()
         }
         return view
@@ -3779,6 +3909,7 @@ final class BoardStore {
         next.name = Self.viewName(view.name)
         guard !next.name.isEmpty else { return }
         guard next != views[index] else { return }
+        next = next.dated()
         undoable(String(localized: "Edit View", comment: "Undo action name for editing a saved view")) {
             views[index] = next
             scheduleSave()
@@ -3800,7 +3931,7 @@ final class BoardStore {
         // loses the preset: the hand-written empty state belongs to the seeded
         // row, and two rows claiming it would both say "Nothing due today".
         copy.preset = nil
-        let made = copy
+        let made = copy.dated()
         undoable(String(localized: "Duplicate View", comment: "Undo action name for duplicating a saved view")) {
             views.insert(made, at: index + 1)
             scheduleSave()
@@ -3843,7 +3974,7 @@ final class BoardStore {
         let missing = SavedView.seededAll.filter { !present.contains($0.id) }
         guard !missing.isEmpty else { return }
         undoable(String(localized: "Restore Views", comment: "Undo action name for restoring the built-in saved views")) {
-            views.append(contentsOf: missing)
+            views.append(contentsOf: missing.map { $0.dated() })
             scheduleSave()
         }
     }
@@ -4393,6 +4524,19 @@ final class BoardStore {
                     ActivityEntry(.moved(columnID: column.id.uuidString, columnName: column.name)), at: 0
                 )
             }
+            // Completing a recurring card mints its next occurrence. In here
+            // rather than in `complete`, because every route that can finish a
+            // card — the tick, a drag onto Done, a bulk complete, the keyboard,
+            // the App Intent — comes through this one transition, and being
+            // inside the caller's `undoable` makes the completion and the
+            // spawn one ⌘Z. The rule moves to the spawn, so Done fills with
+            // ordinary, sweepable cards.
+            if isDone(column: columnID), wasElsewhere, let rule = moved.recurrence {
+                moved.recurrence = nil
+                moved.activity.insert(
+                    ActivityEntry(spawnRepeat(of: moved, rule: rule, today: CalendarDay(.now))), at: 0
+                )
+            }
         } else if wasElsewhere {
             // Not a `.moved`: the Inbox is not a column, and its name is the
             // app's rather than the user's — see `ActivityEntry.Kind.unfiled`.
@@ -4413,6 +4557,59 @@ final class BoardStore {
 
     // MARK: - Completing
 
+    /// The next occurrence of a completed recurring card: a fresh task with a
+    /// fresh code, the same reading on every control, the checklist copied
+    /// with every box unticked, the due date advanced to what the rule says,
+    /// and the rule itself aboard — landed in its board's first working
+    /// column (or back in the Inbox, for an unfiled capture) rather than
+    /// advanced in place, so Done keeps the completed occurrence.
+    ///
+    /// Returns what the completed card should log: `.repeatedAs` the spawn's
+    /// code, or `.repeatEnded` with no spawn when the rule's end date has been
+    /// reached. The *caller* clears the rule off the completing card — this
+    /// only reads it.
+    ///
+    /// Appends rather than minting through `mintTask`: the spawn must not
+    /// steal the selection, the focus or the sheet the way a card the user
+    /// added would, and it opens its own undo step never — it rides inside
+    /// the completion's.
+    private func spawnRepeat(
+        of completing: TaskItem, rule: RecurrenceRule, today: CalendarDay
+    ) -> ActivityEntry.Kind {
+        guard let next = rule.nextOccurrence(after: today, due: completing.due) else {
+            return .repeatEnded
+        }
+        let placement = spawnPlacement(for: completing)
+        var spawn = TaskItem(
+            code: BoardSnapshot.code(prefix: codePrefix(for: placement), forSerial: nextSerial),
+            title: completing.title,
+            note: completing.note,
+            labelKeys: completing.labelKeys,
+            due: next,
+            priority: completing.priority,
+            subtasks: completing.subtasks.map { SubTask(text: $0.text) },
+            activity: [ActivityEntry(.repeatOf(code: completing.code))],
+            recurrence: rule
+        )
+        spawn.placement = placement
+        nextSerial += 1
+        tasks.append(spawn)
+        markChanged(spawn.id)
+        scheduleSave()
+        return .repeatedAs(code: spawn.code)
+    }
+
+    /// Where a spawn lands: the first column work can start in on the card's
+    /// own board, the Inbox for an unfiled card — and, on a board so bare it
+    /// has nothing but a Done column, that column, which cannot cascade
+    /// because a spawn is appended rather than moved.
+    private func spawnPlacement(for task: TaskItem) -> TaskPlacement {
+        guard let board = board(id: task.boardID),
+              let landing = board.landingColumn ?? board.columns.first
+        else { return .inbox }
+        return .column(board: board.id, column: landing.id)
+    }
+
     /// Sends a board task to Done, or marks an Inbox task completed in place.
     ///
     /// An archived task refuses both this and `reopen`: in the Archive the verb
@@ -4426,6 +4623,15 @@ final class BoardStore {
             undoable(String(localized: "Complete Task", comment: "Undo action name for completing a task")) {
                 update(id) { $0.inboxCompletedAt = .now }
                 CompletionFeedback.shared.taskCompleted()
+                // The Inbox's version of `performMove`'s spawn: completed in
+                // place, so the spawn is minted here — a fresh unfiled
+                // capture. A second `update` rather than one, because the
+                // spawn appends to `tasks` and may not do so while the first
+                // holds exclusive access to it.
+                if let completing = self[id], let rule = completing.recurrence {
+                    let kind = spawnRepeat(of: completing, rule: rule, today: CalendarDay(.now))
+                    update(id, log: kind) { $0.recurrence = nil }
+                }
             }
             return
         }
@@ -4778,6 +4984,16 @@ final class BoardStore {
         undoable(String(localized: "Restore from Trash", comment: "Undo action name for taking something back out of the trash")) {
             switch item.contents {
             case .task(let task):
+                // Impossible while the trash was local — a trashed card was a
+                // removed card — but a shared bin can meet a card another
+                // device has already put back: a trash-here against an
+                // edit-there resurrects the card beside its own trash row.
+                // The same guard the board case has always had, said out loud
+                // because here there is nothing else to restore around it.
+                guard !tasks.contains(where: { $0.id == task.id }) else {
+                    refusal = .alreadyThere
+                    return
+                }
                 var restored = task
                 if !isPlaceable(task.placement) { restored.placement = .inbox }
                 restored.activity.insert(ActivityEntry(.restoredFromTrash), at: 0)
@@ -5527,7 +5743,7 @@ final class BoardStore {
             switch field {
             case .title: task.title = Self.singleLine(value)
             case .note: task.note = value
-            case .due, .priority, .subtask: break
+            case .due, .priority, .subtask, .recurrence: break
             }
         }
     }
@@ -5647,6 +5863,7 @@ final class BoardStore {
         case .due: return .day(task?.due)
         case .priority: return .priority(task?.priority ?? .default)
         case .subtask: return .text(task?.subtasks.first { $0.id == subtask }?.text ?? "")
+        case .recurrence: return .rule(task?.recurrence)
         }
     }
 
@@ -5662,6 +5879,35 @@ final class BoardStore {
     func setDue(_ day: CalendarDay?, on id: TaskItem.ID, scope: DetailScope? = nil) {
         guard let current = self[id], current.due != day else { return }
         record(day.map { .dueSet($0) } ?? .dueCleared, for: .due, on: id, scope: scope) { $0.due = day }
+    }
+
+    /// Sets or replaces the repeat rule, which goes in normalized — see
+    /// ``RecurrenceRule/normalized(anchoredTo:)`` — so what is stored is what
+    /// the arithmetic assumes. A rule needs a day to count from, so a card
+    /// that has no due date is given one: `today`, which is where the picker's
+    /// preview starts counting anyway.
+    ///
+    /// `today` is a parameter for `mintTask`'s reason — a test gets to say
+    /// what day it is.
+    func setRecurrence(
+        _ rule: RecurrenceRule, on id: TaskItem.ID, scope: DetailScope? = nil,
+        today: CalendarDay = CalendarDay(.now)
+    ) {
+        guard let current = self[id] else { return }
+        let anchor = current.due ?? today
+        let normalized = rule.normalized(anchoredTo: anchor)
+        guard current.recurrence != normalized || current.due == nil else { return }
+        record(.repeatSet(normalized), for: .recurrence, on: id, scope: scope) { task in
+            task.recurrence = normalized
+            if task.due == nil { task.due = anchor }
+        }
+    }
+
+    /// Takes the repeat rule off. The card keeps its due date — the rule was
+    /// about coming back, not about when this occurrence is wanted.
+    func clearRecurrence(on id: TaskItem.ID, scope: DetailScope? = nil) {
+        guard let current = self[id], current.recurrence != nil else { return }
+        record(.repeatCleared, for: .recurrence, on: id, scope: scope) { $0.recurrence = nil }
     }
 
     /// Applies a picker change and records it.
@@ -5685,6 +5931,8 @@ final class BoardStore {
     ) {
         let action: String = if case .dueCleared = kind {
             String(localized: "Clear Due Date", comment: "Undo action name for removing a task's due date")
+        } else if case .repeatCleared = kind {
+            String(localized: "Stop Repeating", comment: "Undo action name for removing a task's repeat rule")
         } else {
             undoName(for: field)
         }
@@ -6237,7 +6485,7 @@ final class BoardStore {
         let saved: SwatchColor = if case .rgb(let value, _) = swatch { .hex(value) } else { swatch }
         guard !savedColors.contains(where: { $0.swatch == saved }) else { return }
         undoable(String(localized: "Save Colour", comment: "Undo action name for adding a colour to the palette")) {
-            savedColors.append(PaletteSwatch(saved))
+            savedColors.append(PaletteSwatch(saved, changedAt: .now))
             scheduleSave()
         }
     }

@@ -63,6 +63,9 @@
         }
       }
     },
+    "“Ship the beta next friday !high #bug” becomes a card due Friday, marked High and labelled Bug. Whatever it is about to take is shown under the field first, and any of it can be handed back." : {
+
+    },
     "%@" : {
       "localizations" : {
         "en" : {
@@ -177,6 +180,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ is not the right kind of value."
+          }
+        }
+      }
+    },
+    "%@ on %@" : {
+      "comment" : "Repeat rule summary: cadence plus the weekday names it lands on",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ on %@"
           }
         }
       }
@@ -981,6 +995,7 @@
       }
     },
     "Add a description" : {
+      "comment" : "Placeholder in the empty description field",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1240,6 +1255,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "After a week"
+          }
+        }
+      }
+    },
+    "After completion" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After completion"
           }
         }
       }
@@ -2689,6 +2714,17 @@
         }
       }
     },
+    "Created by repeat of %@" : {
+      "comment" : "Activity feed: the card was spawned by a repeating task, named by its code",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Created by repeat of %@"
+          }
+        }
+      }
+    },
     "Criteria" : {
       "localizations" : {
         "en" : {
@@ -2732,7 +2768,19 @@
         }
       }
     },
+    "day" : {
+      "comment" : "Quick-capture date word, as in 'in 1 day'\nRepeat unit, singular: every 1 day",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "day"
+          }
+        }
+      }
+    },
     "days" : {
+      "comment" : "Quick-capture date word, as in 'in 3 days'\nRepeat unit, plural: every N days",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2943,7 +2991,7 @@
       }
     },
     "Description" : {
-      "comment" : "View criterion field",
+      "comment" : "Accessibility label for a task's description\nView criterion field",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3469,6 +3517,16 @@
     "Empty Trash…" : {
       "comment" : "Edit menu item that permanently deletes everything in the trash"
     },
+    "Ends" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ends"
+          }
+        }
+      }
+    },
     "Enrolment flow" : {
       "comment" : "Starter template: sub-task",
       "localizations" : {
@@ -3520,6 +3578,108 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Errands, appointments and the things you keep meaning to do."
+          }
+        }
+      }
+    },
+    "Every %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every %lld"
+          }
+        }
+      }
+    },
+    "Every %lld days" : {
+      "comment" : "Repeat rule summary cadence; the singular reads 'Every day'",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Every day"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Every %lld days"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Every %lld months" : {
+      "comment" : "Repeat rule summary cadence; the singular reads 'Every month'",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Every month"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Every %lld months"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Every %lld weeks" : {
+      "comment" : "Repeat rule summary cadence; the singular reads 'Every week'",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Every week"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Every %lld weeks"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Every %lld years" : {
+      "comment" : "Repeat rule summary cadence; the singular reads 'Every year'",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Every year"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Every %lld years"
+                }
+              }
+            }
           }
         }
       }
@@ -4174,6 +4334,9 @@
         }
       }
     },
+    "in" : {
+      "comment" : "Quick-capture date word, as in 'in 3 days'"
+    },
     "In Progress" : {
       "comment" : "Seed column: work in flight",
       "localizations" : {
@@ -4623,6 +4786,9 @@
     "Kalimba" : {
       "comment" : "Completion sound: two thumb-piano notes"
     },
+    "Keep “%@” in the title" : {
+      "comment" : "Tooltip on a quick-capture preview chip: the token as it was typed"
+    },
     "Keep this board on my other devices" : {
       "localizations" : {
         "en" : {
@@ -4632,6 +4798,9 @@
           }
         }
       }
+    },
+    "Keeps the words in the title instead" : {
+      "comment" : "VoiceOver hint on a quick-capture preview chip"
     },
     "Kept copies" : {
       "comment" : "Settings group heading",
@@ -4890,6 +5059,49 @@
         }
       }
     },
+    "Little Kanban" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Little Kanban"
+          }
+        }
+      }
+    },
+    "Little Kanban cannot open that link." : {
+      "comment" : "Alert title for a URL the app cannot interpret",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Little Kanban cannot open that link."
+          }
+        }
+      }
+    },
+    "Little Kanban is not allowed to send notifications, so due dates will not remind you. You can allow them in System Settings." : {
+      "comment" : "Shown in settings when notification permission has been refused",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Little Kanban is not allowed to send notifications, so due dates will not remind you. You can allow them in System Settings."
+          }
+        }
+      }
+    },
+    "Little Kanban is still starting up. Try again in a moment." : {
+      "comment" : "Shortcuts error: the app has not finished launching",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Little Kanban is still starting up. Try again in a moment."
+          }
+        }
+      }
+    },
     "Low" : {
       "comment" : "A card's priority, in Shortcuts\nTask priority",
       "localizations" : {
@@ -5077,6 +5289,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Money"
+          }
+        }
+      }
+    },
+    "month" : {
+      "comment" : "Repeat unit, singular: every 1 month",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "month"
+          }
+        }
+      }
+    },
+    "months" : {
+      "comment" : "Repeat unit, plural: every N months",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "months"
           }
         }
       }
@@ -5522,6 +5756,9 @@
         }
       }
     },
+    "next" : {
+      "comment" : "Quick-capture date word, as in 'next friday'"
+    },
     "Next Board" : {
       "comment" : "View menu item that opens the board below this one in the sidebar"
     },
@@ -5543,6 +5780,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Next week"
+          }
+        }
+      }
+    },
+    "Next: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next: %@"
           }
         }
       }
@@ -6048,6 +6295,9 @@
         }
       }
     },
+    "on" : {
+      "comment" : "Quick-capture date word, as in 'on friday'"
+    },
     "On %lld tasks" : {
       "localizations" : {
         "en" : {
@@ -6077,6 +6327,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "On accent"
+          }
+        }
+      }
+    },
+    "On date" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On date"
+          }
+        }
+      }
+    },
+    "On schedule" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On schedule"
           }
         }
       }
@@ -6675,6 +6945,9 @@
         }
       }
     },
+    "Read dates and tags in a typed title" : {
+
+    },
     "Read the draft brief" : {
       "comment" : "Sample task in the widget gallery",
       "localizations" : {
@@ -6806,6 +7079,9 @@
         }
       }
     },
+    "Remove due date %@" : {
+      "comment" : "VoiceOver label for a quick-capture preview chip carrying a due date"
+    },
     "Remove from Palette" : {
       "localizations" : {
         "en" : {
@@ -6836,6 +7112,15 @@
           }
         }
       }
+    },
+    "Remove label %@" : {
+      "comment" : "VoiceOver label for a quick-capture preview chip carrying a task label"
+    },
+    "Remove new label %@" : {
+      "comment" : "VoiceOver label for a quick-capture preview chip carrying a label the board does not have yet"
+    },
+    "Remove priority %@" : {
+      "comment" : "VoiceOver label for a quick-capture preview chip carrying a priority"
     },
     "Remove stop" : {
       "comment" : "Accessibility name of the gradient stop delete button",
@@ -7077,6 +7362,90 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Repaint the hallway"
+          }
+        }
+      }
+    },
+    "Repeat ended" : {
+      "comment" : "Activity feed: the repeat rule's end date was reached",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repeat ended"
+          }
+        }
+      }
+    },
+    "Repeat removed" : {
+      "comment" : "Activity feed: the repeat rule was cleared",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repeat removed"
+          }
+        }
+      }
+    },
+    "Repeat settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repeat settings"
+          }
+        }
+      }
+    },
+    "Repeat this task" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repeat this task"
+          }
+        }
+      }
+    },
+    "Repeat unit" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repeat unit"
+          }
+        }
+      }
+    },
+    "Repeated as %@" : {
+      "comment" : "Activity feed: completing spawned a fresh card, named by its code",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repeated as %@"
+          }
+        }
+      }
+    },
+    "Repeats" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repeats"
+          }
+        }
+      }
+    },
+    "Repeats %@" : {
+      "comment" : "Activity feed: a repeat rule was set",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repeats %@"
           }
         }
       }
@@ -7730,6 +8099,17 @@
         }
       }
     },
+    "Set Repeat" : {
+      "comment" : "Undo action name for setting or changing a task's repeat rule",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set Repeat"
+          }
+        }
+      }
+    },
     "Set the due date of ${task} to ${due}" : {
       "localizations" : {
         "en" : {
@@ -7985,49 +8365,6 @@
         }
       }
     },
-    "Little Kanban" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Little Kanban"
-          }
-        }
-      }
-    },
-    "Little Kanban cannot open that link." : {
-      "comment" : "Alert title for a URL the app cannot interpret",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Little Kanban cannot open that link."
-          }
-        }
-      }
-    },
-    "Little Kanban is not allowed to send notifications, so due dates will not remind you. You can allow them in System Settings." : {
-      "comment" : "Shown in settings when notification permission has been refused",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Little Kanban is not allowed to send notifications, so due dates will not remind you. You can allow them in System Settings."
-          }
-        }
-      }
-    },
-    "Little Kanban is still starting up. Try again in a moment." : {
-      "comment" : "Shortcuts error: the app has not finished launching",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Little Kanban is still starting up. Try again in a moment."
-          }
-        }
-      }
-    },
     "Slot" : {
       "comment" : "Accessibility label of the picker choosing which appearance a theme fills\nTheme parameter: whether the theme is the light or the dark one",
       "localizations" : {
@@ -8261,6 +8598,27 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Stone"
+          }
+        }
+      }
+    },
+    "Stop Repeating" : {
+      "comment" : "Undo action name for removing a task's repeat rule",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop Repeating"
+          }
+        }
+      }
+    },
+    "Stop repeating?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop repeating?"
           }
         }
       }
@@ -8949,6 +9307,16 @@
         }
       }
     },
+    "The end date has passed, so this will not repeat again." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The end date has passed, so this will not repeat again."
+          }
+        }
+      }
+    },
     "The next couple of days. Anything further out takes the wash." : {
       "comment" : "Explains which dates take the warm chip, from the design document",
       "localizations" : {
@@ -8956,6 +9324,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The next couple of days. Anything further out takes the wash."
+          }
+        }
+      }
+    },
+    "The next date counts from the day this one is finished." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The next date counts from the day this one is finished."
+          }
+        }
+      }
+    },
+    "The next date keeps the due-date pattern, however late this one is finished." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The next date keeps the due-date pattern, however late this one is finished."
           }
         }
       }
@@ -9066,6 +9454,9 @@
         }
       }
     },
+    "this" : {
+      "comment" : "Quick-capture date word, as in 'this friday'"
+    },
     "This board has no columns to work in yet." : {
       "comment" : "Widget: the board it is showing holds nothing but its Done column",
       "localizations" : {
@@ -9149,6 +9540,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "This month's newsletter"
+          }
+        }
+      }
+    },
+    "This task will no longer repeat." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This task will no longer repeat."
           }
         }
       }
@@ -9280,6 +9681,9 @@
         }
       }
     },
+    "today" : {
+      "comment" : "Quick-capture date word, lowercase"
+    },
     "Today" : {
       "comment" : "Due chip, due today\nDue date preset\nSample overdue chip in the theme preview\nSaved view: tasks due today or overdue\nSetting: new tasks are due today",
       "localizations" : {
@@ -9335,6 +9739,9 @@
           }
         }
       }
+    },
+    "tomorrow" : {
+      "comment" : "Quick-capture date word, lowercase"
     },
     "Tomorrow" : {
       "comment" : "Due date preset\nSetting: new tasks are due tomorrow",
@@ -9745,6 +10152,28 @@
         }
       }
     },
+    "week" : {
+      "comment" : "Quick-capture date word, as in 'next week'\nRepeat unit, singular: every 1 week",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "week"
+          }
+        }
+      }
+    },
+    "weeks" : {
+      "comment" : "Quick-capture date word, as in 'in 3 weeks'\nRepeat unit, plural: every N weeks",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "weeks"
+          }
+        }
+      }
+    },
     "Weight" : {
       "comment" : "Accessibility name of the font weight picker",
       "localizations" : {
@@ -9875,6 +10304,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Write the studio notes"
+          }
+        }
+      }
+    },
+    "year" : {
+      "comment" : "Repeat unit, singular: every 1 year",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "year"
+          }
+        }
+      }
+    },
+    "years" : {
+      "comment" : "Repeat unit, plural: every N years",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "years"
           }
         }
       }

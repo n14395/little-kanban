@@ -765,6 +765,50 @@ extension BoardSnapshot {
         for index in snapshot.boards.indices where !marks.isEmpty {
             snapshot.boards[index].symbol = marks[index % marks.count]
         }
+        snapshot.version = 16
+        return snapshot
+    }
+
+    /// v17 lets a task repeat: ``TaskItem/recurrence``, optional, and `nil` on
+    /// every task a v16 file carries — which is the truth about them, since a
+    /// build that had never heard of repeating drew every card as the ordinary
+    /// kind. Another bare stamp, the `migrate(v13:)` shape.
+    ///
+    /// **The bump is for the other direction**, as every bump in this file is:
+    /// `TaskItem`'s synthesised `Codable` reads an absent `recurrence` as `nil`
+    /// and writes nothing for one, so a v16 build handed a v17 board would
+    /// decode it perfectly, notice nothing, and write it straight back with
+    /// every repeat rule the user had set silently gone. Refusing the file and
+    /// saying why is the kinder failure.
+    static func migrate(v16: BoardSnapshot) -> BoardSnapshot {
+        var snapshot = v16
+        snapshot.version = 17
+        return snapshot
+    }
+
+    /// v18 dates the items in the three shared lists: ``SavedView/changedAt``,
+    /// ``PaletteSwatch/changedAt``, ``Theme/changedAt``.
+    ///
+    /// **Everything already in the file is left undated, and that is the
+    /// answer rather than an omission.** `nil` means "has existed since
+    /// always", which is what makes a deletion still propagate: an item the
+    /// other device no longer holds and which carries no date of its own cannot
+    /// be an addition, so it is one they deleted. Dating them `now` would say
+    /// the opposite — that every view on this machine was made this second —
+    /// and the first merge after an upgrade would resurrect every view either
+    /// device had ever deleted.
+    ///
+    /// The watermarks (``BoardSnapshot/viewsSyncedAt`` and its two neighbours)
+    /// are left `nil` for the same reason read from the other end: this device
+    /// has never merged under the new rule, so it may not claim to know what
+    /// the other side has seen.
+    ///
+    /// **The bump is for the other direction**, as every bump here is: a v17
+    /// build decodes a v18 board perfectly, notices nothing, and writes it back
+    /// with every item's date stripped — which silently returns both devices to
+    /// whole-list last-writer-wins and the lost-view bug it exists to fix.
+    static func migrate(v17: BoardSnapshot) -> BoardSnapshot {
+        var snapshot = v17
         snapshot.version = BoardSnapshot.currentVersion
         return snapshot
     }

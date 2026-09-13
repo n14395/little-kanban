@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 /// The board as CloudKit sees it: one record per task, sub-task, activity
-/// entry, board, column and label.
+/// entry, board, column, label and trashed item.
 ///
 /// The granularity is the whole point. A single JSON document is the wrong
 /// shape for sync — two devices editing different cards would conflict on the
@@ -39,6 +39,7 @@ enum SyncSchema {
         StoredBoard.self,
         StoredColumn.self,
         StoredLabel.self,
+        StoredTrash.self,
         StoredMeta.self,
     ]
 
@@ -89,6 +90,18 @@ final class StoredTask {
     /// Inbox completion is separate from a board's Done-column placement.
     var inboxCompletedAt: Date?
     var archivedAt: Date?
+    /// The repeat rule — ``TaskItem/recurrence`` — as JSON, for
+    /// `StoredActivity.kind`'s reason: the rule's own decoder is lenient, so
+    /// keeping the encoded form means a field this build has never heard of
+    /// survives a round trip through a device that knows it. `nil` is the
+    /// ordinary, non-repeating kind of card — which is also what a record
+    /// written before this attribute existed means.
+    ///
+    /// **There is no version to refuse on**, exactly as `StoredColumn.limit`
+    /// says: a device on an older build reads a repeating card as ordinary and
+    /// writes that back if it edits the card. The board *file* is where the
+    /// guarantee lives.
+    var recurrence: Data?
 
     /// Owned children, so a deleted card takes its checklist and its history
     /// with it. `.cascade` rather than `.deny`, which CloudKit cannot support.
@@ -185,7 +198,16 @@ final class StoredColumn {
     var id: UUID = UUID()
     var name: String = ""
     var short: String = ""
-    /// As `StoredBoard.dot`.
+    /// The column's colour — ``BoardColumn/dot`` — as JSON, for the reason
+    /// `StoredLabel.light` is: a `SwatchColor` has no attribute layout
+    /// SwiftData can store.
+    ///
+    /// **Live, unlike `StoredBoard.dot`**, and this pair is easy to read the
+    /// wrong way round. A *board* wears a glyph since v16 and its colour is
+    /// dead weight; a *column* is still recoloured from board settings, so this
+    /// is written on every column (``BoardSyncStore``'s `record.dot =`) and
+    /// read back on the way in. Optional because a record written before the
+    /// field existed has none, and the reader falls back to the accent.
     var dot: Data?
     /// **v8's `ColumnRole`, kept and no longer read.**
     ///
@@ -231,6 +253,43 @@ final class StoredLabel {
 
     init(key: String = "") {
         self.key = key
+    }
+}
+
+// MARK: - The trash
+
+/// One thrown-away thing, so the trash is one bin across every device — see
+/// `BoardStore.trash` for what that promise replaced.
+///
+/// An entry is **written once and never edited**: a ``TrashedItem`` is a thing
+/// that happened, not a row that changes, which makes this the simplest record
+/// in the schema. Two devices can only ever agree about one — the writer skips
+/// a record that already exists — so there is no clock to argue with and no
+/// field-level merge to run. What there *is* to decide is deletion: a restore,
+/// a by-hand delete, an Empty Trash and the thirty-day sweep all take the row
+/// out, and each travels by the same deletion licence a task's does — see
+/// ``SyncIDs``.
+@Model
+final class StoredTrash {
+    /// The trash entry's own id — ``TrashedItem/id`` — not the id of what is
+    /// inside it, so a card trashed, restored and trashed again is two records
+    /// the way it is two entries.
+    var id: UUID = UUID()
+    /// Unpacked from the payload so the reader can settle duplicate records by
+    /// it without decoding every payload first.
+    var trashedAt: Date = Date.distantPast
+    /// The whole ``TrashedItem`` as JSON, for `StoredActivity.kind`'s reason: a
+    /// `Contents` is an enum with associated values, its shape is already
+    /// versioned by the board file's own coding, and keeping the encoded form
+    /// means an entry kind this build has never heard of survives a round trip
+    /// through a device that knows it. A payload this build cannot read is left
+    /// out of the value and **kept in the store** — deleting it would throw
+    /// away a newer build's trash for good, which is the one thing the trash
+    /// exists not to do.
+    var payload: Data?
+
+    init(id: UUID = UUID()) {
+        self.id = id
     }
 }
 

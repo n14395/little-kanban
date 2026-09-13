@@ -194,6 +194,11 @@ enum TestBoard {
         .archived,
         .unarchived,
         .legacy("Estimated at 3 days"),
+        .repeatSet(RecurrenceRule(interval: 2, unit: .week, weekdays: [2, 6])),
+        .repeatCleared,
+        .repeatEnded,
+        .repeatedAs(code: "NW-231"),
+        .repeatOf(code: "NW-121"),
     ]
 
     /// The board with some of its tasks already filed away, for a probe that

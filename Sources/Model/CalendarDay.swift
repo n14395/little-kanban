@@ -61,6 +61,15 @@ struct CalendarDay: Hashable, Comparable, Codable, Sendable {
         lhs.ordinal - rhs.ordinal
     }
 
+    /// The day of the week in `Calendar.component(.weekday)`'s numbering —
+    /// 1 is Sunday, 7 is Saturday — read off `ordinal` rather than through a
+    /// calendar, for `adding(days:)`'s reason: day zero, 1 January 1970, was
+    /// a Thursday, and the cycle has not changed since.
+    var weekday: Int {
+        let shifted = (ordinal + 4) % 7
+        return (shifted < 0 ? shifted + 7 : shifted) + 1
+    }
+
     /// Days since 1970-01-01 in the proleptic Gregorian calendar — Howard
     /// Hinnant's `days_from_civil`, exact for every representable day. The one
     /// divergence from Foundation's hybrid calendar is dates before the 1582

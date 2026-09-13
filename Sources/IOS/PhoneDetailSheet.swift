@@ -51,6 +51,7 @@ struct PhoneDetailSheet: View {
                 attributeCards
                 labels
                 checklist
+                repeatRow
                 activity
                 restoreRow
                 deleteRow
@@ -334,6 +335,12 @@ struct PhoneDetailSheet: View {
             .padding(.vertical, 4)
             .background(palette.card, in: .rect(cornerRadius: 14))
         }
+    }
+
+    /// Under the checklist, where the desk's panel puts it — see
+    /// ``TaskInspector/repeatRow``.
+    private var repeatRow: some View {
+        RecurrenceField(task: task, scope: .sheet, metrics: .sheet)
     }
 
     /// The history the inspector has always shown and the sheet never did (4.6),

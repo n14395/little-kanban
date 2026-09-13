@@ -143,6 +143,113 @@ import Testing
         #expect(store.announcement == nil, "an unasked merge announced itself")
     }
 
+    /// **Scenario 17 of the two-device checklist.** A theme made on the other
+    /// device arrives on a pull — not at the next launch, which is where the
+    /// old rule held the whole of `ThemeSettings` back and what read from the
+    /// outside as "themes don't sync". Only the *list* travels live: which
+    /// theme this machine is showing is its own until the next launch, because
+    /// the slots are the half that repaints the window mid-sentence.
+    @Test func aThemeMadeOnTheOtherDeviceArrivesOnAPull() throws {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.inMemory()
+        let store = board(sync, on: temp)
+        store.addTask(to: .inbox, title: "Mine")
+        store.saveNow()
+        let wearing = (light: store.themes.lightID, dark: store.themes.darkID)
+
+        var theirs = try #require(try sync.load())
+        // Two applies, deliberately: a writer with no diff base leaves the
+        // meta blobs exactly as they are — the fresh-device rule in
+        // `applyMeta` — so the first call is the other device establishing its
+        // base, and the second is the edit. One apply from a fresh instance
+        // never writes a theme, which is the rule working, not the harness.
+        let writer = BoardSyncStore(container: sync.container, isSyncing: false)
+        try writer.apply(theirs)
+        var made = ThemePresets.fallback(for: .light)
+        made.id = "made-on-the-other-device"
+        made.name = "Theirs"
+        made.changedAt = .now
+        theirs.themes.custom.append(made)
+        // And they put it straight in a slot, which is exactly what somebody
+        // who has just made a theme does — the half that must not travel.
+        theirs.themes.lightID = made.id
+        theirs.themesChangedAt = .now
+        try writer.apply(theirs)
+
+        store.mergeRemoteChanges()
+        #expect(store.themes.custom.contains { $0.id == made.id },
+                "a theme made on the other device waited for a relaunch")
+        #expect(store.themes.lightID == wearing.light && store.themes.darkID == wearing.dark,
+                "another device's slot choice repainted this window")
+        // And the arrival is news — the pull's announcement rests on this.
+        #expect(store.lastSyncedAt != nil, "a theme arriving did not count as news")
+    }
+
+    /// **Scenario 17's second way of failing.** A theme made on the other
+    /// device is still crossing — CloudKit pushes take what they take — while
+    /// this device merges something unrelated. The unrelated merge used to
+    /// stamp all three watermarks at the wall clock, so the theme landed
+    /// wearing a `changedAt` *behind* the watermark, which is the shape of a
+    /// deletion: the rule dropped it, and the next push taught the device
+    /// that made it to drop it too. The watermark now stands at the stamp the
+    /// merge consumed, which anything still crossing is always ahead of.
+    @Test func aThemeStillCrossingSurvivesAnUnrelatedMergeInBetween() throws {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.inMemory()
+        let store = board(sync, on: temp)
+        store.addTask(to: .inbox, title: "Mine")
+        // This device has a dated theme list of its own: the arrival has to
+        // come through the two-dated-lists merge, where the watermark is the
+        // whole of the decision.
+        var early = ThemePresets.fallback(for: .light)
+        early.id = "made-here-first"
+        early.name = "Here, first"
+        store.saveTheme(early)
+        store.saveNow()
+
+        // The other device makes a theme. Its push does not land yet.
+        let theirDevice = BoardSyncStore(container: sync.container, isSyncing: false)
+        var theirs = try #require(try theirDevice.load())
+        var made = ThemePresets.fallback(for: .light)
+        made.id = "made-on-the-other-device"
+        made.name = "Theirs, crossing"
+        made.changedAt = .now
+        theirs.themes.custom.append(made)
+        theirs.themesChangedAt = made.changedAt
+
+        // Meanwhile a card edit arrives from elsewhere and this device merges
+        // it — the unrelated merge that used to move the theme watermark.
+        let bystander = BoardSyncStore(container: sync.container, isSyncing: false)
+        var edited = try #require(try bystander.load())
+        edited.tasks = edited.tasks.map { task in
+            var retitled = task
+            if retitled.title == "Mine" { retitled.title = "Theirs" }
+            return retitled
+        }
+        try bystander.apply(edited)
+        store.mergeRemoteChanges()
+        #expect(store.tasks.contains { $0.title == "Theirs" },
+                "the unrelated merge did not land, so the scenario never started")
+
+        // This device then edits its own themes, dating its list *after* the
+        // crossing theme was made…
+        var later = ThemePresets.fallback(for: .light)
+        later.id = "made-here-second"
+        later.name = "Here, second"
+        store.saveTheme(later)
+        store.saveNow()
+
+        // …and the crossing push finally lands.
+        try theirDevice.apply(theirs)
+
+        store.mergeRemoteChanges()
+        #expect(store.themes.custom.contains { $0.id == made.id },
+                "a theme that crossed an unrelated merge was read as deleted")
+        #expect(store.themes.custom.contains { $0.id == later.id },
+                "this device's own newer theme was lost to the arrival")
+        #expect(store.themes.custom.contains { $0.id == early.id })
+    }
+
     // MARK: Where the pull is offered
 
     /// Every surface that holds cards and scrolls downward carries it, and the

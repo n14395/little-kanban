@@ -57,6 +57,13 @@ import Testing
             ("LabelPickerList.sheet.rowHit", LabelPickerList.Metrics.sheet.rowHit),
             ("DueDateField.sheet.chipHit", DueDateField.Metrics.sheet.chipHit),
             ("DueDateField.sheet.rowHit", DueDateField.Metrics.sheet.rowHit),
+            // The repeat row and its panel: the summary line under the toggle,
+            // the panel's tappable rows, and the weekday chips — which claim a
+            // height the way a calendar day does, their width being a seventh
+            // of whatever the panel is.
+            ("RecurrenceField.sheet.rowHit", RecurrenceField.Metrics.sheet.rowHit),
+            ("RecurrencePicker.sheet.rowHit", RecurrencePicker.Metrics.sheet.rowHit),
+            ("RecurrencePicker.sheet.chipHit", RecurrencePicker.Metrics.sheet.chipHit),
             // A day in the calendar is a control like any other. Only its
             // height is a number here — the width is a seventh of whatever the
             // panel is, which `MonthGridTests` is where to check.
@@ -136,6 +143,11 @@ import Testing
         // row is. What matters is that it stays well under the touch floor.
         #expect(MonthGrid.Metrics.desk.cellHeight < 44)
         #expect(MonthGrid.Metrics.desk.arrow < 44)
+        #expect(RecurrenceField.Metrics.desk.rowHit == 0)
+        #expect(RecurrencePicker.Metrics.desk.rowHit == 0)
+        // The weekday chip draws like a calendar day: a height rather than a
+        // pad, kept under the touch floor on the desk.
+        #expect(RecurrencePicker.Metrics.desk.chipHit < 44)
         #expect(LabelEditor.Metrics.desk.addHit == 0)
         #expect(LabelPickerList.Metrics.desk.rowHit == 0)
         #expect(PriorityPicker.Metrics.desk.hit == 0)

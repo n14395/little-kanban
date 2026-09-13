@@ -75,11 +75,29 @@ struct BoardSnapshot: Codable, Sendable, Equatable {
     var paletteChangedAt: Date?
     var themesChangedAt: Date?
 
-    static let currentVersion = 16
+    /// When this device last merged each list — the watermark that tells an
+    /// addition from a deletion. See ``SharedList``.
+    ///
+    /// **Local to this machine, and deliberately not synced.** They are in
+    /// `board.json` and in no `StoredMeta` field: pushed, each device would
+    /// overwrite the other's and the answer would be meaningless. What a device
+    /// last *heard* is its own fact, the way the appearance override is.
+    ///
+    /// Since v18. `nil` is "has never merged", which reads every dated item on
+    /// the other side as an addition — the safe direction on a first meeting.
+    /// Each stands at the newest stamp its list has consumed, never at the
+    /// clock — see ``SharedList/heard(_:consuming:)`` for what the difference
+    /// cost.
+    var viewsSyncedAt: Date?
+    var paletteSyncedAt: Date?
+    var themesSyncedAt: Date?
+
+    static let currentVersion = 18
 
     enum CodingKeys: String, CodingKey {
         case version, tasks, boards, labels, nextSerial, activeBoardID, trash, palette, views, themes
         case viewsChangedAt, paletteChangedAt, themesChangedAt
+        case viewsSyncedAt, paletteSyncedAt, themesSyncedAt
     }
 
     /// Written out rather than synthesised, for one field.
@@ -132,6 +150,13 @@ struct BoardSnapshot: Codable, Sendable, Equatable {
         viewsChangedAt = try container.decodeIfPresent(Date.self, forKey: .viewsChangedAt)
         paletteChangedAt = try container.decodeIfPresent(Date.self, forKey: .paletteChangedAt)
         themesChangedAt = try container.decodeIfPresent(Date.self, forKey: .themesChangedAt)
+        // And a fifth time. Absent is `nil` — "this device has never merged" —
+        // which is the honest answer for a file written before v18 and the safe
+        // one: every dated item on the other side reads as an addition, and the
+        // first merge keeps both lists whole. See ``viewsSyncedAt``.
+        viewsSyncedAt = try container.decodeIfPresent(Date.self, forKey: .viewsSyncedAt)
+        paletteSyncedAt = try container.decodeIfPresent(Date.self, forKey: .paletteSyncedAt)
+        themesSyncedAt = try container.decodeIfPresent(Date.self, forKey: .themesSyncedAt)
     }
 
     init(
@@ -147,7 +172,10 @@ struct BoardSnapshot: Codable, Sendable, Equatable {
         themes: ThemeSettings = .seed,
         viewsChangedAt: Date? = nil,
         paletteChangedAt: Date? = nil,
-        themesChangedAt: Date? = nil
+        themesChangedAt: Date? = nil,
+        viewsSyncedAt: Date? = nil,
+        paletteSyncedAt: Date? = nil,
+        themesSyncedAt: Date? = nil
     ) {
         self.version = version
         self.tasks = tasks
@@ -162,6 +190,9 @@ struct BoardSnapshot: Codable, Sendable, Equatable {
         self.viewsChangedAt = viewsChangedAt
         self.paletteChangedAt = paletteChangedAt
         self.themesChangedAt = themesChangedAt
+        self.viewsSyncedAt = viewsSyncedAt
+        self.paletteSyncedAt = paletteSyncedAt
+        self.themesSyncedAt = themesSyncedAt
     }
 
     /// The serial a fresh board starts minting from.
@@ -361,7 +392,9 @@ struct BoardFile: Sendable {
         let atV13 = migratedFrom < 13 ? BoardSnapshot.migrate(v12: atV12) : atV12
         let atV14 = migratedFrom < 14 ? BoardSnapshot.migrate(v13: atV13) : atV13
         let atV15 = migratedFrom < 15 ? BoardSnapshot.migrate(v14: atV14) : atV14
-        let current = migratedFrom < 16 ? BoardSnapshot.migrate(v15: atV15) : atV15
+        let atV16 = migratedFrom < 16 ? BoardSnapshot.migrate(v15: atV15) : atV15
+        let atV17 = migratedFrom < 17 ? BoardSnapshot.migrate(v16: atV16) : atV16
+        let current = migratedFrom < 18 ? BoardSnapshot.migrate(v17: atV17) : atV17
         return (current.settlingDuplicates(), migratedFrom)
     }
 
@@ -372,6 +405,25 @@ struct BoardFile: Sendable {
         switch try version(of: data) {
         case BoardSnapshot.currentVersion:
             return (try decoder.decode(BoardSnapshot.self, from: data), nil)
+        case 17:
+            // v17 and v18 are the same shape: v18 only *adds* a `changedAt` to
+            // the items of the three shared lists, and three watermarks beside
+            // them, all optional — and a synthesised decoder reads an absent
+            // `Optional` as `nil`, which is exactly what a list written before
+            // there were per-item dates means. The bump is for the other
+            // direction, as ever: a v17 build handed a v18 file would strip
+            // every item's date and write the loss straight back, returning
+            // both devices to whole-list last-writer-wins and the lost-view
+            // bug it exists to fix — see `migrate(v17:)`.
+            return (try decoder.decode(BoardSnapshot.self, from: data), 17)
+        case 16:
+            // v16 and v17 are the same shape: v17 only *adds*
+            // `TaskItem.recurrence`, and a synthesised decoder reads an absent
+            // `Optional` as `nil`, which is what a task written before there
+            // were repeat rules means. The bump is for the other direction, as
+            // ever: a v16 build handed a v17 file would read every rule as
+            // nothing and write the loss straight back — see `migrate(v16:)`.
+            return (try decoder.decode(BoardSnapshot.self, from: data), 16)
         case 15:
             // v15 and v16 are the same shape in the one direction that matters
             // here: v16 *removes* a board's `dot` and *adds* its `symbol`, and
@@ -1126,20 +1178,104 @@ extension BoardSnapshot {
 ///
 /// Order is this device's first, then whatever the other side has that this one
 /// has not — so a merge never reshuffles a sidebar somebody has arranged.
+/// A list item that knows when it last changed.
+///
+/// The three shared lists — saved views, the palette, the custom themes — are
+/// not scalars, and the difference is what ``SharedList`` exists to respect. A
+/// list has a `changedAt` of its own, and that is enough to say which of two
+/// whole lists is newer; it is not enough to *merge* them. Two devices that each
+/// add a view have made two additions, not two competing claims to one value, so
+/// handing the newer list the argument throws the other addition away — see the
+/// per-item rule in ``SharedList/resolve(local:changedAt:syncedAt:remote:changedAt:)``.
+protocol DatedItem {
+    /// `nil` where the item predates v18, which the merge reads as "has existed
+    /// since always" — the answer that makes a deletion still propagate.
+    var changedAt: Date? { get set }
+}
+
+extension DatedItem {
+    /// The same item, stamped as changed now.
+    ///
+    /// Called from the mutators rather than from a `didSet` on the list, so a
+    /// ⌘Z puts back the date the item was made under along with the item — the
+    /// same reason ``BoardMutation`` carries `viewsChangedAt`. A board wound
+    /// back to Tuesday's views while claiming Thursday's dates would win merges
+    /// it has no business winning.
+    func dated(_ now: Date = .now) -> Self {
+        var copy = self
+        copy.changedAt = now
+        return copy
+    }
+
+    /// The date two items are compared on. One with none predates v18 and has
+    /// existed since always, so it loses every contest with a dated one — which
+    /// is the answer that lets an edit made since the upgrade beat the copy that
+    /// was there before it.
+    var stamp: Date { changedAt ?? .distantPast }
+}
+
+extension SavedView: DatedItem {}
+extension PaletteSwatch: DatedItem {}
+extension Theme: DatedItem {}
+
 enum SharedList {
     /// `remote` is `nil` where the records carry no such list at all, which is
     /// not the same fact as an empty one: it is what every record written
     /// before the field existed says, and what it means is "ask this device".
-    static func resolve<Element: Identifiable>(
-        local: [Element], changedAt localStamp: Date?,
+    ///
+    /// **`syncedAt` is the watermark, and it is this device's own.** It stands
+    /// at the newest list stamp this device has consumed — advanced by
+    /// ``heard(_:consuming:)``, never by the clock — which is the only thing
+    /// that can tell an addition apart from a deletion: an item the other list
+    /// does not hold is theirs-newly-added if it changed after we last heard,
+    /// and ours-they-deleted if it changed before. The list's own `changedAt`
+    /// cannot answer that — it says when *this* device last edited, not when
+    /// it last heard — and using it that way drops exactly the addition this
+    /// is here to keep: B adds at 10:00, A adds at 10:05, and B's view reads
+    /// as one A deleted.
+    ///
+    /// That is why it does not travel. `viewsSyncedAt` and its two neighbours
+    /// are facts about this machine, kept in `board.json` and deliberately out
+    /// of `StoredMeta` — synced, each device would overwrite the other's and it
+    /// would mean nothing. Same principle as the appearance override living in
+    /// `UserDefaults`.
+    static func resolve<Element: Identifiable & DatedItem>(
+        local: [Element], changedAt localStamp: Date?, syncedAt: Date?,
         remote: [Element]?, changedAt remoteStamp: Date?
     ) -> (list: [Element], changedAt: Date?) {
         guard let remote else { return (local, localStamp) }
-        if let localStamp, let remoteStamp {
-            return remoteStamp > localStamp ? (remote, remoteStamp) : (local, localStamp)
+        // Neither side dated, or one of them not: there is nothing to merge on
+        // but identity, and the union is the recoverable direction. This is the
+        // upgrade path — two devices each carrying a list made before there were
+        // dates — and it must keep every item on both.
+        guard localStamp != nil, remoteStamp != nil else {
+            let known = Set(local.map(\.id))
+            return (local + remote.filter { !known.contains($0.id) }, localStamp ?? remoteStamp)
         }
-        let known = Set(local.map(\.id))
-        return (local + remote.filter { !known.contains($0.id) }, localStamp ?? remoteStamp)
+
+        let mine = Dictionary(local.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let theirs = Dictionary(remote.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        // The newer list is the spine, so the order the user last arranged is
+        // the order they keep.
+        let remoteLeads = (remoteStamp ?? .distantPast) > (localStamp ?? .distantPast)
+        let spine = remoteLeads ? remote : local
+        let other = remoteLeads ? local : remote
+        let held = remoteLeads ? theirs : mine
+
+        // Held by both: the newer edit wins, item by item.
+        var merged = spine.map { item -> Element in
+            guard let rival = (remoteLeads ? mine : theirs)[item.id] else { return item }
+            return rival.stamp > item.stamp ? rival : item
+        }
+        // Held by one: an addition we have not seen, or something we deleted.
+        // `syncedAt` is what tells them apart, and an item with no date of its
+        // own has existed since always, so it can only be a deletion.
+        merged += other.filter { item in
+            guard held[item.id] == nil else { return false }
+            guard let changed = item.changedAt else { return false }
+            return changed > (syncedAt ?? .distantPast)
+        }
+        return (merged, max(localStamp ?? .distantPast, remoteStamp ?? .distantPast))
     }
 
     /// The same question asked of a whole ``ThemeSettings``.
@@ -1151,12 +1287,12 @@ enum SharedList {
     /// `UserDefaults`. What the app looks like belongs to the machine you are
     /// looking at; the themes themselves are work and travel.
     static func resolve(
-        local: ThemeSettings, changedAt localStamp: Date?,
+        local: ThemeSettings, changedAt localStamp: Date?, syncedAt: Date?,
         remote: ThemeSettings?, changedAt remoteStamp: Date?
     ) -> (themes: ThemeSettings, changedAt: Date?) {
         guard let remote else { return (local, localStamp) }
         let merged = resolve(
-            local: local.custom, changedAt: localStamp,
+            local: local.custom, changedAt: localStamp, syncedAt: syncedAt,
             remote: remote.custom, changedAt: remoteStamp
         )
         let slots: ThemeSettings = {
@@ -1181,6 +1317,13 @@ extension SharedList {
         var paletteChangedAt: Date?
         var themes: ThemeSettings
         var themesChangedAt: Date?
+        /// Where each list's watermark stands after this merge — see
+        /// ``heard(_:consuming:)`` for why it is the consumed stamp and never
+        /// the clock. Computed here, beside the merge it describes, so a
+        /// caller cannot stamp a watermark without the merge it claims.
+        var viewsSyncedAt: Date?
+        var paletteSyncedAt: Date?
+        var themesSyncedAt: Date?
     }
 
     /// `local` is `nil` on a device with no board file at all — a fresh
@@ -1197,32 +1340,69 @@ extension SharedList {
         let remoteViews = carried.contains(.views) ? remote.views : nil
         let remotePalette = carried.contains(.palette) ? remote.palette : nil
         let remoteThemes = carried.contains(.themes) ? remote.themes : nil
+        // The stamp each watermark may advance to: the one on the list that
+        // was actually read, and nothing where the records carried none.
+        let viewsStamp = remoteViews == nil ? nil : remote.viewsChangedAt
+        let paletteStamp = remotePalette == nil ? nil : remote.paletteChangedAt
+        let themesStamp = remoteThemes == nil ? nil : remote.themesChangedAt
         guard let local else {
             return Outcome(
                 views: remoteViews ?? SavedView.seededAll,
-                viewsChangedAt: remoteViews == nil ? nil : remote.viewsChangedAt,
+                viewsChangedAt: viewsStamp,
                 palette: remotePalette ?? PaletteSwatch.seed,
-                paletteChangedAt: remotePalette == nil ? nil : remote.paletteChangedAt,
+                paletteChangedAt: paletteStamp,
                 themes: remoteThemes ?? .seed,
-                themesChangedAt: remoteThemes == nil ? nil : remote.themesChangedAt
+                themesChangedAt: themesStamp,
+                viewsSyncedAt: viewsStamp,
+                paletteSyncedAt: paletteStamp,
+                themesSyncedAt: themesStamp
             )
         }
+        // The watermarks are read off the *local* snapshot and never off the
+        // remote: they say when this device last merged, which is not a fact
+        // any other device holds. See `resolve(local:changedAt:syncedAt:…)`.
         let views = resolve(
-            local: local.views, changedAt: local.viewsChangedAt,
+            local: local.views, changedAt: local.viewsChangedAt, syncedAt: local.viewsSyncedAt,
             remote: remoteViews, changedAt: remote.viewsChangedAt
         )
         let palette = resolve(
-            local: local.palette, changedAt: local.paletteChangedAt,
+            local: local.palette, changedAt: local.paletteChangedAt, syncedAt: local.paletteSyncedAt,
             remote: remotePalette, changedAt: remote.paletteChangedAt
         )
         let themes = resolve(
-            local: local.themes, changedAt: local.themesChangedAt,
+            local: local.themes, changedAt: local.themesChangedAt, syncedAt: local.themesSyncedAt,
             remote: remoteThemes, changedAt: remote.themesChangedAt
         )
         return Outcome(
             views: views.list, viewsChangedAt: views.changedAt,
             palette: palette.list, paletteChangedAt: palette.changedAt,
-            themes: themes.themes, themesChangedAt: themes.changedAt
+            themes: themes.themes, themesChangedAt: themes.changedAt,
+            viewsSyncedAt: heard(local.viewsSyncedAt, consuming: viewsStamp),
+            paletteSyncedAt: heard(local.paletteSyncedAt, consuming: paletteStamp),
+            themesSyncedAt: heard(local.themesSyncedAt, consuming: themesStamp)
         )
+    }
+
+    /// Where a list's watermark stands after a merge: at the newest stamp this
+    /// device has actually *consumed*, never at the wall clock.
+    ///
+    /// Stamping `.now` instead was scenario 17's second way of not syncing. A
+    /// merge that only brought a card down moved all three watermarks to the
+    /// present, and a theme made on the other device five minutes ago — still
+    /// crossing, because CloudKit pushes take what they take — then arrived
+    /// wearing a `changedAt` *behind* the watermark, which is the shape of a
+    /// deletion. The rule read it as one, dropped it, and the next push taught
+    /// the device that made it to drop it too.
+    ///
+    /// The remote list's own stamp is the honest mark: everything on it is now
+    /// seen, list stamps ride at or above their items' (``DatedItem/dated(_:)``
+    /// stamps the item and the list's `didSet` follows), and anything still in
+    /// flight was stamped by an edit this list has not heard of — so it stays
+    /// ahead of the watermark and lands as the addition it is. `nil` consumed
+    /// — the records carried no such list, or an undated one — advances
+    /// nothing, and never backwards either way: a watermark only ever rises.
+    private static func heard(_ watermark: Date?, consuming remoteStamp: Date?) -> Date? {
+        guard let remoteStamp else { return watermark }
+        return max(watermark ?? .distantPast, remoteStamp)
     }
 }

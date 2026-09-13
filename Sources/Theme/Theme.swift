@@ -255,6 +255,10 @@ struct Theme: Identifiable, Hashable, Codable, Sendable {
     var status: ThemeStatus
     var labelChips: ThemeChipRule
     var dueChips: ThemeDueChips
+    /// When this theme was last saved — see ``DatedItem``. `nil` for one
+    /// written before v18, and for every preset, which are compiled in rather
+    /// than authored and so have no edit to date.
+    var changedAt: Date?
 
     /// True for one of the twenty the app ships with. A preset cannot be edited
     /// in place or deleted — editing one offers to make a copy — because a

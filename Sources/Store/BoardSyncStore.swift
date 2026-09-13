@@ -89,6 +89,10 @@ struct SyncIDs: Sendable, Equatable {
     var columns: Set<BoardColumn.ID> = []
     var tasks: Set<TaskItem.ID> = []
     var labels: Set<String> = []
+    /// Trash rows leave four ways — a restore, a by-hand delete, Empty Trash
+    /// and the thirty-day sweep — and every one is a deletion somebody (or the
+    /// promise itself) made on this device, so all four are licensed alike.
+    var trash: Set<TrashedItem.ID> = []
 
     static let none = SyncIDs()
 
@@ -97,7 +101,8 @@ struct SyncIDs: Sendable, Equatable {
             boards: Set(snapshot.boards.map(\.id)),
             columns: Set(snapshot.boards.flatMap(\.columns).map(\.id)),
             tasks: Set(snapshot.tasks.map(\.id)),
-            labels: Set(snapshot.labels.map(\.key))
+            labels: Set(snapshot.labels.map(\.key)),
+            trash: Set(snapshot.trash.map(\.id))
         )
     }
 
@@ -107,12 +112,13 @@ struct SyncIDs: Sendable, Equatable {
             boards: boards.subtracting(other.boards),
             columns: columns.subtracting(other.columns),
             tasks: tasks.subtracting(other.tasks),
-            labels: labels.subtracting(other.labels)
+            labels: labels.subtracting(other.labels),
+            trash: trash.subtracting(other.trash)
         )
     }
 
     var isEmpty: Bool {
-        boards.isEmpty && columns.isEmpty && tasks.isEmpty && labels.isEmpty
+        boards.isEmpty && columns.isEmpty && tasks.isEmpty && labels.isEmpty && trash.isEmpty
     }
 }
 
@@ -459,6 +465,7 @@ final class BoardSyncStore: SyncStoring {
         let boards = try context.fetch(FetchDescriptor<StoredBoard>())
         let labels = try context.fetch(FetchDescriptor<StoredLabel>())
         let tasks = try context.fetch(FetchDescriptor<StoredTask>())
+        let trash = try context.fetch(FetchDescriptor<StoredTrash>())
         guard meta != nil || !boards.isEmpty || !tasks.isEmpty else { return nil }
 
         let snapshot = BoardSnapshot(
@@ -472,6 +479,14 @@ final class BoardSyncStore: SyncStoring {
                 .map(Self.value(of:)),
             nextSerial: meta?.nextSerial ?? BoardSnapshot.baseSerial,
             activeBoardID: meta?.activeBoardID,
+            // Oldest first, ties settled by id, so every device reads the one
+            // bin in the one order — which is also append order on the device
+            // that filled it, time only moving the one way. A payload this
+            // build cannot decode is left out of the value and stays a record;
+            // see `StoredTrash.payload`.
+            trash: Self.deduplicated(trash, by: \.id, newest: \.trashedAt)
+                .compactMap(Self.value(of:))
+                .sorted { ($0.trashedAt, $0.id.uuidString) < ($1.trashedAt, $1.id.uuidString) },
             // Each of the three falls back to what a board with none of them
             // means, and each is *also* reported as absent by ``carriedLists``
             // — because the caller has to tell "nobody has written one" from
@@ -626,6 +641,7 @@ final class BoardSyncStore: SyncStoring {
         try applyLabels(snapshot, changedFrom: previous, deleting: deleting.labels)
         try applyBoards(snapshot, changedFrom: previous, deleting: deleting)
         try applyTasks(snapshot, changedFrom: previous, deleting: deleting.tasks)
+        try applyTrash(snapshot, changedFrom: previous, deleting: deleting.trash)
         if context.hasChanges { try context.save() }
         lastWritten = snapshot
     }
@@ -667,24 +683,52 @@ final class BoardSyncStore: SyncStoring {
             context.insert(fresh)
             return fresh
         }()
-        meta.nextSerial = snapshot.nextSerial
-        // On an encode failure the previous value stands. `nil` is what a
-        // record written before these attributes existed says, and what the
-        // reader is required to treat as "ask the other device" — so writing
-        // it on error would hand another device's work back to it as a
-        // question. Stale-until-the-list-next-changes is the accepted cost;
-        // the log line is what keeps it from being a silent one.
-        write(encoded(snapshot.themes), to: \.themesJSON, on: meta, called: "themes")
-        write(encoded(snapshot.views), to: \.viewsJSON, on: meta, called: "saved views")
-        write(encoded(snapshot.palette), to: \.paletteJSON, on: meta, called: "palette")
-        // The stamps ride with them, `nil` included: an undated list stays
-        // undated on the way through, so the device that reads it merges rather
-        // than replaces. Writing `.now` here instead would have every push
-        // claim an edit nobody made — see ``SharedList``.
-        meta.themesChangedAt = snapshot.themesChangedAt
-        meta.viewsChangedAt = snapshot.viewsChangedAt
-        meta.paletteChangedAt = snapshot.paletteChangedAt
-        meta.activeBoardID = snapshot.activeBoardID
+        // Field by field, on `write(_:to:changedFrom:)`'s question — did *we*
+        // change it — because this one record is also merged by CloudKit at
+        // field granularity, and a field this device did not touch is not this
+        // device's to state. Written blind, the three lists were scenario 17's
+        // clobber: a pull pushes before it reads, and any unrelated difference
+        // on this record — a serial handed out, a board switched — rewrote the
+        // themes another device had just delivered, from a list that had never
+        // seen them. The read that followed then handed this device its own
+        // list back, and the arrival was undone before it was ever looked at.
+        if previous == nil || previous?.nextSerial != snapshot.nextSerial {
+            // And never backwards: two devices handing out one task code is
+            // the one disagreement no later merge can undo — the same reason
+            // the fresh-device branch above only moves it forward.
+            let advanced = Swift.max(snapshot.nextSerial, meta.nextSerial)
+            if meta.nextSerial != advanced { meta.nextSerial = advanced }
+        }
+        // Each list travels with its stamp or not at all: a blob under the
+        // wrong date would win merges it has no business winning. On an encode
+        // failure the previous value stands. `nil` is what a record written
+        // before these attributes existed says, and what the reader is
+        // required to treat as "ask the other device" — so writing it on error
+        // would hand another device's work back to it as a question.
+        // Stale-until-the-list-next-changes is the accepted cost; the log line
+        // is what keeps it from being a silent one.
+        //
+        // The stamps ride through as they are, `nil` included: an undated list
+        // stays undated on the way, so the device that reads it merges rather
+        // than replaces. Writing `.now` instead would have every push claim an
+        // edit nobody made — see ``SharedList``.
+        if previous == nil || previous?.themes != snapshot.themes
+            || previous?.themesChangedAt != snapshot.themesChangedAt {
+            write(encoded(snapshot.themes), to: \.themesJSON, on: meta, called: "themes")
+            meta.themesChangedAt = snapshot.themesChangedAt
+        }
+        if previous == nil || previous?.views != snapshot.views
+            || previous?.viewsChangedAt != snapshot.viewsChangedAt {
+            write(encoded(snapshot.views), to: \.viewsJSON, on: meta, called: "saved views")
+            meta.viewsChangedAt = snapshot.viewsChangedAt
+        }
+        if previous == nil || previous?.palette != snapshot.palette
+            || previous?.paletteChangedAt != snapshot.paletteChangedAt {
+            write(encoded(snapshot.palette), to: \.paletteJSON, on: meta, called: "palette")
+            meta.paletteChangedAt = snapshot.paletteChangedAt
+        }
+        Self.write(snapshot.activeBoardID, to: &meta.activeBoardID,
+                   changedFrom: previous.map(\.activeBoardID))
         meta.updatedAt = .now
     }
 
@@ -791,6 +835,45 @@ final class BoardSyncStore: SyncStoring {
         for (id, orphan) in existing where deleting.contains(id) { context.delete(orphan) }
     }
 
+    /// The simplest writer of the set, because a trash entry is immutable: a
+    /// record that exists is already right, whoever wrote it, so only the
+    /// absent are considered — inserted where they are this device's own,
+    /// skipped where the diff base names them, because absent-but-seen is a
+    /// deletion another device made and reinserting it would undo an Empty
+    /// Trash from the far side. Deletion itself is by licence alone, exactly
+    /// as `applyLabels`.
+    private func applyTrash(_ snapshot: BoardSnapshot, changedFrom previous: BoardSnapshot?,
+                            deleting: Set<TrashedItem.ID>) throws {
+        guard previous?.trash != snapshot.trash || !deleting.isEmpty else { return }
+        var existing = Dictionary(
+            Self.deduplicated(try context.fetch(FetchDescriptor<StoredTrash>()), by: \.id,
+                              newest: \.trashedAt).map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let seen = Set((previous?.trash ?? []).map(\.id))
+        for item in snapshot.trash {
+            guard existing.removeValue(forKey: item.id) == nil else { continue }
+            if seen.contains(item.id) { continue }
+            // An entry that will not encode is not inserted, and — unlike an
+            // activity row — never retried, because nothing ever edits it to
+            // write it again. It stays in this device's own trash and its
+            // thirty days run out there; the log line is what keeps the wait
+            // from being a silent one.
+            guard let payload = encoded(item) else {
+                Self.logger.error("A trash entry failed to encode; it stays on this device alone.")
+                continue
+            }
+            let fresh = StoredTrash(id: item.id)
+            context.insert(fresh)
+            fresh.trashedAt = item.trashedAt
+            fresh.payload = payload
+        }
+        // The licence, not the base — see `applyLabels`. What it misses
+        // resurfaces on the next read, which for a trash is the direction the
+        // whole feature points.
+        for (id, orphan) in existing where deleting.contains(id) { context.delete(orphan) }
+    }
+
     private func applyTasks(_ snapshot: BoardSnapshot, changedFrom previous: BoardSnapshot?,
                             deleting: Set<TaskItem.ID>) throws {
         // The one hot path: a keystroke changes one card, and comparing against
@@ -853,6 +936,7 @@ final class BoardSyncStore: SyncStoring {
                 record = fresh
             }
             Self.write(task, at: position, into: record, context: context,
+                       changedFrom: before[task.id], wasAt: previousPositions[task.id],
                        encodingFails: encodingFailsForTesting)
         }
         // The tombstones and not "everything the snapshot no longer names",
@@ -868,24 +952,83 @@ final class BoardSyncStore: SyncStoring {
 
     // MARK: Value ⇄ record
 
+    /// Writes one attribute — but only if *this device* is what changed it.
+    ///
+    /// **The rule that keeps two devices from undoing each other.** A push
+    /// carries this device's whole view of a card, because that is the shape
+    /// ``BoardStore`` holds a board in. Written blind, that view overwrites
+    /// every field, including the ones another device has since edited and this
+    /// one has not heard about yet: move a card on the Mac, rename it on the
+    /// phone before the move arrives, and the phone's rename puts the card back
+    /// in the old column. The move was not merged and lost — it was overwritten
+    /// by a device that did not know it had happened.
+    ///
+    /// So the question asked here is not "does the record differ" but "did
+    /// *we* change it". `previous` is what this device last agreed the records
+    /// held — the last push, or the last merge, after which
+    /// ``invalidateDiff()`` clears the base and everything is written afresh.
+    /// A field equal to that base is one this device has no opinion about, and
+    /// whatever the record holds is left alone.
+    ///
+    /// `nil` means there is no base: a new record, a first write, or the pass
+    /// after a merge. Then every field is this device's to state.
+    ///
+    /// The second guard is a separate saving: assigning an equal value still
+    /// marks the attribute dirty, and a dirty attribute is one CloudKit pushes.
+    /// The activity loop below has always worked this way for the same reason.
+    private static func write<Value: Equatable>(
+        _ value: Value, to slot: inout Value, changedFrom previous: Value?
+    ) {
+        if let previous, previous == value { return }
+        guard slot != value else { return }
+        slot = value
+    }
+
     private static func write(
         _ task: TaskItem, at position: Int, into record: StoredTask, context: ModelContext,
+        changedFrom previous: TaskItem?, wasAt previousPosition: Int?,
         encodingFails: Bool = false
     ) {
-        record.code = task.code
-        record.boardID = task.boardID
-        record.columnID = task.columnID
-        record.title = task.title
-        record.note = task.note
-        record.labelKeys = task.labelKeys
-        record.dueDay = task.due?.description
-        record.priorityKey = task.priority.rawValue
-        record.createdAt = task.createdAt
-        record.updatedAt = task.updatedAt
-        record.position = position
-        record.inboxCompletedAt = task.inboxCompletedAt
-        record.archivedAt = task.archivedAt
+        // `previous.map` rather than `previous?.x` for every optional field:
+        // optional chaining *flattens*, so `previous?.boardID` cannot tell "no
+        // base" from "the base had no board" — and conflating those two is
+        // exactly the clobber this function exists to stop.
+        write(task.code, to: &record.code, changedFrom: previous?.code)
+        write(task.boardID, to: &record.boardID, changedFrom: previous.map(\.boardID))
+        write(task.columnID, to: &record.columnID, changedFrom: previous.map(\.columnID))
+        write(task.title, to: &record.title, changedFrom: previous?.title)
+        write(task.note, to: &record.note, changedFrom: previous?.note)
+        write(task.labelKeys, to: &record.labelKeys, changedFrom: previous?.labelKeys)
+        write(task.due?.description, to: &record.dueDay,
+              changedFrom: previous.map { $0.due?.description })
+        write(task.priority.rawValue, to: &record.priorityKey,
+              changedFrom: previous?.priority.rawValue)
+        write(task.createdAt, to: &record.createdAt, changedFrom: previous?.createdAt)
+        // Always moves when anything else did — every mutation advances it — so
+        // it needs no special case to keep `applyTasks`' record-level clock
+        // honest about which device is ahead.
+        write(task.updatedAt, to: &record.updatedAt, changedFrom: previous?.updatedAt)
+        write(position, to: &record.position, changedFrom: previousPosition)
+        write(task.inboxCompletedAt, to: &record.inboxCompletedAt,
+              changedFrom: previous.map(\.inboxCompletedAt))
+        write(task.archivedAt, to: &record.archivedAt, changedFrom: previous.map(\.archivedAt))
+        // Compared as a *rule* and encoded only when it changed. Re-encoding on
+        // every write is waste, and `Data` equality is no test of sameness when
+        // the bytes come from JSON. Written even when `nil`, so clearing a rule
+        // on one device clears it everywhere rather than leaving the last
+        // synced rule standing.
+        if previous == nil || previous?.recurrence != task.recurrence {
+            let encoded = task.recurrence.flatMap { try? kindEncoder.encode($0) }
+            write(encoded, to: &record.recurrence, changedFrom: nil)
+        }
 
+        // The checklist rows the card's own fields answer — a tick on one
+        // device and a rename on the other — apply to a sub-task too, so the
+        // base is carried down to the row.
+        let previousSubtasks = Dictionary(
+            (previous?.subtasks ?? []).enumerated().map { ($0.element.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
         var subtasks = Dictionary(
             (record.subtasks ?? []).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }
         )
@@ -898,9 +1041,10 @@ final class BoardSyncStore: SyncStoring {
                 fresh.task = record
                 return fresh
             }()
-            row.text = subtask.text
-            row.done = subtask.done
-            row.position = index
+            let was = previousSubtasks[subtask.id]
+            write(subtask.text, to: &row.text, changedFrom: was?.element.text)
+            write(subtask.done, to: &row.done, changedFrom: was?.element.done)
+            write(index, to: &row.position, changedFrom: was?.offset)
         }
         for orphan in subtasks.values { context.delete(orphan) }
 
@@ -983,6 +1127,12 @@ final class BoardSyncStore: SyncStoring {
         task.updatedAt = record.updatedAt
         task.inboxCompletedAt = record.inboxCompletedAt
         task.archivedAt = record.archivedAt
+        // `try?` for the activity kinds' reason — a blob a newer build wrote
+        // strangely reads as no rule rather than no card — though the rule's
+        // own decoder is lenient enough that this should never actually trip.
+        task.recurrence = record.recurrence.flatMap {
+            try? Self.kindDecoder.decode(RecurrenceRule.self, from: $0)
+        }
         task.subtasks = (record.subtasks ?? [])
             .sorted { ($0.position, $0.text) < ($1.position, $1.text) }
             .map { SubTask(id: $0.id, text: $0.text, done: $0.done) }
@@ -1065,6 +1215,13 @@ final class BoardSyncStore: SyncStoring {
             light: Self.decoded(record.light) ?? LabelDef.seed[0].light,
             dark: Self.decoded(record.dark) ?? LabelDef.seed[0].dark
         )
+    }
+
+    /// `nil` for a payload this build cannot read — a newer build's entry,
+    /// which stays a record and stays out of the value. See
+    /// `StoredTrash.payload`.
+    private static func value(of record: StoredTrash) -> TrashedItem? {
+        Self.decoded(record.payload)
     }
 
     /// A `Codable` value as a record attribute.

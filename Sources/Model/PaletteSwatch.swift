@@ -22,14 +22,18 @@ struct PaletteSwatch: Identifiable, Hashable, Codable, Sendable {
     /// Stored rather than looked up so a seeded name survives a rename of the
     /// constant it came from, and so the file says what the user was shown.
     var name: String?
+    /// When this colour was saved — see ``DatedItem``. `nil` for one written
+    /// before v18.
+    var changedAt: Date?
 
     /// The colour itself, which is what a picker matches the current selection
     /// against — two entries of the same colour would be one choice drawn twice.
     var id: SwatchColor { swatch }
 
-    init(_ swatch: SwatchColor, name: String? = nil) {
+    init(_ swatch: SwatchColor, name: String? = nil, changedAt: Date? = nil) {
         self.swatch = swatch
         self.name = name
+        self.changedAt = changedAt
     }
 
     /// What a reader hears: the shipped name, the shipped name of an identical

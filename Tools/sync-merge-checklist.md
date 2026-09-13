@@ -31,7 +31,8 @@ failure log lines — none of them should appear in a clean run.
 | 4 | Same card, different fields | A retitles card X; B sets X's due date | X carries both the new title and the new date on both devices | |
 | 5 | Same card, same field | A retitles X "From the Mac"; B retitles X "From the phone" | One title wins on both devices — note which; both agreeing on the same one is the pass | |
 | 6 | Move vs edit | A drags X to another column; B retitles X | X is in the new column with the new title, on both | |
-| 7 | Delete vs edit | A trashes card X; B retitles X before syncing | Note the outcome on both sides. The trash is local to each device, so a resurrect-vs-stay-gone disagreement here is a finding to record, not necessarily a failure | |
+| 7 | Delete vs edit | A trashes card X; B retitles X before syncing | The trash **syncs** since `StoredTrash`: X's trash row appears on both devices either way. What the *card* does is the finding to record — B's unsynced retitle can resurrect it beside its own trash row, in which case Restore on that row says "already there" rather than making two of X | |
+| 7b | The trash is one bin | A trashes a card; sync both. Then: B restores it; sync both. Then A trashes it again and **B** empties the trash; sync both | After the first sync B's trash shows the row. After the restore the card is back on both boards and both trashes are empty. After Empty Trash the row is gone from both and **stays** gone — an emptied trash that refills from the other device is the failure this row exists for | |
 | 8 | Column reorder | A and B reorder the same board's columns differently, then sync | Both devices converge on the same order | |
 | 9 | Offline batch | B in Airplane Mode: add two tasks, complete one, retitle another. A edits meanwhile. Reconnect B | The union: all of B's edits and all of A's, nothing dumped into the Inbox | |
 | 10 | Sub-tasks merge by id | A ticks one sub-task of X; B adds a new sub-task to X | X carries both — the tick and the new row — on both devices | |
@@ -41,7 +42,7 @@ failure log lines — none of them should appear in a clean run.
 | 14 | The first session survives | As 12: choose a starter on B, add a card to it, quit B, relaunch B | The card and the chosen board are both still there, and both reach A. B's first session used to be written to `board.json` alone and thrown away by its own second launch | |
 | 15 | **The upgrade keeps what was there** | Before updating either device: make a saved view and save a colour on A, and a *different* view and colour on B. Update both to this build. Launch A, sync, then launch B and sync | Both devices end up with **all four** — two views and two colours. This is the undated merge: neither list has a date, so neither is allowed to win. Losing either half is the failure this row exists for | |
 | 16 | The newer edit wins | After 15, with both devices settled: rename a view on A, sync; then rename the *same* view on B, sync; then sync A again | B's name stands on both, because B's edit is the later one. Then do it the other way round and check the answer flips | |
-| 17 | A theme travels | A: make a theme in the editor and put it in the light slot. Sync, then **quit and relaunch B** | B has the theme in its list. Which slot B is *showing* stays B's own — a device does not repaint because another one did — and the theme arrives at the launch rather than live | |
+| 17 | A theme travels | A: make a theme in the editor and put it in the light slot. Sync, then pull on B — **no relaunch** | B has the theme in its list on the pull: the theme *list* arrives live since v18, like the views and the palette. Which slot B is *showing* stays B's own until B's next launch — a device does not repaint because another one did | |
 | 18 | **A new board travels, and is not eaten** | B: make a board with two columns and put a card on it straight away. Do not touch A until both have settled | The board and the card appear on A. Then check **B**: the board is still there. The failure is the board vanishing from both a moment after it was made — a read taken while it was still arriving became the diff base, and the next save called the difference a deletion | |
 | 19 | **Skew never deletes** | Get both devices settled, then on B: delete the app, reinstall, and *immediately* — before the board arrives — make a board and a label. Sync everything | Nothing already on A is deleted, ever. B ends with the account's boards **plus** what it made; any duplicate the race minted is deleted once, by hand, on one device, and stays gone everywhere | |
 | 20 | The picker yields | Delete the app from B, reinstall, launch, and **wait** at the first-run picker without choosing | The picker dismisses itself when the account's board arrives; no starter is folded in over it | |
@@ -77,7 +78,8 @@ this checklist closes. Then, and only then, promote the schema:
 1. <https://icloud.developer.apple.com> ▸ container `iCloud.com.n14395.LittleKanban`.
 2. Check the **Development** schema lists every record type `SyncSchema.swift`
    declares (StoredMeta, StoredBoard, StoredColumn, StoredLabel, StoredTask,
-   StoredSubtask, StoredActivity) with their fields — first run initialised it.
+   StoredSubtask, StoredActivity, StoredTrash) with their fields — first run
+   initialised it.
 3. **Deploy Schema Changes** from Development to **Production**.
 
 Promotion is one-way and the production schema is additive-only from then on: a

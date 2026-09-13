@@ -42,6 +42,17 @@ struct ActivityEntry: Identifiable, Hashable, Codable, Sendable {
         case unfiled
         /// Pre-rendered English from a board written before entries were structured.
         case legacy(String)
+        /// A repeat rule was set or changed. The rule is stored, not its
+        /// sentence, for the same reason as `dueSet`'s day.
+        case repeatSet(RecurrenceRule)
+        case repeatCleared
+        /// The rule's end date was reached: the card completed without a spawn.
+        case repeatEnded
+        /// On the completed card: the spawn it produced, by code.
+        case repeatedAs(code: String)
+        /// The spawned card's birth entry, in place of `created`: the card it
+        /// repeats, by code.
+        case repeatOf(code: String)
     }
 
     init(id: UUID = UUID(), _ kind: Kind, when: Date = .now) {
@@ -101,6 +112,16 @@ struct ActivityEntry: Identifiable, Hashable, Codable, Sendable {
                 : String(localized: "\(count) sub-tasks completed", comment: "Activity feed: several sub-tasks ticked off by the move to Done")
         case .legacy(let text):
             text
+        case .repeatSet(let rule):
+            String(localized: "Repeats \(rule.summaryText())", comment: "Activity feed: a repeat rule was set")
+        case .repeatCleared:
+            String(localized: "Repeat removed", comment: "Activity feed: the repeat rule was cleared")
+        case .repeatEnded:
+            String(localized: "Repeat ended", comment: "Activity feed: the repeat rule's end date was reached")
+        case .repeatedAs(let code):
+            String(localized: "Repeated as \(code)", comment: "Activity feed: completing spawned a fresh card, named by its code")
+        case .repeatOf(let code):
+            String(localized: "Created by repeat of \(code)", comment: "Activity feed: the card was spawned by a repeating task, named by its code")
         }
     }
 
@@ -180,6 +201,10 @@ struct TaskItem: Identifiable, Hashable, Codable, Sendable {
     /// default because that is the only shape a synthesised decoder tolerates
     /// the absence of, which is what lets a v2 file read as v3.
     var archivedAt: Date?
+    /// How the task comes back after it is completed, or `nil` for the normal
+    /// kind that doesn't. Optional for `archivedAt`'s reason: it is what lets
+    /// a v16 file read as v17.
+    var recurrence: RecurrenceRule?
 
     /// Where the task sits, as the one value it really is. The setter is the
     /// only writer of `boardID` and `columnID`, so the invariant — both set, or
@@ -231,6 +256,7 @@ struct TaskItem: Identifiable, Hashable, Codable, Sendable {
             && placement == other.placement
             && inboxCompletedAt == other.inboxCompletedAt
             && archivedAt == other.archivedAt
+            && recurrence == other.recurrence
     }
 
     private static func trimmed(_ text: String) -> String {

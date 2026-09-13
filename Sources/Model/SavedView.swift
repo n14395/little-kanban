@@ -111,6 +111,17 @@ struct SavedView: Identifiable, Hashable, Codable, Sendable {
     /// they renamed past recognition, gets the generic copy.
     var preset: Preset?
 
+    /// When this view was last made or edited — see ``DatedItem``, which is why
+    /// it is here rather than only on the list.
+    ///
+    /// The *list's* `viewsChangedAt` says when anything last changed, which is
+    /// enough to pick a winner between two whole lists and not enough to merge
+    /// them: two devices that each add a view have made two additions, not two
+    /// competing claims to one value, and whole-list last-writer-wins deletes
+    /// one of them. `nil` is a view written before v18, which the merge treats
+    /// as having existed since always.
+    var changedAt: Date?
+
     /// The seven the app has always had. Raw values are the old enum's, so a v9
     /// file's `lastSurface` string still resolves after migration.
     enum Preset: String, CaseIterable, Codable, Sendable {

@@ -45,6 +45,7 @@ struct TaskInspector: View {
         var priority: PriorityPicker.Metrics
         var labels: LabelEditor.Metrics
         var checklist: ChecklistView.Metrics
+        var repeatField: RecurrenceField.Metrics
         var activity: ActivityFeed.Metrics
 
         static let desk = Metrics(
@@ -52,14 +53,14 @@ struct TaskInspector: View {
             headerButton: 32, headerButtonRadius: 9,
             headerGlyph: 13,
             fieldHit: 0, tick: .deskHeader, destination: .desk, moveTo: .desk, due: .desk,
-            priority: .desk, labels: .desk, checklist: .desk, activity: .desk
+            priority: .desk, labels: .desk, checklist: .desk, repeatField: .desk, activity: .desk
         )
         static let pad = Metrics(
             width: nil, horizontalPadding: 20, sectionSpacing: 20, titleSize: 29, noteSize: 14.5,
             headerButton: 48, headerButtonRadius: 14,
             headerGlyph: 17,
             fieldHit: 44, tick: .sheetHeader, destination: .sheet, moveTo: .sheet, due: .sheet,
-            priority: .sheet, labels: .sheet, checklist: .sheet, activity: .sheet
+            priority: .sheet, labels: .sheet, checklist: .sheet, repeatField: .sheet, activity: .sheet
         )
     }
 
@@ -126,6 +127,7 @@ struct TaskInspector: View {
                     attributeCards
                     labels
                     checklist
+                    repeatRow
                     activity
                 }
                 .padding(.horizontal, metrics.horizontalPadding)
@@ -444,6 +446,12 @@ struct TaskInspector: View {
             .padding(.vertical, 4)
             .background(palette.card, in: .rect(cornerRadius: metrics.cardRadius))
         }
+    }
+
+    /// Under the checklist, above the history — the last thing that is *set*
+    /// on a card, before the record of what happened to it.
+    private var repeatRow: some View {
+        RecurrenceField(task: task, scope: .desk, metrics: metrics.repeatField)
     }
 
     /// The list itself is `ActivityFeed`, shared with the iOS sheet, which had

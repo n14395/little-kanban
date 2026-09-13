@@ -274,6 +274,15 @@ import Testing
         check("addTaskToCurrentMobileColumn") { $0.addTaskToCurrentMobileColumn() }
         check("setPriority") { $0.setPriority(.low, on: TestBoard.dragDrop) }
         check("setDue") { $0.setDue(TestBoard.laterDay, on: TestBoard.cafe) }
+        check("setRecurrence") { $0.setRecurrence(RecurrenceRule(), on: TestBoard.cafe) }
+        // Started from a board where the card already repeats, for
+        // `unarchive`'s reason: setting the rule inside the same step would
+        // leave the undo measuring the set rather than the clear.
+        check("clearRecurrence", tasks: TestBoard.tasks.map { task in
+            var task = task
+            if task.id == TestBoard.cafe { task.recurrence = RecurrenceRule() }
+            return task
+        }) { $0.clearRecurrence(on: TestBoard.cafe) }
         check("addSubtask") { $0.addSubtask(to: TestBoard.cafe, text: "New row") }
         check("commitSubtaskDraft") { store in
             store.setSubtaskDraft("Drafted", for: .desk, task: TestBoard.cafe)
@@ -418,10 +427,13 @@ import Testing
         #expect(named["duplicateView"] == "Duplicate View")
         #expect(named["moveView"] == "Reorder Views")
         #expect(named["deleteView"] == "Delete View")
+        #expect(named["setRecurrence"] == "Set Repeat")
+        #expect(named["clearRecurrence"] == "Stop Repeating")
         // Five more than 49: the saved-view mutations that arrived with v11.
         // `restoreSeededViews` is not among them — it is only reachable once
         // something has been deleted, so the harness cannot call it cold.
-        #expect(named.count == 54)
+        // And two more with v17: the repeat rule's set-and-clear pair.
+        #expect(named.count == 56)
     }
 
     /// The mutating methods that deliberately register nothing, each for a

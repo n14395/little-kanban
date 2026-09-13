@@ -238,6 +238,28 @@ import Testing
         #expect(Set(stored.activity.map(\.kind)) == Set(TestBoard.everyActivityKind))
     }
 
+    /// The repeat rule travels as an encoded blob — `StoredTask.recurrence` —
+    /// and clearing it has to clear it on every device rather than leaving the
+    /// last synced rule standing.
+    @Test func aRepeatRuleRoundTripsAndItsClearingSticks() throws {
+        let sync = try store()
+        var card = Self.filed[1]
+        let rule = RecurrenceRule(interval: 2, unit: .week, weekdays: [2, 6],
+                                  basis: .completion,
+                                  until: CalendarDay(year: 2027, month: 3, day: 1))
+        card.recurrence = rule
+        card.updatedAt = TestBoard.at(500)
+        try sync.apply(snapshot(tasks: [card]))
+        let read = try #require(try sync.load())
+        #expect(read.tasks.first { $0.id == card.id }?.recurrence == rule)
+
+        card.recurrence = nil
+        card.updatedAt = TestBoard.at(100)
+        try sync.apply(snapshot(tasks: [card]))
+        let reread = try #require(try sync.load())
+        #expect(reread.tasks.first { $0.id == card.id }?.recurrence == nil)
+    }
+
     // MARK: The invariant
 
     /// CloudKit does not apply relationship changes atomically, so a record can
@@ -333,6 +355,82 @@ import Testing
 
         try sync.apply(board)
         #expect(try context.fetch(FetchDescriptor<StoredTask>()).map(\.persistentModelID) == identities)
+    }
+
+    /// **Scenario 6 of the two-device checklist, which used to fail.**
+    ///
+    /// One device moves a card to another column; the other renames it before
+    /// the move arrives. Both edits must stand. They did not: a push carries
+    /// this device's whole view of a card, so the rename wrote back the column
+    /// it still believed the card was in and put it back — the move was not
+    /// merged and lost, it was overwritten by a device that had not heard of
+    /// it. Found by hand on a Mac and an iPhone; this is so it is never found
+    /// that way again.
+    ///
+    /// The other device's edit is made directly on the record, which is what a
+    /// merge from CloudKit amounts to. The base is left alone deliberately —
+    /// `invalidateDiff()` is *not* called — because the failure needs a device
+    /// that thinks it is still in step, which is the ordinary case.
+    @Test func aRenameDoesNotDragACardBackFromAnotherDevicesMove() throws {
+        let sync = try store()
+        try sync.apply(snapshot())
+
+        let context = sync.container.mainContext
+        let moved = try #require(Self.filed.first)
+        let destination = try #require(
+            SeedData.defaultBoard.columns.last { $0.id != moved.columnID }?.id
+        )
+        let record = try #require(
+            try context.fetch(FetchDescriptor<StoredTask>()).first { $0.id == moved.id }
+        )
+        #expect(record.columnID == moved.columnID, "the fixture is already in the destination")
+        record.columnID = destination
+        try context.save()
+
+        // This device only ever touched the title, and its view of the card
+        // still carries the old column.
+        var renamed = Self.filed
+        renamed[0].title = "Renamed on the phone"
+        renamed[0].updatedAt = .now
+        try sync.apply(snapshot(tasks: renamed))
+
+        let after = try #require(
+            try context.fetch(FetchDescriptor<StoredTask>()).first { $0.id == moved.id }
+        )
+        #expect(after.title == "Renamed on the phone", "this device's own edit was dropped")
+        #expect(after.columnID == destination,
+                "the rename dragged the card back out of the other device's column")
+    }
+
+    /// The same rule one level down: a tick on one device and a rename on the
+    /// other are two edits to one checklist row, and neither may undo the other.
+    @Test func aSubtaskRenameDoesNotUntickAnotherDevicesTick() throws {
+        let sync = try store()
+        try sync.apply(snapshot())
+
+        let context = sync.container.mainContext
+        // An *unticked* row, so the other device's tick is a change rather than
+        // a restatement — picked by its state rather than by its index, which
+        // the fixture is free to reorder.
+        let carrier = try #require(Self.filed.firstIndex { $0.subtasks.contains { !$0.done } })
+        let at = try #require(Self.filed[carrier].subtasks.firstIndex { !$0.done })
+        let row = Self.filed[carrier].subtasks[at]
+        let record = try #require(
+            try context.fetch(FetchDescriptor<StoredSubtask>()).first { $0.id == row.id }
+        )
+        record.done = true
+        try context.save()
+
+        var edited = Self.filed
+        edited[carrier].subtasks[at].text = "Reworded on the phone"
+        edited[carrier].updatedAt = .now
+        try sync.apply(snapshot(tasks: edited))
+
+        let after = try #require(
+            try context.fetch(FetchDescriptor<StoredSubtask>()).first { $0.id == row.id }
+        )
+        #expect(after.text == "Reworded on the phone")
+        #expect(after.done, "the rewording unticked what the other device ticked")
     }
 
     /// A merge from another device leaves the store holding something this
@@ -676,6 +774,72 @@ import Testing
         #expect(read.paletteChangedAt == TestBoard.epoch)
         #expect(read.themesChangedAt == TestBoard.epoch)
         #expect(try sync.carriedLists() == [.themes, .views, .palette])
+    }
+
+    /// **The push writes only the meta fields this device changed.** The one
+    /// meta record carries the serial, the active board and the three lists,
+    /// and its writer used to be all-or-nothing: any difference rewrote every
+    /// field. So a device that had merely handed out a task code overwrote
+    /// the themes another device had just delivered — before its own read
+    /// ever saw them — and scenario 17 read as "themes don't sync". The
+    /// question is now asked field by field, exactly as it is for a card's.
+    @Test func aPushLeavesTheMetaAnotherDeviceWroteAlone() throws {
+        let sync = try BoardSyncStore.inMemory()
+        var mine = Self.boardOfItsOwn(changedAt: TestBoard.epoch)
+        try sync.apply(mine)
+
+        // Another device saves a theme, straight into the records.
+        let writer = BoardSyncStore(container: sync.container, isSyncing: false)
+        var theirs = try #require(try writer.load())
+        var made = ThemePresets.fallback(for: .light)
+        made.id = "made-on-the-other-device"
+        made.changedAt = TestBoard.epoch.addingTimeInterval(60)
+        theirs.themes.custom.append(made)
+        theirs.themesChangedAt = made.changedAt
+        try writer.apply(theirs)
+
+        // This device pushes an unrelated change: a task code handed out.
+        mine.nextSerial += 1
+        try sync.apply(mine)
+
+        let read = try #require(
+            try BoardSyncStore(container: sync.container, isSyncing: false).load()
+        )
+        #expect(read.themes.custom.contains { $0.id == made.id },
+                "a push that changed only the serial overwrote the other device's theme")
+        #expect(read.nextSerial == mine.nextSerial)
+
+        // And the serial itself is a field no push may pull backwards: two
+        // devices handing out one task code is the one disagreement no later
+        // merge can undo.
+        theirs.nextSerial = 500
+        try writer.apply(theirs)
+        mine.nextSerial += 1
+        try sync.apply(mine)
+        #expect(try #require(try writer.load()).nextSerial == 500,
+                "a push pulled the shared serial back behind another device's")
+    }
+
+    /// **The launch pushes what its merge decided**, rather than waiting for
+    /// the next edit. A union that stayed on this machine while its watermark
+    /// moved on read, at the next merge, as a list of things the other side
+    /// had deleted.
+    @Test func theLaunchPushesTheMergedListsBackToTheRecords() throws {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.inMemory()
+        var mine = Self.boardOfItsOwn()
+        mine.views = SavedView.seededAll + [SavedView.blank(named: "Mine")]
+        try temp.file.write(mine, generation: temp.file.nextWriteGeneration())
+        try sync.apply(Self.boardOfItsOwn())
+
+        _ = BoardStore.restored(file: temp.file, sync: sync)
+        let read = try #require(
+            try BoardSyncStore(container: sync.container, isSyncing: false).load()
+        )
+        #expect(read.views.contains { $0.name == "Mine" },
+                "the merged union waited on this machine for an edit that never came")
+        #expect(read.views.contains { $0.name == "Ship this week" },
+                "the push sent this device's list rather than the union")
     }
 
     /// The dated case: the records were edited after this device was, so the
@@ -1108,11 +1272,47 @@ private final class FlakySyncStore: SyncStoring {
     private let monday = TestBoard.epoch
     private var tuesday: Date { monday.addingTimeInterval(86_400) }
 
+    /// `syncedAt` defaults to `nil` — "this device has never merged" — which
+    /// is what the rows below are all about: they describe the rule *between
+    /// two lists*, and the watermark only enters where an item is held by one
+    /// side alone. The two tests that turn on it pass their own.
     private func resolve(
         _ local: [SavedView], _ localStamp: Date?,
-        _ remote: [SavedView]?, _ remoteStamp: Date?
+        _ remote: [SavedView]?, _ remoteStamp: Date?, syncedAt: Date? = nil
     ) -> (list: [SavedView], changedAt: Date?) {
-        SharedList.resolve(local: local, changedAt: localStamp, remote: remote, changedAt: remoteStamp)
+        SharedList.resolve(local: local, changedAt: localStamp, syncedAt: syncedAt,
+                           remote: remote, changedAt: remoteStamp)
+    }
+
+    /// **Scenario 15 of the two-device checklist, which used to fail.**
+    ///
+    /// Both devices add a view before either syncs. Both additions must stand.
+    /// They did not: two dated lists were settled by replacing the older with
+    /// the newer wholesale, so the device that saved second deleted the other's
+    /// view from both machines. A list is not a scalar — two additions are two
+    /// additions, not competing claims to one value.
+    @Test func twoDevicesEachAddingAViewKeepBoth() {
+        let agreed = monday
+        let mineNew = SavedView.blank(named: "Made on the Mac").dated(tuesday)
+        let theirsNew = SavedView.blank(named: "Made on the phone")
+            .dated(tuesday.addingTimeInterval(60))
+
+        let out = resolve([mineNew], tuesday, [theirsNew], tuesday.addingTimeInterval(60),
+                          syncedAt: agreed)
+        #expect(Set(out.list.map(\.id)) == Set([mineNew.id, theirsNew.id]),
+                "a view somebody made was deleted by the other device's save")
+    }
+
+    /// And the other half, which union alone would break: an item the other
+    /// device no longer holds and which has not changed since the two last
+    /// agreed is one **they deleted**, not one they have yet to see. Without
+    /// this a deleted view returns on every sync, forever.
+    @Test func aViewDeletedOnTheOtherDeviceStaysDeleted() {
+        let agreed = tuesday
+        let doomed = SavedView.blank(named: "Deleted over there").dated(monday)
+
+        let out = resolve([doomed], monday, [], tuesday.addingTimeInterval(60), syncedAt: agreed)
+        #expect(out.list.isEmpty, "a deletion made on the other device came back")
     }
 
     /// Row one: the records have never been written with one. Not an empty
@@ -1165,6 +1365,41 @@ private final class FlakySyncStore: SyncStoring {
         #expect(resolve(mine, nil, theirs, nil).changedAt == nil)
     }
 
+    /// **The watermark comes out of the merge at the stamp it consumed** —
+    /// never the clock, never backwards, and only for a list the records
+    /// actually carried. Stamped `.now` instead, an unrelated merge ran the
+    /// watermark past every item still crossing, and each landed wearing a
+    /// `changedAt` behind it — the shape of a deletion. See
+    /// `SharedList.heard(_:consuming:)`.
+    @Test func theWatermarkStandsWhereTheMergeActuallyHeard() {
+        let local = BoardSnapshot(
+            tasks: [], labels: [], nextSerial: 1,
+            viewsChangedAt: monday, paletteChangedAt: monday, themesChangedAt: monday,
+            viewsSyncedAt: monday, paletteSyncedAt: tuesday, themesSyncedAt: monday
+        )
+        let remote = BoardSnapshot(
+            tasks: [], labels: [], nextSerial: 1,
+            viewsChangedAt: tuesday,   // newer: the watermark advances to it
+            paletteChangedAt: monday,  // older than the palette's mark: it stands
+            themesChangedAt: tuesday   // newer, but not carried: it cannot count
+        )
+        let out = SharedList.resolve(local: local, remote: remote, carried: [.views, .palette])
+        #expect(out.viewsSyncedAt == tuesday,
+                "the watermark did not advance to the stamp it consumed")
+        #expect(out.paletteSyncedAt == tuesday, "a watermark moved backwards")
+        #expect(out.themesSyncedAt == monday,
+                "a list the records never carried moved its watermark anyway")
+
+        // An undated list consumed advances nothing either: nothing on it
+        // says when it was heard from.
+        let undated = SharedList.resolve(
+            local: local, remote: BoardSnapshot(tasks: [], labels: [], nextSerial: 1),
+            carried: [.views]
+        )
+        #expect(undated.viewsSyncedAt == monday,
+                "consuming an undated list invented a watermark")
+    }
+
     /// Themes are a list *and* two scalars. The custom themes merge like any
     /// other list; the two slots do not — an undated pair keeps this machine's,
     /// because which theme is showing is a fact about the screen in front of
@@ -1173,13 +1408,15 @@ private final class FlakySyncStore: SyncStoring {
         let local = ThemeSettings(lightID: "a", darkID: "b", custom: [Self.theme("mine")])
         let remote = ThemeSettings(lightID: "c", darkID: "d", custom: [Self.theme("theirs")])
 
-        let undated = SharedList.resolve(local: local, changedAt: nil, remote: remote, changedAt: nil)
+        let undated = SharedList.resolve(local: local, changedAt: nil, syncedAt: nil,
+                                         remote: remote, changedAt: nil)
         #expect(undated.themes.custom.map(\.id) == ["mine", "theirs"], "a theme somebody made was lost")
         #expect(undated.themes.lightID == "a", "an undated merge repainted the window")
         #expect(undated.themes.darkID == "b")
 
         // Dated, and theirs is newer: the slots travel with the decision.
-        let dated = SharedList.resolve(local: local, changedAt: monday, remote: remote, changedAt: tuesday)
+        let dated = SharedList.resolve(local: local, changedAt: monday, syncedAt: nil,
+                                       remote: remote, changedAt: tuesday)
         #expect(dated.themes.lightID == "c")
         #expect(dated.themes.custom.map(\.id) == ["theirs"])
     }
@@ -1188,5 +1425,203 @@ private final class FlakySyncStore: SyncStoring {
         var theme = ThemePresets.fallback(for: .light)
         theme.id = id
         return theme
+    }
+}
+
+
+/// The trash as records — one bin across every device, since ``StoredTrash``.
+///
+/// One verb per test: a row travels; a restore returns the card and takes the
+/// row away everywhere; an emptied trash stays empty; the upgrade keeps each
+/// device's local-only rows and sends them up; a deletion made elsewhere is
+/// not pushed back by an unrelated write; a shared bin meeting a card the
+/// board already has refuses to make two of it; and a row made while the
+/// records stood unread survives the recovery.
+@MainActor
+@Suite struct TrashSyncTests {
+    private func board(_ sync: BoardSyncStore, on temp: TempBoard) -> BoardStore {
+        let store = BoardStore.restored(file: temp.file, sync: sync)
+        store.saveNow()
+        return store
+    }
+
+    private func snapshot(trash: [TrashedItem] = []) -> BoardSnapshot {
+        BoardSnapshot(tasks: TestBoard.tasks(on: SeedData.defaultBoard), boards: SeedData.boards,
+                      labels: LabelDef.seed, nextSerial: 340,
+                      activeBoardID: SeedData.defaultBoard.id, trash: trash)
+    }
+
+    private static func row(_ title: String) -> TrashedItem {
+        TrashedItem(contents: .task(TaskItem(code: "TR-400", title: title)))
+    }
+
+    /// The whole feature in one line: a card trashed on one device shows up in
+    /// the other's bin, and not on its board.
+    @Test func aTrashedCardArrivesInTheOtherDevicesTrash() throws {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.inMemory()
+        let store = board(sync, on: temp)
+        store.addTask(to: .inbox, title: "Doomed")
+        let card = try #require(store.tasks.first { $0.title == "Doomed" })
+        store.trashTask(card.id)
+        store.saveNow()
+
+        let tempB = TempBoard()
+        let other = board(BoardSyncStore(container: sync.container, isSyncing: false), on: tempB)
+        #expect(other.trash.contains { $0.name == "Doomed" },
+                "a trashed card did not reach the other device's bin")
+        #expect(other.tasks.contains { $0.id == card.id } == false,
+                "the trashed card is still on the other device's board")
+    }
+
+    /// A restore is two travelling facts — the card is back, the row is gone —
+    /// and both must land on the device that trashed it.
+    @Test func aRestoreReturnsTheCardAndEmptiesTheBinEverywhere() throws {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.inMemory()
+        let store = board(sync, on: temp)
+        store.addTask(to: .inbox, title: "Doomed")
+        let card = try #require(store.tasks.first { $0.title == "Doomed" })
+        store.trashTask(card.id)
+        store.saveNow()
+
+        let tempB = TempBoard()
+        let other = board(BoardSyncStore(container: sync.container, isSyncing: false), on: tempB)
+        let rowID = try #require(other.trash.first { $0.name == "Doomed" }).id
+        #expect(other.restoreFromTrash(rowID) == nil, "the restore itself was refused")
+        other.saveNow()
+
+        store.mergeRemoteChanges()
+        #expect(store.tasks.contains { $0.id == card.id },
+                "the restored card did not come back to the device that trashed it")
+        #expect(store.trash.isEmpty, "the restored row stayed in this device's bin")
+    }
+
+    /// Empty Trash is the one act in the app that is meant to stick, and now it
+    /// has to stick everywhere.
+    @Test func anEmptiedTrashStaysEmptyEverywhere() throws {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.inMemory()
+        let store = board(sync, on: temp)
+        store.addTask(to: .inbox, title: "Doomed")
+        let card = try #require(store.tasks.first { $0.title == "Doomed" })
+        store.trashTask(card.id)
+        store.saveNow()
+
+        let tempB = TempBoard()
+        let other = board(BoardSyncStore(container: sync.container, isSyncing: false), on: tempB)
+        other.emptyTrash()
+        other.saveNow()
+
+        store.mergeRemoteChanges()
+        #expect(store.trash.isEmpty, "an Empty Trash on the other device did not land here")
+
+        // And an unrelated push from this device must not refill the records.
+        store.addTask(to: .inbox, title: "Unrelated")
+        store.saveNow()
+        let read = try #require(try BoardSyncStore(container: sync.container, isSyncing: false).load())
+        #expect(read.trash.isEmpty, "an unrelated push resurrected the emptied bin")
+    }
+
+    /// The upgrade path: records from before there was a `StoredTrash` carry no
+    /// bin at all, and the launch must read that as "nothing has been written"
+    /// rather than "the bin is empty" — the same distinction the shared lists
+    /// draw, answered here by the union.
+    @Test func theUpgradeKeepsEachDevicesLocalOnlyRows() throws {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.inMemory()
+        try sync.apply(snapshot())
+        try temp.file.write(snapshot(trash: [Self.row("Kept from before")]),
+                            generation: temp.file.nextWriteGeneration())
+
+        let store = BoardStore.restored(file: temp.file, sync: sync)
+        #expect(store.trash.contains { $0.name == "Kept from before" },
+                "the upgrade emptied the local bin")
+        let read = try #require(try BoardSyncStore(container: sync.container, isSyncing: false).load())
+        #expect(read.trash.contains { $0.name == "Kept from before" },
+                "the launch did not send the local-only row up")
+    }
+
+    /// The diff-base skip in `applyTrash`: a row this device still carries but
+    /// whose record another device deleted is absent-but-seen, and writing it
+    /// back would undo an Empty Trash from the far side.
+    @Test func aRowAnotherDeviceDeletedIsNotPushedBack() throws {
+        let sync = try BoardSyncStore.inMemory()
+        let doomed = Self.row("Deleted over there")
+        var mine = snapshot(trash: [doomed])
+        try sync.apply(mine)
+
+        let writer = BoardSyncStore(container: sync.container, isSyncing: false)
+        var theirs = try #require(try writer.load())
+        theirs.trash = []
+        try writer.apply(theirs, deleting: SyncIDs(trash: [doomed.id]))
+
+        // This device trashes something else before it hears; its push
+        // carries the whole bin, the deleted row included.
+        mine.trash.append(Self.row("Fresh here"))
+        try sync.apply(mine)
+
+        let read = try #require(try writer.load())
+        #expect(read.trash.contains { $0.name == "Fresh here" }, "the new row did not travel")
+        #expect(read.trash.contains { $0.id == doomed.id } == false,
+                "a push reinserted a row another device had deleted")
+    }
+
+    /// Scenario 7's crossing: an unsynced edit on one device resurrects a card
+    /// the other has trashed, so the board holds the card *and* the bin holds
+    /// its row. Restore must refuse rather than make two of it — the guard
+    /// `restoreFromTrash` grew the day the bin became shared.
+    @Test func restoringACardTheBoardAlreadyHasRefuses() throws {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.inMemory()
+        let store = board(sync, on: temp)
+        store.addTask(to: .inbox, title: "Twice")
+        let card = try #require(store.tasks.first { $0.title == "Twice" })
+        store.trashTask(card.id)
+        store.saveNow()
+
+        // The other device never heard about the trashing and writes the card
+        // back, staged straight into the records.
+        let writer = BoardSyncStore(container: sync.container, isSyncing: false)
+        var theirs = try #require(try writer.load())
+        theirs.tasks.append(card)
+        try writer.apply(theirs)
+
+        store.mergeRemoteChanges()
+        #expect(store.tasks.contains { $0.id == card.id }, "the resurrection never landed")
+        let rowID = try #require(store.trash.first { $0.name == "Twice" }).id
+        #expect(store.restoreFromTrash(rowID) == .alreadyThere,
+                "restoring made a second copy of a card the board already has")
+        #expect(store.tasks.count { $0.id == card.id } == 1)
+        #expect(store.trash.contains { $0.id == rowID }, "the refusal took the row anyway")
+    }
+
+    /// A card trashed while the records stood unread lives only in the bin —
+    /// dropped by the recovery, it would be gone from the board *and* the
+    /// trash, which is the loss the whole recovery exists to prevent.
+    @Test func aCardTrashedWhileBlockedKeepsItsRowThroughRecovery() throws {
+        let temp = TempBoard()
+        let real = try BoardSyncStore.inMemory()
+        try real.apply(snapshot())
+        try temp.file.write(snapshot(), generation: temp.file.nextWriteGeneration())
+
+        let flaky = FlakySyncStore(wrapping: real)
+        flaky.loadFails = true
+        let store = BoardStore.restored(file: temp.file, sync: flaky)
+        #expect(store.isSyncReadBlocked)
+
+        store.addTask(to: .inbox, title: "Trashed while blocked")
+        let card = try #require(store.tasks.first { $0.title == "Trashed while blocked" })
+        store.trashTask(card.id)
+
+        flaky.loadFails = false
+        store.mergeRemoteChanges()
+
+        #expect(store.isSyncReadBlocked == false)
+        #expect(store.trash.contains { $0.name == "Trashed while blocked" },
+                "recovery dropped a row made while the records stood unread")
+        let records = try #require(try real.load())
+        #expect(records.trash.contains { $0.name == "Trashed while blocked" },
+                "recovery did not push the row the records never saw")
     }
 }

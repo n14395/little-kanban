@@ -29,10 +29,16 @@ struct ChecklistView: View {
         var font: CGFloat
         var showsRowHover: Bool
         /// Whether a row carries its own `×`. A pointer reveals it on hover; a
-        /// touch surface reaches delete through the row's context menu instead
-        /// of spending 44pt of row on a control that is nearly always idle.
+        /// touch surface reaches delete by sliding the row aside — see
+        /// ``deleteRevealWidth`` — rather than spending 44pt of row on a
+        /// control that is nearly always idle.
         var showsInlineDelete: Bool
         var deleteGlyph: CGFloat
+        /// How much row a swipe toward the leading edge slides aside, which is
+        /// the width of the delete button it uncovers. 0 is no swipe at all —
+        /// the desk, whose `×` is on the row already and where a sideways drag
+        /// over text means selection.
+        var deleteRevealWidth: CGFloat
         /// How far the box's touch square is allowed to spill past the space the
         /// row gives it. The 44pt target lands inside the row's own padding
         /// rather than pushing the text across and the row down, so raising it
@@ -101,11 +107,17 @@ struct ChecklistView: View {
         /// list holds open so its draft field ends where the rows' fields do.
         var gripReserve: CGFloat { gripHit - 2 * gripOverhang }
 
+        /// Whether this surface deletes by swipe, said as the question the
+        /// call sites ask rather than as a second flag that could disagree
+        /// with the width.
+        var swipesToDelete: Bool { deleteRevealWidth > 0 }
+
         static let desk = Metrics(
             box: .deskRow, rowSpacing: 9, rowGap: 2,
             rowVerticalPadding: 6, rowHorizontalPadding: 8, rowMinHeight: 0,
             rowRadius: 9, font: 12.5,
             showsRowHover: true, showsInlineDelete: true, deleteGlyph: 9.5,
+            deleteRevealWidth: 0,
             boxOverhang: 0, fieldHit: 0, fieldOverhang: 0, fieldCaretGutter: 4,
             gripGlyph: 10, gripHit: 18, gripOverhang: 0, standInRadius: 9
         )
@@ -114,12 +126,15 @@ struct ChecklistView: View {
             rowVerticalPadding: 6, rowHorizontalPadding: 8, rowMinHeight: 44,
             rowRadius: 0, font: 14,
             showsRowHover: false, showsInlineDelete: false, deleteGlyph: 13,
+            deleteRevealWidth: 64,
             boxOverhang: 7, fieldHit: 44, fieldOverhang: 6, fieldCaretGutter: 4,
             gripGlyph: 14, gripHit: 44, gripOverhang: 7, standInRadius: 10
         )
     }
 
     @Environment(\.palette) private var palette
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.layoutDirection) private var layoutDirection
     @Environment(BoardStore.self) private var store
 
     let task: TaskItem
@@ -133,6 +148,15 @@ struct ChecklistView: View {
     @State private var focusOwnerID: TaskItem.ID?
     @FocusState private var isDraftFocused: Bool
     @State private var hoveredRow: SubTask.ID?
+    /// The swipe-to-delete session, where the surface has one — see
+    /// ``Metrics/swipesToDelete``: the row settled aside with its delete
+    /// button showing, the row a finger is carrying sideways right now, and
+    /// how far it has come. Surface state like the reorder drag's, and for the
+    /// same reason: an open button is a fact about this checklist, not about
+    /// the board.
+    @State private var revealedRow: SubTask.ID?
+    @State private var swipingRow: SubTask.ID?
+    @State private var swipeTranslation: CGFloat = 0
     /// The row that has left the ground, and the gap the drop is aimed at.
     /// Both are session state rather than board state: what is being carried is
     /// a fact about this surface, and the desk can be showing the same card in
@@ -181,6 +205,11 @@ struct ChecklistView: View {
             focusOwnerID = current == nil ? nil : task.id
             if let current {
                 store.beginEditing(.subtask, on: task.id, scope: scope, subtask: current)
+                // A row taking the keyboard puts any open delete button away:
+                // the row tap already trades focus for the put-away, but a tap
+                // that lands on a field goes to the field directly, and typing
+                // into a row standing half aside is nobody's intent.
+                if revealedRow != nil { settleSwipe(open: nil) }
             }
         }
         // **A draft with something in it is a sub-task, whether or not Return
@@ -229,6 +258,21 @@ struct ChecklistView: View {
     }
 
     private func row(for subtask: SubTask) -> some View {
+        swipeToDelete(rowSurface(subtask), for: subtask)
+            // The row in the air stays where it is until the drop lands, and says
+            // so by going faint. Its copy in the gap is what has to be read while
+            // the drag is in flight; two rows at full strength would be two rows.
+            .opacity(draggingRow == subtask.id ? StandIn.inTheAir : 1)
+            // Where a dragged row would land, drawn in the gap it would land in
+            // rather than on a row it would not.
+            .overlay { dropZones(for: subtask) }
+    }
+
+    /// The row as it sits on the surface — everything that slides when a swipe
+    /// takes hold of it, which is why the drop zones and the dimming are
+    /// applied outside, on ``row(for:)``: a gap in the list does not move
+    /// because one row is standing aside.
+    private func rowSurface(_ subtask: SubTask) -> some View {
         HStack(alignment: .center, spacing: metrics.rowSpacing) {
             rowContent(subtask)
                 // **On the row's content, and pointedly not on the grip.** A
@@ -266,18 +310,24 @@ struct ChecklistView: View {
         // the way `addRow` does. The box, the delete control, the grip and the
         // text itself sit in front of this shape and still take their own taps.
         .contentShape(.rect)
-        .onTapGesture { focusedRow = subtask.id }
+        // A tap with a delete button open anywhere in the list puts the button
+        // away instead of doing what it says — the bargain every swipe-to-
+        // delete on the platform makes, so a finger aiming at a row it cannot
+        // see is half-covered never focuses something by mistake.
+        .onTapGesture {
+            // `swipingRow` too, not just the settled button: a drag the system
+            // cancelled mid-flight never reaches `onEnded`, and this tap is
+            // how a row left mid-slide comes home rather than taking focus.
+            if revealedRow == nil, swipingRow == nil {
+                focusedRow = subtask.id
+            } else {
+                settleSwipe(open: nil)
+            }
+        }
         .hoverBackground(metrics.showsRowHover ? palette.ink(0.05) : .clear, radius: metrics.rowRadius)
         .onHover { isInside in
             if isInside { hoveredRow = subtask.id } else if hoveredRow == subtask.id { hoveredRow = nil }
         }
-        // The row in the air stays where it is until the drop lands, and says
-        // so by going faint. Its copy in the gap is what has to be read while
-        // the drag is in flight; two rows at full strength would be two rows.
-        .opacity(draggingRow == subtask.id ? StandIn.inTheAir : 1)
-        // Where a dragged row would land, drawn in the gap it would land in
-        // rather than on a row it would not.
-        .overlay { dropZones(for: subtask) }
     }
 
     /// Everything in a row except the grip — which is to say, everything the
@@ -398,6 +448,149 @@ struct ChecklistView: View {
         .accessibilityLabel("Delete sub-task")
     }
 
+    // MARK: Delete by swipe
+
+    /// A touch row slid toward the leading edge uncovers its delete button —
+    /// the pointer's hover-`×`, for the surfaces where there is no hover and
+    /// where ``Metrics/showsInlineDelete`` decided against a control that is
+    /// nearly always idle. The context menu keeps its Delete Sub-task: the
+    /// menu is the route VoiceOver has, and a swipe is not a gesture it can
+    /// perform.
+    ///
+    /// **The scroll view is not fought for the drag.** The sheet and the
+    /// inspector both scroll vertically, and a vertical pan is theirs before
+    /// this gesture sees it; what reaches the row is the sideways movement a
+    /// vertical scroll view has no claim on, and the dominance check in
+    /// ``swipeGesture(for:)`` turns away whatever diagonal slips through.
+    /// `TaskListView` chose a `List` to get `swipeActions` for free rather
+    /// than make this bargain; this list is a `VStack` for the reorder drag's
+    /// sake and has no such offer to take.
+    ///
+    /// **Clipped, because the row slides and the card does not.** The sheet
+    /// draws the checklist on a card with 6pt of margin; a row slid 64pt
+    /// leading would cross the card's edge and keep going. `.clipped()` cuts
+    /// the drawing at the row's own frame — hit testing is untouched, so the
+    /// box's and the grip's overhung touch targets keep their spill.
+    @ViewBuilder
+    private func swipeToDelete(_ row: some View, for subtask: SubTask) -> some View {
+        if metrics.swipesToDelete {
+            row
+                .offset(x: -swipeReveal(for: subtask.id) * revealSign)
+                .clipped()
+                .background(alignment: .trailing) { deleteReveal(for: subtask) }
+                .gesture(swipeGesture(for: subtask))
+        } else {
+            row
+        }
+    }
+
+    /// Which way "aside" is, as a sign on the x axis. The button parks at the
+    /// trailing edge and the row slides the other way — semantic directions —
+    /// but `.offset` and a drag's translation are both absolute, so the flip
+    /// is done by hand off `layoutDirection`, the way `EdgePan` flips its
+    /// distances: everything below works in "points of button uncovered" and
+    /// only this sign knows which way that is on screen.
+    private var revealSign: CGFloat { layoutDirection == .rightToLeft ? -1 : 1 }
+
+    /// How much of `id`'s delete button is uncovered: the button's width for
+    /// the row settled open, the drag in flight for the row under a finger,
+    /// and 0 for every other row. Dragged past the button, the row keeps a
+    /// third of the finger's movement — far enough to feel held rather than
+    /// stopped, and nothing like far enough to read as a fuller swipe meaning
+    /// something more, which on this platform would be delete-without-asking.
+    private func swipeReveal(for id: SubTask.ID) -> CGFloat {
+        let settled: CGFloat = revealedRow == id ? metrics.deleteRevealWidth : 0
+        guard swipingRow == id else { return settled }
+        let dragged = settled - swipeTranslation * revealSign
+        if dragged < 0 { return 0 }
+        if dragged > metrics.deleteRevealWidth {
+            return metrics.deleteRevealWidth + (dragged - metrics.deleteRevealWidth) / 3
+        }
+        return dragged
+    }
+
+    private func swipeGesture(for subtask: SubTask) -> some Gesture {
+        DragGesture(minimumDistance: 12)
+            .onChanged { value in
+                if swipingRow != subtask.id {
+                    // Claimed only once the movement is more across than down.
+                    // The scroll view has usually settled the question already;
+                    // this is for the diagonal it let go.
+                    guard abs(value.translation.width) > abs(value.translation.height)
+                    else { return }
+                    // Taking hold of one row puts away whichever other row was
+                    // standing open: one button on screen is a state a reader
+                    // can hold, two is a puzzle.
+                    if let open = revealedRow, open != subtask.id {
+                        Motion.run(Self.swipeSettle, reduceMotion: reduceMotion) {
+                            revealedRow = nil
+                        }
+                    }
+                    swipingRow = subtask.id
+                }
+                swipeTranslation = value.translation.width
+            }
+            .onEnded { value in
+                guard swipingRow == subtask.id else { return }
+                // Judged on where the flick was heading rather than where the
+                // finger let go, so a short sharp swipe opens the button and a
+                // short sharp shove closes it.
+                let settled: CGFloat = revealedRow == subtask.id ? metrics.deleteRevealWidth : 0
+                let landing = settled - value.predictedEndTranslation.width * revealSign
+                settleSwipe(open: landing > metrics.deleteRevealWidth / 2 ? subtask.id : nil)
+            }
+    }
+
+    /// The swipe coming to rest — open on `id`'s button, or closed on `nil` —
+    /// with the settle animated because the row is travelling the rest of the
+    /// way on its own.
+    private func settleSwipe(open id: SubTask.ID?) {
+        Motion.run(Self.swipeSettle, reduceMotion: reduceMotion) {
+            revealedRow = id
+            swipingRow = nil
+            swipeTranslation = 0
+        }
+    }
+
+    /// The same put-away, unanimated, for the paths where the row is leaving
+    /// the screen or the list anyway: a delete, a reorder lift, the surface
+    /// re-pointed at another card.
+    private func closeSwipe() {
+        revealedRow = nil
+        swipingRow = nil
+        swipeTranslation = 0
+    }
+
+    private static let swipeSettle: Animation = .snappy(duration: 0.2)
+
+    /// The delete button the swipe uncovers, parked behind the row's trailing
+    /// edge and shown by the row moving off it rather than by appearing.
+    /// `dueTone`'s overdue red because `Palette` has no danger semantic of its
+    /// own yet — the borrow the sheet's Trash Task row makes (C2), and the
+    /// same argument here.
+    ///
+    /// Hit-testable and readable only while its row stands open: invisible is
+    /// not the same as absent, which is the hover-`×`'s lesson — without the
+    /// gate, the covered button would be a live delete under the grip.
+    private func deleteReveal(for subtask: SubTask) -> some View {
+        let tone = palette.dueTone(urgency: .overdue, isDone: false)
+        return Button {
+            store.deleteSubtask(subtask.id, from: task.id)
+            closeSwipe()
+        } label: {
+            Image(systemName: "trash")
+                .font(palette.ui(metrics.deleteGlyph, .semibold, relativeTo: .caption))
+                .foregroundStyle(tone.foreground)
+                .frame(width: metrics.deleteRevealWidth)
+                .frame(maxHeight: .infinity)
+                .background(tone.background, in: .rect(cornerRadius: metrics.standInRadius))
+        }
+        .buttonStyle(.bare)
+        .allowsHitTesting(revealedRow == subtask.id)
+        .accessibilityHidden(revealedRow != subtask.id)
+        .accessibilityLabel("Delete sub-task")
+    }
+
     // MARK: Re-ordering by drag
 
     /// **The grip.** A control of its own rather than the row, which is the
@@ -500,6 +693,10 @@ struct ChecklistView: View {
         draggingRow = id
         dropCaret = nil
         zonesTargeted = 0
+        // A lifted row takes its delete button with it: the stand-in copies
+        // the row as drawn, and a copy standing 64pt aside would be a promise
+        // about a control the drop does not deliver.
+        closeSwipe()
         let lift = lifts
         // The last resort, for a drag that ends without anything saying so —
         // which after this change is only possible on a build with no session
@@ -528,6 +725,10 @@ struct ChecklistView: View {
         draggingRow = nil
         dropCaret = nil
         zonesTargeted = 0
+        // Which also covers the surface being re-pointed at another card —
+        // `onChange(of: task.id)` routes through here, and a button left open
+        // would name a row on the list that has gone.
+        closeSwipe()
         releaseLatch()
     }
 

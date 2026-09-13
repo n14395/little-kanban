@@ -28,6 +28,18 @@ import Testing
         return object?["version"] as? Int ?? 1
     }
 
+    /// The `symbol` the bytes declare for the first board, or `nil` where the
+    /// file predates board marks.
+    ///
+    /// Read raw, for ``declaredVersion(_:)``'s reason: what the *file* says is
+    /// what the chain has to preserve, and asking the decoded snapshot would be
+    /// asking it to confirm its own answer.
+    private func declaredSymbol(_ name: String) throws -> String? {
+        let object = try JSONSerialization.jsonObject(with: try Fixture.data(name)) as? [String: Any]
+        let boards = object?["boards"] as? [[String: Any]]
+        return boards?.first?["symbol"] as? String
+    }
+
     private func movedColumnIDs(_ snapshot: BoardSnapshot) -> [String] {
         snapshot.tasks.flatMap(\.activity).compactMap { entry -> String? in
             guard case .moved(let columnID, _) = entry.kind else { return nil }
@@ -59,11 +71,22 @@ import Testing
             #expect(snapshot.boards.count == 1, "\(name) arrived with \(snapshot.boards.count) boards")
             let board = try #require(snapshot.boards.first)
             #expect(board.name == "Northwind iOS 3.0", "\(name) named its board \(board.name)")
-            // The mark the v15 → v16 step deals the first board. A file this old
-            // never carried one — see `BoardMigration.migrate(v15:)`, which
-            // deals rather than converts, because a colour is not an icon.
-            #expect(board.symbol == Board.startingSymbols[0],
-                    "\(name) did not come out of the chain with a mark")
+            // **Two cases, and the fixture's own bytes say which.** A file
+            // written before v16 never carried a mark, and the v15 → v16 step
+            // deals it one — see `BoardMigration.migrate(v15:)`, which deals
+            // rather than converts, because a colour is not an icon. A file
+            // written at v16 or later carries its own, and the chain must not
+            // deal over it: `board-v16` wears `paintbrush` deliberately, so
+            // that overwriting it fails here rather than passing quietly.
+            //
+            // Asserting the dealt mark for every fixture is what this used to
+            // do, and it failed the one file that proves the stronger half.
+            if let written = try declaredSymbol(name) {
+                #expect(board.symbol == written, "\(name) lost the mark it was written with")
+            } else {
+                #expect(board.symbol == Board.startingSymbols[0],
+                        "\(name) did not come out of the chain with a mark")
+            }
             #expect(board.codePrefix == "NW", "\(name) lost the board's code prefix")
             #expect(snapshot.activeBoardID == board.id, "\(name) arrived with no active board")
             #expect(board.columns.isEmpty == false, "\(name) arrived with no columns")
@@ -435,6 +458,29 @@ import Testing
         let written = (json?["boards"] as? [[String: Any]])?.first
         #expect(written?["dot"] == nil, "a v16 board still writes a colour")
         #expect(written?["symbol"] as? String == board.symbol)
+    }
+
+    /// The v17 step's fixture: a real v16 file, written by a build that had
+    /// never heard of repeating tasks. Every card has to arrive with **no
+    /// rule** — the field is optional and absent, and a step that invented one
+    /// would set somebody's board repeating things they never asked for.
+    ///
+    /// It carries v16's own furniture too: a mark the *user* chose rather than
+    /// the one `migrate(v15:)` deals by position. A bare stamp is exactly the
+    /// kind of step that can quietly re-deal something, and this is what would
+    /// notice.
+    @Test func aV16FileArrivesWithNothingRepeating() throws {
+        let v16 = try snapshot("board-v16")
+        #expect(v16.version == BoardSnapshot.currentVersion)
+
+        #expect(v16.tasks.isEmpty == false)
+        #expect(v16.tasks.allSatisfy { $0.recurrence == nil },
+                "a file written before repeat rules arrived carrying one")
+
+        let board = try #require(v16.boards.first)
+        #expect(board.symbol == "paintbrush", "the user's chosen mark was re-dealt by the step past it")
+        #expect(board.columns.contains { $0.limit == 3 }, "v14's WIP limit was dropped")
+        #expect(v16.viewsChangedAt != nil, "v15's own dates were dropped")
     }
 
     /// **Every board is dealt a mark of its own**, cycling once there are more

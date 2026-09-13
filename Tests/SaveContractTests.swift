@@ -44,6 +44,12 @@ import Testing
         mutate("addTaskToCurrentMobileColumn") { $0.addTaskToCurrentMobileColumn() }
         mutate("setPriority") { $0.setPriority(.low, on: TestBoard.dragDrop) }
         mutate("setDue") { $0.setDue(TestBoard.laterDay, on: TestBoard.cafe) }
+        mutate("setRecurrence") { $0.setRecurrence(RecurrenceRule(), on: TestBoard.cafe) }
+        mutate("clearRecurrence", tasks: TestBoard.tasks.map { task in
+            var task = task
+            if task.id == TestBoard.cafe { task.recurrence = RecurrenceRule() }
+            return task
+        }) { $0.clearRecurrence(on: TestBoard.cafe) }
         mutate("setText") { $0.setText("Typed", field: .note, on: TestBoard.cafe) }
         mutate("addSubtask") { $0.addSubtask(to: TestBoard.cafe, text: "New row") }
         mutate("commitSubtaskDraft") { store in

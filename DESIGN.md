@@ -2503,17 +2503,24 @@ undoing the passage of time. It happens on the way in (`restored(file:sync:)`)
 and when the surface is looked at; in between, `trashedItems` *filters* by age
 rather than sweeping, because reading a list must not write to the file.
 
-**The trash is local to the device.** It rides in `board.json`, which is written
-on every save whether CloudKit is on or not, but it has no record type in the
-sync schema — so `restored(file:sync:)` reads the file for it even on the path
-where the records won. "What is on my board" and "what did I throw away here" are
-not the same question, and a trash arriving from another Mac would offer to
-restore a card this one has never seen. What crosses devices is the board: a card
-trashed on one simply leaves the board on both. An **import** does not adopt the
-arriving file's trash either, for the obvious reason, and neither does a
-**backup restore** — for the less obvious one, that taking a backup's trash would
-resurrect the things the user has permanently deleted since, which is the one act
-in the app that is meant to stick.
+**The trash is one bin across every device**, since `StoredTrash` joined the
+sync schema. It still rides in `board.json` on every save, and each entry is
+also one record: immutable once written — an entry is a thing that happened,
+not a row that changes — so the writer inserts what the records lack, never
+edits what they hold, and deletes only by the same licence a task's deletion
+travels under. A restore, a by-hand delete, an Empty Trash and the thirty-day
+sweep are all licensed deletions of the row, so each of them sticks on every
+device; and because the sweep runs under each device's *own* retention setting,
+the shortest retention on the account is the one the shared bin effectively
+keeps. The bin used to be local to each device, on the argument that "what did
+I throw away here" was its own question; what that meant in practice was a card
+that vanished from every other device with no trash row anywhere to explain
+where it went. An **import** still does not adopt the arriving file's trash —
+somebody else's thrown-away boards are not things this user should be offered
+back — and neither does a **backup restore**, because taking a backup's trash
+would resurrect the things the user has permanently deleted since, which is the
+one act in the app that is meant to stick. A file's trash is a moment somebody
+exported; only the record set's is the account's bin.
 
 ### Sub-tasks
 
@@ -7949,7 +7956,7 @@ for pair in 'platform=macOS:/tmp/sk-sync-mac' 'generic/platform=iOS Simulator:/t
     -destination "${pair%%:*}" -derivedDataPath "${pair##*:}" build
 done
 # xcstringstool is Xcode's own and is not on the default PATH.
-find /tmp/sk-sync-mac /tmp/sk-sync-ios -name '*.stringsdata' -path '*Little Kanban.build*' \
+find /tmp/sk-sync-mac /tmp/sk-sync-ios -name '*.stringsdata' -path '*LittleKanban.build*' \
   | grep -v Tests | sed 's/^/--stringsdata /' | xargs \
   "$(xcode-select -p)/usr/bin/xcstringstool" sync Resources/Localizable.xcstrings
 ```
