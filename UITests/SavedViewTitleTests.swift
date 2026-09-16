@@ -28,7 +28,15 @@ final class SavedViewTitleTests: XCTestCase {
         continueAfterFailure = false
     }
 
-    private func launched() -> XCUIApplication {
+    private func launched() throws -> XCUIApplication {
+        // The guard every sibling suite carries: this drives the phone's
+        // drawer and header, and on an iPad — where the whole scheme is also
+        // run — there is no "Show boards" to wait for, so without the skip
+        // the suite failed there instead of standing aside.
+        try XCTSkipUnless(
+            UIDevice.current.userInterfaceIdiom == .phone,
+            "the drawer and the header title are the phone's"
+        )
         let app = XCUIApplication()
         app.launchArguments = ["-LittleKanbanSkipFirstRun", "YES"]
         app.launch()
@@ -66,7 +74,7 @@ final class SavedViewTitleTests: XCTestCase {
     /// A title that follows *which* view is open cannot be a title that names
     /// something else and happens to match.
     func testOpeningAViewPutsItsNameInTheTitle() throws {
-        let app = launched()
+        let app = try launched()
         XCTAssertTrue(title(in: app).waitForExistence(timeout: 10), "the header has no title")
 
         pick("Today", in: app)
@@ -81,7 +89,7 @@ final class SavedViewTitleTests: XCTestCase {
     /// The strip is gone, and with it the second way out of a view. The drawer
     /// one thumb away was always the first.
     func testAViewHasNoBarOfItsOwnUnderTheTitle() throws {
-        let app = launched()
+        let app = try launched()
         pick("Today", in: app)
         XCTAssertEqual(title(in: app).label, "Today", "the view did not open")
 
@@ -90,7 +98,7 @@ final class SavedViewTitleTests: XCTestCase {
     }
 
     func testPickingTheViewYouAreOnLeavesYouThere() throws {
-        let app = launched()
+        let app = try launched()
         pick("Today", in: app)
         XCTAssertEqual(title(in: app).label, "Today", "the view did not open")
 

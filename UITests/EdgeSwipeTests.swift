@@ -39,7 +39,14 @@ final class EdgeSwipeTests: XCTestCase {
             "this half of the gesture belongs to the other idiom"
         )
         let app = XCUIApplication()
-        app.launchArguments = ["-LittleKanbanSkipFirstRun", "YES"]
+        app.launchArguments = [
+            "-LittleKanbanSkipFirstRun", "YES",
+            // The board, said out loud — `SearchResultsTests`' reason: a cold
+            // phone launch lands on Today, and the paging half below reads
+            // the column dots only the board draws. It used to pass by
+            // inheriting whichever surface the suite before it left behind.
+            "-LittleKanbanTab", "board",
+        ]
         app.launch()
         return app
     }
@@ -132,12 +139,17 @@ final class EdgeSwipeTests: XCTestCase {
                           "the board did not page — the edge gesture took the pager's swipe")
     }
 
-    /// Which column the dots say the board is on. They are buttons labelled by
-    /// column name, and the current one carries `.isSelected`.
+    /// Which column the chips say the board is on. The current one carries
+    /// `.isSelected` — matched by prefix rather than by the bare name, because
+    /// a chip's label is its whole pill: the name *and* the count beside it,
+    /// and "Backlog, 2" stopped answering to `buttons["Backlog"]` when the
+    /// count (and later the WIP limit) joined the capsule.
     private func selectedColumn(in app: XCUIApplication) -> String? {
         for name in ["Backlog", "Up Next", "In Progress", "Done"] {
-            let dot = app.buttons[name]
-            if dot.exists, dot.isSelected { return name }
+            let dot = app.buttons
+                .matching(NSPredicate(format: "label BEGINSWITH %@ AND selected == true", name))
+                .firstMatch
+            if dot.exists { return name }
         }
         return nil
     }

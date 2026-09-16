@@ -119,7 +119,7 @@ final class InboxFilingTests: XCTestCase {
         // **Half two**, and the one the change is for: close the editor and what
         // is behind it is the board, not the list the card has left. Pulled
         // down, which is the only way out of it now.
-        dragDown(app, from: 0.15)
+        pullDownTopSheet(in: app)
         XCTAssertTrue(title.waitForNonExistence(timeout: 5), "the editor would not close")
 
         XCTAssertFalse(
@@ -163,7 +163,7 @@ final class InboxFilingTests: XCTestCase {
 
         XCTAssertTrue(app.buttons[BoardDestinationIDs.pill].waitForExistence(timeout: 10),
                       "the editor did not come back after the card went to the Inbox")
-        dragDown(app, from: 0.15)
+        pullDownTopSheet(in: app)
 
         XCTAssertTrue(
             app.staticTexts["InboxPanelTitle"].waitForExistence(timeout: 5),
@@ -171,17 +171,37 @@ final class InboxFilingTests: XCTestCase {
         )
     }
 
-    /// Puts a sheet away the way a finger does, now that neither surface draws a
-    /// ✕. The reach — four tenths of the window — is `InboxSheetDragTests`'s
-    /// measurement, and that suite owns the claim that a synthetic drag drives
-    /// a system sheet's pan at all.
-    private func dragDown(_ app: XCUIApplication, from y: CGFloat) {
-        let window = app.windows.firstMatch
-        window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: y))
+    /// Puts the editor sheet away the way a finger does — by its grabber, now
+    /// that neither surface draws a ✕.
+    ///
+    /// It used to start anywhere on the sheet, the way a real finger still can
+    /// — measured on a device, the whole editor answers to the pull — but on
+    /// the iOS 27.0 beta simulator runtime a synthesized drag that begins over
+    /// the editor's content no longer hands the pan to the sheet. One begun on
+    /// the grabber still does, and the grabber is in the tree as a button
+    /// UIKit labels "Sheet Grabber".
+    ///
+    /// The *topmost* one, because two sheets can mean two grabbers: on the way
+    /// back the editor stands over the Inbox it refiled the card into, and the
+    /// editor's sits higher.
+    private func pullDownTopSheet(in app: XCUIApplication) {
+        let grabbers = app.buttons.matching(
+            NSPredicate(format: "label == %@", "Sheet Grabber")
+        )
+        var top: XCUIElement?
+        for index in 0..<grabbers.count {
+            let grabber = grabbers.element(boundBy: index)
+            if let held = top, held.frame.minY <= grabber.frame.minY { continue }
+            top = grabber
+        }
+        guard let grabber = top else {
+            return XCTFail("no Sheet Grabber on screen to pull down by")
+        }
+        grabber.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
             .press(
                 forDuration: 0.05,
-                thenDragTo: window.coordinate(
-                    withNormalizedOffset: CGVector(dx: 0.5, dy: min(0.97, y + 0.4))
+                thenDragTo: app.windows.firstMatch.coordinate(
+                    withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)
                 ),
                 withVelocity: .default,
                 thenHoldForDuration: 0.1

@@ -797,6 +797,7 @@
     },
     "A finished task's date chip, and a full meter." : {
       "comment" : "Where the done hue is used, from the design document",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -805,6 +806,9 @@
           }
         }
       }
+    },
+    "A finished task's date chip, and a full meter. Overdue has no field of its own — it is the hot due chip below." : {
+      "comment" : "Where the done hue is used, and why there is no overdue status hue"
     },
     "A month" : {
       "comment" : "Setting: the trash keeps items for 30 days",
@@ -9392,6 +9396,7 @@
     },
     "The This Week column's dot, and medium priority. Overdue has no field of its own — it is the hot due chip below." : {
       "comment" : "Where the amber hue is used, and why there is no third status hue",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9556,6 +9561,7 @@
     },
     "This week" : {
       "comment" : "Theme parameter: the amber status hue",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

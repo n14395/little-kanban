@@ -82,14 +82,24 @@ final class QuickCaptureTests: XCTestCase {
         )
 
         // **Half two.** The sheet is put away by pulling it down, which is the
-        // only way out of it now. From its own top chrome: it is held at nine
-        // tenths, so a seventh of the way down the window is on it and not on
-        // the board behind. `InboxSheetDragTests` measured the reach.
-        let window = app.windows.firstMatch
-        window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15))
+        // only way out of it now. By its grabber — the button UIKit labels
+        // "Sheet Grabber" — because on the iOS 27.0 beta simulator runtime a
+        // synthesized drag that begins over the editor's content no longer
+        // hands the pan to the sheet, while one begun on the grabber still
+        // does. A real finger is not so fussy: measured on a device, the whole
+        // sheet answers to the pull. `firstMatch` is safe here where it is not
+        // in the Inbox suites — this suite's whole claim is that the editor is
+        // the *only* sheet up, so there is one grabber to match.
+        let grabber = app.buttons.matching(
+            NSPredicate(format: "label == %@", "Sheet Grabber")
+        ).firstMatch
+        XCTAssertTrue(grabber.waitForExistence(timeout: 5), "the sheet has no grabber to pull by")
+        grabber.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
             .press(
                 forDuration: 0.05,
-                thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55)),
+                thenDragTo: app.windows.firstMatch.coordinate(
+                    withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)
+                ),
                 withVelocity: .default,
                 thenHoldForDuration: 0.1
             )

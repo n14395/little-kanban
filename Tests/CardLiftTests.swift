@@ -104,6 +104,14 @@ import Testing
     /// read out of the source the way `DragReorderTests` reads the drop
     /// closures: a destination that kept quiet would look like nobody holding
     /// the drag, and the store would call it over under the finger.
+    ///
+    /// Counted per **card** destination — `dropDestination(for:
+    /// TaskTransfer.self)` — and not per `isTargeted:` closure, because two of
+    /// these files carry other drags in the same modifier: the source list's
+    /// rows reorder by `BoardRowTransfer` and its saved views by
+    /// `SavedViewTransfer`, and those sessions are the rows' own, with nothing
+    /// to tell the card-drag bookkeeping. Counting every closure read the
+    /// row-reorder zones as card destinations that had gone quiet.
     @Test func everyCardDestinationReportsWhatItIsTargetedBy() {
         guard SourceTree.isReachable else { return }
         let expected: Set<String> = [
@@ -119,11 +127,11 @@ import Testing
         ]
         var seen: Set<String> = []
         for file in SourceTree.files() where expected.contains(file.path) {
-            let targeted = file.source.components(separatedBy: "isTargeted: {").count - 1
+            let drops = file.source.components(separatedBy: "dropDestination(for: TaskTransfer.self)").count - 1
             let reports = file.source.components(separatedBy: "store.dragTargeting(targeted)").count - 1
-            #expect(targeted > 0, "\(file.path) no longer reports being targeted at all")
-            #expect(reports == targeted,
-                    "\(file.path) has \(targeted) targeting closures and \(reports) report it")
+            #expect(drops > 0, "\(file.path) no longer takes a card drop at all")
+            #expect(reports == drops,
+                    "\(file.path) has \(drops) card destinations and \(reports) report being targeted")
             seen.insert(file.path)
         }
         #expect(seen == expected, "a card destination has moved file: found \(seen)")

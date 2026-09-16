@@ -62,17 +62,35 @@ final class InboxPanelTests: XCTestCase {
         app.staticTexts["InboxPanelTitle"]
     }
 
-    /// Puts a sheet away the way a finger does. `InboxSheetDragTests` measured
-    /// the reach — four tenths of the *window*, which clears UIKit's own
-    /// threshold at either of the two detents this app asks for — and owns the
-    /// claim that it works at all; here it is only the way out of a sheet.
-    private func dragDown(_ app: XCUIApplication, from y: CGFloat) {
-        let window = app.windows.firstMatch
-        window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: y))
+    /// Puts the editor sheet away the way a finger does — by its grabber.
+    ///
+    /// It used to start anywhere on the sheet, the way a real finger still can
+    /// — measured on a device, the whole editor answers to the pull — but on
+    /// the iOS 27.0 beta simulator runtime a synthesized drag that begins over
+    /// the editor's content no longer hands the pan to the sheet. One begun on
+    /// the grabber still does, and the grabber is in the tree as a button
+    /// UIKit labels "Sheet Grabber".
+    ///
+    /// The *topmost* one, because two sheets mean two grabbers: the editor
+    /// stands over the Inbox here, and the editor's sits higher.
+    private func pullDownTopSheet(in app: XCUIApplication) {
+        let grabbers = app.buttons.matching(
+            NSPredicate(format: "label == %@", "Sheet Grabber")
+        )
+        var top: XCUIElement?
+        for index in 0..<grabbers.count {
+            let grabber = grabbers.element(boundBy: index)
+            if let held = top, held.frame.minY <= grabber.frame.minY { continue }
+            top = grabber
+        }
+        guard let grabber = top else {
+            return XCTFail("no Sheet Grabber on screen to pull down by")
+        }
+        grabber.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
             .press(
                 forDuration: 0.05,
-                thenDragTo: window.coordinate(
-                    withNormalizedOffset: CGVector(dx: 0.5, dy: min(0.97, y + 0.4))
+                thenDragTo: app.windows.firstMatch.coordinate(
+                    withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)
                 ),
                 withVelocity: .default,
                 thenHoldForDuration: 0.1
@@ -169,10 +187,9 @@ final class InboxPanelTests: XCTestCase {
 
         // The editor goes away by being pulled down — it has no ✕ either, and
         // the two used to be told apart by identifier here because both called
-        // themselves Close. It is at nine tenths, so a drag that starts a
-        // seventh of the way down the window starts on the editor and not on
-        // the Inbox behind it.
-        dragDown(app, from: 0.15)
+        // themselves Close. By its grabber, which is also what tells the two
+        // sheets apart: the editor's is the higher of the two on screen.
+        pullDownTopSheet(in: app)
         XCTAssertTrue(title.waitForNonExistence(timeout: 5), "the editor would not close")
 
         XCTAssertTrue(inboxTitle(in: app).waitForExistence(timeout: 5),

@@ -178,7 +178,9 @@ import Testing
         let undo = RecordingUndoManager()
         undo.groupsByEvent = false
         store.undoManager = undo
-        store.addTask(to: .inbox, title: "Mine")
+        // In a group, like every registration under `groupsByEvent = false` —
+        // see `step`'s note about the run loop the suite does not have.
+        step(undo) { store.addTask(to: .inbox, title: "Mine") }
         store.saveNow()
         let mine = try #require(store.tasks.first { $0.title == "Mine" }?.id)
 

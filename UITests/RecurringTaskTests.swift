@@ -46,13 +46,24 @@ final class RecurringTaskTests: XCTestCase {
         return toggle
     }
 
+    /// A tap anywhere outside the panel, found by geometry. It used to tap
+    /// the "PopoverDismissRegion" element, and on the iOS 27 beta runtime
+    /// that stopped meaning outside: the tree holds several regions, the tap
+    /// falls back to the centre of the matched one's frame, and that centre
+    /// sits under the panel itself — so the tap landed *on* the popover and
+    /// dismissed nothing, measured across three runs. Clear of the status
+    /// bar too, which swallows a synthesized tap whole.
     private func dismissPopover(in app: XCUIApplication) {
-        let region = app.otherElements["PopoverDismissRegion"]
-        if region.exists {
-            region.tap()
-        } else {
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05)).tap()
-        }
+        let panel = app.popovers.firstMatch.frame
+        let window = app.windows.firstMatch.frame
+        let outside = panel.minY > 140
+            ? panel.minY - 40
+            : min(panel.maxY + 40, window.maxY - 30)
+        app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: window.midX, dy: outside))
+            .tap()
+        XCTAssertTrue(app.popovers.firstMatch.waitForNonexistence(timeout: 5),
+                      "the settings popover would not dismiss")
     }
 
     func testTickingOnOpensTheSettingsAndTickingOffAsksFirst() throws {

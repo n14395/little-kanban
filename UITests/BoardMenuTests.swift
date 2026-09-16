@@ -133,9 +133,17 @@ final class BoardMenuTests: XCTestCase {
     func testTheBoardMenuKeepsWhatIsReachableNowhereElse() throws {
         let app = try openMenu()
 
-        for kept in ["Board Settings…", "Archive Completed", "Manage Labels"] {
+        for kept in ["Board Settings…", "Manage Labels"] {
             XCTAssertTrue(app.buttons[kept].exists, "\(kept) has gone from the board menu")
         }
+        // "Archive 2 Completed" — the row counts what it will file, so it is
+        // matched the way the Trash row below is, not by the exact words the
+        // menu-bar item uses.
+        let archive = app.buttons
+            .matching(NSPredicate(format: "label BEGINSWITH %@ AND label ENDSWITH %@",
+                                  "Archive ", "Completed"))
+            .firstMatch
+        XCTAssertTrue(archive.exists, "Archive Completed has gone from the board menu")
         // "Trash", or "Trash (4)" once something is in it — `TrashSurfaceTests`
         // presses it; this only counts it among the survivors.
         let trash = app.buttons

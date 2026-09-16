@@ -20,7 +20,16 @@ import XCTest
 ///
 ///     xcrun simctl uninstall <device> com.n14395.LittleKanban
 final class ChecklistFocusTests: XCTestCase {
-    private func launched() -> XCUIApplication {
+    private func launched() throws -> XCUIApplication {
+        // The inspector is the surface this drives — "opening it is what a
+        // click on a card does" is the iPad's sentence, and the card it taps
+        // sits in a board column the phone's cold launch (Today) never shows.
+        // Without the skip a phone run failed on "no card on screen" instead
+        // of standing aside, the way every guarded sibling does.
+        try XCTSkipUnless(
+            UIDevice.current.userInterfaceIdiom == .pad,
+            "the checklist this drives is the inspector's, and the inspector is the iPad's"
+        )
         let app = XCUIApplication()
         app.launchArguments = ["-LittleKanbanSkipFirstRun", "YES"]
         app.launch()
@@ -31,8 +40,8 @@ final class ChecklistFocusTests: XCTestCase {
         continueAfterFailure = false
     }
 
-    func testTheDraftKeepsTheKeyboardAfterAddingASubTask() {
-        let app = launched()
+    func testTheDraftKeepsTheKeyboardAfterAddingASubTask() throws {
+        let app = try launched()
 
         // Any card will do — the inspector draws the same checklist on all of
         // them. Opening it is what a click on a card does.
