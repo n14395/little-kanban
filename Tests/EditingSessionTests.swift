@@ -58,6 +58,38 @@ import Testing
         #expect(store[TestBoard.cafe]?.title == "Café menu polish")
     }
 
+    /// The same restore when the session never gets to end — the card is
+    /// trashed under it. The blank has to be put back *before* the step's
+    /// snapshot is taken, or ⌘Z restores an untitled card and the title is
+    /// only reachable through redo and Restore from Trash. `deleteTask` has
+    /// always done this; `trashTask` wraps it in a step of its own, whose
+    /// snapshot is the one ⌘Z actually restores.
+    @Test func trashingACardWhoseSessionEmptiedTheTitleKeepsTheTitleForUndo() {
+        let (store, undo) = TestBoard.undoing()
+        store.beginEditing(.title, on: TestBoard.cafe, scope: .desk)
+        store.setText("", field: .title, on: TestBoard.cafe)
+
+        step(undo) { store.trashTask(TestBoard.cafe) }
+        undo.undo()
+
+        #expect(store[TestBoard.cafe]?.title == "Café menu polish",
+                "⌘Z restored the blank the open session had left in the title")
+    }
+
+    /// And the selection path, which restored inside the step — after the
+    /// snapshot — for as long as the single-card path restored before it.
+    @Test func trashingASelectionWhoseSessionEmptiedATitleKeepsTheTitleForUndo() {
+        let (store, undo) = TestBoard.undoing()
+        store.beginEditing(.title, on: TestBoard.cafe, scope: .desk)
+        store.setText("", field: .title, on: TestBoard.cafe)
+
+        step(undo) { store.trashTasks([TestBoard.cafe, TestBoard.dragDrop]) }
+        undo.undo()
+
+        #expect(store[TestBoard.cafe]?.title == "Café menu polish",
+                "⌘Z restored the blank the open session had left in the title")
+    }
+
     @Test func namingATaskThatNeverHadATitleIsNotARename() {
         let store = TestBoard.store()
         let id = store.addTask(to: BoardColumn.inbox.id, title: "", fromPhone: true, log: .captured)

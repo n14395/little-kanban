@@ -184,6 +184,16 @@ final class StoredBoard {
     /// Where the board sits in the source list. Same reason as
     /// `StoredSubtask.position`.
     var position: Int = 0
+    /// When this *record's* content last changed — the writer's clock, not
+    /// the board's, stamped by `BoardSyncStore.applyBoards` only when the
+    /// value it is writing differs from its diff base. Duplicate records
+    /// under one id used to be settled by `createdAt`, which never moves on
+    /// an edit, so two devices holding different copies tied on it forever
+    /// and each read kept whichever its fetch happened to return first — a
+    /// rename that never converged. Optional so a record written before the
+    /// attribute existed says so; the reader falls back to `createdAt` for
+    /// those, which is exactly the old rule for exactly the old records.
+    var updatedAt: Date?
 
     @Relationship(deleteRule: .cascade, inverse: \StoredColumn.board)
     var columns: [StoredColumn]?
@@ -250,6 +260,14 @@ final class StoredLabel {
     var light: Data?
     var dark: Data?
     var position: Int = 0
+    /// `StoredBoard.updatedAt`'s clock on this record, and even more needed
+    /// here: a label had *no* date at all, so duplicate records under one key
+    /// were settled purely by fetch order — two devices each kept their own
+    /// copy, and a recolour or rename flip-flopped between them forever.
+    /// Stamped by `BoardSyncStore.applyLabels` when this record's value moved
+    /// against the diff base; `nil` on records older than the attribute,
+    /// which the reader treats as "has said nothing since always".
+    var updatedAt: Date?
 
     init(key: String = "") {
         self.key = key

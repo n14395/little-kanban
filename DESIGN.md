@@ -7154,8 +7154,38 @@ written — and `SharedList` is the whole of the rule:
 | this device | the records | what stands |
 | --- | --- | --- |
 | anything | never written | this device's |
-| dated | dated | the newer of the two |
+| dated | dated | **merged item by item** — see below |
 | undated | anything, or the reverse | **both**, merged by id |
+
+The middle row used to read "the newer of the two", and scenario 15 of the
+two-device checklist is why it no longer does: two devices that each add a
+view have made two additions, not two competing claims to one value, and
+handing the newer *list* the argument deleted the other device's view from
+both machines. So since v18 each item carries a `changedAt` of its own
+(`DatedItem`), and two dated lists merge item by item: the newer list is the
+spine, so the order the user last arranged is the order they keep; an item
+both sides hold goes to the newer edit; and an item only one side holds is
+either an addition the other has not seen or something it deleted — which no
+`changedAt` can tell apart, because both look identical from here.
+
+**The watermark is what tells them apart.** Beside each list this device
+keeps a `viewsSyncedAt` / `paletteSyncedAt` / `themesSyncedAt` — the newest
+remote stamp it has actually *consumed*, advanced by `SharedList.heard` and
+never by the clock (a mark stamped `.now` reads every item still crossing
+CloudKit as a deletion when it lands — scenario 17's second way of not
+syncing). An item held by one side alone is theirs-newly-added if its
+`changedAt` is ahead of the mark, and ours-they-deleted if behind. Three
+facts keep the mark honest, and each was a bug when it wasn't one: it is
+**this machine's** — kept in `board.json`, deliberately out of the records,
+because synced marks would overwrite each other into meaning nothing; it
+advances on **every merge that consumes a remote stamp**, the adopting ones
+in `adoptSyncedBoard` and the nothing-new ones in
+`BoardStore.advanceWatermarks(to:)` — a mark that only moved on adopting
+merges sat stale through every echo pull, and a stale mark is a licence to
+resurrect what the other device deletes; and it **rides every launch path**,
+including the two that read the file rather than the records, because a
+session that starts at "never heard anything" hands back a week of the other
+device's deletions on its first merge.
 
 The last row is why the dates were worth a document migration. An undated list
 is one nobody *could* date — a board file from before v15, and every list
@@ -7163,11 +7193,10 @@ nobody has touched since — and two of those meeting for the first time is
 exactly the case where picking a winner means throwing away somebody's
 afternoon. Merging by id keeps both, costs one oddity (a view deleted before any
 of this existed can come back the first time two devices meet, which is the safe
-direction), and settles for good the moment anybody edits either list. Order is
-this device's first, so a merge never reshuffles a sidebar somebody has
-arranged. Themes are a list *and* two scalars: the custom themes merge, while
-which theme is showing in each slot stays this machine's unless a dated edit
-says otherwise — what the app looks like belongs to the screen in front of you.
+direction), and settles for good the moment anybody edits either list. Themes
+are a list *and* two scalars: the custom themes merge, while which theme is
+showing in each slot stays this machine's unless a dated edit says otherwise —
+what the app looks like belongs to the screen in front of you.
 
 Three details that are easy to get backwards, and all three are tests:
 

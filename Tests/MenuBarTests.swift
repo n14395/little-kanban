@@ -171,22 +171,45 @@ import Testing
         SourceTree.files().first { $0.path == path }.map { String($0.code) }
     }
 
-    /// The four sheets the menu bar opens, on both roots that have a menu bar.
-    /// The phone has no menu bar and presents its own — `PhoneRootView` already
-    /// carries the view editor and the Trash for the drawer's rows.
-    @Test func bothMenuBarRootsPresentEverythingTheMenuRaises() throws {
+    /// The sheets the menu bar opens, on every root the menu can be up over.
+    /// The phone root is not exempt: the `Commands` are declared into every iOS
+    /// scene, an iPhone with a hardware keyboard answers their keys, and an
+    /// iPad in Slide Over or a narrow split draws the phone root with the menu
+    /// bar still up — which is exactly how File ▸ Import… came to be live,
+    /// enabled and dead there once already.
+    @Test func everyRootPresentsEverythingTheMenuRaises() throws {
         guard SourceTree.isReachable else { return }
-        for path in ["Mac/MacRootView.swift", "IOS/PadRootView.swift"] {
+        for path in ["Mac/MacRootView.swift", "IOS/PadRootView.swift", "IOS/PhoneRootView.swift"] {
             let text = try #require(source(path), "\(path) is missing")
             #expect(text.contains("ShortcutsSheet()"), "\(path) does not present Help ▸ Keyboard Shortcuts")
             #expect(text.contains("DueDateSheet()"), "\(path) does not present Task ▸ Set Due Date…")
             #expect(text.contains("SavedViewEditor(viewID:"), "\(path) does not present File ▸ New View…")
             #expect(text.contains("isPresented: $window.isManagingLabels"),
                     "\(path) does not present View ▸ Labels…")
+            #expect(text.contains(".modifier(BoardTransfer("),
+                    "\(path) does not present File ▸ Import… / Export…")
+            #expect(text.contains(".menuPresentations(window:"),
+                    "\(path) does not present the backup sheet and the two menu alerts")
             // And the state the menu writes has to reach the subtree, or the
             // source list never learns that File ▸ New Board wants its field.
             #expect(text.contains(".environment(resolvedWindow)"), "\(path) keeps the window state to itself")
         }
+    }
+
+    /// The compact root's own half of the contract, where the wide surfaces'
+    /// answer does not exist to be presented: the composer request becomes a
+    /// made card with its editor open, File ▸ New Board becomes the naming
+    /// alert, and the keyboard-focus mirror the wide root kept for the menu is
+    /// cleared rather than left aiming ⌘⌫ at a card no longer on screen.
+    @Test func theCompactRootAnswersTheMenuInItsOwnIdiom() throws {
+        guard SourceTree.isReachable else { return }
+        let text = try #require(source("IOS/PhoneRootView.swift"))
+        #expect(text.contains("of: store.addingPlacement"),
+                "⌘N and a capture's composer request go unanswered on the compact root")
+        #expect(text.contains("of: window.isNamingNewBoard"),
+                "File ▸ New Board goes unanswered on the compact root")
+        #expect(text.contains("focusedTaskID = nil"),
+                "the wide root's focus mirror survives the swap to the compact root")
     }
 
     /// The board publishes which card has the keyboard, and both roots hand it

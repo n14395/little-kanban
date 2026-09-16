@@ -466,6 +466,23 @@ import Testing
         #expect(store.activeView == .highPriority)
         #expect(store[TestBoard.dragDrop]?.priority == .high)
     }
+
+    /// Undoing the creation of the view you are standing on has to move you
+    /// somewhere — the board, which is what deleting the view under your feet
+    /// already does. The guard in `apply` used to ask `activeView`, whose
+    /// getter answers `nil` for precisely a surface naming a missing view, so
+    /// the correction never ran and the Mac and iPad drew nothing at all.
+    @Test func undoingTheCreationOfTheViewYouAreOnReturnsToTheBoard() throws {
+        let (store, undo) = TestBoard.undoing()
+        var made: SavedView?
+        step(undo) { made = store.addView(named: "Standing here") }
+        store.selectSurface(.view(try #require(made).id))
+
+        undo.undo()
+
+        #expect(store.surface == .board, "the surface still names the undone view")
+        #expect(store.activeView == nil)
+    }
 }
 
 

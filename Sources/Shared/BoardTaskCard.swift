@@ -428,12 +428,24 @@ struct BoardTaskCard: View {
     }
 
     /// The cards a ⇧-click may sweep across: this card's own column on the
-    /// board, and the whole flat list on every other surface. The range a user
-    /// means is the one they can see, in the order they can see it — which is
-    /// neither the board's array order nor a set's.
+    /// board, the Inbox panel's own list for a card in the panel, and the
+    /// whole flat list on every other surface. The range a user means is the
+    /// one they can see, in the order they can see it — which is neither the
+    /// board's array order nor a set's.
+    ///
+    /// **The panel is its own list, not a prefix of the board's.** The Inbox
+    /// is drawn *with* the board, and the flat every-visible-card order —
+    /// right for ⌘A — stitched the two together here: a ⇧-click on a panel
+    /// card with the anchor on a board card gathered the panel *and* every
+    /// column up to the anchor, and the ⌘⌫ after it trashed the lot. A sweep
+    /// anchored on the other surface lands as a plain click instead, which is
+    /// what a board-card sweep whose anchor left its column has always done.
     private var siblingIDs: [TaskItem.ID] {
-        guard store.surface == .board, let columnID = task.columnID else {
+        guard store.surface == .board else {
             return store.visibleTaskIDs(today: dayClock.today)
+        }
+        guard let columnID = task.columnID else {
+            return store.inboxTasks.map(\.id)
         }
         return store.visibleTasks(in: columnID).map(\.id)
     }

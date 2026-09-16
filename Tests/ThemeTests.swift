@@ -205,6 +205,19 @@ import Testing
         #expect(ThemeGradient(angle: 90, stops: []).stops.count == 1)
     }
 
+    /// The same guarantee through the decoder, which is the door a hand-broken
+    /// theme file, a themes blob in `board.json` or a synced record comes in
+    /// by. Synthesized `Codable` walked straight past the initialiser's guard,
+    /// and `stops[0]` then trapped in the first render — the theme browser
+    /// grid was enough. A broken gradient reads as a flat black instead.
+    @Test func aDecodedGradientWithNoStopsIsAFlatGroundNotACrash() throws {
+        let broken = Data(#"{"angle": 90, "stops": []}"#.utf8)
+        let decoded = try JSONDecoder().decode(ThemeGradient.self, from: broken)
+        #expect(decoded.stops.count == 1)
+        #expect(decoded.gradient.stops.count == 2)
+        #expect(decoded.representative == ThemeColor(0x000000))
+    }
+
     /// The one colour that stands for the window where a gradient cannot be
     /// drawn: the stop nearest the middle of the run, because that is what most
     /// of the window is wearing.

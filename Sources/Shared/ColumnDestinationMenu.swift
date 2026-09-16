@@ -38,11 +38,16 @@ struct ColumnDestinationItems: View {
         ForEach(store.moveDestinations(for: task)) { column in
             let isCurrent = column.id == task.columnID
             Button {
-                // The selection when this card is in it, which is what ⌥←/→,
-                // the rotor actions and the Task menu's Move to Column all do:
-                // a menu raised on one of five selected cards is raised on the
-                // five.
-                if !isCurrent { store.move(store.commandTargets(task.id), to: column.id) }
+                // This card, not the selection. Every verb beside this one in
+                // the card's menu is singular — "Complete Task", "Trash Task",
+                // a Move Board aimed at `task` — and this row briefly reached
+                // for `commandTargets` instead: raised on one of five selected
+                // cards it moved the five, and a selection gathered in a saved
+                // view or a search spans boards, so "Move Column ▸ Doing"
+                // could pull cards off another board onto this one. The
+                // selection-wide reach lives where the selection is the
+                // subject: the Task menu, ⌥←/→ and the rotor.
+                if !isCurrent { store.move([task.id], to: column.id) }
             } label: {
                 if isCurrent {
                     Label(column.name, systemImage: "checkmark")

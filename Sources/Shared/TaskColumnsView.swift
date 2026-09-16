@@ -269,32 +269,33 @@ struct ColumnFlowLayout: Layout {
     var cardSpacing: CGFloat
 
     /// One packing, kept between the two calls SwiftUI makes with the same
-    /// proposal. Measuring *n* cards is *n* layout passes of their own, and
-    /// `sizeThatFits` and `placeSubviews` would otherwise each pay for a full
-    /// set — which at the five hundred cards `ScaleTests` builds is the
-    /// difference between a re-flow being free and being felt.
+    /// proposal — what it saves is the packing *arithmetic*, never a stale
+    /// answer. It used to key on the card count and the proposed height
+    /// alone, and both of the facts that key omits move without moving it: a
+    /// title that grows a line changes a card's height and not the count, and
+    /// a Dynamic Type change moves `columnWidth` under every card at once —
+    /// so the flow served yesterday's packing, and the scroll extent and the
+    /// drawn columns disagreed by Δwidth per column.
     struct Cache {
         var height: CGFloat?
-        var count: Int
+        var columnWidth: CGFloat?
+        var cardSpacing: CGFloat?
+        var columnSpacing: CGFloat?
         var columns: [[Int]]
-        /// What `pack` measured, so the `placeSubviews` that follows it does
-        /// not measure the same *n* cards a second time. Trusted only while
-        /// `isFreshlyPacked` — a placement running off a *skipped* pack is one
-        /// where a card may have changed its height without changing the count,
-        /// and it re-measures the way this layout always has.
         var heights: [CGFloat]
-        var isFreshlyPacked: Bool
         var size: CGSize
     }
 
     func makeCache(subviews: Subviews) -> Cache {
-        Cache(height: nil, count: -1, columns: [], heights: [], isFreshlyPacked: false, size: .zero)
+        Cache(height: nil, columnWidth: nil, cardSpacing: nil, columnSpacing: nil,
+              columns: [], heights: [], size: .zero)
     }
 
     func updateCache(_ cache: inout Cache, subviews: Subviews) {
-        // The contents changed under us, so the packing is stale whatever the
-        // proposal was.
-        if cache.count != subviews.count { cache.count = -1 }
+        // Nothing: staleness is judged inside `pack`, by comparing what was
+        // actually measured against what the packing was built from. Left to
+        // the protocol's default this would be rebuilt whenever the subviews
+        // change, throwing the packing away on edits that move no height.
     }
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
@@ -305,22 +306,14 @@ struct ColumnFlowLayout: Layout {
     func placeSubviews(
         in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache
     ) {
+        // `pack` has just measured, so the cache's heights are this pass's own.
         pack(proposal: proposal, subviews: subviews, cache: &cache)
-        // Fresh from `pack`, the measurements are this pass's own and each card
-        // is placed from them without being measured a second time. Off a
-        // skipped pack they may predate an edit, so they are taken again.
-        let heights = cache.isFreshlyPacked
-            ? cache.heights
-            : subviews.indices.map {
-                subviews[$0].sizeThatFits(ProposedViewSize(width: columnWidth, height: nil)).height
-            }
-        cache.isFreshlyPacked = false
 
         var x = bounds.minX
         for column in cache.columns {
             var y = bounds.minY
             for index in column {
-                let height = heights[index]
+                let height = cache.heights[index]
                 subviews[index].place(
                     at: CGPoint(x: x, y: y),
                     proposal: ProposedViewSize(width: columnWidth, height: height)
@@ -333,11 +326,21 @@ struct ColumnFlowLayout: Layout {
 
     private func pack(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) {
         let available = proposal.height ?? .infinity
-        guard cache.count != subviews.count || cache.height != available else { return }
-
+        // Measured every time, not only when the count moved. The subviews
+        // cache their own answers against the proposal, so a repeat ask is
+        // cheap — `placeSubviews` always leaned on exactly that when it
+        // re-measured after a skipped pack — and the measured run is the one
+        // honest staleness key this layout has: equal heights under an equal
+        // width, spacing and window is the same packing by construction.
         let heights = subviews.indices.map {
             subviews[$0].sizeThatFits(ProposedViewSize(width: columnWidth, height: nil)).height
         }
+        if cache.height == available, cache.columnWidth == columnWidth,
+           cache.cardSpacing == cardSpacing, cache.columnSpacing == columnSpacing,
+           cache.heights == heights {
+            return
+        }
+
         let columns = Self.columns(of: heights, into: available, cardSpacing: cardSpacing)
 
         let width = columns.isEmpty
@@ -348,10 +351,11 @@ struct ColumnFlowLayout: Layout {
         }.max() ?? 0
 
         cache.height = available
-        cache.count = subviews.count
+        cache.columnWidth = columnWidth
+        cache.cardSpacing = cardSpacing
+        cache.columnSpacing = columnSpacing
         cache.columns = columns
         cache.heights = heights
-        cache.isFreshlyPacked = true
         // The available height rather than the tallest column, so the run of
         // columns fills the scroll view it is in — a shorter answer lets the
         // last column float in the middle of the window with the ones beside it

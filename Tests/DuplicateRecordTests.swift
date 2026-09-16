@@ -88,6 +88,68 @@ import Testing
         #expect(read.activity.count == 1, "the feed came back with \(read.activity.count) entries")
     }
 
+    // MARK: The record's clock
+
+    /// Two records under one key used to be settled by fetch order — a label
+    /// had no date at all, and a board's `createdAt` never moves on an edit —
+    /// so each device kept whichever copy its fetch returned first, and a
+    /// rename never converged. The record's own `updatedAt` is the clock now,
+    /// and the edited copy has to win from either direction.
+    @Test func aStampedDuplicateBeatsItsUnstampedTwinInEitherOrder() {
+        let old = StoredLabel(key: "bug")
+        old.name = "Old"
+        let renamed = StoredLabel(key: "bug")
+        renamed.name = "Renamed"
+        renamed.updatedAt = TestBoard.at(10)
+        for labels in [[old, renamed], [renamed, old]] {
+            let kept = BoardSyncStore.deduplicated(
+                labels, by: \.key, newest: { $0.updatedAt ?? .distantPast }
+            )
+            #expect(kept.map(\.name) == ["Renamed"])
+        }
+
+        let stale = StoredBoard(id: SeedData.defaultBoard.id)
+        stale.name = "As created"
+        stale.createdAt = TestBoard.at(100)
+        let edited = StoredBoard(id: SeedData.defaultBoard.id)
+        edited.name = "Renamed"
+        edited.createdAt = TestBoard.at(100)
+        edited.updatedAt = TestBoard.at(10)
+        for boards in [[stale, edited], [edited, stale]] {
+            let kept = BoardSyncStore.deduplicated(
+                boards, by: \.id, newest: { $0.updatedAt ?? $0.createdAt }
+            )
+            #expect(kept.map(\.name) == ["Renamed"])
+        }
+    }
+
+    /// And the writer moves the clock only on the record whose *value* moved,
+    /// measured against the diff base — a device replaying an unchanged list
+    /// must not claim every label on the account just by saving.
+    @Test func aRenameStampsItsOwnRecordAndNoOther() throws {
+        let sync = try BoardSyncStore.inMemory()
+        var snapshot = BoardSnapshot(tasks: [], boards: [SeedData.defaultBoard],
+                                     labels: LabelDef.seed, nextSerial: 100)
+        try sync.apply(snapshot)
+        let context = sync.container.mainContext
+        let before = Dictionary(
+            try context.fetch(FetchDescriptor<StoredLabel>()).map { ($0.key, $0.updatedAt) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        snapshot.labels[0].name = "Renamed"
+        try sync.apply(snapshot)
+
+        let after = try context.fetch(FetchDescriptor<StoredLabel>())
+        let renamed = try #require(after.first { $0.key == snapshot.labels[0].key })
+        #expect(renamed.updatedAt != (before[renamed.key] ?? nil),
+                "the rename left the record's clock where it was")
+        for record in after where record.key != renamed.key {
+            #expect(record.updatedAt == (before[record.key] ?? nil),
+                    "an untouched label was claimed by somebody else's save")
+        }
+    }
+
     // MARK: Writing
 
     /// The growth, which is what made this urgent rather than merely untidy.

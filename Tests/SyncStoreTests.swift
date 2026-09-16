@@ -629,6 +629,101 @@ import Testing
         #expect(store[task.id]?.placement == task.placement)
     }
 
+    /// **A merge that adopts nothing still advances the watermark.** Device A
+    /// makes a view and pulls its own echo — a merge with nothing to adopt —
+    /// and device B then deletes that view. Advanced by the echo, the mark
+    /// stands at the view's own stamp and the deletion reads as the deletion
+    /// it is. Left behind — which is what only advancing on *adopting* merges
+    /// came to — the view's stamp stood ahead of the mark, read as an
+    /// addition A had never heard, and came back; A's next push then taught
+    /// the device that deleted it to take it back too, and the two never
+    /// converged again. See `BoardStore.advanceWatermarks(to:)`.
+    @Test func aMergeWithNothingToAdoptStillAdvancesTheWatermark() throws {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.inMemory()
+        let store = BoardStore.restored(file: temp.file, sync: sync)
+        store.saveNow()
+
+        let made = store.addView(named: "Made here")
+        store.saveNow()
+
+        // The echo: this device's own push coming back as a change
+        // notification, which is most merges on a board one person works.
+        #expect(store.mergeRemoteChanges() == false, "an echo counted as news")
+        #expect(store.viewsSyncedAt == store.viewsChangedAt,
+                "the echo consumed the records' stamp without moving the watermark")
+
+        // The other device deletes the view. Two applies for the fresh-device
+        // rule in `applyMeta`: the first establishes the writer's base, the
+        // second is the edit.
+        var theirs = try #require(try sync.load())
+        let writer = BoardSyncStore(container: sync.container, isSyncing: false)
+        try writer.apply(theirs)
+        theirs.views.removeAll { $0.id == made.id }
+        theirs.viewsChangedAt = .now
+        try writer.apply(theirs)
+
+        store.mergeRemoteChanges()
+        #expect(store.views.contains { $0.id == made.id } == false,
+                "the deleted view resurrected against a stale watermark")
+    }
+
+    /// The marks live in `board.json` and nowhere else, and the launch path
+    /// with no records to ask — which is also where a *failed* record read
+    /// lands — used to leave them behind: the session then merged its first
+    /// recovery against "never heard anything" and could resurrect once
+    /// before self-correcting.
+    @Test func aLaunchWithoutRecordsKeepsTheWatermarksFromTheFile() throws {
+        let temp = TempBoard()
+        let heard = TestBoard.at(500)
+        let board = BoardSnapshot(
+            tasks: [], labels: LabelDef.seed, nextSerial: 100,
+            activeBoardID: SeedData.defaultBoard.id,
+            viewsSyncedAt: heard, paletteSyncedAt: heard, themesSyncedAt: heard
+        )
+        try temp.file.write(board, generation: temp.file.nextWriteGeneration())
+
+        let store = BoardStore.restored(file: temp.file)
+        #expect(store.viewsSyncedAt == heard)
+        #expect(store.paletteSyncedAt == heard)
+        #expect(store.themesSyncedAt == heard)
+    }
+
+    /// The other launch path that reads the file: records held back because a
+    /// task arrived before its column. The local board stays visible and so
+    /// do its watermarks — the session merges the moment the records complete,
+    /// and it must not do so as a device that has never heard anything.
+    @Test func anIncompleteSyncLaunchKeepsTheWatermarksFromTheFile() throws {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.inMemory()
+        let heard = TestBoard.at(500)
+        let tasks = TestBoard.tasks(on: SeedData.defaultBoard)
+        let board = BoardSnapshot(
+            tasks: tasks, labels: LabelDef.seed, nextSerial: 100,
+            activeBoardID: SeedData.defaultBoard.id,
+            viewsSyncedAt: heard, paletteSyncedAt: heard, themesSyncedAt: heard
+        )
+        try temp.file.write(board, generation: temp.file.nextWriteGeneration())
+        try sync.apply(board)
+
+        let task = try #require(tasks.first { $0.columnID != nil })
+        let column = try #require(
+            sync.container.mainContext.fetch(FetchDescriptor<StoredColumn>()).first {
+                $0.id == task.columnID
+            }
+        )
+        sync.container.mainContext.delete(column)
+        try sync.container.mainContext.save()
+
+        let store = BoardStore.restored(file: temp.file, sync: sync)
+        // The held-back path, proven the way its own suite proves it: the
+        // incomplete records were not adopted.
+        #expect(store[task.id]?.placement == task.placement)
+        #expect(store.viewsSyncedAt == heard)
+        #expect(store.paletteSyncedAt == heard)
+        #expect(store.themesSyncedAt == heard)
+    }
+
     /// The upgrade path: a board that only exists as JSON is folded into the
     /// records on the launch that first has them, rather than being lost or
     /// duplicated.

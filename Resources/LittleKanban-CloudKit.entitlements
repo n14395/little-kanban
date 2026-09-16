@@ -28,7 +28,14 @@
 	     mirror's own polling cadence, which is minutes. And on macOS the key
 	     carries the com.apple.developer. prefix — the bare `aps-environment`
 	     is iOS's spelling, and writing it here handed this app no push
-	     entitlement at all, which is exactly what those minutes looked like. -->
+	     entitlement at all, which is exactly what those minutes looked like.
+
+	     `development` here because this file is the *development* build's and
+	     has to match its Apple Development profile. The Developer ID release
+	     does not ship it: build.sh's signing pass pins this to `production`
+	     and pins `icloud-container-environment` to `Production` beside it, so
+	     a distributed copy can never be pointed at the development side of
+	     CloudKit. -->
 	<key>com.apple.developer.aps-environment</key>
 	<string>development</string>
 	<!-- The one piece of disk the app and its widget extension both hold. The

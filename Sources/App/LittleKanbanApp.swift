@@ -46,6 +46,24 @@ struct LittleKanbanApp: App {
             : BoardStore.restored(sync: sync)
         _store = State(initialValue: store)
         TaskIntentBridge.adopt(store)
+        #if os(macOS)
+        // The terminate flush is the *app's*, not a window's. macOS does not
+        // move any scene out of `.active` before terminating, so ⌘Q inside
+        // the save debounce would drop the last edit — and for a while the
+        // flush rode the board window's view tree, which is a window the
+        // menu bar extra lets the app outlive: a quick-add capture within
+        // 500 ms of Quit, with the board window closed, was lost with the
+        // debounce, and the Settings scene's imports and theme edits rode
+        // the same debounce with no flush of their own. An observer on the
+        // process covers every scene, open or closed, and is never removed
+        // because the moment it fires is the process ending. iOS needs none
+        // of this — backgrounding is covered by `ScenePhaseWork`.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification, object: nil, queue: .main
+        ) { _ in
+            MainActor.assumeIsolated { store.saveNow() }
+        }
+        #endif
     }
 
     var body: some Scene {
@@ -180,6 +198,19 @@ private struct ScenePhaseWork: ViewModifier {
             } else {
                 // Edits are written on a short debounce; leaving the foreground
                 // is one of the moments that debounce would not survive.
+                //
+                // Unless this is a first run whose picker is still up. The
+                // flush writes `board.json`, and "the file exists" is exactly
+                // what `FirstRun.isPending` reads as *not* a first run — so
+                // backgrounding mid-picker quietly made the empty-board
+                // choice on the user's behalf: the next launch had no picker,
+                // no starter templates and no Sync-from-iCloud row. There is
+                // nothing worth flushing in that state — the board is empty
+                // by construction, and the choice is what writes first. The
+                // moment one is made, `FirstRun.storageKey` flips and every
+                // later backgrounding flushes as normal.
+                guard !FirstRun.isPending
+                        || UserDefaults.standard.bool(forKey: FirstRun.storageKey) else { return }
                 store.saveNow()
             }
         }
@@ -241,7 +272,6 @@ struct RootView: View {
             // once. See ``WidgetKeeper``.
             .keepsTheWidgetsInStep()
             .modifier(LoadFailureAlert())
-            .modifier(FlushOnTerminate())
             .onAppear { adoptUndoManager() }
             // `UndoManager` is a class and not `Equatable`, so the identity of
             // the one in the environment is what the change is watched on.
@@ -674,23 +704,6 @@ private struct LoadFailureAlert: ViewModifier {
         [failure?.recoverySuggestion, store.quarantinedBoardURL?.path(percentEncoded: false)]
             .compactMap { $0 }
             .joined(separator: "\n\n")
-    }
-}
-
-/// macOS does not move the scene out of `.active` before terminating, so ⌘Q
-/// within the debounce window would drop the last edit. iOS backgrounding is
-/// already covered by `scenePhase`.
-private struct FlushOnTerminate: ViewModifier {
-    @Environment(BoardStore.self) private var store
-
-    func body(content: Content) -> some View {
-        #if os(macOS)
-        content.onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
-            store.saveNow()
-        }
-        #else
-        content
-        #endif
     }
 }
 

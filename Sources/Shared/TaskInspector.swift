@@ -175,9 +175,19 @@ struct TaskInspector: View {
         // session left open never logs the rename and never restores a title
         // emptied to whitespace. Closed against the task that was being edited,
         // which may no longer be `task`.
+        //
+        // The description's session is closed by hand too: assigning
+        // `noteEditorID` here cannot do it, because `onChange` is not run for
+        // a view on its way out of the hierarchy — so the assignment alone
+        // left the session open, its keystrokes "text in flight" that a ⌘Z
+        // pressed after closing the panel carried backwards through unrelated
+        // steps. The phone sheet has always had this line.
         .onDisappear {
             if let field = focusedField, let owner = focusOwnerID {
                 store.endEditing(field, on: owner, scope: .desk)
+            }
+            if let owner = noteEditorID {
+                store.endEditing(.note, on: owner, scope: .desk)
             }
             focusOwnerID = nil
             noteEditorID = nil

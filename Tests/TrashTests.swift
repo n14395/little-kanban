@@ -101,6 +101,30 @@ import Testing
         #expect(store.columns.firstIndex { $0.id == Self.upNext } == position)
     }
 
+    /// The clamp lands short of the last slot, not just inside the list. The
+    /// last column *is* Done (`Board.doneColumn` reads position), so a restore
+    /// that appended into a list that shrank while the column sat in the trash
+    /// would quietly hand the restored column the job — every completion tick
+    /// filing into it, and no way back out, because `moveColumn` and
+    /// `deleteColumn` both refuse to touch the last column.
+    @Test func aColumnRestoredIntoAShrunkListStaysBeforeDone() throws {
+        let store = store()
+        let doneID = try #require(store.activeBoard?.doneColumn?.id)
+        // [Backlog, Up Next, In Progress, Done] → trash In Progress, then
+        // Up Next, so In Progress's kept seat (2) now points past the last
+        // working slot of [Backlog, Done].
+        store.trashColumn(BoardColumn.inProgress.id)
+        store.trashColumn(Self.upNext)
+
+        let inProgress = try #require(
+            store.trashedItems.first { $0.name == BoardColumn.inProgress.name }
+        )
+        #expect(store.restoreFromTrash(inProgress.id) == nil)
+
+        #expect(store.columns.map(\.id) == [BoardColumn.backlog.id, BoardColumn.inProgress.id, doneID])
+        #expect(store.activeBoard?.doneColumn?.id == doneID)
+    }
+
     /// The one restore that cannot be honoured, because there is nowhere to put
     /// it and inventing a board to hold it would be inventing a board.
     @Test func aColumnWhoseBoardHasGoneIsRefusedAndSaysWhy() throws {

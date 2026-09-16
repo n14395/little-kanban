@@ -113,6 +113,26 @@ sign_one() {
         # that still requests it, so drop it before re-signing.
         /usr/libexec/PlistBuddy -c 'Delete :com.apple.security.get-task-allow' \
             "$ent" >/dev/null 2>&1 || true
+        # A Developer ID signature is a distribution signature, and the
+        # environments the development build carries would point every
+        # distributed copy at the development side of CloudKit: sandbox push
+        # tokens that production APNs will never deliver, and the development
+        # database rather than the deployed schema. Pin both to production
+        # here rather than in the .entitlements file, which the Xcode build
+        # needs to keep matching its Apple Development profile. Harmless while
+        # the container has never been promoted — the development pin was
+        # equally unauthorized — and correct on the day it is.
+        if /usr/libexec/PlistBuddy -c 'Print :com.apple.developer.aps-environment' \
+            "$ent" >/dev/null 2>&1; then
+            /usr/libexec/PlistBuddy -c 'Set :com.apple.developer.aps-environment production' "$ent"
+        fi
+        if /usr/libexec/PlistBuddy -c 'Print :com.apple.developer.icloud-container-identifiers' \
+            "$ent" >/dev/null 2>&1; then
+            /usr/libexec/PlistBuddy -c 'Delete :com.apple.developer.icloud-container-environment' \
+                "$ent" >/dev/null 2>&1 || true
+            /usr/libexec/PlistBuddy \
+                -c 'Add :com.apple.developer.icloud-container-environment string Production' "$ent"
+        fi
         args+=(--entitlements "$ent")
     else
         rm -f "$ent"; ent=""
@@ -144,9 +164,35 @@ sign_bundle() {
     sign_one "$APP_PATH"
 }
 
+# The Xcode build embeds its Apple Development provisioning profile — a
+# profile locked to this machine's registered devices. Under a Developer ID
+# signature it authorizes nothing anywhere, and shipping it is how a release
+# came to carry a device list. A Developer ID build embeds a Developer ID
+# provisioning profile or none at all: pass one for the app via
+# DEV_ID_PROFILE once the CloudKit container needs authorizing (that is,
+# once it has been promoted to Production); until then every embedded
+# development profile is stripped, and sync in the released app is
+# local-only — which is what it was under the wrong profile too, minus the
+# pretence.
+replace_profiles() {
+    local embedded
+    while IFS= read -r embedded; do
+        rm -f "$embedded"
+        echo "    stripped ${embedded#$APP_PATH/}"
+    done < <(find "$APP_PATH" -name 'embedded.provisionprofile' 2>/dev/null)
+    if [[ -n "${DEV_ID_PROFILE:-}" ]]; then
+        [[ -f "$DEV_ID_PROFILE" ]] || die "DEV_ID_PROFILE points at nothing: $DEV_ID_PROFILE"
+        cp -f "$DEV_ID_PROFILE" "$APP_PATH/Contents/embedded.provisionprofile"
+        echo "    embedded $DEV_ID_PROFILE"
+    else
+        echo "    no DEV_ID_PROFILE set — CloudKit stays unauthorized in this release"
+    fi
+}
+
 sign_and_notarize() {
     step "Developer ID signing $APP_NAME.app"
     echo "    identity: $DEV_TEAM_IDENTITY"
+    replace_profiles
     sign_bundle
 
     make_dmg
@@ -192,6 +238,13 @@ publish() {
     step "Publishing $PUBLISH_VERSION"
     [[ -f "$DMG_PATH" ]] \
         || die ".dmg not found: $DMG_PATH — run ./build.sh --dmg (or --sign) first"
+    # Only a signed, notarized image leaves this machine. `--dmg` alone
+    # packages a development-signed app whose seal the icns rebuild has had
+    # to patch up — fine to look at locally, not a thing to hand out — and a
+    # release nobody can open without right-clicking past Gatekeeper is worse
+    # than a release a day later.
+    codesign --verify "$DMG_PATH" 2>/dev/null \
+        || die "$DMG_PATH is not signed — publish with ./build.sh --sign --publish $PUBLISH_VERSION"
     git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
         || die "$PWD is not inside a git repository — cannot tag or release"
     command -v gh >/dev/null 2>&1 || die "the GitHub CLI (gh) is not installed"
@@ -267,6 +320,34 @@ refresh_icns() {
     done
     iconutil -c icns "$iconset" -o "$APP_PATH/Contents/Resources/AppIcon.icns"
     rm -rf "$staging"
+
+    # Rewriting a resource inside a signed bundle breaks its seal, and on the
+    # paths that end here — no `--sign` to lay a fresh signature over the top —
+    # the app would be left not matching its own manifest. Re-sign with the
+    # identity the build used, read off the bundle itself, so the seal is
+    # whole again and nothing else about the signature changes; ad hoc is the
+    # fallback for a machine with no such identity in its keychain. `--sign`
+    # runs `sign_bundle` after this and replaces the lot anyway.
+    [[ $WANT_SIGN -eq 1 ]] && return 0
+    local identity
+    identity="$(codesign -dvv "$APP_PATH" 2>&1 \
+        | awk -F= '/^Authority=/ { print $2; exit }')"
+    sign_one_in_place "${identity:--}"
+}
+
+# Re-seals just the outer bundle, keeping whatever entitlements it carries —
+# the inner code was not touched, so its signatures still stand.
+sign_one_in_place() {
+    local identity="$1" ent args=()
+    ent="$(mktemp "${TMPDIR:-/tmp}/entitlements.XXXXXX")"
+    if codesign -d --entitlements - --xml "$APP_PATH" 2>/dev/null | grep -q '<plist'; then
+        codesign -d --entitlements - --xml "$APP_PATH" 2>/dev/null >"$ent"
+        args+=(--entitlements "$ent")
+    fi
+    codesign --force ${args[@]+"${args[@]}"} --sign "$identity" "$APP_PATH" 2>/dev/null \
+        || codesign --force ${args[@]+"${args[@]}"} --sign - "$APP_PATH"
+    rm -f "$ent"
+    echo "    re-sealed ${APP_PATH#$BUILD_DIR/} (icns rewrite broke the build's seal)"
 }
 
 mkdir -p "$BUILD_DIR"

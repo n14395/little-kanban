@@ -535,6 +535,10 @@ private struct CardKeyboard: ViewModifier {
     /// Optional because not every surface has anything outside it to tell: a
     /// test harness, a preview and the iPad all stand this up without one.
     @Environment(BoardFocusRelay.self) private var relay: BoardFocusRelay?
+    /// Whether this card is a row of the Inbox panel — the panel sets it, the
+    /// same fact `BoardTaskCard` reads to pick its drag rule. The keyboard
+    /// needs it because the panel is its own list: see `map`.
+    @Environment(\.isInboxList) private var isInboxList
 
     let task: TaskItem
     let commands: [AppCommand]
@@ -555,10 +559,22 @@ private struct CardKeyboard: ViewModifier {
 
     /// Rebuilt per press: the board changes under the keyboard, and a map held
     /// from the last press would move a card that is no longer there.
+    ///
+    /// **The Inbox panel's rows walk the panel and stop.** The flat
+    /// every-visible-card order is right for ⌘A and wrong for an arrow: it
+    /// stitches the panel to the board's columns, so ↓ on the last Inbox row
+    /// walked focus into the board's first column — a card in another focus
+    /// scope, which nothing there claims, while the relay stayed pointing at
+    /// the row it had just left: the board scrolled to the new card and the
+    /// menu bar's ⌘⌫ and ⌘⏎ kept acting on the old one. The end of the panel
+    /// is the end of the walk, the way the end of a column is.
     private var map: BoardFocusMap {
         switch surface {
         case .board: BoardFocusMap(store)
-        case .flat: BoardFocusMap(flat: store.visibleTaskIDs(today: dayClock.today))
+        case .flat:
+            isInboxList
+                ? BoardFocusMap(flat: store.inboxTasks.map(\.id))
+                : BoardFocusMap(flat: store.visibleTaskIDs(today: dayClock.today))
         }
     }
 

@@ -81,6 +81,22 @@ struct ThemeGradient: Hashable, Codable, Sendable {
         self.stops = stops.isEmpty ? [Stop(color: ThemeColor(0x000000), location: 0)] : stops
     }
 
+    /// Through the checked initialiser above, not the synthesized
+    /// member-by-member decode — which walks straight past the empty-stops
+    /// guard, the only thing standing between a hand-broken theme file and
+    /// `stops[0]` trapping in ``gradient``. A theme document usually crashes
+    /// the import preview before it is persisted; the same shape inside
+    /// `board.json`'s themes or a synced record would trap on every launch.
+    /// A broken gradient reads as flat black instead, which is at least a
+    /// thing the editor can be used to fix.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            angle: try container.decode(Double.self, forKey: .angle),
+            stops: try container.decode([Stop].self, forKey: .stops)
+        )
+    }
+
     /// `linear-gradient(160deg, #2A1E15 0%, #17110D 55%, #0D0A08 100%)`,
     /// transcribed.
     init(_ angle: Double, _ stops: (ThemeColor, Double)...) {
@@ -120,9 +136,12 @@ struct ThemeGradient: Hashable, Codable, Sendable {
 
     var gradient: Gradient {
         // One stop is a fill, and `Gradient` needs two ends to interpolate
-        // between; a run of stops that all sit at 0 is a fill as well.
+        // between; a run of stops that all sit at 0 is a fill as well. Both
+        // initialisers keep `stops` non-empty, but the field is mutable and
+        // this is a render path — `first` costs nothing and a trap here takes
+        // the whole browser grid down with it.
         guard stops.count > 1 else {
-            let only = stops[0].color.color
+            let only = (stops.first?.color ?? ThemeColor(0x000000)).color
             return Gradient(stops: [.init(color: only, location: 0), .init(color: only, location: 1)])
         }
         return Gradient(stops: stops.map { .init(color: $0.color.color, location: $0.location) })

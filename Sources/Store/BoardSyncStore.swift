@@ -471,10 +471,16 @@ final class BoardSyncStore: SyncStoring {
         let snapshot = BoardSnapshot(
             tasks: Self.ordered(Self.deduplicated(tasks, by: \.id, newest: \.updatedAt))
                 .map(Self.value(of:)),
-            boards: Self.deduplicated(boards, by: \.id, newest: \.createdAt)
+            // By the record's own edit clock, where it has one. `createdAt`
+            // never moves on an edit and a label had no date at all, so two
+            // devices' copies tied forever and each read kept whichever the
+            // fetch returned first — a rename that never converged. The
+            // fallbacks are the old rules for the old records: a stamped copy
+            // beats an unstamped one the moment anybody edits either.
+            boards: Self.deduplicated(boards, by: \.id, newest: { $0.updatedAt ?? $0.createdAt })
                 .sorted { $0.position < $1.position }
                 .map(Self.value(of:)),
-            labels: Self.deduplicated(labels, by: \.key, newest: { _ in Date.distantPast })
+            labels: Self.deduplicated(labels, by: \.key, newest: { $0.updatedAt ?? .distantPast })
                 .sorted { $0.position < $1.position }
                 .map(Self.value(of:)),
             nextSerial: meta?.nextSerial ?? BoardSnapshot.baseSerial,
@@ -736,16 +742,19 @@ final class BoardSyncStore: SyncStoring {
                              deleting: Set<String>) throws {
         guard previous?.labels != snapshot.labels || !deleting.isEmpty else { return }
         var existing = Dictionary(
+            // The reader's own rule, so the record written here is the record
+            // the next `load()` keeps.
             Self.deduplicated(try context.fetch(FetchDescriptor<StoredLabel>()), by: \.key,
-                              newest: { _ in Date.distantPast }).map { ($0.key, $0) },
+                              newest: { $0.updatedAt ?? .distantPast }).map { ($0.key, $0) },
             uniquingKeysWith: { first, _ in first }
         )
-        let seen = Set((previous?.labels ?? []).map(\.key))
+        let seen = Dictionary((previous?.labels ?? []).map { ($0.key, $0) },
+                              uniquingKeysWith: { first, _ in first })
         for (index, label) in snapshot.labels.enumerated() {
             let found = existing.removeValue(forKey: label.key)
             // A record under a key the diff base never carried is one this
             // device has not seen. See ``apply(_:)``.
-            if found != nil, !seen.contains(label.key) { continue }
+            if found != nil, seen[label.key] == nil { continue }
             let record = found ?? {
                 let fresh = StoredLabel(key: label.key)
                 context.insert(fresh)
@@ -755,6 +764,12 @@ final class BoardSyncStore: SyncStoring {
             record.light = Self.encoded(label.light)
             record.dark = Self.encoded(label.dark)
             record.position = index
+            // The record's clock, moved only when the *value* did — measured
+            // against the diff base, not the record, so replaying an unchanged
+            // list stamps nothing and one device cannot claim every label by
+            // saving. This is what lets `load()` settle duplicate records in
+            // the edit's favour; see `StoredLabel.updatedAt`.
+            if seen[label.key] != label { record.updatedAt = .now }
         }
         // The licence, not the base: a leftover the tombstones do not name is
         // one nobody here deleted, whatever the base believes — it stays, and
@@ -766,8 +781,10 @@ final class BoardSyncStore: SyncStoring {
                              deleting: SyncIDs) throws {
         guard previous?.boards != snapshot.boards || !deleting.boards.isEmpty else { return }
         var existing = Dictionary(
+            // The reader's own rule, so the record written here is the record
+            // the next `load()` keeps.
             Self.deduplicated(try context.fetch(FetchDescriptor<StoredBoard>()), by: \.id,
-                              newest: \.createdAt).map { ($0.id, $0) },
+                              newest: { $0.updatedAt ?? $0.createdAt }).map { ($0.id, $0) },
             uniquingKeysWith: { first, _ in first }
         )
         let seen = Dictionary((previous?.boards ?? []).map { ($0.id, $0) },
@@ -788,6 +805,11 @@ final class BoardSyncStore: SyncStoring {
             record.createdAt = board.createdAt
             record.codePrefix = board.codePrefix
             record.position = index
+            // `applyLabels`' clock, for `applyLabels`' reason: `createdAt`
+            // never moves on an edit, so it could settle which of two records
+            // was *made* later and never which was edited later — a rename
+            // lost to a copy nobody had touched since March.
+            if seen[board.id] != board { record.updatedAt = .now }
             applyColumns(board.columns, to: record,
                          seen: Set((seen[board.id]?.columns ?? []).map(\.id)),
                          deleting: deleting.columns)

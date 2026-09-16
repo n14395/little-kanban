@@ -54,8 +54,24 @@ struct PhoneRootView: View {
     /// it to the overlay. `onChange` runs against the values the body has *now*,
     /// which is why this is three of those rather than one closure.
     @State private var showsInboxSheet = false
+    /// The app's, when there is an app — `PadRootView`'s reason, and this root
+    /// is not exempt from having one: the menu bar is declared into every iOS
+    /// scene, an iPhone with a hardware keyboard answers its keys, and an iPad
+    /// in Slide Over or a narrow split draws *this* root while iPadOS keeps the
+    /// menu up. Whatever the menu raises has to appear here too, or the items
+    /// are live, enabled, and do nothing at all.
+    @Environment(AppWindowState.self) private var injectedWindow: AppWindowState?
+    @State private var standaloneWindow = AppWindowState()
+    /// What an import folded in, or why a transfer could not be done —
+    /// `MacRootView`'s, for the panels the menu bar raises here too.
+    @State private var transferNotice: SettingsNotice?
+
+    private var resolvedWindow: AppWindowState { injectedWindow ?? standaloneWindow }
 
     var body: some View {
+        @Bindable var store = store
+        @Bindable var window = resolvedWindow
+
         // Resolved once and handed to both: the saved-view bar's count pill and
         // the list under it are then the same array by construction, and cannot
         // drift apart the way they did while the header counted the view's
@@ -104,7 +120,17 @@ struct PhoneRootView: View {
                         // zero and the clip is the scroll view's own bounds.
                         .clipped()
                 } else if isShort, store.activeView != nil {
-                    taskColumns(tasks)
+                    // The flow has no rows to trail an empty state behind the
+                    // way the flat list does, so a view narrowed to nothing
+                    // rendered as blank screen — same emptiness, no sentence.
+                    // The portrait list's own answer, centred in the room the
+                    // columns would have had; rotation was the only way out.
+                    if tasks.isEmpty {
+                        emptyState(in: nil)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        taskColumns(tasks)
+                    }
                 } else {
                     taskList(tasks)
                 }
@@ -240,6 +266,82 @@ struct PhoneRootView: View {
                 .environment(\.palette, palette)
                 .environment(\.dayClock, dayClock)
         }
+        // What the menu bar opens — the same slate the iPad's root presents,
+        // because the same menu is up over both: an iPhone with a hardware
+        // keyboard answers its keys, and an iPad in Slide Over or a narrow
+        // split resolves to this root with the menu still drawn. Each of these
+        // was a flag the menu set and nothing here read.
+        .sheet(isPresented: $store.isShowingShortcuts) {
+            ShortcutsSheet()
+        }
+        .sheet(isPresented: $window.isPickingDueDate) {
+            DueDateSheet()
+        }
+        .labelManagerSheet(isPresented: $window.isManagingLabels, metrics: .sheet)
+        // File ▸ Restore from a Backup…, Edit ▸ Empty Trash… and a refused
+        // Column ▸ Trash Column.
+        .menuPresentations(window: window, backups: .sheet)
+        // **File ▸ Import… / Export… / Export as Markdown…** — the pass
+        // `PadRootView` records having needed once already, made here for the
+        // same reason it was needed there.
+        .modifier(BoardTransfer(
+            isExportingBoard: $store.isExportingBoard,
+            isExportingMarkdown: $store.isExportingMarkdown,
+            isImporting: $store.isImportingBoard,
+            today: dayClock.today,
+            onImport: { transferNotice = .importing($0, into: store) },
+            onFailure: { transferNotice = SettingsNotice(
+                title: String(localized: "That export could not be written.",
+                              comment: "Alert title when saving an exported file failed"),
+                message: $0
+            ) }
+        ))
+        .alert(
+            transferNotice?.title ?? "",
+            isPresented: Binding(get: { transferNotice != nil }, set: { if !$0 { transferNotice = nil } }),
+            presenting: transferNotice
+        ) { _ in
+            Button("OK") { transferNotice = nil }
+        } message: { notice in
+            Text(notice.message)
+        }
+        // File ▸ New Board asks the source list to open its naming field, and
+        // this surface's board list is the drawer — which has no field, but the
+        // root has the naming alert its own empty state uses. Same question,
+        // this surface's way of asking it.
+        .onChange(of: window.isNamingNewBoard) { _, naming in
+            guard naming else { return }
+            window.isNamingNewBoard = false
+            isCreatingBoard = true
+        }
+        // No surface here draws the composer — the column strip's and the Inbox
+        // panel's are the wide layouts' — so a request to open one is answered
+        // in this surface's own idiom instead: the card is made where the
+        // request aimed and its editor opens with the title focused, exactly
+        // what the floating "+" does. ⌘N, File ▸ New Task and an intent's
+        // capture all land here; unanswered, the flag sat orphaned until the
+        // window widened again and popped a composer nobody had just asked for.
+        .onChange(of: store.addingPlacement) { _, placement in
+            guard let placement else { return }
+            store.addTask(to: placement, title: "", fromPhone: true)
+        }
+        .onAppear {
+            // A composer the *wide* root had open when the window narrowed into
+            // this one: what was typed is kept — committed to where the field
+            // was aiming it — and the empty request is put away rather than
+            // turned into a card nobody asked for.
+            if store.addingPlacement != nil {
+                store.commitDraft()
+                store.cancelDraft()
+            }
+            // And the keyboard-focus mirror the wide root was keeping for the
+            // menu bar. Nothing here writes it, so left standing it aims ⌘⌫
+            // and ⌘⏎ at whichever card had focus before the window narrowed —
+            // a card no longer on screen.
+            resolvedWindow.focusedTaskID = nil
+            resolvedWindow.focusedColumnID = nil
+        }
+        .environment(resolvedWindow)
     }
 
     /// Written through a binding for `trashPresentation`'s reason: every way out

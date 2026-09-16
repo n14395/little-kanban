@@ -245,6 +245,9 @@ struct CompleteTaskIntent: AppIntent {
         }
         guard store.canComplete(item.id) else { throw TaskIntentError.cannotComplete }
         store.complete(item.id)
+        // Written before the result is spoken — a background launch can be
+        // jetsam-killed inside the save debounce; see `AddTaskIntent`.
+        store.saveNow()
         return .result(dialog: "Completed \(item.code).")
     }
 }
@@ -270,6 +273,8 @@ struct ReopenTaskIntent: AppIntent {
             return .result(dialog: "\(item.code) was not finished.")
         }
         store.reopen(item.id)
+        // Before the result is spoken — see `AddTaskIntent`.
+        store.saveNow()
         return .result(dialog: "Reopened \(item.code).")
     }
 }
@@ -302,6 +307,8 @@ struct MoveTaskIntent: AppIntent {
         let (store, item) = try resolve(task)
         let destination = try placement(in: store)
         store.move(item.id, to: destination)
+        // Before the result is spoken — see `AddTaskIntent`.
+        store.saveNow()
         return .result(dialog: "Moved \(item.code).")
     }
 
@@ -437,6 +444,8 @@ struct SetDueDateIntent: AppIntent {
         // intent covers both halves and a Shortcut can take a date from
         // somewhere that may have none.
         store.setDue(due.map { CalendarDay($0) }, on: item.id)
+        // Before the result is spoken — see `AddTaskIntent`.
+        store.saveNow()
         return .result(dialog: "Updated \(item.code).")
     }
 }
@@ -460,6 +469,8 @@ struct SetPriorityIntent: AppIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let (store, item) = try resolve(task)
         store.setPriority(priority.priority, on: item.id)
+        // Before the result is spoken — see `AddTaskIntent`.
+        store.saveNow()
         return .result(dialog: "Updated \(item.code).")
     }
 }
@@ -492,6 +503,8 @@ struct ChangeLabelIntent: AppIntent {
         let carries = item.labelKeys.contains(label.id)
         if (change == .add) != carries {
             store.toggleLabel(label.id, on: item.id)
+            // Before the result is spoken — see `AddTaskIntent`.
+            store.saveNow()
         }
         return .result(dialog: "Updated \(item.code).")
     }

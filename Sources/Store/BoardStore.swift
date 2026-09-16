@@ -1169,6 +1169,13 @@ final class BoardStore {
                     nextSerial: local?.nextSerial ?? loaded.nextSerial,
                     trash: local?.trash ?? [], views: local?.views ?? SavedView.seededAll,
                     savedColors: local?.palette ?? PaletteSwatch.seed,
+                    // The watermarks ride along like everything else here: a
+                    // session that starts without them merges its first pull
+                    // against `nil` — "never heard anything" — and can hand
+                    // back a view this device was told to delete last week.
+                    viewsSyncedAt: local?.viewsSyncedAt,
+                    paletteSyncedAt: local?.paletteSyncedAt,
+                    themesSyncedAt: local?.themesSyncedAt,
                     viewsChangedAt: local?.viewsChangedAt,
                     paletteChangedAt: local?.paletteChangedAt,
                     themesChangedAt: local?.themesChangedAt,
@@ -1278,6 +1285,13 @@ final class BoardStore {
                 trash: snapshot.trash,
                 views: snapshot.views,
                 savedColors: snapshot.palette,
+                // Not always the no-sync path: a failed record read lands
+                // here too, and its session can still merge later through
+                // `recoverFromBlockedSync` — against `nil` marks, without
+                // these, on a device that has heard plenty.
+                viewsSyncedAt: snapshot.viewsSyncedAt,
+                paletteSyncedAt: snapshot.paletteSyncedAt,
+                themesSyncedAt: snapshot.themesSyncedAt,
                 viewsChangedAt: snapshot.viewsChangedAt,
                 paletteChangedAt: snapshot.paletteChangedAt,
                 themesChangedAt: snapshot.themesChangedAt,
@@ -1616,12 +1630,18 @@ final class BoardStore {
             let pending = self.snapshot
             self.reconcileSystemsAndSync(pending)
             guard let generation else { return }
+            // The prune cap is the user's "Backups to keep", read here and
+            // handed across rather than inside the detached task. Left to the
+            // parameter's default, the rolling path capped history at ten
+            // whatever Settings said — the one place the setting was meant to
+            // apply, silently deleting the safety net it promised to keep.
+            let keeping = Preferences.backupsKept.count
             // Off the main actor: encoding the board and writing it are the two
             // things in a keystroke's path that grow with the board's size.
             let outcome = await Task.detached(priority: .utility) { () -> SaveOutcome in
                 do {
                     guard try file.write(pending, generation: generation) else { return .superseded }
-                    file.backupIfDue()
+                    file.backupIfDue(keeping: keeping)
                     return .wrote
                 } catch {
                     return .failed(error.localizedDescription)
@@ -1739,9 +1759,9 @@ final class BoardStore {
     /// for why the difference matters even though writing the same values twice
     /// would not show.
     ///
-    /// The undo stack is deliberately left alone — a step that reversed
-    /// somebody else's edit on their behalf would be worse than no step at
-    /// all. And the diff base is *not* invalidated any more: `load()` has just
+    /// The undo stack does not survive a merge that changed the board — see
+    /// the end of `adoptSyncedBoard` for what a kept step would cost. And
+    /// the diff base is *not* invalidated any more: `load()` has just
     /// set it to exactly what the records hold, which is the one thing a diff
     /// base has to be. Nil-ing it made the next apply rewrite every record —
     /// and now that a merge can write, that rewrite's own change notification
@@ -1757,7 +1777,14 @@ final class BoardStore {
         guard !Self.hasUnresolvedTaskPlacements(in: incoming) else { return false }
         isAwaitingCompleteSync = false
         let shared = resolvingSharedLists(with: incoming, in: sync)
-        guard brings(somethingNew: incoming, resolvedTo: shared) else { return false }
+        guard brings(somethingNew: incoming, resolvedTo: shared) else {
+            // Not news, but *heard*: the merge rule ran and consumed the
+            // records' stamps even though what stands here already agrees
+            // with them, and the watermarks have to say so — see
+            // `advanceWatermarks(to:)` for what a mark left behind costs.
+            advanceWatermarks(to: shared)
+            return false
+        }
         adoptSyncedBoard(incoming, sharing: shared)
         lastSyncedAt = .now
         return true
@@ -1874,6 +1901,10 @@ final class BoardStore {
                 adoptSyncedBoard(merged, sharing: shared)
                 lastSyncedAt = .now
                 adopted = true
+            } else {
+                // Heard, even with nothing to adopt — `mergeRemoteChanges`'
+                // reason, at the recovery's own door.
+                advanceWatermarks(to: shared)
             }
         } else {
             isSyncReadBlocked = false
@@ -2218,6 +2249,9 @@ final class BoardStore {
     /// say; by the time it reaches here the question has been asked, so this
     /// takes the outcome rather than the read.
     private func adoptSyncedBoard(_ content: BoardSnapshot, sharing shared: SharedList.Outcome) {
+        // For the undo housekeeping at the end: whether the merge moved
+        // anything a ⌘Z can see.
+        let beforeMerge = mutation
         // The records have spoken again; deletions are measured from here.
         // This is what keeps a merge from ever being read back to the records
         // as this device's editing: only what leaves the board *after* this
@@ -2265,6 +2299,62 @@ final class BoardStore {
             lightID: themes.lightID, darkID: themes.darkID, custom: shared.themes.custom
         )
         themesChangedAt = shared.themesChangedAt
+
+        // A merge that moved anything a ⌘Z can see has rewritten the board
+        // underneath both halves of the undo machinery, and neither may reach
+        // back past it. (One that only brought a theme is exempt: themes live
+        // outside `BoardMutation`, so every step still restores what it says.)
+        guard mutation != beforeMerge else { return }
+        // The open sessions first. A session's `undoBefore` is the board it
+        // opened on — now the board from *before* the merge — and ending one
+        // registers a step restoring exactly that. Rebased, the session owns
+        // only what is typed from here on; nothing typed so far is lost,
+        // because the push-first order above already folded the live text
+        // into the merged board. This is the one place `rebaseSessions` runs
+        // without `flushSessions` in front of it: the step a flush would file
+        // is a step the next line drops.
+        rebaseSessions(to: mutation)
+        // Then the stack itself. The steps already filed hold pre-merge
+        // snapshots inside the manager's closures, where nothing can rebase
+        // them — and restoring one would not merely take back the other
+        // device's edits here: the baseline moved up to the merged board
+        // above, so the push measures the reversal as this device's
+        // *deletions*, and a card the other device just made leaves as a
+        // tombstone licensed to delete it everywhere. Dropping the stack is
+        // the lesser loss, and a rare one — this runs only when a merge
+        // actually adopted something another device changed.
+        undoManager?.removeAllActions(withTarget: self)
+    }
+
+    /// Moves the three shared-list watermarks up to what a merge consumed,
+    /// for the merges that adopt nothing — the adopting ones move them in
+    /// `adoptSyncedBoard`.
+    ///
+    /// **Every merge that consumed a remote stamp advances the mark, not only
+    /// the ones that changed the board.** A device that only ever pulled
+    /// while its lists already agreed used to keep the watermark from its
+    /// last *adopting* merge — and a stale mark is a licence to resurrect: a
+    /// view the other device deletes since then reads as an addition this
+    /// mark has not heard of, comes back, and the next push teaches the
+    /// device that deleted it to take it back too. Worse, once any later
+    /// merge adopted anything, the resurrected copy stood under a
+    /// freshly-restamped list and survived every merge and relaunch after —
+    /// a permanent one-sided divergence, from a mark that was only ever
+    /// behind by bookkeeping.
+    ///
+    /// `heard(_:consuming:)` built the outcome's marks off this device's own,
+    /// so they never move backwards; the guard only keeps a pull that heard
+    /// nothing new from costing a save. The save matters as much as the move
+    /// — the marks live in `board.json` and nowhere else, and a mark advanced
+    /// only in memory is the stale one all over again at the next launch.
+    private func advanceWatermarks(to shared: SharedList.Outcome) {
+        guard shared.viewsSyncedAt != viewsSyncedAt
+                || shared.paletteSyncedAt != paletteSyncedAt
+                || shared.themesSyncedAt != themesSyncedAt else { return }
+        viewsSyncedAt = shared.viewsSyncedAt
+        paletteSyncedAt = shared.paletteSyncedAt
+        themesSyncedAt = shared.themesSyncedAt
+        scheduleSave()
     }
 
     private func adopt(
@@ -2543,8 +2633,12 @@ final class BoardStore {
         // And it may have taken away the *view* being looked at — undoing the
         // creation of one — which leaves a surface naming nothing. The board is
         // the answer that is always available, and it is what deleting the view
-        // you are standing on already does.
-        if let id = activeView?.id, !views.contains(where: { $0.id == id }) { surface = .board }
+        // you are standing on already does. Asked of `surface` directly, not of
+        // `activeView`: that getter answers `nil` for exactly the state this
+        // guard is for — a surface naming a view the list no longer holds — so
+        // reading it here made the condition unreachable and left the window
+        // blank on the two platforms whose roots draw nothing for a missing id.
+        if case .view(let id) = surface, !views.contains(where: { $0.id == id }) { surface = .board }
         // The search memo is keyed on a per-task counter that a wholesale
         // replacement does not bump, so it is dropped rather than trusted.
         searchTexts.removeAll()
@@ -4933,6 +5027,12 @@ final class BoardStore {
     /// of a reversible act is one the user learns to dismiss without reading.
     @discardableResult
     func trashTask(_ id: TaskItem.ID) -> TaskItem? {
+        // Before the step opens, which is where its snapshot is taken — see
+        // `restoreEmptiedFields`. `deleteTask` makes the same call for its own
+        // step, but nested in here that one runs *after* this step's snapshot,
+        // which is exactly too late: ⌘Z restored the blank the open session
+        // had left in the title.
+        restoreEmptiedFields(on: id)
         var removed: TaskItem?
         undoable(String(localized: "Trash Task", comment: "Undo action name for putting a task in the trash")) {
             removed = deleteTask(id)
@@ -4947,13 +5047,16 @@ final class BoardStore {
     func trashTasks(_ ids: Set<TaskItem.ID>) {
         let targets = ordered(ids)
         guard !targets.isEmpty else { return }
+        // Before the step opens, which is where its snapshot is taken — see
+        // `restoreEmptiedFields`. Inside the loop it ran after, and the blank
+        // rode into the snapshot.
+        for id in targets { restoreEmptiedFields(on: id) }
         let name = targets.count > 1
             ? String(localized: "Trash Tasks", comment: "Undo action name for trashing several tasks at once")
             : String(localized: "Trash Task", comment: "Undo action name for putting a task in the trash")
         var removed: [TaskItem] = []
         undoable(name) {
             for id in targets {
-                restoreEmptiedFields(on: id)
                 if let gone = discard(id) {
                     keep(.task(gone))
                     removed.append(gone)
@@ -5037,7 +5140,9 @@ final class BoardStore {
     /// answer `placed(_:on:)` gives every card whose column cannot be found, and
     /// better than refusing to give the user their card back over a column. A
     /// column and a board go back where they sat, clamped to a list that has
-    /// changed length since. A **board brings its cards with it**, by the same
+    /// changed length since — and a column, further, to somewhere *before*
+    /// Done, because the last slot is Done's and a shrunk list must not let a
+    /// restore take it. A **board brings its cards with it**, by the same
     /// placement rule and in the order it had them; a board trashed before the
     /// cards travelled with it carries none, and comes back alone because its
     /// cards were never taken — they are still in the Inbox where it left them.
@@ -5077,8 +5182,17 @@ final class BoardStore {
                     refusal = .alreadyThere
                     return
                 }
+                // Clamped short of the last slot, not just to the list: the
+                // last column *is* Done (`Board.doneColumn` reads position),
+                // so a list that shrank while this column sat in the trash
+                // must not let the restore append — a column landing after
+                // Done would quietly take the job, and `moveColumn` and
+                // `deleteColumn` both refuse the last column, so there is no
+                // way back out short of ⌘Z. `max(…, 0)` is for the board
+                // with no columns at all, which nothing in the app makes any
+                // more but an import or a hand-edited file still can.
                 boards[boardIndex].columns.insert(
-                    column, at: min(position, boards[boardIndex].columns.count)
+                    column, at: min(position, max(boards[boardIndex].columns.count - 1, 0))
                 )
             case .board(let board, let position, let cards):
                 guard !boards.contains(where: { $0.id == board.id }) else {
@@ -5454,6 +5568,37 @@ final class BoardStore {
             selectedID = id
         }
         return id
+    }
+
+    /// A card made by something that is not a surface: an App Intent, running
+    /// against an app that may not even be frontmost.
+    ///
+    /// The interactive `addTask` moves session state around the card it makes
+    /// — empties the composer's draft, moves the selection, remembers an
+    /// untitled card as a capture to discard, opens the phone's sheet — which
+    /// is right for the surface that called it and wrong for a Shortcut: a
+    /// line typed halfway into a column's composer was wiped by a background
+    /// intent, the selection jumped under the user's hands, and the
+    /// `blankCaptures` entry could later delete the card if it was opened and
+    /// dismissed untouched on the phone. This mints the card, folds in what
+    /// the intent was told, and touches nothing the user is in the middle of.
+    ///
+    /// The due date rides inside the mint's own step rather than being set on
+    /// the card afterwards: a brand-new card *arriving* with a date is not an
+    /// edit, so it is one ⌘Z and no `.dueSet` line — exactly what a capture's
+    /// trailing date has always been. `nil` keeps the default-due preference
+    /// the mint applies, which is what "no due given" means everywhere else.
+    @discardableResult
+    func addTaskFromIntent(
+        to placement: TaskPlacement, title: String, due: CalendarDay? = nil
+    ) -> TaskItem.ID {
+        guard let due else { return mintTask(to: placement, title: title, log: .created) }
+        var made: TaskItem.ID!
+        undoable(String(localized: "New Task", comment: "Undo action name for adding a task")) {
+            made = mintTask(to: placement, title: title, log: .created)
+            update(made) { $0.due = due }
+        }
+        return made
     }
 
     /// Quick capture into the Inbox for a surface that carries the card's editor

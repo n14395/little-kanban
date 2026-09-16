@@ -105,6 +105,15 @@ struct ThemeColorField: View {
 /// Commits on return and on losing focus, and refuses what it cannot read — a
 /// field half-way through `1` on its way to `13` must not clamp to 1 under the
 /// cursor.
+///
+/// **And it commits every readable keystroke into the binding as it is
+/// typed.** Return and focus loss are not moments the iOS editor can count
+/// on: the decimal pad has no Return, and Save does not resign focus — so a
+/// value whose only commit was those two was silently discarded by the very
+/// button that promises to keep it. Writing the parse live costs nothing the
+/// editor did not already promise ("the preview follows the draft") and only
+/// the *text* is protected from being reformatted under the cursor: that
+/// still happens at the real boundaries alone.
 struct ThemeNumberField: View {
     @Environment(\.palette) private var palette
 
@@ -137,6 +146,15 @@ struct ThemeNumberField: View {
                 #endif
                 .onSubmit(commit)
                 .onChange(of: isFocused) { _, focused in if !focused { commit() } }
+                // The live half of the contract above. Guarded on focus so a
+                // programmatic text reset does not write back into the value
+                // it was reset from.
+                .onChange(of: text) { _, typed in
+                    guard isFocused,
+                          let parsed = Double(typed.replacingOccurrences(of: ",", with: "."))
+                    else { return }
+                    value = min(max(parsed, range.lowerBound), range.upperBound)
+                }
             if !suffix.isEmpty {
                 Text(suffix)
                     .foregroundStyle(palette.inkText(0.4))

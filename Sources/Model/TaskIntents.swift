@@ -548,11 +548,20 @@ struct AddTaskIntent: AppIntent {
     @MainActor
     func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog {
         let store = try TaskIntentBridge.require()
-        let id = store.addTask(to: try placement(in: store), title: taskTitle)
-        if let due, let task = store[id] {
-            store.setDue(CalendarDay(due), on: task.id)
-        }
+        // Through the non-interactive door — see `addTaskFromIntent` for what
+        // the interactive one moves that a background Shortcut must not.
+        let id = store.addTaskFromIntent(
+            to: try placement(in: store), title: taskTitle, due: due.map { CalendarDay($0) }
+        )
         let code = store[id]?.code ?? ""
+        // Written before the result is spoken, not on the 500 ms debounce: a
+        // Shortcut can run against an app the system background-launched and
+        // jetsam-kills moments after the dialog — inside the debounce window,
+        // which is the one save an intent has no scene phase to flush. "Added
+        // NW-231" followed by no NW-231 at the next launch is the worst
+        // sentence this file can produce, and the synchronous write carries
+        // the CloudKit push and the reminder/Spotlight followers with it.
+        store.saveNow()
         return .result(value: code, dialog: "Added \(code).")
     }
 

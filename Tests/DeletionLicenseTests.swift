@@ -136,6 +136,76 @@ import Testing
                 "the undone board's record survived to resurface on every device")
     }
 
+    /// The steps filed before a merge restore boards from *before* it — and
+    /// `adoptSyncedBoard` moves the baseline up to the merged board, so
+    /// restoring one would leave here as this device's deletions: the card
+    /// the other device just made, in the tombstone set the licence honours
+    /// everywhere. The snapshots live inside the manager's closures where
+    /// nothing can rebase them, so the stack is dropped instead.
+    @Test func aMergeThatChangedTheBoardDropsTheStepsFiledBeforeIt() throws {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.inMemory()
+        let store = BoardStore.restored(file: temp.file, sync: sync)
+        let undo = RecordingUndoManager()
+        undo.groupsByEvent = false
+        store.undoManager = undo
+
+        step(undo) { store.addTask(to: .inbox, title: "Filed before the merge") }
+        store.saveNow()
+        #expect(undo.canUndo)
+
+        // The other device makes a card of its own, behind this one's back.
+        var theirs = try #require(try sync.load())
+        theirs.tasks.append(TaskItem(code: "NW-900", title: "Theirs"))
+        try BoardSyncStore(container: sync.container, isSyncing: false).apply(theirs)
+
+        #expect(store.mergeRemoteChanges(), "the other device's card was not news")
+        #expect(store.tasks.contains { $0.title == "Theirs" })
+        #expect(undo.canUndo == false,
+                "a step filed before the merge survived it, reaching a board from before the other device's card")
+    }
+
+    /// The same reach through the other door: a session opened before the
+    /// merge carries its `undoBefore` from before it, and ending the session
+    /// registers a step restoring exactly that. `adoptSyncedBoard` rebases
+    /// the open sessions, so the step it files reaches back to the merged
+    /// board and no further — and the other device's card is never a
+    /// tombstone in the push behind the ⌘Z.
+    @Test func aSessionOpenAcrossAMergeCannotFileAStepFromBeforeIt() throws {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.inMemory()
+        let store = BoardStore.restored(file: temp.file, sync: sync)
+        let undo = RecordingUndoManager()
+        undo.groupsByEvent = false
+        store.undoManager = undo
+        store.addTask(to: .inbox, title: "Mine")
+        store.saveNow()
+        let mine = try #require(store.tasks.first { $0.title == "Mine" }?.id)
+
+        store.beginEditing(.title, on: mine, scope: .desk)
+        store.setText("Mine, retitled", field: .title, on: mine)
+
+        var theirs = try #require(try sync.load())
+        theirs.tasks.append(TaskItem(code: "NW-901", title: "Theirs"))
+        try BoardSyncStore(container: sync.container, isSyncing: false).apply(theirs)
+        #expect(store.mergeRemoteChanges(), "the other device's card was not news")
+        let arrived = try #require(store.tasks.first { $0.title == "Theirs" }?.id)
+
+        store.setText("Mine, retitled twice", field: .title, on: mine)
+        step(undo) { store.endEditing(.title, on: mine, scope: .desk) }
+        #expect(undo.canUndo, "the session's own step should survive the merge housekeeping")
+
+        undo.undo()
+        store.saveNow()
+        // The ⌘Z takes back only what was typed after the merge…
+        #expect(store[mine]?.title == "Mine, retitled")
+        // …and never the other device's card, on the board or in the records.
+        #expect(store.tasks.contains { $0.id == arrived },
+                "the step reached back past the merge and took the other device's card with it")
+        #expect(try ids(StoredTask.self, sync, \.id).contains(arrived),
+                "the reversal left as this device's deletion — a tombstone on the other device's card")
+    }
+
     /// Start-over replaces the whole board, and the replacement must travel
     /// as the deletion it is — the licence has to say yes to the real thing.
     @Test func startingOverTombstonesTheOldBoard() throws {

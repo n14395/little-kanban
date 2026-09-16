@@ -185,6 +185,41 @@ import Testing
         #expect(store.lastSyncedAt != nil, "a theme arriving did not count as news")
     }
 
+    /// A merge that changed the board drops the undo stack — the steps on it
+    /// restore boards from before it, which the push would read back as
+    /// deletions (see `DeletionLicenseTests`). A theme is the exemption:
+    /// themes live outside `BoardMutation`, so a merge that only brought one
+    /// moved nothing a ⌘Z can see, and every step still restores exactly what
+    /// it says.
+    @Test func aMergeThatOnlyBroughtAThemeKeepsTheUndoStack() throws {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.inMemory()
+        let store = board(sync, on: temp)
+        let undo = RecordingUndoManager()
+        undo.groupsByEvent = false
+        store.undoManager = undo
+        step(undo) { store.addTask(to: .inbox, title: "Mine") }
+        store.saveNow()
+
+        let theirs = try #require(try sync.load())
+        // The double apply, for `aThemeMadeOnTheOtherDeviceArrivesOnAPull`'s
+        // reason: the first establishes the writer's base, the second is the edit.
+        let writer = BoardSyncStore(container: sync.container, isSyncing: false)
+        try writer.apply(theirs)
+        var edited = theirs
+        var made = ThemePresets.fallback(for: .light)
+        made.id = "made-on-the-other-device"
+        made.name = "Theirs"
+        made.changedAt = .now
+        edited.themes.custom.append(made)
+        edited.themesChangedAt = .now
+        try writer.apply(edited)
+
+        store.mergeRemoteChanges()
+        #expect(store.themes.custom.contains { $0.id == made.id }, "the theme never arrived")
+        #expect(undo.canUndo, "a theme crossing cost the user their undo history")
+    }
+
     /// **Scenario 17's second way of failing.** A theme made on the other
     /// device is still crossing — CloudKit pushes take what they take — while
     /// this device merges something unrelated. The unrelated merge used to

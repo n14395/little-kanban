@@ -76,7 +76,55 @@ import Testing
             intent.due = TestBoard.laterDay.date()
 
             _ = try await intent.perform()
-            #expect(store.tasks.first { $0.title == "Due from Shortcuts" }?.due == TestBoard.laterDay)
+            let added = try #require(store.tasks.first { $0.title == "Due from Shortcuts" })
+            #expect(added.due == TestBoard.laterDay)
+            // Part of the card as it arrives, not an edit to it: no `.dueSet`
+            // line in a history one act old — see `addTaskFromIntent`.
+            #expect(!added.activity.contains { entry in
+                if case .dueSet = entry.kind { return true } else { return false }
+            }, "a card arriving with a date logged an edit to itself")
+        }
+    }
+
+    /// The one save path with no lifecycle flush behind it: a Shortcut can
+    /// run against an app the system background-launched and jetsam-kills
+    /// moments after the dialog is spoken — inside the 500 ms debounce, which
+    /// no scene phase will flush for a process the user never foregrounded.
+    @Test func anIntentsMutationReachesTheDiskBeforeItReturns() async throws {
+        let temp = TempBoard()
+        let store = TestBoard.store(tasks: TestBoard.tasks(on: SeedData.defaultBoard), file: temp.file)
+        try await borrowing(store) {
+            let intent = AddTaskIntent()
+            intent.taskTitle = "Written before the dialog"
+
+            _ = try await intent.perform()
+
+            let onDisk = try #require(temp.file.load().snapshot)
+            #expect(onDisk.tasks.contains { $0.title == "Written before the dialog" },
+                    "the intent's card was still waiting out the save debounce")
+        }
+    }
+
+    /// A background intent must not move anything under the user's hands: the
+    /// interactive `addTask` empties the composer's draft, closes the
+    /// composer, moves the selection and remembers an untitled card for later
+    /// discarding — all right for a surface, all wrong for a Shortcut.
+    @Test func anIntentTouchesNothingTheUserIsInTheMiddleOf() async throws {
+        let store = TestBoard.store(tasks: TestBoard.tasks(on: SeedData.defaultBoard))
+        store.beginAdding(in: BoardColumn.backlog.id)
+        store.draft = "half a thought"
+        let selected = store.selection
+        try await borrowing(store) {
+            let intent = AddTaskIntent()
+            intent.taskTitle = "From the background"
+
+            _ = try await intent.perform()
+
+            #expect(store.draft == "half a thought", "the intent wiped the composer's draft")
+            #expect(store.addingPlacement != nil, "the intent closed the composer")
+            #expect(store.selection == selected, "the intent moved the selection")
+            let added = try #require(store.tasks.first { $0.title == "From the background" })
+            #expect(store.sheetID != added.id, "the intent opened a sheet nobody asked for")
         }
     }
 
