@@ -61,18 +61,23 @@ extension Palette {
 
     /// The dot beside a card's metadata row.
     ///
-    /// **Max is the one that does not take the accent.** High *is* the accent,
-    /// so it is Ember's rust on one theme and Aurora's mint on another — a mark
-    /// that says *this one* against the cards around it. Max has to say it
-    /// against High as well, and a fifth tone of the accent would not; it takes
-    /// the theme's overdue hue, which is the app's one alarm colour and is said
-    /// once rather than twice. See ``ThemeStatus``.
+    /// **Traffic lights, not the theme.** Low is green, Medium is amber, High
+    /// is red, and Max is the same red on the triangle — the shape is what
+    /// says *more than High*, see `PriorityDot`. A priority is a scale, and a
+    /// scale whose rungs changed hue with the theme was not one: High wore
+    /// Ember's rust on one board and Aurora's mint on the next, and which of
+    /// two marks was the louder depended on which theme they were read under.
+    /// Green–amber–red is the one ranking nobody has to learn.
+    ///
+    /// Two literals per rung rather than one, because the marks sit on
+    /// whatever card the theme draws: the darker set holds against a pale
+    /// card, the brighter against a near-black one. The *hue* is fixed either
+    /// way — a theme no longer gets a say in what a priority means.
     func priorityColor(_ priority: Priority) -> Color {
         switch priority {
-        case .max: theme.dueChips.hot.background.solid.color
-        case .high: accent
-        case .medium: theme.status.medium.color
-        case .low: inkFaint
+        case .max, .high: Color(hex: isDark ? 0xFF5A4E : 0xD62B2B)
+        case .medium: Color(hex: isDark ? 0xFFC93D : 0xC98A00)
+        case .low: Color(hex: isDark ? 0x3ECF6E : 0x1E9E44)
         }
     }
 

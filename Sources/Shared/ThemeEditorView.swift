@@ -329,21 +329,17 @@ struct ThemeEditorView: View {
 
     private var status: some View {
         section(String(localized: "Status hues", comment: "Theme editor section heading, from the design document")) {
+            // One row where the design document has two: the amber status hue
+            // lost its last reader when the priority marks became traffic
+            // lights — see `ThemeStatus`, which keeps the field only so files
+            // round-trip. A control that changes nothing is not offered.
             ThemeFieldRow(
                 title: String(localized: "Done", comment: "Theme parameter: the colour finished work reads as"),
-                note: String(localized: "A finished task's date chip, and a full meter.",
-                             comment: "Where the done hue is used, from the design document"),
+                note: String(localized: "A finished task's date chip, and a full meter. Overdue has no field of its own — it is the hot due chip below.",
+                             comment: "Where the done hue is used, and why there is no overdue status hue"),
                 metrics: metrics.field
             ) {
                 ThemeColorField(color: $draft.status.done, showsOpacity: false, metrics: metrics.field)
-            }
-            ThemeFieldRow(
-                title: String(localized: "This week", comment: "Theme parameter: the amber status hue"),
-                note: String(localized: "The This Week column's dot, and medium priority. Overdue has no field of its own — it is the hot due chip below.",
-                             comment: "Where the amber hue is used, and why there is no third status hue"),
-                metrics: metrics.field
-            ) {
-                ThemeColorField(color: $draft.status.medium, showsOpacity: false, metrics: metrics.field)
             }
         }
     }

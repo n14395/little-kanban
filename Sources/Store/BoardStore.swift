@@ -501,8 +501,8 @@ enum ColumnCaret: Hashable, Sendable {
 }
 
 /// Which edge of which checklist row a dragged sub-task would land against —
-/// ``ColumnCaret``'s shape for the third and last list in the app that re-orders
-/// by hand, and for the same reason: the mark is drawn by whichever row it
+/// ``ColumnCaret``'s shape for the third list in the app that re-orders by
+/// hand, and for the same reason: the mark is drawn by whichever row it
 /// names, on the side it names, and no row has to know how far down the list it
 /// is to draw its own edge.
 ///
@@ -516,6 +516,45 @@ enum SubtaskCaret: Hashable, Sendable {
 
     /// The row the caret is drawn against.
     var row: SubTask.ID {
+        switch self {
+        case .above(let id), .below(let id): id
+        }
+    }
+}
+
+/// Which edge of which board row a dragged board would land against — the
+/// fourth of these, drawn by the sidebar's rows and the phone drawer's alike.
+///
+/// Its own type rather than a reuse of one of the other three, for the reason
+/// ``ColumnCaret`` gives: every id here is a `UUID`, so a single enum would
+/// take a column's id where a board's belongs and nothing would say otherwise
+/// until a drop landed somewhere absurd.
+enum BoardCaret: Hashable, Sendable {
+    case above(Board.ID)
+    case below(Board.ID)
+
+    /// The row the caret is drawn against.
+    var board: Board.ID {
+        switch self {
+        case .above(let id), .below(let id): id
+        }
+    }
+}
+
+/// Which edge of which saved-view row a dragged view would land against —
+/// ``BoardCaret`` for the sidebar's other section, drawn by the same two
+/// surfaces.
+///
+/// Its own type rather than a reuse, for the reason ``ColumnCaret`` gives:
+/// every id here is a `UUID`, so a single enum would take a board's id where a
+/// view's belongs and nothing would say otherwise until a drop landed
+/// somewhere absurd.
+enum SavedViewCaret: Hashable, Sendable {
+    case above(SavedView.ID)
+    case below(SavedView.ID)
+
+    /// The row the caret is drawn against.
+    var view: SavedView.ID {
         switch self {
         case .above(let id), .below(let id): id
         }
@@ -3963,6 +4002,36 @@ final class BoardStore {
         }
     }
 
+    /// Puts the dragged view in the gap the caret names — ``dropBoard(_:at:)``
+    /// for the sidebar's other list, with the same absences: no pinned last
+    /// row, so a view can land below the bottom one, and one list of views
+    /// however many surfaces show it, so no wrong window to have come from.
+    ///
+    /// Refused against itself and against the gaps either side of itself,
+    /// where there is nothing to do — a drop that reached the store anyway
+    /// must not cost a ⌘Z for a view that did not move. `false` says the drop
+    /// was not taken, which is what a drop handler owes its caller.
+    @discardableResult
+    func dropView(_ payload: SavedViewTransfer, at caret: SavedViewCaret) -> Bool {
+        guard payload.viewID != caret.view,
+              let from = views.firstIndex(where: { $0.id == payload.viewID }),
+              let anchor = views.firstIndex(where: { $0.id == caret.view })
+        else { return false }
+        let offset: Int
+        switch caret {
+        case .above:
+            // Already sitting in that gap: the row under the caret is the one
+            // immediately after the dragged view.
+            guard anchor != from + 1 else { return false }
+            offset = anchor
+        case .below:
+            guard anchor != from - 1 else { return false }
+            offset = anchor + 1
+        }
+        moveView(fromOffsets: IndexSet(integer: from), toOffset: offset)
+        return true
+    }
+
     /// Puts the seven back, alongside whatever the user has made.
     ///
     /// The way out of having deleted Today and wanting it again — and the reason
@@ -6771,6 +6840,36 @@ final class BoardStore {
             boards = reordered
             scheduleSave()
         }
+    }
+
+    /// Puts the dragged board in the gap the caret names — ``dropColumn(_:at:)``
+    /// for the board list, minus the rules that list does not have: there is no
+    /// pinned last row, so a board can land below the bottom one, and there is
+    /// only one list of boards, so there is no wrong window to have come from.
+    ///
+    /// Refused against itself and against the gaps either side of itself, where
+    /// there is nothing to do — a drop that reached the store anyway must not
+    /// cost a ⌘Z for a board that did not move. `false` says the drop was not
+    /// taken, which is what a drop handler owes its caller.
+    @discardableResult
+    func dropBoard(_ payload: BoardRowTransfer, at caret: BoardCaret) -> Bool {
+        guard payload.boardID != caret.board,
+              let from = boards.firstIndex(where: { $0.id == payload.boardID }),
+              let anchor = boards.firstIndex(where: { $0.id == caret.board })
+        else { return false }
+        let offset: Int
+        switch caret {
+        case .above:
+            // Already sitting in that gap: the row under the caret is the one
+            // immediately after the dragged board.
+            guard anchor != from + 1 else { return false }
+            offset = anchor
+        case .below:
+            guard anchor != from - 1 else { return false }
+            offset = anchor + 1
+        }
+        moveBoard(fromOffsets: IndexSet(integer: from), toOffset: offset)
+        return true
     }
 
     /// Deletes a board and takes every card that was on it — archived ones

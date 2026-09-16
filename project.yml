@@ -104,6 +104,15 @@ targets:
             UTTypeDescription: Little Kanban Label
             UTTypeConformsTo:
               - public.data
+          # `.board-row` because the plain `.board` below is the document's.
+          - UTTypeIdentifier: com.n14395.LittleKanban.board-row
+            UTTypeDescription: Little Kanban Board Row
+            UTTypeConformsTo:
+              - public.data
+          - UTTypeIdentifier: com.n14395.LittleKanban.view
+            UTTypeDescription: Little Kanban Saved View
+            UTTypeConformsTo:
+              - public.data
           # The export/import document (6.2). JSON rather than opaque data, so
           # a .littlekanban file opens in a text editor without an argument.
           - UTTypeIdentifier: com.n14395.LittleKanban.board

@@ -10,9 +10,10 @@ import SwiftUI
 /// Every row is a real destination. The Inbox leads them, above the boards
 /// rather than inside them, because it is global — a card is in it by being on
 /// no board at all — and the rows under "Boards" are `store.boards`, each with
-/// its own count, reordered from its context menu and renamed, recoloured and
-/// deleted through the Board Settings that menu opens. A card can be dragged
-/// onto any of them.
+/// its own count, reordered by dragging one — the whole row at a pointer, the
+/// grip at its trailing end under a finger; see ``boardDropZones(for:)`` — or
+/// from its context menu, and renamed, recoloured and deleted through the
+/// Board Settings that menu opens. A card can be dragged onto any of them.
 struct BoardSidebar: View {
     /// The list at a pointer and the list under a finger. The design's 232pt
     /// column and its 34pt rows are pointer sizes; the split view sizes its own
@@ -32,6 +33,16 @@ struct BoardSidebar: View {
         /// on one edge whatever each glyph measures — a calendar is half again
         /// as wide as a sun, and left to themselves the labels stagger.
         var rowGlyph: CGFloat
+        /// The reorder grip at the trailing end of every board row: the glyph
+        /// as drawn, the square it claims, and how much of that claim it hands
+        /// straight back — ``ChecklistView/Metrics``'s trio, for this list. A
+        /// `gripHit` of 0 is no grip at all: the desk's rows are dragged whole,
+        /// the way a column is by its header, because a pointer needs no handle
+        /// — and a handle is the one thing a finger *does* need, since the row
+        /// under it already spends its long press on the context menu.
+        var gripGlyph: CGFloat
+        var gripHit: CGFloat
+        var gripOverhang: CGFloat
         /// What a row that has become a text field claims — see ``FieldHitArea``.
         var fieldHit: CGFloat
         var sectionSpacing: CGFloat
@@ -71,15 +82,33 @@ struct BoardSidebar: View {
         /// ground, and nothing should be able to take one without the other.
         var paintsItsOwnGround: Bool
 
+        /// Whether the board rows carry the grip, said as the question the
+        /// call sites ask rather than as a second flag that could disagree
+        /// with the width.
+        var reordersByGrip: Bool { gripHit > 0 }
+
+        /// The gap between rows, named because the boards' drop zones are
+        /// measured against it — ``ChecklistView/Metrics/rowGap``'s reason.
+        /// One number on both surfaces, so a static rather than a field.
+        static let rowGap: CGFloat = 2
+        /// How far each board row's drop halves spill past it: half the gap, so
+        /// the two rows either side of one tile it exactly and a pointer
+        /// between two rows is over one of them rather than over neither.
+        static var dropReach: CGFloat { rowGap / 2 }
+
         static let desk = Metrics(
             width: 232, trafficLightInset: 16, rowFont: 13, rowVerticalPadding: 7,
-            rowRadius: 9, rowHit: 0, rowGlyph: 14, fieldHit: 0, sectionSpacing: 22,
+            rowRadius: 9, rowHit: 0, rowGlyph: 14,
+            gripGlyph: 0, gripHit: 0, gripOverhang: 0,
+            fieldHit: 0, sectionSpacing: 22,
             labelManager: .desk, trash: .desk, trashArrowEdge: .trailing,
             paintsItsOwnGround: true
         )
         static let pad = Metrics(
             width: nil, trafficLightInset: 0, rowFont: 15, rowVerticalPadding: 10,
-            rowRadius: 11, rowHit: 44, rowGlyph: 17, fieldHit: 44, sectionSpacing: 24,
+            rowRadius: 11, rowHit: 44, rowGlyph: 17,
+            gripGlyph: 14, gripHit: 44, gripOverhang: 7,
+            fieldHit: 44, sectionSpacing: 24,
             labelManager: .sheet, trash: .sheet, trashArrowEdge: nil,
             paintsItsOwnGround: false
         )
@@ -110,6 +139,29 @@ struct BoardSidebar: View {
     /// The row a card is being dragged over. Local rather than the store's
     /// `dropTargetColumnID`: neither of these is a column.
     @State private var dropTarget: DropTarget?
+    /// The board that has left the ground, and the gap the drop is aimed at —
+    /// the settings sheet's `draggingColumnID`/`columnCaret` pair, for this
+    /// list. Surface state rather than the store's, for the checklist's
+    /// reason: what is being carried is a fact about this sidebar, and the
+    /// desk can have a second window with a sidebar of its own.
+    @State private var draggingBoardID: Board.ID?
+    @State private var boardCaret: BoardCaret?
+    /// Every lift is numbered, and every deferred answer carries its number —
+    /// see ``ChecklistView``'s `lifts`, which is where the arrangement is
+    /// explained: it is what stops a signal belonging to one drag from landing
+    /// on the next.
+    @State private var boardLifts = 0
+    /// Which board the current run of payload asks belongs to — a latch that
+    /// outlives the drag by a beat, for the one build whose drag session does
+    /// not announce itself. See ``lifted(_:)``.
+    @State private var liftedBoardID: Board.ID?
+    /// The same four, for the rows under **Views** — separate state rather
+    /// than one shared set because the two lists never share a drag, and a
+    /// caret in one is meaningless against rows in the other.
+    @State private var draggingViewID: SavedView.ID?
+    @State private var viewCaret: SavedViewCaret?
+    @State private var viewLifts = 0
+    @State private var liftedViewID: SavedView.ID?
     /// The card the capture popover is filling in. Local rather than the
     /// store's: it is which popover is open, not anything about the board, and
     /// `BoardStore` already holds one surface's worth of that too many.
@@ -141,7 +193,7 @@ struct BoardSidebar: View {
             // board, so it belongs beside the board's name — see
             // `BoardToolbar.inboxToggle`, which took its drop target with it.
             sectionHeader("Boards", topPadding: 0)
-            VStack(spacing: 2) {
+            VStack(spacing: Metrics.rowGap) {
                 ForEach(Array(store.boards.enumerated()), id: \.element.id) { index, board in
                     boardRow(board, index: index)
                 }
@@ -150,7 +202,7 @@ struct BoardSidebar: View {
             .padding(.horizontal, 8)
 
             sectionHeader("Views", topPadding: metrics.sectionSpacing)
-            VStack(spacing: 2) {
+            VStack(spacing: Metrics.rowGap) {
                 // The board's own list rather than a fixed seven: since v11 a
                 // view is a row in the file, so the order here is the user's and
                 // the last row is the way to add another.
@@ -217,29 +269,53 @@ struct BoardSidebar: View {
         // twice — once for the pill and once for the accessibility value.
         let count = store.taskCount(for: board.id)
 
-        return Button { store.selectBoard(board.id) } label: {
-            destinationRow(
-                symbol: board.symbol, count: count,
-                isActive: isActive, isDropTarget: isDropTarget(.board(board.id))
-            ) {
-                rowName(board.name, isActive: isActive)
+        return HStack(spacing: 0) {
+            Button { store.selectBoard(board.id) } label: {
+                destinationRow(symbol: board.symbol, count: count, isActive: isActive) {
+                    rowName(board.name, isActive: isActive)
+                }
+            }
+            .buttonStyle(.bare)
+            // Name and count stated separately — see `BoardToolbar`. Substituted
+            // rather than named, now that the row has a symbol in it: an `Image`
+            // among siblings inside a button's label is published as an element of
+            // its own whatever else is asked of it, which is `viewRow`'s reason and
+            // was the dot's too, drawn as a `Circle` that published nothing. The
+            // representation keeps the row's own action, so the context menu — the
+            // only route Board Settings has to a reader — is still on the button
+            // underneath it.
+            .accessibilityRepresentation {
+                Button(board.name) { store.selectBoard(board.id) }
+                    .accessibilityValue(Text(verbatim: "\(count)"))
+                    .accessibilityAddTraits(isActive ? [.isSelected] : [])
+            }
+            // On the button, and pointedly not on the grip beside it — the
+            // checklist's arrangement, for its measured reason: a long press on
+            // the grip is how a drag begins on touch, and a menu on the whole
+            // row would come up over the drag that was starting.
+            .contextMenu { boardMenu(board, index: index) }
+
+            if metrics.reordersByGrip { grip(for: board) }
+        }
+        // The active wash, the hover and the card drag's ring are the row's
+        // rather than the button's since the grip arrived, so all three span
+        // the handle instead of stopping short of the trailing edge.
+        .background(isActive ? palette.accentSoft : .clear, in: .rect(cornerRadius: metrics.rowRadius))
+        .overlay {
+            if isDropTarget(.board(board.id)) {
+                RoundedRectangle(cornerRadius: metrics.rowRadius)
+                    .strokeBorder(palette.accent, lineWidth: 2)
             }
         }
-        .buttonStyle(.bare)
-        // Name and count stated separately — see `BoardToolbar`. Substituted
-        // rather than named, now that the row has a symbol in it: an `Image`
-        // among siblings inside a button's label is published as an element of
-        // its own whatever else is asked of it, which is `viewRow`'s reason and
-        // was the dot's too, drawn as a `Circle` that published nothing. The
-        // representation keeps the row's own action, so the context menu — the
-        // only route Board Settings has to a reader — is still on the button
-        // underneath it.
-        .accessibilityRepresentation {
-            Button(board.name) { store.selectBoard(board.id) }
-                .accessibilityValue(Text(verbatim: "\(count)"))
-                .accessibilityAddTraits(isActive ? [.isSelected] : [])
-        }
-        .contextMenu { boardMenu(board, index: index) }
+        .hoverBackground(isActive ? .clear : palette.ink(0.05), radius: metrics.rowRadius)
+        // The desk's drag, where there is no grip because the whole row is one
+        // — see ``grip(for:)`` for why touch cannot make the same trade.
+        .modifier(WholeRowDrag(
+            isEnabled: !metrics.reordersByGrip,
+            payload: { lifted(board) },
+            begin: { beginBoardLift(board.id) },
+            end: endBoardLift
+        ))
         .dropDestination(for: TaskTransfer.self) { items, _ in
             guard store.allowsCardDrag, let dropped = items.first, store[dropped.id] != nil
             else { return false }
@@ -252,11 +328,18 @@ struct BoardSidebar: View {
             store.dragTargeting(targeted)
             setDropTarget(.board(board.id), targeted: targeted)
         }
+        // Where a dragged board would land, drawn in the gap it would land in
+        // rather than on a row it would not.
+        .overlay { boardDropZones(for: board) }
+        .overlay(alignment: caretEdge(for: board) ?? .top) { caretMark(for: board) }
     }
 
-    /// Settings, and where the board sits in the list. Reordering is two menu
-    /// items rather than a drag: the list is short, the rows are already
-    /// carrying a drop destination for cards, and the two gestures would fight.
+    /// Settings, and where the board sits in the list. The rows drag now —
+    /// whole at a pointer, by the grip under a finger — and the Move Up / Move
+    /// Down pair is the same answer said in words, kept because a drag is not
+    /// a control: it cannot be reached by keyboard, VoiceOver cannot offer it,
+    /// and Switch Control cannot perform it. The settings sheet's columns make
+    /// exactly this pair of trades.
     ///
     /// **Rename, Board Colour and Trash Board used to be here**, and left the
     /// way the phone's **Rename Board…** went: the sheet holds the name, the
@@ -367,55 +450,79 @@ struct BoardSidebar: View {
         let isActive = store.activeView?.id == view.id
         let count = store.count(of: view, today: dayClock.today)
 
-        return Button {
-            // **Not a toggle.** Pressing the row of the view you are already on
-            // used to send you back to the board, which is a second meaning for
-            // one control and the wrong one: a destination row means "go here",
-            // and a row that undoes itself is a row you cannot press twice. The
-            // store's `surface` already refuses a no-op assignment, so arriving
-            // where you are costs nothing.
-            store.selectSurface(.view(view.id))
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: view.symbol)
-                    .imageScale(.small)
-                    // Dimmer than the label it stands beside, the way the two
-                    // rows under Labels already are, so the column of glyphs
-                    // does not read as loud as the words. The active row takes
-                    // the accent whole rather than half.
-                    .foregroundStyle(isActive ? palette.accent : palette.inkText(0.5))
-                    .frame(width: metrics.rowGlyph)
-                    .accessibilityHidden(true)
-                Text(view.label)
-                    .font(palette.ui(metrics.rowFont, isActive ? .bold : .semibold, relativeTo: .subheadline))
-                    .foregroundStyle(isActive ? palette.accent : palette.ink(0.66))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                CountPill(count: count)
-            }
-            .padding(.vertical, metrics.rowVerticalPadding)
-            .padding(.horizontal, 10)
-            .frame(minHeight: metrics.rowHit)
-            .background(isActive ? palette.accentSoft : .clear, in: .rect(cornerRadius: metrics.rowRadius))
-            .hoverBackground(isActive ? .clear : palette.ink(0.05), radius: metrics.rowRadius)
-        }
-        .buttonStyle(.bare)
-        // Substituted rather than named, now that the row has a symbol in it:
-        // an `Image` among siblings inside a button's label is published as an
-        // element of its own whatever else is asked of it, `accessibilityHidden`
-        // included — the same reason the two rows under Labels are substituted.
-        // The name, the count as the value and the trait are all as they were.
-        .accessibilityRepresentation {
-            Button(view.label) {
+        return HStack(spacing: 0) {
+            Button {
+                // **Not a toggle.** Pressing the row of the view you are already
+                // on used to send you back to the board, which is a second
+                // meaning for one control and the wrong one: a destination row
+                // means "go here", and a row that undoes itself is a row you
+                // cannot press twice. The store's `surface` already refuses a
+                // no-op assignment, so arriving where you are costs nothing.
                 store.selectSurface(.view(view.id))
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: view.symbol)
+                        .imageScale(.small)
+                        // Dimmer than the label it stands beside, the way the
+                        // two rows under Labels already are, so the column of
+                        // glyphs does not read as loud as the words. The active
+                        // row takes the accent whole rather than half.
+                        .foregroundStyle(isActive ? palette.accent : palette.inkText(0.5))
+                        .frame(width: metrics.rowGlyph)
+                        .accessibilityHidden(true)
+                    Text(view.label)
+                        .font(palette.ui(metrics.rowFont, isActive ? .bold : .semibold, relativeTo: .subheadline))
+                        .foregroundStyle(isActive ? palette.accent : palette.ink(0.66))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    CountPill(count: count)
+                }
+                .padding(.vertical, metrics.rowVerticalPadding)
+                .padding(.horizontal, 10)
+                .frame(minHeight: metrics.rowHit)
+                .contentShape(.rect)
             }
-                .accessibilityValue(Text(verbatim: "\(count)"))
-                .accessibilityAddTraits(isActive ? [.isSelected] : [])
+            .buttonStyle(.bare)
+            // Substituted rather than named, now that the row has a symbol in
+            // it: an `Image` among siblings inside a button's label is
+            // published as an element of its own whatever else is asked of it,
+            // `accessibilityHidden` included — the same reason the two rows
+            // under Labels are substituted. The name, the count as the value
+            // and the trait are all as they were.
+            .accessibilityRepresentation {
+                Button(view.label) {
+                    store.selectSurface(.view(view.id))
+                }
+                    .accessibilityValue(Text(verbatim: "\(count)"))
+                    .accessibilityAddTraits(isActive ? [.isSelected] : [])
+            }
+            // On the button, and pointedly not on the grip beside it — see
+            // `boardRow`, whose arrangement this whole row is: a long press on
+            // the grip is how a drag begins on touch, and a menu on the whole
+            // row would come up over the drag that was starting.
+            .contextMenu { viewMenu(view) }
+
+            if metrics.reordersByGrip { grip(for: view) }
         }
-        .contextMenu { viewMenu(view) }
+        // The active wash and the hover span the handle, `boardRow`'s reason.
+        .background(isActive ? palette.accentSoft : .clear, in: .rect(cornerRadius: metrics.rowRadius))
+        .hoverBackground(isActive ? .clear : palette.ink(0.05), radius: metrics.rowRadius)
+        // The desk's drag, where there is no grip because the whole row is one.
+        .modifier(WholeRowDrag(
+            isEnabled: !metrics.reordersByGrip,
+            payload: { lifted(view) },
+            begin: { beginViewLift(view.id) },
+            end: endViewLift
+        ))
+        // Where a dragged view would land, drawn in the gap it would land in
+        // rather than on a row it would not.
+        .overlay { viewDropZones(for: view) }
+        .overlay(alignment: caretEdge(for: view) ?? .top) { caretMark(for: view) }
     }
 
     /// What can be done to a view without opening it. The board rows have had
-    /// the same menu since boards became data, and a view is data now too.
+    /// the same menu since boards became data, and a view is data now too —
+    /// down to the Move pair, which is the drag said in words and the only
+    /// route VoiceOver, Switch Control and a keyboard have to it.
     ///
     /// **Delete asks nothing**, unlike a board's. A board holds work and a view
     /// holds a rule, so the worst a mistaken delete costs is the rule — which is
@@ -427,6 +534,24 @@ struct BoardSidebar: View {
         }
         Button { editing = store.duplicateView(view.id).map(SavedViewDraft.init) } label: {
             Label("Duplicate View", systemImage: "plus.square.on.square")
+        }
+        // Looked up here rather than passed in, the way the drawer's board
+        // rows do: the views' `ForEach` iterates the list without offsets, and
+        // a menu is built on demand, so the index is fresh by construction.
+        if let index = store.views.firstIndex(where: { $0.id == view.id }) {
+            Divider()
+            Button {
+                store.moveView(fromOffsets: IndexSet(integer: index), toOffset: index - 1)
+            } label: {
+                Label("Move Up", systemImage: "arrow.up")
+            }
+            .disabled(index == 0)
+            Button {
+                store.moveView(fromOffsets: IndexSet(integer: index), toOffset: index + 2)
+            } label: {
+                Label("Move Down", systemImage: "arrow.down")
+            }
+            .disabled(index == store.views.count - 1)
         }
         Divider()
         Button(role: .destructive) { store.deleteView(view.id) } label: {
@@ -801,15 +926,19 @@ struct BoardSidebar: View {
 
     // MARK: Row furniture
 
-    /// The shape every destination shares: a mark, a name, a count, and the
-    /// active row's ground. The name is a view rather than a string so the row
-    /// that names a new board can put its field exactly where a name will be.
+    /// The shape every destination shares: a mark, a name and a count. The
+    /// name is a view rather than a string so the row that names a new board
+    /// can put its field exactly where a name will be.
+    ///
+    /// The active row's ground, the hover and the card drag's ring are
+    /// `boardRow`'s rather than this label's, since the grip arrived: they
+    /// have to span the handle, which stands beside the button this draws.
     ///
     /// The glyph sits in ``Metrics/rowGlyph``'s slot, which is the one the
     /// views' rows use, so the two sections line their labels up on one edge
     /// however wide each mark measures.
     private func destinationRow(
-        symbol: String, count: Int?, isActive: Bool, isDropTarget: Bool = false,
+        symbol: String, count: Int?, isActive: Bool,
         @ViewBuilder name: () -> some View
     ) -> some View {
         HStack(spacing: 8) {
@@ -832,14 +961,7 @@ struct BoardSidebar: View {
         .padding(.vertical, metrics.rowVerticalPadding)
         .padding(.horizontal, 10)
         .frame(minHeight: metrics.rowHit)
-        .background(isActive ? palette.accentSoft : .clear, in: .rect(cornerRadius: metrics.rowRadius))
-        .overlay {
-            if isDropTarget {
-                RoundedRectangle(cornerRadius: metrics.rowRadius)
-                    .strokeBorder(palette.accent, lineWidth: 2)
-            }
-        }
-        .hoverBackground(isActive ? .clear : palette.ink(0.05), radius: metrics.rowRadius)
+        .contentShape(.rect)
     }
 
     private func rowName(_ text: String, isActive: Bool) -> some View {
@@ -847,6 +969,300 @@ struct BoardSidebar: View {
             .font(palette.ui(metrics.rowFont, isActive ? .bold : .semibold, relativeTo: .subheadline))
             .lineLimit(1)
             .truncationMode(.tail)
+    }
+
+    // MARK: Re-ordering by drag
+
+    /// **The grip**, at the trailing end of a board or view row — the touch
+    /// surfaces' way to lift one, in the place a list's reorder handle belongs
+    /// and where the checklist's rows already keep theirs.
+    ///
+    /// A control of its own rather than the row, for the checklist's measured
+    /// reason: on touch a drag begins with a long press, and the row's long
+    /// press is spent on its context menu — one gesture cannot mean both. The
+    /// desk has no such conflict (its menu is a right-click), so it has no
+    /// grip and drags the whole row; see ``WholeRowDrag``.
+    ///
+    /// Hidden from accessibility because a drag is not something VoiceOver or
+    /// Switch Control can perform: what they get is Move Up / Move Down in the
+    /// row's context menu, which is why those stay.
+    ///
+    /// `draggable` takes its payload as an autoclosure, so `lifted` runs when
+    /// the *session* starts and not when the row is drawn — which keeps the
+    /// name on the payload current after a rename.
+    private func grip(for board: Board) -> some View {
+        gripGlyph
+            .draggable(lifted(board))
+            .modifier(RowDragSession(
+                begin: { beginBoardLift(board.id) },
+                end: endBoardLift
+            ))
+            .accessibilityHidden(true)
+    }
+
+    /// The same handle for a row under **Views**, differing only in what it
+    /// picks up and which session it reports to.
+    private func grip(for view: SavedView) -> some View {
+        gripGlyph
+            .draggable(lifted(view))
+            .modifier(RowDragSession(
+                begin: { beginViewLift(view.id) },
+                end: endViewLift
+            ))
+            .accessibilityHidden(true)
+    }
+
+    /// The grip as drawn, shared by both lists' rows.
+    private var gripGlyph: some View {
+        Image(systemName: "line.3.horizontal")
+            .font(palette.ui(metrics.gripGlyph, .semibold, relativeTo: .caption2))
+            .foregroundStyle(palette.inkText(0.32))
+            .frame(width: metrics.gripHit, height: metrics.gripHit)
+            // An image's own shape is the glyph, which on touch is a target
+            // the width of three thin lines. The square is what is aimed at.
+            .contentShape(.rect)
+            .padding(-metrics.gripOverhang)
+    }
+
+    /// The payload — and, where there is no better signal, the lift as well.
+    ///
+    /// Where the drag session announces itself it is the authority — see
+    /// ``RowDragSession``, and ``BoardStore/announcesDragEnd`` for which
+    /// builds have it. Only iOS 26 has nothing else to go on, and only there
+    /// does the latch below run: the payload is asked for more than once per
+    /// drag, and keeps being asked through the drop, so the asks are
+    /// de-duplicated against ``liftedBoardID`` — the checklist's arrangement,
+    /// explained at length on its `lifted(_:)`.
+    private func lifted(_ board: Board) -> BoardRowTransfer {
+        if !BoardStore.announcesDragEnd {
+            let id = board.id
+            // Deferred a turn, because the ask lands inside a view update and
+            // this writes the state the list is drawn from.
+            Task { @MainActor in
+                guard liftedBoardID != id else { return }
+                beginBoardLift(id)
+            }
+        }
+        return BoardRowTransfer(board)
+    }
+
+    /// A board has left the ground, and the number of the lift that says so.
+    /// The expiry is the last resort for a drag that ends without anything
+    /// saying so — `BoardSettingsView.liftColumn`'s backstop, at its cost: a
+    /// row of zones that outlive a cancelled drag, and nothing more.
+    @discardableResult
+    private func beginBoardLift(_ id: Board.ID) -> Int {
+        boardLifts += 1
+        liftedBoardID = id
+        draggingBoardID = id
+        boardCaret = nil
+        let lift = boardLifts
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(BoardStore.liftExpiry))
+            if boardLifts == lift, draggingBoardID == id { endBoardDrag() }
+        }
+        return lift
+    }
+
+    /// The end of the drag numbered `lift`, from the session that began it —
+    /// refused when a later lift owns the screen, because a session's closing
+    /// callbacks can arrive after the *next* drag has started.
+    private func endBoardLift(_ lift: Int) {
+        guard lift == boardLifts else { return }
+        endBoardDrag()
+    }
+
+    private func endBoardDrag() {
+        draggingBoardID = nil
+        boardCaret = nil
+        releaseBoardLatch()
+    }
+
+    /// Opens ``liftedBoardID`` again, a beat after the drag it belonged to
+    /// ended — long enough to outlast the trailing payload asks a drop shakes
+    /// loose, and well inside the half second the next long press takes. Only
+    /// the no-callback path consults the latch, but it is released on every
+    /// path; see the checklist's `releaseLatch`, which this is.
+    private func releaseBoardLatch() {
+        guard let id = liftedBoardID else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(Self.latchSettle))
+            if liftedBoardID == id { liftedBoardID = nil }
+        }
+    }
+
+    private static let latchSettle: TimeInterval = 0.25
+
+    /// The view rows' copies of the four functions above, told apart only by
+    /// which list's state they write — the boards' carry the notes.
+
+    private func lifted(_ view: SavedView) -> SavedViewTransfer {
+        if !BoardStore.announcesDragEnd {
+            let id = view.id
+            Task { @MainActor in
+                guard liftedViewID != id else { return }
+                beginViewLift(id)
+            }
+        }
+        return SavedViewTransfer(view)
+    }
+
+    @discardableResult
+    private func beginViewLift(_ id: SavedView.ID) -> Int {
+        viewLifts += 1
+        liftedViewID = id
+        draggingViewID = id
+        viewCaret = nil
+        let lift = viewLifts
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(BoardStore.liftExpiry))
+            if viewLifts == lift, draggingViewID == id { endViewDrag() }
+        }
+        return lift
+    }
+
+    private func endViewLift(_ lift: Int) {
+        guard lift == viewLifts else { return }
+        endViewDrag()
+    }
+
+    private func endViewDrag() {
+        draggingViewID = nil
+        viewCaret = nil
+        releaseViewLatch()
+    }
+
+    private func releaseViewLatch() {
+        guard let id = liftedViewID else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(Self.latchSettle))
+            if liftedViewID == id { liftedViewID = nil }
+        }
+    }
+
+    /// The row's two halves, as separate insertion targets: the top half means
+    /// *above this board*, the bottom half means *below it*. The settings
+    /// sheet's columns, the checklist's rows and the board's cards all do the
+    /// same, and the notes there are the notes here — halves because a drop
+    /// that names a *row* can only mean a gap by guessing which way the drag
+    /// came from, and only while a board is in the air because otherwise they
+    /// take the click that selects one and the card drops the row underneath
+    /// is waiting for.
+    ///
+    /// Both halves on every row, the last included: the board list has no
+    /// pinned Done row, so below the bottom board is a gap like any other.
+    @ViewBuilder private func boardDropZones(for board: Board) -> some View {
+        if draggingBoardID != nil {
+            VStack(spacing: 0) {
+                boardDropZone(.above(board.id))
+                boardDropZone(.below(board.id))
+            }
+            .padding(.vertical, -Metrics.dropReach)
+        }
+    }
+
+    private func boardDropZone(_ caret: BoardCaret) -> some View {
+        Color.clear
+            .contentShape(.rect)
+            .dropDestination(for: BoardRowTransfer.self) { items, _ in
+                defer { endBoardDrag() }
+                guard let dropped = items.first else { return false }
+                return store.dropBoard(dropped, at: caret)
+            } isTargeted: { targeted in
+                // Cleared only by the half that set it: leaving one for the
+                // next fires this one's `false` after the other's `true`, and
+                // an unguarded clear would take the new target down with it.
+                if targeted {
+                    boardCaret = caret
+                } else if boardCaret == caret {
+                    boardCaret = nil
+                }
+            }
+    }
+
+    /// Which edge of this row the mark goes on, or `nil` for no mark.
+    ///
+    /// Nothing against the row in the air — it is about to leave, and a line
+    /// on a row that is going says nothing about where anything lands — and
+    /// nothing against the two gaps it already sits between, which is
+    /// `dropBoard` refusing a move to where the board already is, read back.
+    private func caretEdge(for board: Board) -> Alignment? {
+        guard let boardCaret, boardCaret.board == board.id,
+              let dragging = draggingBoardID, dragging != board.id,
+              let from = store.boards.firstIndex(where: { $0.id == dragging }),
+              let anchor = store.boards.firstIndex(where: { $0.id == board.id })
+        else { return nil }
+        switch boardCaret {
+        case .above: return anchor == from + 1 ? nil : .top
+        case .below: return anchor == from - 1 ? nil : .bottom
+        }
+    }
+
+    /// The insertion point: the line that says *here*, in the gap the board
+    /// would land in — the same mark the settings sheet's columns draw, drawn
+    /// against the row it names rather than floating in the gap, because an
+    /// overlay knows its row's bounds and not the list's spacing.
+    @ViewBuilder private func caretMark(for board: Board) -> some View {
+        if caretEdge(for: board) != nil { caretCapsule }
+    }
+
+    /// The zones and the caret for a row under **Views** — the boards' pair
+    /// above, over the other list. Note what these do *not* need: a view row
+    /// takes no card drops, so unlike a board's there is nothing underneath
+    /// for the zones to be kept out of the way of — only the click.
+    @ViewBuilder private func viewDropZones(for view: SavedView) -> some View {
+        if draggingViewID != nil {
+            VStack(spacing: 0) {
+                viewDropZone(.above(view.id))
+                viewDropZone(.below(view.id))
+            }
+            .padding(.vertical, -Metrics.dropReach)
+        }
+    }
+
+    private func viewDropZone(_ caret: SavedViewCaret) -> some View {
+        Color.clear
+            .contentShape(.rect)
+            .dropDestination(for: SavedViewTransfer.self) { items, _ in
+                defer { endViewDrag() }
+                guard let dropped = items.first else { return false }
+                return store.dropView(dropped, at: caret)
+            } isTargeted: { targeted in
+                // Cleared only by the half that set it — see `boardDropZone`.
+                if targeted {
+                    viewCaret = caret
+                } else if viewCaret == caret {
+                    viewCaret = nil
+                }
+            }
+    }
+
+    private func caretEdge(for view: SavedView) -> Alignment? {
+        guard let viewCaret, viewCaret.view == view.id,
+              let dragging = draggingViewID, dragging != view.id,
+              let from = store.views.firstIndex(where: { $0.id == dragging }),
+              let anchor = store.views.firstIndex(where: { $0.id == view.id })
+        else { return nil }
+        switch viewCaret {
+        case .above: return anchor == from + 1 ? nil : .top
+        case .below: return anchor == from - 1 ? nil : .bottom
+        }
+    }
+
+    @ViewBuilder private func caretMark(for view: SavedView) -> some View {
+        if caretEdge(for: view) != nil { caretCapsule }
+    }
+
+    /// The mark itself, one drawing for both lists.
+    private var caretCapsule: some View {
+        Capsule()
+            .fill(palette.accent)
+            .frame(height: 3)
+            .padding(.horizontal, 1)
+            // A mark, not a target: without this it is a hole in the row
+            // it is drawn on, and the drop under it goes nowhere.
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     // MARK: Drops
@@ -891,4 +1307,107 @@ struct BoardSidebar: View {
             .padding(.bottom, 6)
     }
 
+}
+
+/// The desk's half of re-ordering a board or a view: the whole row is the
+/// grip, the way a column is dragged by its header, because a pointer needs
+/// no handle and its context menu is a right-click rather than the long press
+/// a drag starts with.
+///
+/// A `ViewModifier` rather than a ternary because `.draggable` takes a payload
+/// and not an optional one — `ColumnRowGrip` is the same shape for the same
+/// reason. Generic over the payload because the two lists lift different
+/// things and nothing else about the drag differs. The payload is built when
+/// the *session* starts rather than when the row is drawn, which keeps the
+/// name on it current after a rename.
+private struct WholeRowDrag<Payload: Transferable>: ViewModifier {
+    let isEnabled: Bool
+    let payload: () -> Payload
+    /// Raises the lift and answers with its number.
+    let begin: () -> Int
+    /// Ends the lift of that number, if it is still the one in hand.
+    let end: (Int) -> Void
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content
+                .draggable(payload())
+                .modifier(RowDragSession(begin: begin, end: end))
+        } else {
+            content
+        }
+    }
+}
+
+/// Where a board or view row's drag begins and ends, on the builds that say
+/// so — ``ChecklistView``'s `SubtaskDragSession` for the sidebar's and the
+/// drawer's rows, and the same shape for the same reason: `onDragSessionUpdated`
+/// is macOS 26 but iOS **27**, so where it exists it is the exact answer, and
+/// where it does not the lift is inferred from the payload ask and the end
+/// from the drop and `BoardStore.liftExpiry`'s backstop.
+///
+/// **It carries the lift's number between the two**, which is what makes a
+/// late closing callback harmless: the session hands back the number it was
+/// given when it started, and the view ignores anything that does not belong
+/// to the drag in hand.
+///
+/// Internal rather than private: the sidebar's rows and the phone drawer's
+/// are separate surfaces with separate state, and this is the one piece the
+/// two can share whole — `CardDragSession`'s arrangement. It knows nothing of
+/// what is being dragged, so one type serves both lists.
+struct RowDragSession: ViewModifier {
+    /// Raises the lift and answers with its number.
+    let begin: () -> Int
+    /// Ends the lift of that number, if it is still the one in hand.
+    let end: (Int) -> Void
+
+    @State private var lift: Int?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        reporting(content)
+        #else
+        if #available(iOS 27.0, *) {
+            reporting(content)
+        } else {
+            content
+        }
+        #endif
+    }
+
+    @available(iOS 27.0, macOS 26.0, *)
+    private func reporting(_ content: Content) -> some View {
+        content.onDragSessionUpdated { session in
+            switch session.phase {
+            case .initial:
+                lift = begin()
+            case .ended(let operation):
+                // An operation that carries something is a drop, and the drop
+                // handler is what clears up after it — running here as well
+                // would shut the zones out from under a drop still landing.
+                switch operation {
+                case .copy, .move: break
+                default: finish()
+                }
+            case .dataTransferCompleted:
+                // The payload has been handed over. Almost always already
+                // cleared by the drop handler; what is left for this to catch
+                // is a drop that went through without moving the row.
+                finish()
+            default:
+                break
+            }
+        }
+    }
+
+    /// Once per session, and only for a session this view actually started:
+    /// the number is taken back on the way out so a second closing callback —
+    /// and there are usually two — cannot be read as a second drag ending.
+    private func finish() {
+        guard let lift else { return }
+        self.lift = nil
+        end(lift)
+    }
 }

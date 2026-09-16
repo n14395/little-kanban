@@ -1661,7 +1661,7 @@ does not have to translate.
 | ink | The text colour and its two quieter tiers. |
 | wash | The search field, count pills, the segmented track, an empty meter, and any due date further out than soon. |
 | highlight | The accent, its soft tint, and what can be read on top of it. |
-| status hues | Done, and this-week/medium. |
+| status hues | Done. The this-week/medium field is still in the file but colours nothing — see **A theme does not colour priority** below. |
 | label chips | The **recipe**, not the colours — see below. |
 | due chips | Overdue/today and soon. Anything further out takes the wash; a finished task takes the done hue. |
 
@@ -1678,9 +1678,19 @@ on the board re-tints when the theme changes, including the ones made before it
 did. Dark themes lift the colour before tinting because a 19% wash of `#1F6F63`
 over a near-black card is very nearly the card.
 
-**There is no third status hue.** The overdue red is the due chip's own, and
-`priorityColor(.max)` takes it at full strength, so the app's one alarm colour is
-said once rather than twice.
+**There is no third status hue.** The overdue red is the due chip's own, so it
+is said once rather than twice.
+
+**A theme does not colour priority.** The marks were the theme's — Max the
+overdue hue, High the accent, Medium the amber, Low the faint ink — and a scale
+whose rungs changed hue with the theme was not one: High wore Ember's rust on
+one board and Aurora's mint on the next, and which of two marks was the louder
+depended on the theme they were read under. `priorityColor` is traffic lights
+now — green, amber, red, and Max is the same red on the triangle, because the
+shape is what says *more than High*. Two literals per rung, a darker set
+against light cards and a brighter set against dark ones, and no theme moves a
+hue. `ThemeStatus.medium` lost its last reader to this and stays in the file
+only so themes round-trip; the editor no longer offers it.
 
 **On-accent is a parameter rather than a rule.** Ultraviolet's gold takes
 near-black and Aurora's mint takes a deep green, and neither is something the app
@@ -7737,7 +7747,7 @@ the same pass; dropping it is a one-line edit and about forty more tests on iOS.
 | `TaskSearchTests` | the ranking, one rung at a time: a title that *is* the query above one that starts with it, a word of the title above a letter run inside a word, a hyphen starting a word, the title above the note, the sum over tokens, folding on both sides, and a missing token being a miss however well the rest scored. Then what the store does with it — a title hit ahead of a note hit whatever order the board holds them in, `updatedAt` breaking a tie, an empty query being every task rather than none, and the results spanning the Inbox as well as every board |
 | `SearchScopingTests` | which surfaces the one query is allowed to act on — the whole truth table of tab × saved view for `mobileAppliesQuery`, the "Filtered" notice, the add row and the column chips; a query typed on Search leaving the Board alone, and the Inbox's slide-over out of its reach whatever tab is under it; whitespace not counting as a filter; clearing costing no undo step and no write; picking a tab or capturing a card leaving the saved view; `allowsCardDrag` off in every saved view and *on* under a query; and the rule the results panel is for — no column slice, Inbox or saved view narrowed by a query, while the search itself still answers from every board at once |
 | `LabelTests` | slug trimming, empty-slug fallback, the 40-character cap, rename keeping the key, delete stripping it from every task |
-| `ThemeTests` | the theme engine, and almost none of it is checkable by looking: the twenty presets in the document's own order with Ember eleventh, Ember's every value against the page it was transcribed from, the two the document sets in italic and the one with four gradient stops, every preset's faces being bundled and resolving at all five weights; the colour codec — hex out, hex/rgba/shorthand in, nonsense refused, opacity quantised so a theme survives its own export; the CSS gradient angle, pinned on the four axes where it is exact and on a corner where it is not; the two slots, a theme going only into the one its kind names, a slot naming nothing falling back, a preset refusing to be saved over; what a theme paints — the accent, max priority being the overdue hue, the due chips, a label's chip through the rule rather than off the stored pair, and the contrast floor holding whatever the theme's ink tiers say; and the file — every preset round-tripping, the two hand-written shapes accepted, and a broken colour naming the field it is in |
+| `ThemeTests` | the theme engine, and almost none of it is checkable by looking: the twenty presets in the document's own order with Ember eleventh, Ember's every value against the page it was transcribed from, the two the document sets in italic and the one with four gradient stops, every preset's faces being bundled and resolving at all five weights; the colour codec — hex out, hex/rgba/shorthand in, nonsense refused, opacity quantised so a theme survives its own export; the CSS gradient angle, pinned on the four axes where it is exact and on a corner where it is not; the two slots, a theme going only into the one its kind names, a slot naming nothing falling back, a preset refusing to be saved over; what a theme paints — the accent, the priority marks being the fixed traffic lights on every theme with Max sharing High's red, the due chips, a label's chip through the rule rather than off the stored pair, and the contrast floor holding whatever the theme's ink tiers say; and the file — every preset round-tripping, the two hand-written shapes accepted, and a broken colour naming the field it is in |
 | `TransferTests` | the drag payloads — the plain-text and `Codable` forms of a card, a checklist row and a column, that a column's carries the board it is on, and that all three exported type identifiers match the ones `project.yml` declares |
 | `SavedViewTests` | every view's badge equalling its list's length whenever nothing is typed, and a query being the only thing that may part them; every predicate at the day either side of every bound it draws — Today carrying overdue, Upcoming strictly ahead, `0...6` for the week — the cap at twenty, the two views that override the board's order and the four that do not, Done left out of four of six, archived tasks in one of six, and a query narrowing a view *after* its cap rather than before |
 | `SymbolCatalogTests` | the list both icon pickers browse, and the two claims behind every glyph in it. That it **shipped**: a resource in no target is a file on disk and the picker over it is an empty grid, which is a mistake this project has made before with the string catalogue. And that every name in it **draws** on this system, asked of all seven thousand — a symbol the running OS has never heard of is not an error, it is an empty frame, so the generator's deployment-target filter is the only thing standing between the picker and holes in it, and this is what says the filter still works. Plus the parser on its own bytes (comments skipped, both trailing fields optional, an unknown category dropped rather than taking its symbol with it), search finding a glyph by the system's terms as well as by name and treating a dotted name as words, a search inside a group staying there, and every group having something in it |

@@ -299,15 +299,22 @@ import Testing
         #expect(aurora.resolve(.ink(opacity: 0.35)) == Color(hex: SwatchColor.inkHex, opacity: 0.35))
     }
 
-    /// Max priority takes the overdue chip's own hue rather than a fifth tone of
-    /// the accent — the app has one alarm colour and it is said once.
-    @Test func maxPriorityIsTheOverdueHue() throws {
+    /// The priority marks are traffic lights, not the theme's: green, amber,
+    /// red, and Max is High's red again — the triangle is what says *more*,
+    /// see `PriorityDot`. Pinned per appearance rather than per theme, because
+    /// that is the claim: every light theme draws one set, every dark theme
+    /// the brighter set, and no theme moves a hue.
+    @Test func priorityMarksAreTrafficLights() throws {
         for theme in ThemePresets.all {
             let palette = Palette(theme: theme)
-            #expect(palette.priorityColor(.max) == theme.dueChips.hot.background.solid.color,
-                    "\(theme.name)'s max priority is not its overdue hue")
-            #expect(palette.priorityColor(.high) == palette.accent)
-            #expect(palette.priorityColor(.medium) == theme.status.medium.color)
+            #expect(palette.priorityColor(.max) == palette.priorityColor(.high),
+                    "\(theme.name)'s Max is not High's red")
+            #expect(palette.priorityColor(.high) == Color(hex: palette.isDark ? 0xFF5A4E : 0xD62B2B),
+                    "\(theme.name)'s High is not the traffic-light red")
+            #expect(palette.priorityColor(.medium) == Color(hex: palette.isDark ? 0xFFC93D : 0xC98A00),
+                    "\(theme.name)'s Medium is not the traffic-light amber")
+            #expect(palette.priorityColor(.low) == Color(hex: palette.isDark ? 0x3ECF6E : 0x1E9E44),
+                    "\(theme.name)'s Low is not the traffic-light green")
         }
     }
 

@@ -166,11 +166,17 @@ struct ThemeHighlight: Hashable, Codable, Sendable {
     var onAccent: ThemeColor
 }
 
-/// The two hues that mean something rather than decorate: work that is finished,
-/// and work that wants attention but is not late.
+/// The hue that means something rather than decorates: work that is finished.
 ///
-/// There is no third for *late*: the overdue red is the due chip's own, so it is
-/// said once — see ``ThemeDueChips/hot`` and ``Palette/priorityColor(_:)``.
+/// There is no field for *late*: the overdue red is the due chip's own, so it
+/// is said once — see ``ThemeDueChips/hot``.
+///
+/// `medium` colours nothing any more. It was the medium priority's amber until
+/// the priority marks became traffic lights — see ``Palette/priorityColor(_:)``,
+/// which is where the hues live now and why a theme does not get to move them.
+/// The field stays in the file so a theme written by this build still opens in
+/// the last one and everybody's saved themes decode unchanged; the editor no
+/// longer offers it.
 struct ThemeStatus: Hashable, Codable, Sendable {
     var done: ThemeColor
     var medium: ThemeColor

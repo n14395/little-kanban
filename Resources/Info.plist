@@ -129,6 +129,26 @@
 		<dict>
 			<key>UTTypeConformsTo</key>
 			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Little Kanban Board Row</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.n14395.LittleKanban.board-row</string>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Little Kanban Saved View</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.n14395.LittleKanban.view</string>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
 				<string>public.json</string>
 			</array>
 			<key>UTTypeDescription</key>

@@ -3,11 +3,14 @@ import SwiftUI
 /// The mark that encodes a task's priority.
 ///
 /// It was a coloured dot and nothing else, which is the whole of what 7.1 calls
-/// colour carrying meaning alone: the three tints are accent, amber and grey,
-/// and to anyone who cannot tell those apart a card said nothing about its
-/// priority at all. So the three now differ in **shape** as well — a filled
-/// disc, a filled square, a ring — which is a difference that survives a
-/// greyscale screenshot, and which nobody has to turn a setting on to get.
+/// colour carrying meaning alone: the tints are traffic lights — green, amber,
+/// red, and red again for Max — and to anyone who cannot tell those apart a
+/// card said nothing about its priority at all. So the marks differ in
+/// **shape** as well — a filled disc, a filled square, a ring — which is a
+/// difference that survives a greyscale screenshot, and which nobody has to
+/// turn a setting on to get. For Max against High the shape is not a fallback
+/// but the whole message: both wear the red, and the triangle is what says
+/// *more*.
 ///
 /// Turning the setting on adds the word. `differentiateWithoutColor` is the
 /// reader saying they do not want to infer anything from a hue, and on a card

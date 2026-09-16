@@ -74,6 +74,55 @@ extension ColumnTransfer {
     }
 }
 
+/// A board row in flight, dragged inside the sidebar or the phone's drawer to
+/// re-order the list of boards.
+///
+/// The id alone: `dropBoard` is defined over the one list every surface shows,
+/// so unlike a column there is no second list of the same kind for a drop to
+/// cross into. The name is what a row dropped into a text editor leaves behind.
+///
+/// **`BoardRowTransfer`, not `BoardTransfer`** — the plain name and the plain
+/// `.board` identifier both belong to the export document, which is a whole
+/// board as a file; see `BoardTransferDocument`. What is being dragged here is
+/// the *row*, and a payload that resolved to the document's type would light up
+/// every drop target that reads board files.
+struct BoardRowTransfer: Codable, Transferable, Sendable {
+    var boardID: Board.ID
+    var name: String
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .simpleKanbanBoardRow)
+        ProxyRepresentation(exporting: \.name)
+    }
+}
+
+extension BoardRowTransfer {
+    init(_ board: Board) {
+        self.init(boardID: board.id, name: board.name)
+    }
+}
+
+/// A saved-view row in flight, dragged inside the sidebar or the phone's
+/// drawer to re-order the list under **Views** — ``BoardRowTransfer`` for the
+/// section below the boards, and the same shape for the same reasons: the id
+/// alone, because there is one list of views however many surfaces show it,
+/// and the label for what a row dropped into a text editor leaves behind.
+struct SavedViewTransfer: Codable, Transferable, Sendable {
+    var viewID: SavedView.ID
+    var label: String
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .simpleKanbanView)
+        ProxyRepresentation(exporting: \.label)
+    }
+}
+
+extension SavedViewTransfer {
+    init(_ view: SavedView) {
+        self.init(viewID: view.id, label: view.label)
+    }
+}
+
 /// A label row in flight, dragged inside the manager to re-order the
 /// vocabulary. The key is the identity every task stores; the name is what a
 /// row dropped into a text editor leaves behind.
@@ -119,5 +168,14 @@ extension UTType {
     )
     static let simpleKanbanLabel = UTType(
         exportedAs: "com.n14395.LittleKanban.label", conformingTo: .data
+    )
+    /// `.board-row` rather than `.board`, which is taken: the plain identifier
+    /// is the export document's — see `BoardTransferDocument.simpleKanbanBoard`
+    /// — and names a JSON file, not a drag payload.
+    static let simpleKanbanBoardRow = UTType(
+        exportedAs: "com.n14395.LittleKanban.board-row", conformingTo: .data
+    )
+    static let simpleKanbanView = UTType(
+        exportedAs: "com.n14395.LittleKanban.view", conformingTo: .data
     )
 }

@@ -34,6 +34,14 @@ import UniformTypeIdentifiers
         #expect(LabelTransfer(LabelDef.seed[0]).name == LabelDef.seed[0].name)
     }
 
+    @Test func aDraggedBoardRowReadsAsItsName() {
+        #expect(BoardRowTransfer(TestBoard.support).name == "Support triage")
+    }
+
+    @Test func aDraggedViewReadsAsItsLabel() {
+        #expect(SavedViewTransfer(SavedView.blank(named: "Deep focus")).label == "Deep focus")
+    }
+
     // MARK: The codable representation
 
     @Test func aCardPayloadSurvivesAJSONRoundTrip() throws {
@@ -64,6 +72,21 @@ import UniformTypeIdentifiers
         #expect(decoded.boardID == board.id)
         #expect(decoded.columnID == TestBoard.queue.id)
         #expect(decoded.name == "Queue")
+    }
+
+    @Test func aBoardRowPayloadSurvivesAJSONRoundTrip() throws {
+        let original = BoardRowTransfer(TestBoard.support)
+        let decoded = try JSONDecoder().decode(BoardRowTransfer.self, from: JSONEncoder().encode(original))
+        #expect(decoded.boardID == TestBoard.support.id)
+        #expect(decoded.name == "Support triage")
+    }
+
+    @Test func aViewPayloadSurvivesAJSONRoundTrip() throws {
+        let view = SavedView.blank(named: "Deep focus")
+        let original = SavedViewTransfer(view)
+        let decoded = try JSONDecoder().decode(SavedViewTransfer.self, from: JSONEncoder().encode(original))
+        #expect(decoded.viewID == view.id)
+        #expect(decoded.label == "Deep focus")
     }
 
     @Test func aLabelPayloadKeepsItsKey() throws {
@@ -97,7 +120,7 @@ import UniformTypeIdentifiers
         )
 
         for type in [UTType.simpleKanbanTask, .simpleKanbanSubtask, .simpleKanbanColumn,
-                     .simpleKanbanLabel] {
+                     .simpleKanbanLabel, .simpleKanbanBoardRow, .simpleKanbanView] {
             let plist = try #require(
                 conformances[type.identifier],
                 "\(type.identifier) is used in code but not declared in project.yml"

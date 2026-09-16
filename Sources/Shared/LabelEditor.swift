@@ -213,6 +213,15 @@ struct LabelPickerList: View {
     /// ``standsItsGround``, which is where the opposite constraint is written
     /// down.
     @State private var rowsHeight: CGFloat = 0
+    /// What the compose form comes to, measured — ``rowsHeight``'s number for
+    /// the other panel, and the floor under it for the same reason read the
+    /// other way round. A vocabulary of one or two labels makes the list
+    /// *shorter* than the form, and the popover, sized to the list and deaf to
+    /// ideals once open, was not growing when the form swapped in: the form was
+    /// laid out at full length inside the list's little box, **Cancel** and
+    /// **Add** below the fold, and the one panel in the app whose whole job is
+    /// a fixed four rows was scrolling them.
+    @State private var formHeight: CGFloat = 0
     /// The colour picked in the form, or `nil` while it still shows the
     /// rotation's next — see `BoardStore.nextLabelColor`.
     @State private var chosenColor: SwatchColor?
@@ -233,8 +242,18 @@ struct LabelPickerList: View {
                 // A scroll view asks for exactly the same height and scrolls
                 // whatever it is not given, which is `DueDateField.picker`'s
                 // answer to the same arithmetic.
-                ScrollView { composeForm }
-                    .scrollBounceBehavior(.basedOnSize)
+                //
+                // And, like the list, it states its measured height as a floor
+                // — see ``formHeight`` for the case that needs one: a list
+                // shorter than the form, whose popover otherwise never grows.
+                // The floor asks; the scroll keeps the few points the popover
+                // undershoots by reachable rather than clipped.
+                ScrollView {
+                    composeForm
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { formHeight = $0 }
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .frame(minHeight: standsItsGround ? min(formHeight, metrics.maxListHeight) : 0)
             } else {
                 list
             }
