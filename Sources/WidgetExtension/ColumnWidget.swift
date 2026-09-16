@@ -35,12 +35,19 @@ struct ColumnWidgetView: View {
     let entry: ConfiguredEntry<ColumnWidgetIntent>
 
     /// Resolved by column id alone, so a column moved to another board keeps
-    /// drawing and simply says it is on the other board now. Falling back to
-    /// the first board's landing column is what an unedited widget shows.
+    /// drawing and simply says it is on the other board now. The fallback to
+    /// the first board's first column belongs to the *unconfigured* widget
+    /// alone: a widget somebody pointed at a column that has since been
+    /// deleted shows the missing note instead, because quietly redrawing some
+    /// other column under the same frame is a widget lying about what it is —
+    /// and was what left the note below effectively unreachable.
     private var found: (board: WidgetBoard, column: WidgetColumn)? {
-        if let named = entry.digest.column(id: entry.configuration.column?.id) { return named }
-        guard let board = entry.digest.boards.first, let column = board.columns.first else { return nil }
-        return (board, column)
+        guard let picked = entry.configuration.column else {
+            guard let board = entry.digest.boards.first, let column = board.columns.first
+            else { return nil }
+            return (board, column)
+        }
+        return entry.digest.column(id: picked.id)
     }
 
     var body: some View {
@@ -71,7 +78,7 @@ struct ColumnWidgetView: View {
                 WidgetRowSpace { rows in
                     VStack(alignment: .leading, spacing: 5) {
                         ForEach(column.tasks.prefix(rows)) { task in
-                            WidgetTaskRow(task: task, today: entry.digest.today)
+                            WidgetTaskRow(task: task, today: entry.today)
                         }
                     }
                 }

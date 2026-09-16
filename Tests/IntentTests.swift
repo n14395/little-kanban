@@ -151,6 +151,18 @@ import Testing
         }
     }
 
+    /// Somebody who deleted Today gets the board — asked, not assumed. The
+    /// intent used to park the surface on the missing id, and only the phone
+    /// happened to fall back; the Mac and the iPad drew nothing at all.
+    @Test func showingTodayWhenItHasBeenDeletedLandsOnTheBoard() async throws {
+        let store = TestBoard.store(tasks: TestBoard.tasks(on: SeedData.defaultBoard))
+        store.deleteView(SavedView.id(of: .today))
+        try await borrowing(store) {
+            _ = try await ShowTodayIntent().perform()
+            #expect(store.surface == .board, "the surface was parked on a view that no longer exists")
+        }
+    }
+
     @Test func theIntentWritesToTheOneBoardTheAppIsShowing() async throws {
         let store = TestBoard.store(tasks: TestBoard.tasks(on: SeedData.defaultBoard))
         let before = store.tasks.count

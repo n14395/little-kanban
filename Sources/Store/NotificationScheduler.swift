@@ -347,12 +347,18 @@ final class NotificationScheduler {
     /// Drops what the centre holds and sends it again, which is what a change
     /// to the time of day means: every request's trigger moved.
     private func republish() {
+        // The notice's trigger carries the same hour and minute as the
+        // per-task requests, so it is stale for the same reason and has to be
+        // re-sent rather than diffed away — and cleared *before* the early
+        // return below, because a board can hold an overdue pile and no
+        // pending per-task requests at all: everything past its date is
+        // behind `now`, which is exactly the state the notice exists for.
+        // Cleared after it, the hour change left the notice firing at the old
+        // time for the rest of the session.
+        publishedOverdue = nil
         guard !published.isEmpty else { return flush() }
         center?.removePending(identifiers: Array(published.keys))
         published = [:]
-        // The notice's trigger carries the same hour and minute, so it is stale
-        // for the same reason and has to be re-sent rather than diffed away.
-        publishedOverdue = nil
         flush()
     }
 

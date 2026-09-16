@@ -80,6 +80,20 @@ final class TempCaptures: Sendable {
         #expect(draft.note.hasPrefix(long), "the whole of the original line has to be in the note")
     }
 
+    /// The word-boundary trim has a floor. The last space within the limit
+    /// can be four characters in — "Re: " and then a spaceless run, which is
+    /// what a shared URL or a long identifier is — and a boundary honoured
+    /// from anywhere collapsed the whole title to "Re:…".
+    @Test func aTitleWhoseOnlySpaceIsAtTheStartIsCutMidRunNotAtTheSpace() {
+        let long = "Re: " + String(repeating: "x", count: 200)
+        let draft = CaptureDraft.from(text: long, url: nil, now: when)
+
+        #expect(draft.title.hasSuffix("…"))
+        #expect(draft.title.count > CaptureDraft.titleLimit / 2,
+                "the trim collapsed the title to its first word")
+        #expect(draft.note.hasPrefix(long))
+    }
+
     @Test func aShareCarryingNothingMakesAnEmptyDraftForTheCallerToRefuse() {
         let draft = CaptureDraft.from(text: nil, url: nil, now: when)
         #expect(draft.title.isEmpty)

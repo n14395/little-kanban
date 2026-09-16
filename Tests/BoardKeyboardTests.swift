@@ -82,6 +82,22 @@ import Testing
         // Nothing else in the column, and focus has nowhere to fall.
         #expect(map.card(after: TestBoard.sync) == nil)
     }
+
+    /// ⌘⌫ on a partial multi-selection: the neighbour focus falls to must not
+    /// be another card of the same delete, or the keyboard is left standing
+    /// on a card that is already gone.
+    @Test func deletingASelectionFallsPastTheRestOfIt() {
+        let map = map()
+        // Backlog is [dragDrop, cafe]: with both selected and focus on the
+        // first, the card below is leaving too, and there is nothing above —
+        // focus has genuinely nowhere in the column to fall.
+        #expect(map.card(after: TestBoard.dragDrop,
+                         skipping: [TestBoard.dragDrop, TestBoard.cafe]) == nil)
+        // With focus on the second, the survivor above is the answer…
+        #expect(map.card(after: TestBoard.cafe, skipping: [TestBoard.cafe]) == TestBoard.dragDrop)
+        // …and a selection that spares a neighbour still lands on it.
+        #expect(map.card(after: TestBoard.dragDrop, skipping: [TestBoard.dragDrop]) == TestBoard.cafe)
+    }
 }
 
 /// The board matches key presses against `AppCommand.shortcuts` rather than

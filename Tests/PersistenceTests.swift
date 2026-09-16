@@ -273,6 +273,29 @@ import Testing
         #expect(store.lastError == nil)
     }
 
+    /// The same failure on the sync launch path, which used to swallow it:
+    /// the records keep the session safe — the board on screen is theirs —
+    /// so the quarantine the file read performed left no trace at all, and
+    /// the rescue alert that names where the damaged file went never
+    /// appeared.
+    @MainActor
+    @Test func aCorruptFileBesideTheRecordsStillRaisesTheRescueAlert() throws {
+        let temp = TempBoard()
+        try temp.put("{ this is not a board")
+        let sync = try BoardSyncStore.inMemory()
+        try sync.apply(BoardSnapshot(tasks: TestBoard.tasks(on: SeedData.defaultBoard),
+                                     boards: SeedData.boards, labels: LabelDef.seed,
+                                     nextSerial: 100))
+
+        let store = BoardStore.restored(file: temp.file, sync: sync)
+
+        // The records won the board…
+        #expect(!store.boards.isEmpty)
+        // …and the quarantine still reached the screen.
+        #expect(store.loadFailure != nil)
+        #expect(store.quarantinedBoardURL != nil)
+    }
+
     /// The other arm: when the unreadable file cannot even be moved aside —
     /// here, a directory nothing can write into — writing stops to protect it,
     /// and **only** writing. The record store is not the file being protected,

@@ -81,6 +81,18 @@ import Testing
         #expect(parse.title == "Fix the crash")
     }
 
+    /// The same sigil twice is two tokens with two identities. Identified by
+    /// their text alone, "fix the #bug crash #bug" handed the preview's
+    /// `ForEach` two rows under one id — and one label, which is right, so
+    /// only the identities were wrong.
+    @Test func theSameSigilTwiceIsTwoTokensThatCanBeToldApart() {
+        let parse = Self.read("fix the #bug crash #bug")
+        #expect(parse.taken.count == 2)
+        #expect(Set(parse.taken.map(\.id)).count == 2, "two chips under one identity")
+        #expect(parse.labelKeys == ["bug"], "one spelling twice is still one label")
+        #expect(parse.title == "fix the crash")
+    }
+
     /// A hyphen is what `LabelDef.key(from:)` puts *inside* a slug, so it must
     /// survive the punctuation trim that removes the full stop above.
     @Test func aHyphenatedLabelIsOneLabel() {

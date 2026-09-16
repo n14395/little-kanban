@@ -586,6 +586,12 @@ struct BoardToolbar: View {
                 guard store.allowsCardDrag, let dropped = items.first, store[dropped.id] != nil
                 else { return false }
                 store.unfile(dropped.id)
+                // The drop is the moment the drag is finished with, said here
+                // because a flick can land one without this button ever
+                // reporting targeted — and then nothing retired the stand-in
+                // the column the card left was still drawing. Idempotent, so
+                // the session's own announcement saying it again costs nothing.
+                store.endDrag()
                 return true
             } isTargeted: { targeted in
                 // A lift is not a drag until a destination has seen it, and where
@@ -593,6 +599,10 @@ struct BoardToolbar: View {
                 // go at once is what does — see `BoardStore.dragTargeting`.
                 store.dragTargeting(targeted)
                 isInboxDropTarget = targeted && store.allowsCardDrag
+                // A drag over this button has left the columns, so whatever
+                // gap one of them was naming is retired — the same call the
+                // Inbox sheet's zones make, for the same reason.
+                if targeted { store.dropTargetCaret = nil }
             }
         }
     }

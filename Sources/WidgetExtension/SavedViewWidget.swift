@@ -34,12 +34,18 @@ struct SavedViewWidgetView: View {
 
     let entry: ConfiguredEntry<SavedViewWidgetIntent>
 
-    /// The configured view; failing that Today, which is what the widget's own
-    /// picker defaults to and what the app opens on.
+    /// The configured view; with none configured, Today — which is what the
+    /// widget's own picker defaults to and what the app opens on. A widget
+    /// whose *configured* view has been deleted shows the missing note
+    /// instead: the fallback used to cover that case too, which quietly
+    /// redrew a different list under the same frame and left the note
+    /// unreachable.
     private var list: WidgetList? {
-        if let named = entry.digest.view(id: entry.configuration.savedView?.id) { return named }
-        let views = entry.digest.views
-        return views.first { $0.preset == WidgetList.todayPreset } ?? views.first
+        guard let picked = entry.configuration.savedView else {
+            let views = entry.digest.views
+            return views.first { $0.preset == WidgetList.todayPreset } ?? views.first
+        }
+        return entry.digest.view(id: picked.id)
     }
 
     var body: some View {
@@ -84,14 +90,20 @@ struct SavedViewWidgetView: View {
 
     private func large(_ list: WidgetList) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            WidgetHeading(mark: .symbol(list.symbol), title: list.name, count: list.count)
+            // Through `resolved`, as every board glyph already goes: the
+            // view's glyph is user-picked and synced, and a name this OS
+            // cannot draw renders as an empty frame, not a placeholder.
+            WidgetHeading(
+                mark: .symbol(SymbolMark.resolved(list.symbol, fallback: SymbolMark.viewFallback)),
+                title: list.name, count: list.count
+            )
             if list.tasks.isEmpty {
                 emptyNote(list)
             } else {
                 WidgetRowSpace { rows in
                     VStack(alignment: .leading, spacing: 5) {
                         ForEach(list.tasks.prefix(rows)) { task in
-                            WidgetTaskRow(task: task, today: entry.digest.today)
+                            WidgetTaskRow(task: task, today: entry.today)
                         }
                     }
                 }
@@ -121,7 +133,9 @@ private struct ViewTitleBlock: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Image(systemName: list.symbol)
+            // `resolved`, for the heading's reason: a synced glyph this OS
+            // does not have would leave the tile's whole left third unmarked.
+            Image(systemName: SymbolMark.resolved(list.symbol, fallback: SymbolMark.viewFallback))
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(palette.accent)
             Text(list.name)

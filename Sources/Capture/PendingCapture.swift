@@ -62,9 +62,18 @@ enum CaptureDraft {
 
         if title.count > titleLimit {
             // The cut goes at a word boundary where there is one within reach,
-            // so a title does not end mid-word for the sake of four characters.
+            // so a title does not end mid-word for the sake of four characters
+            // — but "within reach" has a floor. The last space can as easily
+            // be four characters in as four from the end: "Re: " and then a
+            // spaceless run — a URL, a code identifier — and a boundary
+            // honoured from anywhere collapsed the whole title to "Re:…".
+            // Past the halfway mark the boundary wins; before it, mid-word is
+            // the better cut, because half a line still says what it is.
             let cut = String(title.prefix(titleLimit))
-            let trimmed = cut.lastIndex(of: " ").map { String(cut[..<$0]) } ?? cut
+            let boundary = cut.lastIndex(of: " ").flatMap { index in
+                cut.distance(from: cut.startIndex, to: index) > titleLimit / 2 ? index : nil
+            }
+            let trimmed = boundary.map { String(cut[..<$0]) } ?? cut
             noteParts.append(title)
             title = trimmed.trimmingCharacters(in: .whitespaces) + "…"
         }

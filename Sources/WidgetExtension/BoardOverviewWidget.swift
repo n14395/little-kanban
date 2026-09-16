@@ -30,11 +30,14 @@ struct BoardOverviewWidget: Widget {
 struct BoardOverviewWidgetView: View {
     let entry: ConfiguredEntry<BoardWidgetIntent>
 
-    /// The configured board, or the first one — which is what a widget that has
-    /// never been edited shows, and what one whose board has been deleted falls
-    /// back to having said so.
+    /// The configured board — or the first one, which is only what a widget
+    /// that has never been edited shows. One whose *configured* board has
+    /// been deleted shows the missing note instead: the fallback used to
+    /// cover that case too, which quietly redrew a different board under the
+    /// same frame and left the note unreachable.
     private var board: WidgetBoard? {
-        entry.digest.board(id: entry.configuration.board?.id) ?? entry.digest.boards.first
+        guard let picked = entry.configuration.board else { return entry.digest.boards.first }
+        return entry.digest.board(id: picked.id)
     }
 
     var body: some View {

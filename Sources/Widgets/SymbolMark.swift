@@ -34,6 +34,13 @@ enum SymbolMark {
     /// wearing is the one the surface behind it is using for the same idea.
     static let boardFallback = "rectangle.split.3x1"
 
+    /// The saved-view counterpart — `SavedView.defaultSymbol`, spelled here
+    /// for the reason the type gives about `Board`: the widget extension
+    /// draws view glyphs too and does not compile ``SavedView``. A view's
+    /// glyph is user-picked and synced, so it is exactly the string that can
+    /// name a symbol this system has never heard of.
+    static let viewFallback = "line.3.horizontal.decrease.circle"
+
     /// Whether the running system can draw each name asked about so far.
     ///
     /// The lookup is a bundle read — cheap, and cheap is not free when a

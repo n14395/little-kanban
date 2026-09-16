@@ -6,6 +6,10 @@ import WidgetKit
 struct DigestEntry: TimelineEntry {
     var date: Date
     var digest: WidgetDigest
+
+    /// The day the due chips are drawn against — see
+    /// ``ConfiguredEntry/today``, which is the same rule with the reasons.
+    var today: CalendarDay { max(digest.today, CalendarDay(date)) }
 }
 
 /// One entry, plus what the user picked in the widget's editor.
@@ -13,6 +17,21 @@ struct ConfiguredEntry<Configuration: WidgetConfigurationIntent>: TimelineEntry 
     var date: Date
     var digest: WidgetDigest
     var configuration: Configuration
+
+    /// The day the due chips are drawn against: the digest's, until the entry
+    /// has outlived it.
+    ///
+    /// The digest's `today` is what keeps a widget agreeing with the board —
+    /// see ``WidgetDigest`` — but the midnight refresh exists precisely for
+    /// the machine where the app is not running, and an entry built at that
+    /// refresh drawing yesterday's `today` said "Tomorrow" all day about a
+    /// card that was due. The entry's own date is stamped when the timeline
+    /// is built, so at the midnight rebuild it *is* the new day; `max` keeps
+    /// the digest's answer whenever the two agree on freshness, so a widget
+    /// the app just published still says exactly what the board says. The
+    /// lists themselves stay as the app computed them — membership is the
+    /// app's question — which is as far as a cache can honestly roll.
+    var today: CalendarDay { max(digest.today, CalendarDay(date)) }
 }
 
 /// When to look again, and what to draw when there is nothing to look at.

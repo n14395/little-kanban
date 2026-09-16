@@ -72,7 +72,7 @@ struct InboxWidgetView: View {
             VStack(alignment: .leading, spacing: 6) {
                 WidgetHeading(mark: .symbol(inbox.symbol), title: inbox.name, count: inbox.count)
                 WidgetRowSpace { rows in
-                    InboxRows(list: inbox, today: entry.digest.today, limit: rows)
+                    InboxRows(list: inbox, today: entry.today, limit: rows)
                 }
             }
         }
@@ -91,7 +91,7 @@ struct InboxWidgetView: View {
                 WidgetNewTaskCorner()
             }
             WidgetRowSpace { rows in
-                InboxRows(list: inbox, today: entry.digest.today, limit: rows)
+                InboxRows(list: inbox, today: entry.today, limit: rows)
             }
         }
         .widgetURL(AppLink.url(.inbox))

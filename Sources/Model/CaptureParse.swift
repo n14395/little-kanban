@@ -68,8 +68,14 @@ struct CaptureParse: Equatable, Sendable {
         /// Exactly as typed. This is both what a preview quotes back and the
         /// key a refusal is remembered under — see ``CaptureParse/parse``.
         var text: String
+        /// Where in the line it was claimed — the fact that tells two
+        /// identical spellings apart. "fix the #bug crash #bug" claims
+        /// `#bug` twice, and an id of the text alone handed the preview's
+        /// `ForEach` two rows under one identity — which SwiftUI answers
+        /// with a console warning and whichever rows it feels like.
+        var position: Int
 
-        var id: String { text }
+        var id: String { "\(position) \(text)" }
     }
 
     /// The line taken at face value: no tokens, nothing claimed.
@@ -107,7 +113,7 @@ struct CaptureParse: Equatable, Sendable {
             guard let meaning = sigil(word, labels: labels) else { continue }
             guard !rejected.contains(fold(word)) else { continue }
             claimed[index] = true
-            found.append((index, Token(meaning: meaning, text: String(word))))
+            found.append((index, Token(meaning: meaning, text: String(word), position: index)))
         }
 
         // Pass two: the date, and only where the line runs out.
@@ -116,7 +122,9 @@ struct CaptureParse: Equatable, Sendable {
            !rejected.contains(fold(match.text)) {
             let claimedIndices = open.suffix(match.words)
             for index in claimedIndices { claimed[index] = true }
-            found.append((claimedIndices.first ?? 0, Token(meaning: .due(match.day), text: match.text)))
+            found.append((claimedIndices.first ?? 0,
+                          Token(meaning: .due(match.day), text: match.text,
+                                position: claimedIndices.first ?? 0)))
         }
 
         guard !found.isEmpty else { return .plain(input) }

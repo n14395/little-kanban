@@ -566,6 +566,32 @@ final class FakeNotificationCenter: TaskNotificationCenter, @unchecked Sendable 
         #expect(center.pending.values.allSatisfy { $0.fireHour == 18 && $0.fireMinute == 30 })
     }
 
+    /// The overdue notice moves with the hour even when it is the *only*
+    /// thing scheduled. `republish` used to clear the notice's diff record
+    /// after its nothing-published early return, and a board whose every
+    /// date is already past is exactly that state — an overdue pile and no
+    /// pending per-task requests — so the nag kept firing at the old time
+    /// for the rest of the session.
+    @Test func changingTheHourMovesTheOverdueNoticeWhenItStandsAlone() async throws {
+        var overdue = TestBoard.tasks[2]
+        overdue.due = CalendarDay(year: 2026, month: 6, day: 1)   // behind `now`
+        let center = FakeNotificationCenter()
+        let scheduler = await scheduler(center, defaults: suite())
+        scheduler.nagsWhileOverdue = true
+        let store = TestBoard.store(tasks: [overdue])
+        sync(scheduler, store)
+        try await settle()
+
+        let notice = "com.n14395.LittleKanban.overdue"
+        #expect(center.pending[notice]?.fireHour == 9)
+        #expect(center.pending.count == 1, "the notice should be the only thing scheduled")
+
+        scheduler.reminderHour = 18
+        try await settle()
+
+        #expect(center.pending[notice]?.fireHour == 18, "the notice kept firing at the old hour")
+    }
+
     @Test func thePreferencesArePersistedWhereTheyBelongAndNotInTheBoard() async throws {
         let defaults = suite()
         let center = FakeNotificationCenter()

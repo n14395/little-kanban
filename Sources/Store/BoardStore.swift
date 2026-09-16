@@ -1161,7 +1161,8 @@ final class BoardStore {
             // local snapshot visible, if one exists, and wait for the next
             // remote change rather than normalising and re-uploading it.
             if Self.hasUnresolvedTaskPlacements(in: loaded) {
-                let local = file.load().snapshot
+                let localResult = file.load()
+                let local = localResult.snapshot
                 let store = BoardStore(
                     tasks: local?.tasks ?? [], boards: local?.boards ?? [],
                     activeBoardID: local?.activeBoardID, labels: local?.labels ?? loaded.labels,
@@ -1182,17 +1183,27 @@ final class BoardStore {
                     file: file, sync: sync
                 )
                 store.isAwaitingCompleteSync = true
+                // The failure too, not only the snapshot: a corrupt file was
+                // quarantined by the read above, and on this path the records
+                // keep the session safe — which made the rescue alert the only
+                // trace of the quarantine, and it never appeared.
+                store.adopt(localResult)
                 store.applyStoredPreferences()
                 return store
             }
 
             var synced = loaded
+            // One read of the file for the whole branch. The first read of an
+            // unreadable file is also the one that quarantines it, so a
+            // second ask sees a fresh path and no failure — and the failure
+            // is exactly what has to reach the screen at the bottom.
+            let localResult = file.load()
             // `position` was added after task records had already shipped. The
             // JSON board is the local source that still knows their manual
             // order; use it only to fill ranks, never to overwrite synced task
             // content that may be newer on another device.
             if (try? sync.hasStoredTaskOrder()) == false,
-               let local = file.load().snapshot {
+               let local = localResult.snapshot {
                 try? sync.backfillTaskPositions(from: local.tasks.map(\.id))
                 if let positioned = try? sync.load() { synced = positioned }
             }
@@ -1205,7 +1216,7 @@ final class BoardStore {
             // of identical rows — which is the one thing the step exists to
             // prevent. Fill and re-read, never overwrite a mark a record has.
             if (try? sync.hasStoredBoardSymbols()) == false,
-               let local = file.load().snapshot {
+               let local = localResult.snapshot {
                 try? sync.backfillBoardSymbols(from: local.boards)
                 if let marked = try? sync.load() { synced = marked }
             }
@@ -1225,7 +1236,7 @@ final class BoardStore {
             // rather than assumed is the record that has *no* answer — written
             // before the attribute existed — which `load()` alone cannot tell
             // from a device reporting the defaults.
-            let local = file.load().snapshot
+            let local = localResult.snapshot
             let shared = SharedList.resolve(
                 local: local, remote: synced, carried: (try? sync.carriedLists()) ?? []
             )
@@ -1247,6 +1258,9 @@ final class BoardStore {
                 themesChangedAt: shared.themesChangedAt,
                 file: file, sync: sync
             )
+            // The awaiting branch's reason: the quarantine the read performed
+            // has to reach the screen, records or no records.
+            store.adopt(localResult)
             store.applyStoredPreferences()
             // The records have spoken; what they hold is the baseline every
             // later push measures its deletions against. Before the sweeps,

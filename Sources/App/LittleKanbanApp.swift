@@ -176,8 +176,9 @@ struct LittleKanbanApp: App {
     }
 }
 
-/// The two things the app does at the edges of a session. On the view rather
-/// than on the scene so both platforms' scenes carry it without a second copy.
+/// What the app does at the edges of a session — and at the edge of a day.
+/// On the view rather than on the scene so both platforms' scenes carry it
+/// without a second copy.
 private struct ScenePhaseWork: ViewModifier {
     @Environment(\.scenePhase) private var scenePhase
 
@@ -185,35 +186,47 @@ private struct ScenePhaseWork: ViewModifier {
     let dayClock: DayClock
 
     func body(content: Content) -> some View {
-        content.onChange(of: scenePhase) { _, phase in
-            if phase == .active {
-                // A machine that slept through midnight never got its wake.
-                dayClock.refresh()
-                // Coming forward is the moment to collect whatever the share
-                // extension left in the App Group while this process was
-                // suspended — it cannot write to the board itself, so this is
-                // the only path a shared item takes onto it. Cheap and silent
-                // with nothing waiting.
-                store.adoptPendingCaptures()
-            } else {
-                // Edits are written on a short debounce; leaving the foreground
-                // is one of the moments that debounce would not survive.
-                //
-                // Unless this is a first run whose picker is still up. The
-                // flush writes `board.json`, and "the file exists" is exactly
-                // what `FirstRun.isPending` reads as *not* a first run — so
-                // backgrounding mid-picker quietly made the empty-board
-                // choice on the user's behalf: the next launch had no picker,
-                // no starter templates and no Sync-from-iCloud row. There is
-                // nothing worth flushing in that state — the board is empty
-                // by construction, and the choice is what writes first. The
-                // moment one is made, `FirstRun.storageKey` flips and every
-                // later backgrounding flushes as normal.
-                guard !FirstRun.isPending
-                        || UserDefaults.standard.bool(forKey: FirstRun.storageKey) else { return }
-                store.saveNow()
+        content
+            // The auto-archive sweep reads calendar days, so midnight is the
+            // one moment it can find new work in a session that is already
+            // running — and it used to run at launch alone, which on a Mac
+            // that stays open for a week meant Done quietly stopped emptying
+            // until the next relaunch. `refresh()` below moves the clock on a
+            // machine that slept through midnight, so the wake lands here too.
+            .onChange(of: dayClock.today) { _, _ in
+                store.sweepDone()
             }
-        }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active {
+                    // A machine that slept through midnight never got its wake.
+                    dayClock.refresh()
+                    // Coming forward is the moment to collect whatever the
+                    // share extension left in the App Group while this process
+                    // was suspended — it cannot write to the board itself, so
+                    // this is the only path a shared item takes onto it. Cheap
+                    // and silent with nothing waiting.
+                    store.adoptPendingCaptures()
+                } else {
+                    // Edits are written on a short debounce; leaving the
+                    // foreground is one of the moments that debounce would not
+                    // survive.
+                    //
+                    // Unless this is a first run whose picker is still up. The
+                    // flush writes `board.json`, and "the file exists" is
+                    // exactly what `FirstRun.isPending` reads as *not* a first
+                    // run — so backgrounding mid-picker quietly made the
+                    // empty-board choice on the user's behalf: the next launch
+                    // had no picker, no starter templates and no
+                    // Sync-from-iCloud row. There is nothing worth flushing in
+                    // that state — the board is empty by construction, and the
+                    // choice is what writes first. The moment one is made,
+                    // `FirstRun.storageKey` flips and every later backgrounding
+                    // flushes as normal.
+                    guard !FirstRun.isPending
+                            || UserDefaults.standard.bool(forKey: FirstRun.storageKey) else { return }
+                    store.saveNow()
+                }
+            }
     }
 }
 

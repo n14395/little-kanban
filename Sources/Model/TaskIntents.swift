@@ -593,8 +593,11 @@ struct ShowTodayIntent: AppIntent {
         // and Today is one of them. Somebody who deleted it gets the board,
         // which is the answer that is always available — the intent opens the
         // app either way, which is what "Show Today" mostly means to a user
-        // saying it to Siri.
-        store.surface = .view(SavedView.id(of: .today))
+        // saying it to Siri. Asked, not assumed: a surface parked on a
+        // missing id is a window the Mac and the iPad draw nothing at all
+        // for, and only the phone happened to fall back.
+        let today = SavedView.id(of: .today)
+        store.surface = store.view(id: today) != nil ? .view(today) : .board
         #if os(iOS)
         store.isNavDrawerOpen = false
         store.sheetID = nil

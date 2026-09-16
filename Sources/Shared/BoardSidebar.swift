@@ -320,6 +320,10 @@ struct BoardSidebar: View {
             guard store.allowsCardDrag, let dropped = items.first, store[dropped.id] != nil
             else { return false }
             store.file(dropped.id, onto: board.id)
+            // The toolbar's Inbox button's reason: a flick can land the drop
+            // without the row ever reporting targeted, and the column the
+            // card left kept its stand-in open. Idempotent.
+            store.endDrag()
             return true
         } isTargeted: { targeted in
             // A lift is not a drag until a destination has seen it, and where
@@ -327,6 +331,9 @@ struct BoardSidebar: View {
             // go at once is what does — see `BoardStore.dragTargeting`.
             store.dragTargeting(targeted)
             setDropTarget(.board(board.id), targeted: targeted)
+            // And a drag over a row has left the columns, so whatever gap one
+            // of them was naming is retired — the Inbox sheet's zones' call.
+            if targeted { store.dropTargetCaret = nil }
         }
         // Where a dragged board would land, drawn in the gap it would land in
         // rather than on a row it would not.

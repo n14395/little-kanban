@@ -83,6 +83,26 @@ struct BoardFocusMap {
         card(id, movedBy: 1) ?? card(id, movedBy: -1)
     }
 
+    /// The same, stepped past everything leaving alongside it. ⌘⌫ on a
+    /// partial multi-selection trashes the focused card *and* its neighbours,
+    /// and a fallback that only looked one row away could land on another
+    /// card of the same delete — keyboard focus on a card that is already
+    /// gone. Walks down to the first survivor, then up, then gives up, which
+    /// is `card(after:)`'s own order at whatever distance it takes.
+    func card(after id: TaskItem.ID, skipping leaving: Set<TaskItem.ID>) -> TaskItem.ID? {
+        var step = 1
+        while let candidate = card(id, movedBy: step) {
+            if !leaving.contains(candidate) { return candidate }
+            step += 1
+        }
+        step = -1
+        while let candidate = card(id, movedBy: step) {
+            if !leaving.contains(candidate) { return candidate }
+            step -= 1
+        }
+        return nil
+    }
+
     /// The one column a flat surface has. Not any board's, and named so a test
     /// can spell it.
     static let flatColumn = BoardColumn.ID()
@@ -341,9 +361,12 @@ enum BoardKeyboard {
             return stay(true)
         case .trashTask:
             // Worked out before the delete, while the card is still on the
-            // surface to have a neighbour.
-            let next = map.card(after: task.id)
-            store.trashTasks(store.commandTargets(task.id))
+            // surface to have a neighbour — and past the rest of the
+            // selection, which is leaving with it. See
+            // `BoardFocusMap.card(after:skipping:)`.
+            let targets = store.commandTargets(task.id)
+            let next = map.card(after: task.id, skipping: targets)
+            store.trashTasks(targets)
             return Outcome(isHandled: true, focus: next)
         case .selectAll:
             store.selectAllVisible(today: today)

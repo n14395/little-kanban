@@ -86,8 +86,23 @@ struct InboxPanel: View {
                     .padding(.top, metrics.list.topInset)
             }
             if tasks.isEmpty, !isComposing {
-                emptyState
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // The card-shaped stand-in the columns' empty case gained,
+                // drawn here too while a card is over the panel: the tint and
+                // the border say *this panel*, and only the stand-in says the
+                // card is about to become its first. `dropPreview(in:)`'s
+                // empty-list case already answers for the Inbox — this was
+                // the one empty surface not asking.
+                if let preview = store.dropPreview(in: .inbox) {
+                    VStack(spacing: 0) {
+                        previewCard(preview)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, metrics.list.horizontalPadding)
+                    .padding(.top, metrics.list.topInset)
+                } else {
+                    emptyState
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             } else {
                 cards(tasks)
             }
