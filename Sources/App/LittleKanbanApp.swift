@@ -46,6 +46,9 @@ struct LittleKanbanApp: App {
             : BoardStore.restored(sync: sync)
         _store = State(initialValue: store)
         TaskIntentBridge.adopt(store)
+        #if SPARKLE
+        SparkleUpdater.start()
+        #endif
         #if os(macOS)
         // The terminate flush is the *app's*, not a window's. macOS does not
         // move any scene out of `.active` before terminating, so ⌘Q inside

@@ -128,6 +128,9 @@ struct BoardCommands: Commands {
             Button(String(localized: "About Little Kanban", comment: "App menu item")) {
                 openAbout()
             }
+            #if SPARKLE
+            SparkleCheckForUpdatesButton()
+            #endif
         }
         #endif
 
