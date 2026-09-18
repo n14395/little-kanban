@@ -397,8 +397,8 @@ private func registrations(_ undo: RecordingUndoManager, _ body: () -> Void) -> 
     /// aimed at — a menu that says "Complete 3 Tasks" and files one ⌘Z called
     /// "Complete Task" has lied about what it was going to do — and the cards
     /// the command cannot touch come out of it untouched, not merely
-    /// unmoved: an already-complete card sent to Done again would be resorted
-    /// to the bottom of it and restamped.
+    /// unmoved: an already-complete card sent to Done again would be re-sorted
+    /// to the head of it and restamped.
     @Test func completingAPartlyApplicableSelectionActsOnItsApplicableHalfAlone() {
         let (store, undo) = TestBoard.undoing(tasks: TestBoard.tasks(archiving: [TestBoard.cafe: 300]))
         // Three cards, three answers: one to complete, one already in Done, one
@@ -413,9 +413,10 @@ private func registrations(_ undo: RecordingUndoManager, _ body: () -> Void) -> 
         #expect(filed == ["Complete Task"], "one card changed and the step said three")
         #expect(changed(before, store.tasks) == [TestBoard.dragDrop])
         #expect(store[TestBoard.dragDrop]?.columnID == BoardColumn.done.id)
-        // The one already there kept its place at the head of Done.
+        // The one already there was neither restamped nor re-sorted: the
+        // arrival landed at the head of Done and it kept its place beneath.
         #expect(store.visibleTasks(in: BoardColumn.done.id).map(\.id)
-                == [TestBoard.palette, TestBoard.dragDrop])
+                == [TestBoard.dragDrop, TestBoard.palette])
     }
 
     /// The archive half of the same claim. The card already filed keeps the

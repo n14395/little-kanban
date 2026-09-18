@@ -569,11 +569,22 @@ struct ChecklistView: View {
     /// own yet — the borrow the sheet's Trash Task row makes (C2), and the
     /// same argument here.
     ///
+    /// **Uncovered by a mask, not by the row.** A touch row has no fill of its
+    /// own — the card's ground runs through it — so a button parked behind it
+    /// was never behind anything: every row wore its delete button at rest,
+    /// drawn over the grip, which is how it was reported from a phone. The
+    /// mask is the width the row has moved aside, so the button appears from
+    /// under the row's trailing edge exactly as it would from under an opaque
+    /// one, and is nothing at all at rest. It reads the same value as the
+    /// row's offset, so the two travel on the same animation.
+    /// `ChecklistSwipeTests` renders a row at rest and looks for the tone.
+    ///
     /// Hit-testable and readable only while its row stands open: invisible is
     /// not the same as absent, which is the hover-`×`'s lesson — without the
     /// gate, the covered button would be a live delete under the grip.
     private func deleteReveal(for subtask: SubTask) -> some View {
         let tone = palette.dueTone(urgency: .overdue, isDone: false)
+        let uncovered = swipeReveal(for: subtask.id)
         return Button {
             store.deleteSubtask(subtask.id, from: task.id)
             closeSwipe()
@@ -586,6 +597,7 @@ struct ChecklistView: View {
                 .background(tone.background, in: .rect(cornerRadius: metrics.standInRadius))
         }
         .buttonStyle(.bare)
+        .mask(alignment: .trailing) { Rectangle().frame(width: uncovered) }
         .allowsHitTesting(revealedRow == subtask.id)
         .accessibilityHidden(revealedRow != subtask.id)
         .accessibilityLabel("Delete sub-task")

@@ -192,18 +192,57 @@ import Testing
     /// it does. Both directions, because "always the foot" is only a rule if the
     /// card's own position cannot change the answer.
     @Test func theRowTheCardCameFromChangesNothing() throws {
+        let doing = BoardColumn.inProgress.id
+        for index in [0, 2] {
+            let store = Self.deeper()
+            let card = order(store, in: backlog)[index]
+            store.draggingID = card
+            store.dropTargetColumnID = doing
+            let foot = try #require(order(store, in: doing).last)
+            #expect(store.dropCaret == .below(foot), "the caret moved with the card's own row")
+
+            store.drop(card, onGroundOf: store.placement(forColumn: doing))
+            #expect(order(store, in: doing).last == card, "a card from row \(index) missed the foot")
+        }
+    }
+
+    // MARK: Done's ground, which is the head of it
+
+    /// **Done is the one list whose ground is its head.** Every other column
+    /// takes an unaimed card at the foot because the foot is where new work
+    /// queues; Done is the record of what has been finished and reads newest
+    /// first — see `BoardStore.doneHead(in:)`. The caret and the preview have
+    /// to say so, or a gap would open at the bottom for a card about to land at
+    /// the top. Both rows again, for `theRowTheCardCameFromChangesNothing`'s
+    /// reason.
+    @Test func donesGroundLandsAtTheHead() throws {
         let done = BoardColumn.done.id
         for index in [0, 2] {
             let store = Self.deeper()
             let card = order(store, in: backlog)[index]
             store.draggingID = card
             store.dropTargetColumnID = done
-            let foot = try #require(order(store, in: done).last)
-            #expect(store.dropCaret == .below(foot), "the caret moved with the card's own row")
+            let head = try #require(order(store, in: done).first)
+            #expect(store.dropCaret == .above(head), "the caret over Done's ground is not at its head")
+            #expect(store.dropPreview(in: store.placement(forColumn: done))?.index == 0,
+                    "the preview did not open the gap at the head of Done")
 
             store.drop(card, onGroundOf: store.placement(forColumn: done))
-            #expect(order(store, in: done).last == card, "a card from row \(index) missed the foot")
+            #expect(order(store, in: done).first == card, "a card from row \(index) missed the head of Done")
+            #expect(order(store, in: done).last == TestBoard.palette,
+                    "the card already in Done did not keep its place beneath the arrival")
         }
+    }
+
+    /// A named gap still wins in Done, as it does everywhere: aiming below the
+    /// last card is the one gesture that puts a card at the foot of it.
+    @Test func aGapNamedAtTheFootOfDoneStillLandsThere() throws {
+        let store = TestBoard.store()
+        let done = BoardColumn.done.id
+        let last = try #require(order(store, in: done).last)
+
+        store.drop(TestBoard.dragDrop, at: .below(last))
+        #expect(order(store, in: done) == [last, TestBoard.dragDrop])
     }
 
     /// An empty list has no card to hang a mark off — a caret is drawn *by* a
@@ -434,56 +473,4 @@ import Testing
         let last = raster.row(raster.height - 1).reduce(0) { $0 + Int($1) }
         return first < last
     }()
-
-    /// A rendered view as raw RGBA rows.
-    private struct Raster {
-        let width: Int
-        let height: Int
-        private let bytes: [UInt8]
-
-        @MainActor
-        init?(rendering view: some View) {
-            let renderer = ImageRenderer(content: view)
-            renderer.scale = 1
-            guard let image = renderer.cgImage, image.width > 0, image.height > 0 else { return nil }
-            // Locals rather than the properties: the closure below would
-            // otherwise capture a `self` that is not finished being built.
-            let w = image.width, h = image.height
-            var buffer = [UInt8](repeating: 0, count: w * h * 4)
-            let drawn = buffer.withUnsafeMutableBytes { raw -> Bool in
-                guard let context = CGContext(
-                    data: raw.baseAddress, width: w, height: h,
-                    bitsPerComponent: 8, bytesPerRow: w * 4,
-                    space: CGColorSpaceCreateDeviceRGB(),
-                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-                ) else { return false }
-                context.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
-                return true
-            }
-            guard drawn else { return nil }
-            width = w
-            height = h
-            bytes = buffer
-        }
-
-        func row(_ index: Int) -> ArraySlice<UInt8> {
-            bytes[(index * width * 4)..<((index + 1) * width * 4)]
-        }
-
-        /// How much of a row is within a rounding step of one colour.
-        func fraction(ofRow index: Int, near colour: (Float, Float, Float)) -> Double {
-            let target = [colour.0, colour.1, colour.2].map { UInt8(max(0, min(255, $0 * 255))) }
-            let start = index * width * 4
-            var hits = 0
-            for x in 0..<width {
-                let pixel = start + x * 4
-                let close = (0..<3).allSatisfy { channel in
-                    let value = Int(bytes[pixel + channel]), want = Int(target[channel])
-                    return abs(value - want) <= 12
-                }
-                if close { hits += 1 }
-            }
-            return Double(hits) / Double(width)
-        }
-    }
 }

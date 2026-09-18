@@ -116,6 +116,10 @@ import Testing
         #expect(moved.subtasks.contains { !$0.done })      // no auto-tick
         #expect(store.completedTasks.isEmpty)
         #expect(store.weeklyShippedCount(today: CalendarDay(Date.now)) == 0)
+        // And it queued at the foot, the way an arrival does in any working
+        // column — only the board's real Done takes a card at its head.
+        #expect(store.visibleTasks(in: Self.calledDone.id).map(\.id) == [Self.spare, Self.work],
+                "a column merely called Done took the card at its head")
 
         let palette = Palette(theme: ThemePresets.fallback(for: .light))
         #expect(palette.dueTone(urgency: .overdue, isDone: store.isDone(moved))
@@ -124,6 +128,57 @@ import Testing
         // And `complete` goes past it to the column that is actually last.
         store.complete(Self.work)
         #expect(store[Self.work]?.columnID == Self.landed.id)
+    }
+
+    // MARK: Where an arrival lands
+
+    /// **Done reads newest first.** A card arriving in Done lands at the head
+    /// of the column rather than at its foot, so the column runs from the most
+    /// recently finished down to the oldest — see `BoardStore.doneHead(in:)`.
+    /// Three routes, because they meet in `performMove` and each could be
+    /// handed a `before:` of its own: the tick, the move-to menu, and a drop on
+    /// the column's ground.
+    @Test func everyUnaimedRouteIntoDoneLandsAtTheHead() {
+        let store = Self.store()
+        let done = Self.landed.id
+
+        store.complete(Self.spare)                                        // the tick
+        #expect(store.visibleTasks(in: done).map(\.id) == [Self.spare])
+
+        store.move(Self.work, to: done)                                   // the menu
+        #expect(store.visibleTasks(in: done).map(\.id) == [Self.work, Self.spare])
+
+        store.reopen(Self.spare)
+        #expect(store.visibleTasks(in: done).map(\.id) == [Self.work])
+        store.drop(Self.spare, onGroundOf: store.placement(forColumn: done)) // the ground
+        #expect(store.visibleTasks(in: done).map(\.id) == [Self.spare, Self.work])
+    }
+
+    /// A bulk complete keeps the selection's own order: the first card selected
+    /// ends up on top, the way the same cards read in the column they left. It
+    /// takes doing on purpose — each lands at the head, so a batch sent front
+    /// to back would come out reversed.
+    @Test func aBulkCompleteKeepsTheSelectionsOrderAtTheHead() {
+        let store = Self.store()
+        store.move(Self.spare, to: Self.inFlight.id)
+        #expect(store.visibleTasks(in: Self.inFlight.id).map(\.id) == [Self.work, Self.spare])
+
+        store.complete([Self.work, Self.spare])
+        #expect(store.visibleTasks(in: Self.landed.id).map(\.id) == [Self.work, Self.spare])
+    }
+
+    /// The same claim for a bulk move, which is the other batch that can land
+    /// in Done — and which must go on appending front to back everywhere else.
+    @Test func aBulkMoveIntoDoneKeepsTheSelectionsOrderAtTheHead() {
+        let store = Self.store()
+        store.move(Self.spare, to: Self.inFlight.id)
+
+        store.move([Self.work, Self.spare], to: Self.landed.id)
+        #expect(store.visibleTasks(in: Self.landed.id).map(\.id) == [Self.work, Self.spare])
+
+        store.move([Self.work, Self.spare], to: Self.calledDone.id)
+        #expect(store.visibleTasks(in: Self.calledDone.id).map(\.id) == [Self.work, Self.spare],
+                "a bulk move into a working column stopped appending front to back")
     }
 
     // MARK: The Done column, edited

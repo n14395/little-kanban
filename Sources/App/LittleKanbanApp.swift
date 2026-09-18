@@ -388,6 +388,23 @@ private struct SettingsWindow: View {
             // exactly when somebody is most likely to be changing the icon.
             // Applying twice costs nothing; see ``AppIconInstaller``.
             .keepsTheAppIconInStep()
+            // Escape closes the window, as it closes every sheet in the app.
+            // The `Settings` scene arrives with a title bar and a close button
+            // and nothing that answers Escape, so the key that dismisses the
+            // Inbox, the search panel and every picker did nothing here. A
+            // button with no face carries the shortcut rather than
+            // `onExitCommand`, because a key equivalent is read wherever focus
+            // is in the window and the pane is mostly fields. It closes the key
+            // window through AppKit rather than through `dismiss`, whose
+            // window-closing half is documented for `Window` and `WindowGroup`,
+            // and the Settings scene is neither.
+            .background {
+                Button { NSApp.keyWindow?.performClose(nil) } label: { Color.clear }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(.cancelAction)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
     }
 }
 #endif

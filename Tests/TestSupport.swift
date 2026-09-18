@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 @testable import LittleKanban
 
 // The module name comes from the app's PRODUCT_NAME, "LittleKanban".
@@ -606,4 +607,81 @@ extension SavedView {
     /// What `lastSurfaceName` writes down, which since v11 is the id rather
     /// than an enum case's spelling.
     var rawValue: String { id.uuidString }
+}
+
+// MARK: - Reading pixels back
+
+/// A rendered view as raw RGBA rows — for the handful of claims that are about
+/// what was *drawn* rather than what the model says: which edge a caret is on
+/// (`DropCaretTests`), whether a button parked behind a row shows through it
+/// (`ChecklistSwipeTests`). `ImageRenderer` draws only what SwiftUI itself
+/// draws — a platform-backed field comes out blank — which is enough for both.
+struct Raster {
+    let width: Int
+    let height: Int
+    private let bytes: [UInt8]
+
+    @MainActor
+    init?(rendering view: some View) {
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 1
+        guard let image = renderer.cgImage, image.width > 0, image.height > 0 else { return nil }
+        // Locals rather than the properties: the closure below would
+        // otherwise capture a `self` that is not finished being built.
+        let w = image.width, h = image.height
+        var buffer = [UInt8](repeating: 0, count: w * h * 4)
+        let drawn = buffer.withUnsafeMutableBytes { raw -> Bool in
+            guard let context = CGContext(
+                data: raw.baseAddress, width: w, height: h,
+                bitsPerComponent: 8, bytesPerRow: w * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return false }
+            context.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+            return true
+        }
+        guard drawn else { return nil }
+        width = w
+        height = h
+        bytes = buffer
+    }
+
+    func row(_ index: Int) -> ArraySlice<UInt8> {
+        bytes[(index * width * 4)..<((index + 1) * width * 4)]
+    }
+
+    /// One pixel's red, green and blue, 0...255 each.
+    func pixel(x: Int, y: Int) -> (r: Int, g: Int, b: Int) {
+        let at = (y * width + x) * 4
+        return (Int(bytes[at]), Int(bytes[at + 1]), Int(bytes[at + 2]))
+    }
+
+    /// How many pixels in the whole picture are within `tolerance` of a colour
+    /// on every channel.
+    func count(near colour: (r: Int, g: Int, b: Int), tolerance: Int = 12) -> Int {
+        var hits = 0
+        for at in stride(from: 0, to: bytes.count, by: 4)
+        where abs(Int(bytes[at]) - colour.r) <= tolerance
+            && abs(Int(bytes[at + 1]) - colour.g) <= tolerance
+            && abs(Int(bytes[at + 2]) - colour.b) <= tolerance {
+            hits += 1
+        }
+        return hits
+    }
+
+    /// How much of a row is within a rounding step of one colour.
+    func fraction(ofRow index: Int, near colour: (Float, Float, Float)) -> Double {
+        let target = [colour.0, colour.1, colour.2].map { UInt8(max(0, min(255, $0 * 255))) }
+        let start = index * width * 4
+        var hits = 0
+        for x in 0..<width {
+            let pixel = start + x * 4
+            let close = (0..<3).allSatisfy { channel in
+                let value = Int(bytes[pixel + channel]), want = Int(target[channel])
+                return abs(value - want) <= 12
+            }
+            if close { hits += 1 }
+        }
+        return Double(hits) / Double(width)
+    }
 }

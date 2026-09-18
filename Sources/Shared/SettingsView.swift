@@ -409,6 +409,9 @@ struct SettingsView: View {
             }
             .buttonStyle(.bare)
             .hoverBackground(palette.ink(0.06), radius: 8)
+            // Escape on a hardware keyboard — the sheet's spelling of the
+            // desk's Escape-closes-the-window, which `SettingsWindow` carries.
+            .keyboardShortcut(.cancelAction)
         }
         .padding(.horizontal, metrics.padding)
         .padding(.vertical, metrics.padding * 0.7)

@@ -134,7 +134,8 @@ import Testing
         #expect(store.visibleTasks(in: BoardColumn.backlog.id).map(\.code) == ["NW-121", "NW-122"])
         store.move(TestBoard.cafe, to: BoardColumn.done.id)
         #expect(store.visibleTasks(in: BoardColumn.backlog.id).map(\.code) == ["NW-121"])
-        #expect(store.visibleTasks(in: BoardColumn.done.id).map(\.code) == ["NW-125", "NW-122"])
+        // At the head: an arrival in Done lands above what is already there.
+        #expect(store.visibleTasks(in: BoardColumn.done.id).map(\.code) == ["NW-122", "NW-125"])
     }
 
     // MARK: What search is allowed to see

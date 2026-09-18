@@ -59,7 +59,8 @@ struct PhoneColumnPage<Trailing: View>: View {
             guard store.allowsCardDrag, let dropped = items.first, store[dropped.id] != nil
             else { return false }
             // The column's ground, not a gap between two of its cards — so it
-            // lands at the foot; see `BoardStore.drop(_:onGroundOf:)`.
+            // lands at the foot, or at the head of Done; see
+            // `BoardStore.drop(_:onGroundOf:)`.
             store.drop(dropped.id, onGroundOf: store.placement(forColumn: column.id))
             return true
         } isTargeted: { targeted in

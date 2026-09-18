@@ -4389,7 +4389,8 @@ final class BoardStore {
             return caret.card == draggingID ? nil : caret
         }
         // The pointer is on a list's own ground rather than on a gap it has
-        // named, and a drop there lands at the foot — see ``groundCaret(in:)``.
+        // named, and a drop there lands at the foot — or, in Done, at the head;
+        // see ``groundCaret(in:)``.
         guard let dragging = draggingID, let destination = hoveredDropPlacement,
               allowsCardDrag(into: destination), let task = self[dragging]
         else { return nil }
@@ -4417,12 +4418,18 @@ final class BoardStore {
     /// every other route into a list already puts a card — the move-to menu, the
     /// sidebar's board rows, a bulk move, `move(_:to:)` itself.
     ///
+    /// **Except Done, whose ground is its head.** Every route into Done that
+    /// names no gap lands at the top — see ``doneHead(in:)`` for why — and the
+    /// caret has to promise what the drop will do, so over Done's ground it is
+    /// drawn above the first card rather than below the last.
+    ///
     /// A pointer *inside* a card is a different question, answered above this: it
     /// has named a gap, and a named gap always wins. An empty list has no card to
     /// draw a caret against at all, so it gets none — the column highlight is the
     /// whole of the feedback there, and the drop still lands.
     private func groundCaret(in destination: TaskPlacement) -> DropCaret? {
-        tasks(in: destination).last.map { .below($0.id) }
+        if let head = doneHead(in: destination) { return .above(head) }
+        return tasks(in: destination).last.map { .below($0.id) }
     }
 
     /// Where the card in flight would sit in `placement`'s rows if it were let
@@ -4568,7 +4575,8 @@ final class BoardStore {
 
     /// Moves a task to `columnID`. When `beforeID` is given the task is inserted
     /// ahead of that task, which is how card-to-card drops reorder a column;
-    /// otherwise it lands at the end of the board order.
+    /// otherwise it lands at the end of the board order — or, arriving in Done,
+    /// at the head of that column. See ``doneHead(in:)``.
     ///
     /// A drop on the column the card is already in, aimed at no particular
     /// card, is aimed at where the card already is: it does nothing rather than
@@ -4722,7 +4730,12 @@ final class BoardStore {
         moved.updatedAt = .now
         markChanged(moved.id)
 
-        if let target, let insertion = position(of: target) {
+        // Where a card goes when no gap was named: the foot, everywhere but
+        // Done, which takes an arrival at its head — see `doneHead(in:)`. A
+        // named gap wins over both, as it does everywhere, and `toTheEnd` is a
+        // named gap with no card after it.
+        let landing = target ?? (wasElsewhere && !toTheEnd ? doneHead(in: placement) : nil)
+        if let landing, let insertion = position(of: landing) {
             tasks.insert(moved, at: insertion)
         } else {
             tasks.append(moved)
@@ -4730,6 +4743,38 @@ final class BoardStore {
 
         endDrag()
         scheduleSave()
+    }
+
+    /// Whether `placement` is a board's Done column — the one list that takes
+    /// an unaimed arrival at its head rather than its foot.
+    private func landsAtHead(_ placement: TaskPlacement) -> Bool {
+        guard case .column(_, let columnID) = placement else { return false }
+        return isDone(column: columnID)
+    }
+
+    /// The card at the top of a Done column in board order — the one an
+    /// arrival lands ahead of — or `nil` for any other list, and for a Done
+    /// column with nothing on it, where an arrival is simply appended.
+    ///
+    /// **Done reads newest first.** Every other list takes an unaimed card at
+    /// the foot, because a working column is a queue and the foot is where new
+    /// work joins it. Done is not a queue; it is the record of what has been
+    /// finished, and the card just finished is the one the user is looking for
+    /// — under the old rule it was the one furthest away, under a month of
+    /// history. So the routes into Done that name no gap — the tick, the
+    /// move-to menu, the keyboard, a bulk complete, a drop on the column's
+    /// ground — all land at the head, the column reads down from the most
+    /// recently completed to the oldest, and ``groundCaret(in:)`` draws its
+    /// caret there so the drop keeps the caret's promise. A drop that *names*
+    /// a gap still wins, as everywhere: aiming below the last card still puts
+    /// a card at the foot.
+    ///
+    /// Archived cards are skipped. They keep their column and their place in
+    /// the array, but they are not on the board, and the head of the column is
+    /// the head of what is drawn.
+    private func doneHead(in placement: TaskPlacement) -> TaskItem.ID? {
+        guard landsAtHead(placement) else { return nil }
+        return tasks.first { $0.placement == placement && !$0.isArchived }?.id
     }
 
     // MARK: - Completing
@@ -5352,7 +5397,12 @@ final class BoardStore {
         // singular `move` makes on the way past is this guard's to make.
         guard !targets.isEmpty, isPlaceable(placement) else { return }
         undoable(Self.moveName(for: placement, count: targets.count)) {
-            for id in targets { performMove(id, to: placement) }
+            // Into Done each card lands at the head — see `doneHead(in:)` — so
+            // the batch goes in back to front and the first card selected ends
+            // up on top: the reading order the cards had, which is what
+            // appending front to back gives them in every other column.
+            let queue = landsAtHead(placement) ? Array(targets.reversed()) : targets
+            for id in queue { performMove(id, to: placement) }
         }
     }
 
@@ -5363,7 +5413,11 @@ final class BoardStore {
             ? String(localized: "Complete Tasks", comment: "Undo action name for completing several tasks at once")
             : String(localized: "Complete Task", comment: "Undo action name for completing a task")
         undoable(name) {
-            for id in targets { complete(id) }
+            // Back to front, for `move(_:to:)`'s reason: each lands at the head
+            // of its Done column, and the first card selected should end up on
+            // top. Inbox cards complete in place, so the order costs them
+            // nothing.
+            for id in targets.reversed() { complete(id) }
         }
     }
 
