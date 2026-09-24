@@ -1,3 +1,6 @@
+// Copyright 2026 Nick Fay
+// SPDX-License-Identifier: Apache-2.0
+
 import XCTest
 
 /// The "Repeat this task" row in the phone editor: ticking it on arms a rule

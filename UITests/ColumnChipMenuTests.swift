@@ -1,3 +1,6 @@
+// Copyright 2026 Nick Fay
+// SPDX-License-Identifier: Apache-2.0
+
 import XCTest
 
 /// The phone's column chips carry everything that can be done to a column.

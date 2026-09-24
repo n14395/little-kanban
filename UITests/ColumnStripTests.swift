@@ -1,3 +1,6 @@
+// Copyright 2026 Nick Fay
+// SPDX-License-Identifier: Apache-2.0
+
 import XCTest
 
 /// The phone's strip of column chips is drawn in portrait and not when the

@@ -1,3 +1,6 @@
+// Copyright 2026 Nick Fay
+// SPDX-License-Identifier: Apache-2.0
+
 import XCTest
 
 /// The Inbox on the phone, now that it is a real `.sheet` held at a detent

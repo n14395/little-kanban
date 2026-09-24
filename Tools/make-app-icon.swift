@@ -1,3 +1,6 @@
+// Copyright 2026 Nick Fay
+// SPDX-License-Identifier: Apache-2.0
+
 //
 // Draws every app icon Little Kanban ships with and writes the asset catalogue
 // that names them.

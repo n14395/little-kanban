@@ -194,3 +194,12 @@ considered and rejected. Read it before changing behaviour.
 17 families are bundled under the SIL Open Font License; the license files are
 in `Resources/Fonts/`. They are registered on first use rather than at launch.
 Delete the folder and every theme falls back to a system face.
+
+## License
+
+Licensed under the [Apache License, Version 2.0](LICENSE).
+Third-party attribution is in [NOTICE](NOTICE).
+
+The bundled type faces in `Resources/Fonts/` are **not** covered by the Apache
+License. They are distributed under the SIL Open Font License, Version 1.1, and
+each family's licence text is retained alongside the fonts.

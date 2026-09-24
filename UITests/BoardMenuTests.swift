@@ -1,3 +1,6 @@
+// Copyright 2026 Nick Fay
+// SPDX-License-Identifier: Apache-2.0
+
 import XCTest
 
 /// What the phone's ⋯ menu holds, and — the half that is easy to lose — what it

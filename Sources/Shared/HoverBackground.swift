@@ -1,3 +1,6 @@
+// Copyright 2026 Nick Fay
+// SPDX-License-Identifier: Apache-2.0
+
 import SwiftUI
 
 /// The design's `style-hover="background: rgba(var(--ink-rgb),0.05)"` rows.
