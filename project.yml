@@ -430,7 +430,7 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
-        PRODUCT_BUNDLE_IDENTIFIER: com.n14395.LittleKanbanUITests
+        PRODUCT_BUNDLE_IDENTIFIER: com.n14395.LittleKanban.UITests
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: P52946XHRJ
         TARGETED_DEVICE_FAMILY: "1,2"
