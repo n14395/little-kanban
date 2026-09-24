@@ -1,4 +1,8 @@
-# Little Kanban
+<p align="center">
+  <img src="app-icon.png" alt="Little Kanban app icon" width="128">
+</p>
+
+<h1 align="center">Little Kanban</h1>
 
 A Kanban board for macOS and iOS. Many boards, one global Inbox, one file — with
 three surfaces over the same data: a Mac window, an iPad split view and an
