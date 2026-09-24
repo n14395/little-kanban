@@ -372,7 +372,7 @@ struct PhoneDetailSheet: View {
                 .frame(minHeight: 48)
                 .background(palette.accentSoft, in: .rect(cornerRadius: 14))
             }
-            .buttonStyle(.bare)
+            .bareButton()
             .padding(.top, 6)
         }
     }
@@ -393,7 +393,7 @@ struct PhoneDetailSheet: View {
             .frame(minHeight: 48)
             .background(destructiveTone.background, in: .rect(cornerRadius: 14))
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .padding(.top, 6)
     }
 

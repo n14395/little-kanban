@@ -68,7 +68,7 @@ struct DueDateSheet: View {
                         .padding(.horizontal, 10)
                         .frame(minHeight: 30)
                 }
-                .buttonStyle(.bare)
+                .bareButton()
                 .hoverBackground(palette.ink(0.06), radius: 9)
 
                 Spacer(minLength: 0)
@@ -80,7 +80,7 @@ struct DueDateSheet: View {
                         .padding(.horizontal, 12)
                         .frame(minHeight: 30)
                 }
-                .buttonStyle(.bare)
+                .bareButton()
                 .hoverBackground(palette.ink(0.06), radius: 9)
                 .keyboardShortcut(.cancelAction)
 
@@ -94,7 +94,7 @@ struct DueDateSheet: View {
                         .frame(minHeight: 30)
                         .background(palette.accent, in: .rect(cornerRadius: 9))
                 }
-                .buttonStyle(.bare)
+                .bareButton()
                 .keyboardShortcut(.defaultAction)
             }
         }
@@ -129,7 +129,7 @@ struct DueDateSheet: View {
                 .frame(minHeight: 28)
                 .background(palette.ink(0.06), in: .rect(cornerRadius: 8))
         }
-        .buttonStyle(.bare)
+        .bareButton()
     }
 
     private func apply(_ value: CalendarDay?) {

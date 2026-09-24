@@ -213,7 +213,7 @@ struct FirstRunView: View {
                 .frame(minHeight: metrics.rowHit)
                 .contentShape(.rect)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .keyboardShortcut(.cancelAction)
     }
 
@@ -259,7 +259,7 @@ struct FirstRunView: View {
             .frame(minHeight: metrics.rowHit)
             .hoverBackground(palette.ink(0.05), radius: metrics.panelRadius)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .background {
             RoundedRectangle(cornerRadius: metrics.panelRadius)
                 .fill(palette.card)
@@ -304,7 +304,7 @@ struct FirstRunView: View {
             .frame(minHeight: metrics.rowHit)
             .hoverBackground(palette.ink(0.05), radius: metrics.panelRadius)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         // The columns and the count are the preview; to VoiceOver they are a
         // sentence, because a row of five unlabelled dots is not one.
         .accessibilityElement(children: .ignore)

@@ -238,7 +238,7 @@ struct PhoneTabBar: View {
         let button = Button(action: perform) {
             chip(title, symbol: symbol, isCurrent: isCurrent, count: count)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         // Said rather than inferred, because in the header there is no word to
         // infer it from: a reader meets the same names in both shapes.
         .accessibilityLabel(title)
@@ -482,7 +482,7 @@ struct PhoneTabBar: View {
                 .frame(minWidth: isHeader ? CaptureGlyphs.width(glyph) : Self.footEndWidth,
                        minHeight: isHeader ? 44 : 52)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .glassEffect(.regular.tint(palette.accent).interactive(), in: .capsule)
         .accessibilityLabel("New task")
     }

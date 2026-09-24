@@ -1068,7 +1068,18 @@ final class BoardSyncStore: SyncStoring {
             write(subtask.done, to: &row.done, changedFrom: was?.element.done)
             write(index, to: &row.position, changedFrom: was?.offset)
         }
-        for orphan in subtasks.values { context.delete(orphan) }
+        // Deletion asks the fields' question of the whole row: did *we*
+        // remove it. A row the snapshot no longer names is this device's
+        // deletion only when the diff base named it; absent from both, it is
+        // another device's addition this one has not read yet, and deleting
+        // it was the move-vs-rename clobber one level down — B adds a row to
+        // X's checklist, A retitles X, and A's push threw B's row away
+        // (scenario 10 of the two-device checklist). What a base with no
+        // opinion leaves behind resurfaces on the next read, which is the
+        // recoverable direction every other writer here already points.
+        for orphan in subtasks.values where previousSubtasks[orphan.id] != nil {
+            context.delete(orphan)
+        }
 
         var entries = Dictionary(
             (record.activity ?? []).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }
@@ -1096,12 +1107,18 @@ final class BoardSyncStore: SyncStoring {
             fresh.when = entry.when
         }
         // Activity is append-only, so an entry the snapshot no longer carries
-        // was undone rather than forgotten, and the record goes with it. Only
-        // rows this build can read are candidates: a row whose kind does not
-        // decode was never in the value — `value(of:)` leaves it out — so its
-        // absence from the snapshot is not an undo, and deleting it would take
-        // a newer build's entry with it.
+        // was undone rather than forgotten, and the record goes with it —
+        // but only an entry **the diff base named**, for the sub-task loop's
+        // reason: an entry the base never carried is another device's, made
+        // moments ago and not yet read here, and "undone" is not a thing this
+        // device can claim about it. And only rows this build can read are
+        // candidates even then: a row whose kind does not decode was never in
+        // the value — `value(of:)` leaves it out — so its absence from the
+        // snapshot is not an undo, and deleting it would take a newer build's
+        // entry with it.
+        let previousEntries = Set((previous?.activity ?? []).map(\.id))
         for orphan in entries.values {
+            guard previousEntries.contains(orphan.id) else { continue }
             guard (try? Self.kindDecoder.decode(ActivityEntry.Kind.self, from: orphan.kind)) != nil
             else { continue }
             context.delete(orphan)

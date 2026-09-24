@@ -239,7 +239,7 @@ struct InboxPanel: View {
                     .foregroundStyle(palette.inkText(0.45))
                     .frame(minWidth: metrics.button, minHeight: metrics.button)
             }
-            .buttonStyle(.bare)
+            .bareButton()
             .hoverBackground(palette.ink(0.08), radius: 8)
             .accessibilityLabel("Capture a task")
         }

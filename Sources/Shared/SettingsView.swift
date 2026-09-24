@@ -9,11 +9,12 @@ import AppKit
 ///
 /// One list, read by both platforms, so that a subject cannot exist on one and
 /// go missing on the other — which is exactly what had happened. **System** was
-/// in the macOS `TabView` with no `.tabItem` on it, and a tab with no label is a
-/// blank slot in the toolbar: the pane was reachable only by clicking the gap
-/// where its name should have been. The title and the symbol now come from here,
-/// once, rather than from a `Label` in one place and a `section(_:)` string in
-/// another.
+/// in the `TabView` the desk used then, with no `.tabItem` on it, and a tab with
+/// no label is a blank slot in the toolbar: the pane was reachable only by
+/// clicking the gap where its name should have been. The title and the symbol
+/// now come from here, once, rather than from a `Label` in one place and a
+/// `section(_:)` string in another — and both surfaces draw their own strip from
+/// them, for the reason ``SettingsView/subjects`` gives.
 ///
 /// **Four, where there were eight.** Trash, Appearance, Board, Notifications,
 /// Sync, System, Labels and Data was a list long enough that finding a setting
@@ -46,11 +47,12 @@ enum SettingsTab: String, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
-    /// The chip's identifier on iOS, shared with `UITests/SettingsTabsTests`
-    /// through the source rather than by both spelling the same string — the
-    /// same arrangement `BoardToolbar.inboxToggleID` has. The name alone would
-    /// not do: "Board" is a word the board behind the sheet uses for its own
-    /// controls, and a query by label picks whichever it reaches first.
+    /// The chip's identifier, shared with `UITests/SettingsTabsTests` through
+    /// the source rather than by both spelling the same string — the same
+    /// arrangement `BoardToolbar.inboxToggleID` has. The name alone would not
+    /// do: "Board" is a word the board behind the sheet uses for its own
+    /// controls, and a query by label picks whichever it reaches first. Carried
+    /// on the desk's strip too, now that it is drawn rather than a `TabView`.
     var chipID: String { "SettingsTab.\(rawValue)" }
 
     var title: String {
@@ -175,15 +177,19 @@ struct SettingsView: View {
     @State private var notice: SettingsNotice?
     #if os(macOS)
     @Environment(\.openWindow) private var openWindow
+    /// Which subject the desk's strip is showing. Stored rather than held,
+    /// because the `TabView` this replaced remembered its tab across openings of
+    /// the window and the window is rebuilt every time it is opened — see
+    /// ``Preferences/settingsTabKey``.
+    @AppStorage(Preferences.settingsTabKey) private var selection: SettingsTab = .general
     #else
     @State private var isBrowsingThemes = false
     #endif
     #if os(iOS)
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// Which subject the strip is showing. iOS only: the desk's `TabView` keeps
-    /// its own selection, and keeps it across openings of the window, which a
-    /// `@State` on a sheet that is rebuilt every time it is raised cannot.
-    /// Starting at `.general` each time is the same choice as putting it first.
+    /// Which subject the strip is showing. Not stored, unlike the desk's:
+    /// starting at `.general` each time is the same choice as putting it first,
+    /// and a sheet is raised from a row that has just said the word.
     @State private var selection: SettingsTab = .general
     #endif
 
@@ -264,15 +270,76 @@ struct SettingsView: View {
     // MARK: The subjects
 
     #if os(macOS)
-    /// The desk: one subject at a time, chosen from the window's toolbar, which
-    /// is what a macOS settings window *is*.
+    /// The desk: one subject at a time, chosen from a strip along the top, which
+    /// is where a macOS settings window has always put them.
+    ///
+    /// **It is not a `TabView` any more.** The native tab bar is the one control
+    /// in this app that could not be told what colour it was: it marks the
+    /// chosen tab in `NSColor.controlAccentColor` and rings the focused one in
+    /// `NSColor.keyboardFocusIndicatorColor`, and neither of those is reachable
+    /// from `.tint`. A window whose ground, panels, type and accent all came
+    /// from the theme was drawing an orange "Data" over a mint board, because
+    /// orange was what the *machine's* accent happened to be. The strip below is
+    /// the same four subjects in the same shape — glyph over word, the chosen
+    /// one filled — asked of the palette instead.
+    ///
+    /// `pane` is rebuilt on `.id(selection)` for the sheet's reason: a new
+    /// subject opens at its own top rather than at the offset the last one was
+    /// left at.
     private var subjects: some View {
-        TabView {
-            ForEach(SettingsTab.allCases) { tab in
-                pane(tab)
-                    .tabItem { Label(tab.title, systemImage: tab.symbol) }
-            }
+        VStack(spacing: 0) {
+            strip
+            pane(selection).id(selection)
         }
+        // What the `TabView` used to put in the title bar. The window is one
+        // window now, so the subject has to say itself.
+        .navigationTitle(selection.title)
+    }
+
+    private var strip: some View {
+        HStack(spacing: 4) {
+            Spacer(minLength: 0)
+            ForEach(SettingsTab.allCases) { tab in
+                deskTab(tab)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .hairline(.bottom, color: palette.ink(0.08))
+    }
+
+    /// One subject, as the desk draws it: the glyph over the word, in a box that
+    /// is filled when it is the one being shown.
+    ///
+    /// ``Palette/accentSoft`` rather than the full accent, which is what the
+    /// sidebar's current board and the theme browser's current tile wear — the
+    /// app's one vocabulary for *this is the one you are looking at*, as against
+    /// the filled accent that means *press this*.
+    private func deskTab(_ tab: SettingsTab) -> some View {
+        let isCurrent = tab == selection
+        return Button { selection = tab } label: {
+            VStack(spacing: 3) {
+                Image(systemName: tab.symbol)
+                    .symbolSize(16, weight: .medium, relativeTo: .body)
+                Text(tab.title)
+                    .font(palette.ui(metrics.noteFont, .semibold, relativeTo: .caption))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(isCurrent ? palette.accent : palette.inkText(0.55))
+            .frame(minWidth: 76)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                isCurrent ? palette.accentSoft : .clear,
+                in: .rect(cornerRadius: metrics.controlRadius)
+            )
+            .contentShape(.rect)
+        }
+        .bareButton()
+        .hoverBackground(isCurrent ? .clear : palette.ink(0.05), radius: metrics.controlRadius)
+        .accessibilityIdentifier(tab.chipID)
+        .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
     }
     #else
     /// iOS: the same subjects, reached from a strip under the sheet's header
@@ -361,7 +428,7 @@ struct SettingsView: View {
             }
             .contentShape(.capsule)
         }
-        .buttonStyle(.bare)
+        .bareButton(radius: .infinity)
         .accessibilityIdentifier(tab.chipID)
         .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
     }
@@ -407,7 +474,7 @@ struct SettingsView: View {
                     .padding(.horizontal, 8)
                     .frame(minHeight: max(metrics.rowHit, 30))
             }
-            .buttonStyle(.bare)
+            .bareButton()
             .hoverBackground(palette.ink(0.06), radius: 8)
             // Escape on a hardware keyboard — the sheet's spelling of the
             // desk's Escape-closes-the-window, which `SettingsWindow` carries.
@@ -1007,7 +1074,7 @@ struct SettingsView: View {
                     .frame(minHeight: metrics.rowHit)
                     .hoverBackground(palette.ink(0.05), radius: metrics.controlRadius)
                 }
-                .buttonStyle(.bare)
+                .bareButton()
             }
         }
     }
@@ -1104,7 +1171,7 @@ struct SettingsView: View {
             .frame(minHeight: metrics.rowHit)
             .hoverBackground(palette.ink(0.05), radius: metrics.controlRadius)
         }
-        .buttonStyle(.bare)
+        .bareButton()
     }
 
     /// A row whose value is picked from a menu — the same vocabulary

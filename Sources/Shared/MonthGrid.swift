@@ -102,7 +102,7 @@ struct MonthGrid: View {
                 .frame(minWidth: chrome(metrics.arrow), minHeight: chrome(metrics.arrow))
                 .contentShape(.rect)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .hoverBackground(palette.ink(0.06), radius: metrics.cellRadius)
         .accessibilityLabel(name)
     }
@@ -156,7 +156,7 @@ struct MonthGrid: View {
                 )
                 .contentShape(.rect)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .hoverBackground(isSelected ? .clear : palette.ink(0.06), radius: metrics.cellRadius)
         // The number alone is no use out loud — every month has an 11.
         .accessibilityLabel(Text(Self.spokenDay(day)))

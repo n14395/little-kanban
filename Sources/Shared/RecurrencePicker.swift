@@ -86,24 +86,31 @@ struct RecurrencePicker: View {
     /// so the row always reads as the sentence it is.
     private func cadenceRow(_ rule: RecurrenceRule) -> some View {
         HStack(spacing: 8) {
-            Stepper(value: binding(for: rule, keyPath: \.interval), in: 1...99) {
+            ThemedStepper(
+                value: binding(for: rule, keyPath: \.interval),
+                range: 1...99,
+                name: String(localized: "Every",
+                             comment: "Accessibility name of the stepper setting how often a task repeats"),
+                hit: metrics.rowHit
+            ) {
                 Text("Every \(rule.interval)")
                     .font(palette.ui(metrics.rowFont + 1, .semibold, relativeTo: .subheadline))
                     .foregroundStyle(palette.inkText(0.8))
                     .monospacedDigit()
             }
-            Picker(selection: binding(for: rule, keyPath: \.unit)) {
-                ForEach(RecurrenceRule.Unit.allCases, id: \.self) { unit in
-                    Text(Self.unitName(unit, count: rule.interval)).tag(unit)
-                }
-            } label: {
-                // A real name under `.labelsHidden()`, the `DueDateSheet`
-                // pattern: nothing is drawn, and VoiceOver still has a word
-                // for the control.
-                Text("Repeat unit")
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
+            ThemedPicker(
+                options: RecurrenceRule.Unit.allCases.map {
+                    ChoiceOption($0, Self.unitName($0, count: rule.interval))
+                },
+                selection: binding(for: rule, keyPath: \.unit),
+                // A real name for a control that draws only its answer, the
+                // `DueDateSheet` pattern: nothing is drawn, and VoiceOver still
+                // has a word for it.
+                name: String(localized: "Repeat unit",
+                             comment: "Accessibility name of the picker choosing days, weeks, months or years"),
+                font: metrics.rowFont + 1,
+                hit: metrics.rowHit
+            )
         }
         .frame(minHeight: metrics.rowHit)
     }
@@ -134,7 +141,7 @@ struct RecurrencePicker: View {
                         .frame(minHeight: metrics.chipHit)
                         .background(isOn ? palette.accent : palette.ink(0.06), in: .capsule)
                 }
-                .buttonStyle(.bare)
+                .bareButton(radius: .infinity)
                 .accessibilityLabel(calendar.weekdaySymbols[weekday - 1])
                 .accessibilityAddTraits(isOn ? [.isSelected] : [])
             }
@@ -236,7 +243,7 @@ struct RecurrencePicker: View {
                 .background(isCurrent ? palette.accent : palette.ink(0.06), in: .capsule)
                 .frame(minHeight: metrics.rowHit)
         }
-        .buttonStyle(.bare)
+        .bareButton(radius: .infinity)
         .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
     }
 

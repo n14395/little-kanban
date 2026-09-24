@@ -113,7 +113,7 @@ struct LabelManagerView: View {
                     .padding(.horizontal, 8)
                     .frame(minHeight: metrics.glyphHit)
             }
-            .buttonStyle(.bare)
+            .bareButton()
             .hoverBackground(palette.ink(0.06), radius: 8)
         }
         .padding(.horizontal, metrics.panelPadding)
@@ -159,7 +159,7 @@ struct LabelManagerView: View {
             .padding(.vertical, metrics.rowMinHeight > 0 ? 0 : metrics.rowPadding * 0.7)
             .contentShape(.rect)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .hoverBackground(palette.ink(0.06), radius: metrics.rowRadius)
         .popover(isPresented: $isComposing, arrowEdge: metrics.arrowEdge) {
             LabelComposeForm(
@@ -316,7 +316,7 @@ struct LabelManagerView: View {
                 .foregroundStyle(palette.inkText(0.4))
                 .frame(minWidth: metrics.glyphHit, minHeight: metrics.glyphHit)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .hoverBackground(palette.ink(0.08), radius: 8)
         .accessibilityLabel("Delete label")
     }

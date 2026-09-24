@@ -275,7 +275,7 @@ struct BoardSidebar: View {
                     rowName(board.name, isActive: isActive)
                 }
             }
-            .buttonStyle(.bare)
+            .bareButton()
             // Name and count stated separately — see `BoardToolbar`. Substituted
             // rather than named, now that the row has a symbol in it: an `Image`
             // among siblings inside a button's label is published as an element of
@@ -420,7 +420,7 @@ struct BoardSidebar: View {
                 .frame(minHeight: metrics.rowHit)
                 .hoverBackground(palette.ink(0.05), radius: metrics.rowRadius)
             }
-            .buttonStyle(.bare)
+            .bareButton()
             // The plus is a nested element beside the word unless the subtree
             // is substituted — see `viewRow`.
             .accessibilityRepresentation {
@@ -488,7 +488,7 @@ struct BoardSidebar: View {
                 .frame(minHeight: metrics.rowHit)
                 .contentShape(.rect)
             }
-            .buttonStyle(.bare)
+            .bareButton()
             // Substituted rather than named, now that the row has a symbol in
             // it: an `Image` among siblings inside a button's label is
             // published as an element of its own whatever else is asked of it,
@@ -601,7 +601,7 @@ struct BoardSidebar: View {
             .frame(minHeight: metrics.rowHit)
             .hoverBackground(palette.ink(0.05), radius: metrics.rowRadius)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .accessibilityRepresentation {
             Button(String(localized: "New view",
                           comment: "Accessibility name of the sidebar row that creates a saved view")) {
@@ -638,7 +638,7 @@ struct BoardSidebar: View {
             .frame(minHeight: metrics.rowHit)
             .hoverBackground(palette.ink(0.05), radius: metrics.rowRadius)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         // Substituted rather than named, because this row has a symbol in it:
         // an `Image` among siblings inside a button's label is published as an
         // element of its own whatever else is asked of it, `accessibilityHidden`
@@ -672,7 +672,7 @@ struct BoardSidebar: View {
             Button { store.isShowingSettings = true } label: { settingsRowLabel }
             #endif
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .accessibilityRepresentation {
             // A `SettingsLink` is a button whose action belongs to the system,
             // so the substitute carries the name and leaves the press to it —
@@ -785,7 +785,7 @@ struct BoardSidebar: View {
             .background(isOpen ? palette.accentSoft : .clear, in: .rect(cornerRadius: metrics.rowRadius))
             .hoverBackground(isOpen ? .clear : palette.ink(0.05), radius: metrics.rowRadius)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .help("Show the Trash")
         // Substituted rather than named, for `viewRow`'s reason: an `Image`
         // among siblings inside a button's label is published as an element of
@@ -885,7 +885,7 @@ struct BoardSidebar: View {
                 .background(palette.accent, in: .capsule)
                 .shadow(color: palette.shadow(0.2), radius: 5, y: 2)
         }
-        .buttonStyle(.bare)
+        .bareButton(radius: .infinity)
         .help("Capture a task in the Inbox")
         .accessibilityLabel("Capture a task")
         // Out to the side rather than up: the button is at the bottom-left of

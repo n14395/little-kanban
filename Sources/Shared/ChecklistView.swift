@@ -439,7 +439,7 @@ struct ChecklistView: View {
                 .foregroundStyle(palette.inkText(0.4))
                 .frame(width: metrics.box.hitSize, height: metrics.box.hitSize)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .opacity(hoveredRow == subtask.id ? 1 : 0)
         // Invisible is not the same as absent: without this the dead corner of
         // an unhovered row still deletes what is in it.
@@ -596,7 +596,7 @@ struct ChecklistView: View {
                 .frame(maxHeight: .infinity)
                 .background(tone.background, in: .rect(cornerRadius: metrics.standInRadius))
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .mask(alignment: .trailing) { Rectangle().frame(width: uncovered) }
         .allowsHitTesting(revealedRow == subtask.id)
         .accessibilityHidden(revealedRow != subtask.id)

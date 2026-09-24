@@ -137,7 +137,7 @@ struct SymbolPickerPopover: View {
                         .frame(minWidth: metrics.hit, minHeight: metrics.hit)
                         .contentShape(.rect)
                 }
-                .buttonStyle(.bare)
+                .bareButton()
                 .accessibilityLabel("Clear the search")
             }
         }
@@ -258,7 +258,7 @@ struct SymbolPickerPopover: View {
                 )
                 .contentShape(.rect)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .help(name)
         // The symbol's own name, which is the only description there is — see
         // ``SymbolWell``. Every glyph in this grid draws on this system, so

@@ -67,7 +67,7 @@ struct CapturePreview: View {
             .padding(.vertical, chrome(isCompact ? 3 : 5))
             .background(palette.accentSoft, in: .rect(cornerRadius: chrome(isCompact ? 6 : 8)))
         }
-        .buttonStyle(.bare)
+        .bareButton()
         // The chip is a claim being made and a way to refuse it, and the glyph
         // says neither out loud. Both halves are spoken, because a row of chips
         // called "Bug" and "Friday" with no verb is a row VoiceOver reads as

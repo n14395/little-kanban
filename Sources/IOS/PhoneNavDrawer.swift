@@ -211,7 +211,7 @@ struct PhoneNavDrawer: View {
                         .background(palette.ink(0.07), in: .circle)
                         .frame(minWidth: 44, minHeight: 44)
                 }
-                .buttonStyle(.bare)
+                .bareButton()
                 .contentShape(.circle)
                 .accessibilityLabel("Close")
             }
@@ -334,7 +334,7 @@ struct PhoneNavDrawer: View {
             .frame(minHeight: 44)
             .contentShape(.rect)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .accessibilityRepresentation {
             Button(String(localized: "Labels",
                           comment: "Accessibility name of the drawer row that opens the label manager")) {
@@ -373,7 +373,7 @@ struct PhoneNavDrawer: View {
             .frame(minHeight: 44)
             .contentShape(.rect)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         // Substituted for the reason every row with a symbol in it is: an
         // `Image` among siblings inside a button's label is published as an
         // element of its own whatever else is asked of it, so the row would
@@ -416,7 +416,7 @@ struct PhoneNavDrawer: View {
             .frame(minHeight: 44)
             .contentShape(.rect)
         }
-        .buttonStyle(.bare)
+        .bareButton()
     }
 
     private static let wordmark = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
@@ -526,7 +526,7 @@ struct PhoneNavDrawer: View {
                 .frame(minHeight: 44)
                 .contentShape(.rect)
         }
-        .buttonStyle(.bare)
+        .bareButton()
     }
 
     /// Every board row. One function rather than a literal per row because it
@@ -567,7 +567,7 @@ struct PhoneNavDrawer: View {
             .frame(minHeight: 44)
             .contentShape(.rect)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .accessibilityRepresentation {
             Button(name, action: action)
                 .accessibilityValue(Text(verbatim: "\(count)"))
@@ -601,7 +601,7 @@ struct PhoneNavDrawer: View {
                 .frame(minHeight: 44)
                 .contentShape(.rect)
             }
-            .buttonStyle(.bare)
+            .bareButton()
             // The row is one thing to a reader — its name, its count as the value.
             // Stated rather than gathered, because an `Image` among siblings inside
             // a button's label is published whatever else is asked of it: neither
@@ -671,7 +671,7 @@ struct PhoneNavDrawer: View {
             .frame(minHeight: 44)
             .contentShape(.rect)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .accessibilityRepresentation {
             Button(String(localized: "New view",
                           comment: "Accessibility name of the drawer row that creates a saved view")) {

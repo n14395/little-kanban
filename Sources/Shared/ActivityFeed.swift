@@ -159,7 +159,7 @@ struct ActivityFeed: View {
             .frame(minHeight: metrics.toggleHit, alignment: .leading)
             .contentShape(.rect)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .padding(.leading, metrics.dot + metrics.dotSpacing)
     }
 

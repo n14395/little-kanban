@@ -110,7 +110,7 @@ struct EmptyStateView: View {
                         // not — see README's Touch targets.
                         .frame(minHeight: metrics.actionHit)
                 }
-                .buttonStyle(.bare)
+                .bareButton()
             }
         }
         .padding(.horizontal, metrics.horizontalPadding)

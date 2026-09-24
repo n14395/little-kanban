@@ -387,6 +387,16 @@ extension Preferences {
     static let menuBarExtraKey = "LittleKanbanShowsMenuBarExtra"
     /// Start the app when the Mac is logged in to.
     static let launchAtLoginKey = "LittleKanbanLaunchAtLogin"
+    /// Which subject the desk's Settings window was last left on.
+    ///
+    /// macOS only, and stored rather than held in `@State` because that is what
+    /// the native `TabView` used to do for free: the Settings scene is torn down
+    /// when its window closes, so somebody who opens Settings, changes a backup
+    /// setting, closes it and opens it again to change another would otherwise
+    /// land back on General every time. The sheet on iOS deliberately does not —
+    /// see ``SettingsTab`` — because it is raised from a row that has just named
+    /// the subject.
+    static let settingsTabKey = "LittleKanbanSettingsTab"
 
     /// Which of the ten grounds the app wears — the design document's own
     /// reference, `4a` through `4j`. See ``AppIcon``.

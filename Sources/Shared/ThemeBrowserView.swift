@@ -179,7 +179,7 @@ struct ThemeBrowserView: View {
                         .background(palette.accent, in: .rect(cornerRadius: 8))
                         .contentShape(.rect)
                 }
-                .buttonStyle(.bare)
+                .bareButton()
             }
         }
         .padding(.horizontal, metrics.padding)
@@ -235,7 +235,7 @@ struct ThemeBrowserView: View {
             }
             .contentShape(.rect)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .accessibilityLabel(appearance.label)
         .accessibilityValue(theme.name)
         .accessibilityHint(String(
@@ -316,7 +316,7 @@ struct ThemeBrowserView: View {
                     }
                     .contentShape(.rect)
             }
-            .buttonStyle(.bare)
+            .bareButton()
             .accessibilityLabel(theme.name)
             .accessibilityValue(theme.appearance.label)
             .accessibilityHint(String(localized: "Uses this theme for the \(theme.appearance.label.lowercased()) appearance",

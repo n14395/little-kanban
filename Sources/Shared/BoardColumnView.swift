@@ -227,7 +227,7 @@ struct BoardColumnView: View {
                     .frame(minWidth: chrome(metrics.headerButton), minHeight: chrome(metrics.headerButton))
                     .contentShape(.rect)
             }
-            .buttonStyle(.bare)
+            .bareButton()
             .hoverBackground(palette.ink(0.08), radius: metrics.headerButtonRadius)
             .accessibilityLabel("Add task to \(column.name)")
         }
@@ -555,12 +555,14 @@ private struct BoardColumnEditor: View {
             .controlSize(.mini)
 
             if let limit = column.limit {
-                Stepper(
+                ThemedStepper(
                     value: Binding(
                         get: { limit },
                         set: { store.setColumnLimit($0, on: column.id) }
                     ),
-                    in: BoardStore.columnLimitRange
+                    range: BoardStore.columnLimitRange,
+                    name: String(localized: "Limit",
+                                 comment: "Accessibility name of the stepper setting a column's WIP limit")
                 ) {
                     Text(String(localized: "At most \(limit) at a time",
                                 comment: "How many cards a column is meant to hold at once — its WIP limit"))
@@ -568,7 +570,6 @@ private struct BoardColumnEditor: View {
                         .foregroundStyle(palette.ink(0.7))
                         .monospacedDigit()
                 }
-                .controlSize(.mini)
             }
         }
     }

@@ -78,7 +78,7 @@ struct AboutView: View {
                     .padding(.horizontal, 8)
                     .frame(minHeight: max(metrics.rowHit, 30))
             }
-            .buttonStyle(.bare)
+            .bareButton()
         }
         .padding(.horizontal, metrics.padding)
         .padding(.vertical, metrics.padding * 0.6)

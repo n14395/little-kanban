@@ -88,7 +88,7 @@ struct LabelEditor: View {
                 }
                 .frame(minWidth: metrics.addHit, minHeight: metrics.addHit)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .accessibilityLabel("Add label")
         .popover(isPresented: pickerBinding, arrowEdge: metrics.arrowEdge) {
             LabelPickerList(
@@ -325,7 +325,7 @@ struct LabelPickerList: View {
             .frame(minHeight: metrics.rowHit)
             .background(isApplied ? palette.ink(0.05) : .clear, in: .rect(cornerRadius: metrics.rowRadius))
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .hoverBackground(palette.ink(0.06), radius: metrics.rowRadius)
         .accessibilityAddTraits(isApplied ? [.isSelected] : [])
     }
@@ -373,7 +373,7 @@ struct LabelPickerList: View {
             .frame(minHeight: metrics.rowHit)
             .contentShape(.rect)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .hoverBackground(palette.ink(0.06), radius: metrics.rowRadius)
     }
 
@@ -501,13 +501,13 @@ struct LabelComposeForm: View {
                 Button("Cancel") { onCancel() }
                     .font(palette.ui(metrics.fieldFont, .semibold, relativeTo: .caption))
                     .foregroundStyle(palette.inkText(0.55))
-                    .buttonStyle(.bare)
+                    .bareButton()
                     .frame(minHeight: metrics.actionHit)
                 Spacer(minLength: 0)
                 Button("Add") { onCommit() }
                     .font(palette.ui(metrics.fieldFont, .bold, relativeTo: .caption))
                     .foregroundStyle(palette.accent)
-                    .buttonStyle(.bare)
+                    .bareButton()
                     .frame(minHeight: metrics.actionHit)
                     .disabled(isEmpty)
                     .opacity(isEmpty ? 0.4 : 1)

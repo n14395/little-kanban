@@ -401,10 +401,20 @@ private struct SettingsWindow: View {
             // window through AppKit rather than through `dismiss`, whose
             // window-closing half is documented for `Window` and `WindowGroup`,
             // and the Settings scene is neither.
+            //
+            // **No focus ring of any kind on this one.** `.plain` took the
+            // system's, and this button is the size of the window — so the
+            // window wore a hairline of `NSColor.keyboardFocusIndicatorColor`
+            // along its content edge, in the machine's accent, whatever the
+            // theme said. ``BareButton``'s ring would be the same rectangle a
+            // theme further in, and just as wrong: the ring belongs to nothing
+            // anybody can press, because this is a key equivalent rather than a
+            // control. Hence the bare style, and the effect off outright.
             .background {
                 Button { NSApp.keyWindow?.performClose(nil) } label: { Color.clear }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.bare)
                     .keyboardShortcut(.cancelAction)
+                    .focusEffectDisabled()
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
             }
@@ -456,6 +466,8 @@ private struct ThemesWindow: View {
             .tint(palette.accent)
             .foregroundStyle(palette.ink)
             .preferredColorScheme(appearance.colorScheme)
+            // The browser is where a theme is *chosen*, so it is the surface
+            // most likely to be open when the accent changes underneath it.
     }
 }
 #endif
@@ -640,7 +652,7 @@ private struct SaveFailureBanner: ViewModifier {
                     .foregroundStyle(palette.ink(0.55))
                     .frame(width: 44, height: 44)
             }
-            .buttonStyle(.bare)
+            .bareButton()
             .accessibilityLabel("Dismiss")
             // The blocked-saving message is a standing state rather than one
             // failure, and there is nothing to dismiss it to.
@@ -679,7 +691,7 @@ private struct BlockedSessionExportButton: View {
                 .foregroundStyle(palette.accent)
                 .frame(minHeight: 44)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .fileExporter(
             isPresented: $isExporting,
             document: BoardTransferDocument(store.exportedSnapshot),
@@ -841,7 +853,7 @@ private struct SettingsWithAbout: View {
             .frame(maxWidth: .infinity)
             .contentShape(.rect)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .accessibilityLabel(Text("About \(AboutView.displayName)",
                                  comment: "Settings footer row that opens the About surface"))
         .accessibilityValue(AboutView.versionLine)

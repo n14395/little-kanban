@@ -110,6 +110,37 @@ import Security
         #expect(CloudKitEntitlement.key == "com.apple.developer.icloud-container-identifiers")
     }
 
+    /// **Scenario 22 of the two-device checklist**, minus the stopwatch. The
+    /// latency itself is a measurement no suite can make, but the regression
+    /// the row names is legible on disk: the macOS entitlements once spelled
+    /// the push key the iOS way — bare `aps-environment` — which granted
+    /// macOS nothing, and remote changes arrived on the mirror's polling
+    /// cadence, in minutes. The two platforms genuinely disagree on the
+    /// spelling, so each file is held to its own, and the macOS file is also
+    /// held *against* the bare key: present beside the right one, it reads as
+    /// the mistake on its way back in.
+    @Test func thePushEntitlementWearsEachPlatformsOwnSpelling() throws {
+        guard SourceTree.isReachable else { return }
+        let resources = SourceTree.checkout.appending(path: "Resources")
+
+        let macOS = try Self.plist(at: resources.appending(path: "LittleKanban-CloudKit.entitlements"))
+        #expect(macOS["com.apple.developer.aps-environment"] != nil,
+                "the macOS build asks for no push entitlement; remote changes take minutes")
+        #expect(macOS["aps-environment"] == nil,
+                "the bare key is iOS's spelling and grants macOS nothing — the named regression")
+
+        let iOS = try Self.plist(at: resources.appending(path: "LittleKanban-iOS-CloudKit.entitlements"))
+        #expect(iOS["aps-environment"] != nil, "the iOS build asks for no push entitlement")
+    }
+
+    private static func plist(at url: URL) throws -> [String: Any] {
+        let data = try Data(contentsOf: url)
+        return try #require(
+            try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+                as? [String: Any]
+        )
+    }
+
     #if os(macOS)
     /// Two different frameworks, one fact. `SecTask` asks the kernel what this
     /// process was granted; `SecCode` reads the signature off the bundle on

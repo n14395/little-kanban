@@ -99,7 +99,7 @@ struct ColorWell: View {
                 }
                 .contentShape(.rect)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .accessibilityLabel(title)
         .accessibilityValue(name)
         .popover(isPresented: $isPicking, arrowEdge: Self.arrowEdge) {

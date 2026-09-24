@@ -133,7 +133,7 @@ struct RecurrenceField: View {
             .frame(minHeight: metrics.rowHit)
             .contentShape(.rect)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .hoverBackground(palette.ink(0.06), radius: metrics.summaryRadius)
         .accessibilityLabel("Repeat settings")
         .accessibilityValue(rule.summaryText())

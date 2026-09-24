@@ -433,6 +433,100 @@ import Testing
         #expect(after.done, "the rewording unticked what the other device ticked")
     }
 
+    /// **Scenario 10's other half: the row that is *added*.** B puts a new row
+    /// on X's checklist; A retitles X before hearing about it. The orphan
+    /// sweep used to read the unfamiliar record as "not in my snapshot, so
+    /// deleted" and threw B's work away with A's push — deletion now requires
+    /// the diff base to have named the row, the same licence-shaped question
+    /// every other writer asks.
+    @Test func aSubtaskAddedOnAnotherDeviceSurvivesThisDevicesEdit() throws {
+        let sync = try store()
+        try sync.apply(snapshot())
+
+        let context = sync.container.mainContext
+        let carrier = try #require(Self.filed.first { !$0.subtasks.isEmpty })
+        let record = try #require(
+            try context.fetch(FetchDescriptor<StoredTask>()).first { $0.id == carrier.id }
+        )
+        let added = StoredSubtask(id: UUID())
+        added.text = "Added on the phone"
+        added.position = carrier.subtasks.count
+        context.insert(added)
+        added.task = record
+        try context.save()
+
+        var edited = Self.filed
+        let at = try #require(edited.firstIndex { $0.id == carrier.id })
+        edited[at].title = "Retitled on the Mac"
+        edited[at].updatedAt = .now
+        try sync.apply(snapshot(tasks: edited))
+
+        #expect(try context.fetch(FetchDescriptor<StoredSubtask>()).contains { $0.id == added.id },
+                "a retitle here deleted the checklist row another device had just added")
+    }
+
+    /// And the same again for the history: an entry another device has just
+    /// written is not "undone" merely because this device's snapshot has not
+    /// heard of it. Append-only cuts both ways — the base has to have named an
+    /// entry before its absence can mean an undo.
+    @Test func anActivityEntryMadeOnAnotherDeviceSurvivesThisDevicesEdit() throws {
+        let sync = try store()
+        try sync.apply(snapshot())
+
+        let context = sync.container.mainContext
+        let carrier = try #require(Self.filed.first)
+        let record = try #require(
+            try context.fetch(FetchDescriptor<StoredTask>()).first { $0.id == carrier.id }
+        )
+        let made = StoredActivity(id: UUID())
+        made.kind = try JSONEncoder().encode(ActivityEntry.Kind.archived)
+        made.when = .now
+        context.insert(made)
+        made.task = record
+        try context.save()
+
+        var edited = Self.filed
+        edited[0].title = "Retitled here"
+        edited[0].updatedAt = .now
+        try sync.apply(snapshot(tasks: edited))
+
+        #expect(try context.fetch(FetchDescriptor<StoredActivity>()).contains { $0.id == made.id },
+                "an edit here deleted the history another device had just written")
+    }
+
+    /// **Scenario 8 of the two-device checklist.** Two devices reorder the same
+    /// board's columns differently. A column's position carries no clock, so
+    /// nobody's order is defended — the records settle on whichever push came
+    /// last, and every read after that hands back the one order, which is the
+    /// whole of the row's promise: convergence, not a winner on the merits.
+    @Test func competingColumnReordersConvergeOnTheLastPush() throws {
+        let sync = try store()
+        try sync.apply(snapshot())
+
+        // The other device establishes its own diff base before either moves.
+        let other = BoardSyncStore(container: sync.container, isSyncing: false)
+        var theirs = try #require(try other.load())
+
+        var mine = snapshot()
+        mine.boards[0].columns.reverse()
+        try sync.apply(mine)
+
+        let rotated = Array(theirs.boards[0].columns.dropFirst())
+            + Array(theirs.boards[0].columns.prefix(1))
+        theirs.boards[0].columns = rotated
+        try other.apply(theirs)
+
+        let read = try #require(
+            try BoardSyncStore(container: sync.container, isSyncing: false).load()
+        )
+        #expect(read.boards[0].columns.map(\.id) == rotated.map(\.id),
+                "the records did not settle on the last push's order")
+        // And both writers read the same answer back — the convergence itself.
+        let mineAfter = try #require(try sync.load())
+        let theirsAfter = try #require(try other.load())
+        #expect(mineAfter.boards[0].columns.map(\.id) == theirsAfter.boards[0].columns.map(\.id))
+    }
+
     /// A merge from another device leaves the store holding something this
     /// device never wrote, so the diff it was keeping is a lie.
     @Test func invalidatingTheDiffMakesTheNextWriteComplete() throws {

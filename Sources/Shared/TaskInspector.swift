@@ -251,14 +251,14 @@ struct TaskInspector: View {
             Button(role: .destructive) { store.trashTask(task.id) } label: {
                 glyph("trash")
             }
-            .buttonStyle(.bare)
+            .bareButton()
             .hoverBackground(palette.ink(0.08), radius: metrics.headerButtonRadius)
             .help("Trash task")
             .accessibilityLabel("Trash task")
             Button { close() } label: {
                 glyph("xmark")
             }
-            .buttonStyle(.bare)
+            .bareButton()
             .hoverBackground(palette.ink(0.08), radius: metrics.headerButtonRadius)
             .accessibilityLabel("Close details")
         }

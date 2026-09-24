@@ -159,7 +159,7 @@ struct SearchResultsPanel: View {
             .frame(minHeight: chrome(metrics.rowHeight))
             .contentShape(.rect)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .background(
             isHighlighted ? palette.ink(0.07) : .clear,
             in: .rect(cornerRadius: metrics.radius - 4)

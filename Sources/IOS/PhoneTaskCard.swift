@@ -35,7 +35,7 @@ struct PhoneTaskCard: View {
             } label: {
                 summary
             }
-            .buttonStyle(.bare)
+            .bareButton()
             .accessibilityElement(children: .combine)
             // The menu's verbs, as rotor actions on the element a reader lands
             // on. ``PhoneTaskRowActions``' menu answers only a pointer now, and
@@ -170,7 +170,7 @@ struct PhoneTaskCard: View {
                 // around it is the same 44pt target that tick claimed.
                 .frame(minWidth: 44, minHeight: 44)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .contentShape(.circle)
         .accessibilityLabel("Restore to board")
     }

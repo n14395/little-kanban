@@ -277,7 +277,7 @@ struct BoardSettingsView: View {
                     .padding(.horizontal, 10)
                     .frame(minHeight: metrics.hit)
             }
-            .buttonStyle(.bare)
+            .bareButton()
         }
         .padding(.horizontal, metrics.padding)
         .padding(.vertical, 8)
@@ -415,7 +415,7 @@ struct BoardSettingsView: View {
                 .frame(minHeight: metrics.hit)
                 .contentShape(.rect)
             }
-            .buttonStyle(.bare)
+            .bareButton()
             // **The grip.** The closed header only: an open row is one being
             // typed into, and a drag starting on its fields would fight the
             // caret. `BoardColumnView` makes the same trade for the same reason
@@ -665,12 +665,15 @@ struct BoardSettingsView: View {
             .toggleStyle(.switch)
 
             if let limit = column.limit {
-                Stepper(
+                ThemedStepper(
                     value: Binding(
                         get: { limit },
                         set: { store.setColumnLimit($0, on: column.id) }
                     ),
-                    in: BoardStore.columnLimitRange
+                    range: BoardStore.columnLimitRange,
+                    name: String(localized: "Limit",
+                                 comment: "Accessibility name of the stepper setting a column's WIP limit"),
+                    hit: metrics.hit
                 ) {
                     Text(String(localized: "At most \(limit) at a time",
                                 comment: "How many cards a column is meant to hold at once — its WIP limit"))
@@ -743,7 +746,7 @@ struct BoardSettingsView: View {
                 .frame(minWidth: metrics.hit, minHeight: metrics.hit)
                 .background(palette.ink(0.06), in: .rect(cornerRadius: 10))
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .disabled(!isEnabled)
         .accessibilityLabel(name)
     }
@@ -773,7 +776,7 @@ struct BoardSettingsView: View {
                 .frame(minHeight: metrics.hit)
                 .background(destructiveTone.background, in: .rect(cornerRadius: 10))
         }
-        .buttonStyle(.bare)
+        .bareButton()
     }
 
     @ViewBuilder private var addColumnRow: some View {
@@ -793,7 +796,7 @@ struct BoardSettingsView: View {
                     .frame(minHeight: metrics.hit)
                     .contentShape(.rect)
             }
-            .buttonStyle(.bare)
+            .bareButton()
         }
     }
 
@@ -807,7 +810,7 @@ struct BoardSettingsView: View {
             HStack(spacing: 8) {
                 // The height belongs inside the label. Hung on the `Button`
                 // instead it framed the control and not its shape, and
-                // `.buttonStyle(.bare)` hands the shape straight to the label —
+                // `.bareButton()` hands the shape straight to the label —
                 // so the target published was the 47.3×19.3 of the word, in a
                 // sheet where every other control clears 44.
                 Button { cancelAddColumn() } label: {
@@ -818,7 +821,7 @@ struct BoardSettingsView: View {
                         .frame(minHeight: metrics.hit)
                         .contentShape(.rect)
                 }
-                .buttonStyle(.bare)
+                .bareButton()
                 Spacer(minLength: 0)
                 Button { addColumn() } label: {
                     Text("Add Column")
@@ -828,7 +831,7 @@ struct BoardSettingsView: View {
                         .frame(minHeight: metrics.hit)
                         .background(palette.accent, in: .rect(cornerRadius: 10))
                 }
-                .buttonStyle(.bare)
+                .bareButton()
             }
         }
         .padding(12)
@@ -1051,7 +1054,7 @@ struct BoardSettingsView: View {
                 .frame(minHeight: metrics.hit + 4)
                 .background(destructiveTone.background, in: .rect(cornerRadius: 14))
             }
-            .buttonStyle(.bare)
+            .bareButton()
 
             Text("Its tasks go with it and can be restored with it for 30 days.")
                 .font(palette.ui(12.5, .medium, relativeTo: .footnote))

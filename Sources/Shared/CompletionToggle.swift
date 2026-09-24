@@ -54,7 +54,7 @@ struct CompletionToggle: View {
         Button(action: action) {
             box.frame(minWidth: metrics.hitSize, minHeight: metrics.hitSize)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         // The label says what the tap does, because that is what VoiceOver
         // reads for a button; the trait carries the current state.
         .accessibilityLabel(isDone ? Text("Mark as not done") : Text("Mark as done"))

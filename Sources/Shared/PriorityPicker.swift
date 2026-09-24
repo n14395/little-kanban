@@ -135,7 +135,7 @@ struct BorderlessMenu: ViewModifier {
         #if os(macOS)
         content
             .menuStyle(.button)
-            .buttonStyle(.bare)
+            .bareButton()
         #else
         content
         #endif

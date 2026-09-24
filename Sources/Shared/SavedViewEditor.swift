@@ -124,9 +124,24 @@ struct SavedViewEditor: View {
                     .foregroundStyle(palette.inkText(0.5))
                     .monospacedDigit()
             }
-            Button("Done") { dismiss() }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
+            // Drawn rather than `.borderedProminent`, which fills itself from
+            // the tint and then picks its own label colour and rings itself in
+            // the *system* accent when it holds focus — a rust ring around a
+            // mint button, on a machine whose accent happened to be rust. The
+            // theme says what is legible on its own highlight; see
+            // ``Palette/onAccent``.
+            Button { dismiss() } label: {
+                Text("Done")
+                    .font(palette.ui(13, .bold, relativeTo: .subheadline))
+                    .foregroundStyle(palette.onAccent)
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 28)
+                    .background(palette.accent, in: .rect(cornerRadius: 8))
+                    .frame(minHeight: metrics.hit)
+                    .contentShape(.rect)
+            }
+            .bareButton()
+            .keyboardShortcut(.defaultAction)
         }
         .padding(.horizontal, metrics.padding)
         .frame(minHeight: 52)
@@ -206,16 +221,16 @@ struct SavedViewEditor: View {
         if let draft {
             VStack(alignment: .leading, spacing: metrics.rowSpacing) {
                 Text("Order").sectionLabelStyle(size: 10, opacity: Palette.readableInk)
-                Picker(selection: Binding(
-                    get: { draft.sort }, set: { next in change { $0.sort = next } }
-                )) {
-                    ForEach(ViewSort.allCases) { Text($0.label).tag($0) }
-                } label: {
-                    Text("Order", comment: "Accessibility label of the picker choosing a saved view's card order")
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(minHeight: metrics.hit == 0 ? metrics.fieldHeight : metrics.hit)
+                ThemedPicker(
+                    options: ViewSort.allCases.map { ChoiceOption($0, $0.label) },
+                    selection: Binding(
+                        get: { draft.sort }, set: { next in change { $0.sort = next } }
+                    ),
+                    name: String(localized: "Order",
+                                 comment: "Accessibility label of the picker choosing a saved view's card order"),
+                    height: metrics.fieldHeight,
+                    hit: metrics.hit
+                )
 
                 Toggle(isOn: Binding(
                     get: { draft.limit != nil },
@@ -230,9 +245,11 @@ struct SavedViewEditor: View {
                 .toggleStyle(.switch)
 
                 if let limit = draft.limit {
-                    Stepper(
+                    ThemedStepper(
                         value: Binding(get: { limit }, set: { next in change { $0.limit = max(1, next) } }),
-                        in: 1...200
+                        range: 1...200,
+                        name: String(localized: "Cap", comment: "Accessibility name of the stepper capping how many cards a view shows"),
+                        hit: metrics.hit
                     ) {
                         Text(String(localized: "At most \(limit)",
                                     comment: "How many cards a view shows at most"))
@@ -311,27 +328,26 @@ private struct RuleGroupView: View {
             Text(depth == 0 ? "Match" : "and")
                 .font(palette.ui(13, .semibold, relativeTo: .subheadline))
                 .foregroundStyle(palette.ink(0.7))
-            Picker(selection: Binding(
-                get: { rule.joiner ?? .all },
-                set: { next in
-                    change { tree in
-                        tree.replacing(rule.id) { found in
-                            ViewRule(id: found.id, kind: .group(next, found.children))
-                        } ?? tree
+            ThemedPicker(
+                options: ViewRule.Joiner.allCases.map { ChoiceOption($0, $0.label) },
+                selection: Binding(
+                    get: { rule.joiner ?? .all },
+                    set: { next in
+                        change { tree in
+                            tree.replacing(rule.id) { found in
+                                ViewRule(id: found.id, kind: .group(next, found.children))
+                            } ?? tree
+                        }
                     }
-                }
-            )) {
-                ForEach(ViewRule.Joiner.allCases) { Text($0.label).tag($0) }
-            } label: {
+                ),
                 // Self-contained rather than the row's own "Match" / "and",
                 // which is a `Text` of its own and reads out separately — and
                 // which is not the same word at every depth.
-                Text("Match all or any",
-                     comment: "Accessibility label of the picker joining a view's criteria")
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .fixedSize()
+                name: String(localized: "Match all or any",
+                             comment: "Accessibility label of the picker joining a view's criteria"),
+                height: metrics.fieldHeight,
+                hit: metrics.hit
+            )
             Text("of the following")
                 .font(palette.ui(13, .semibold, relativeTo: .subheadline))
                 .foregroundStyle(palette.ink(0.7))
@@ -351,7 +367,7 @@ private struct RuleGroupView: View {
                 Label("Add criterion", systemImage: "plus")
                     .font(palette.ui(12.5, .semibold, relativeTo: .caption))
             }
-            .buttonStyle(.bare)
+            .bareButton()
             .foregroundStyle(palette.accent)
 
             if depth < Self.maxDepth {
@@ -367,7 +383,7 @@ private struct RuleGroupView: View {
                     Label("Add group", systemImage: "plus.rectangle.on.rectangle")
                         .font(palette.ui(12.5, .semibold, relativeTo: .caption))
                 }
-                .buttonStyle(.bare)
+                .bareButton()
                 .foregroundStyle(palette.accent)
             }
             Spacer(minLength: 0)
@@ -383,7 +399,7 @@ private struct RuleGroupView: View {
                 .frame(minWidth: metrics.hit, minHeight: metrics.hit)
                 .contentShape(.rect)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .accessibilityLabel(String(localized: "Remove",
                                    comment: "Accessibility name of the button removing a view criterion"))
     }
@@ -402,29 +418,29 @@ private struct CriterionRow: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Picker(selection: Binding(
-                get: { criterion.field },
-                set: { next in write { $0.field(next) } }
-            )) {
-                ForEach(ViewField.allCases) { Text($0.label).tag($0) }
-            } label: {
-                Text("Field", comment: "Accessibility label of the picker choosing what a view criterion tests")
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .fixedSize()
+            ThemedPicker(
+                options: ViewField.allCases.map { ChoiceOption($0, $0.label) },
+                selection: Binding(
+                    get: { criterion.field },
+                    set: { next in write { $0.field(next) } }
+                ),
+                name: String(localized: "Field",
+                             comment: "Accessibility label of the picker choosing what a view criterion tests"),
+                height: metrics.fieldHeight,
+                hit: metrics.hit
+            )
 
-            Picker(selection: Binding(
-                get: { criterion.comparator },
-                set: { next in write { $0.comparator(next) } }
-            )) {
-                ForEach(criterion.field.comparators) { Text($0.label).tag($0) }
-            } label: {
-                Text("Condition", comment: "Accessibility label of the picker choosing how a view criterion tests its field")
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .fixedSize()
+            ThemedPicker(
+                options: criterion.field.comparators.map { ChoiceOption($0, $0.label) },
+                selection: Binding(
+                    get: { criterion.comparator },
+                    set: { next in write { $0.comparator(next) } }
+                ),
+                name: String(localized: "Condition",
+                             comment: "Accessibility label of the picker choosing how a view criterion tests its field"),
+                height: metrics.fieldHeight,
+                hit: metrics.hit
+            )
 
             value
             Spacer(minLength: 0)
@@ -436,7 +452,7 @@ private struct CriterionRow: View {
                     .frame(minWidth: metrics.hit, minHeight: metrics.hit)
                     .contentShape(.rect)
             }
-            .buttonStyle(.bare)
+            .bareButton()
             .accessibilityLabel(String(localized: "Remove",
                                        comment: "Accessibility name of the button removing a view criterion"))
         }
@@ -468,33 +484,36 @@ private struct CriterionRow: View {
                     .foregroundStyle(palette.inkText(0.5))
             }
         case .priority:
-            Picker(selection: Binding(
-                get: { criterion.value.priority ?? .high },
-                set: { next in write { $0.value(.priority(next)) } }
-            )) {
-                ForEach(Priority.leastFirst) { Text($0.displayName).tag($0) }
-            } label: {
-                Text("Priority", comment: "Accessibility label of the priority a view criterion compares against")
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .fixedSize()
+            ThemedPicker(
+                options: Priority.leastFirst.map { ChoiceOption($0, $0.displayName) },
+                selection: Binding(
+                    get: { criterion.value.priority ?? .high },
+                    set: { next in write { $0.value(.priority(next)) } }
+                ),
+                name: String(localized: "Priority",
+                             comment: "Accessibility label of the priority a view criterion compares against"),
+                height: metrics.fieldHeight,
+                hit: metrics.hit
+            )
         case .board:
             idPicker(
                 store.boards.map { ($0.id.uuidString, $0.name) },
-                label: Text("Board", comment: "Accessibility label of the board a view criterion names")
+                name: String(localized: "Board",
+                             comment: "Accessibility label of the board a view criterion names")
             )
         case .column:
             idPicker(
                 store.boards.flatMap { board in
                     board.columns.map { ($0.id.uuidString, "\(board.name) ▸ \($0.name)") }
                 },
-                label: Text("Column", comment: "Accessibility label of the column a view criterion names")
+                name: String(localized: "Column",
+                             comment: "Accessibility label of the column a view criterion names")
             )
         case .label:
             idPicker(
                 store.labels.map { ($0.key, $0.key) },
-                label: Text("Label", comment: "Accessibility label of the label a view criterion names")
+                name: String(localized: "Label",
+                             comment: "Accessibility label of the label a view criterion names")
             )
         case .text:
             TextField(
@@ -514,27 +533,26 @@ private struct CriterionRow: View {
 
     /// A picker over things named by a string — a board, a column, a label.
     ///
-    /// Carries an explicit empty tag so a criterion pointing at something since
-    /// deleted still has a selection to show: without it the picker draws blank
-    /// and the first change silently re-points the rule at whatever happened to
-    /// be first.
+    /// Carries an explicit empty option so a criterion pointing at something
+    /// since deleted still has a selection to show: without it the picker draws
+    /// blank and the first change silently re-points the rule at whatever
+    /// happened to be first. ``ThemedPicker`` draws its placeholder for an id
+    /// that is not in the list at all, which is the same case one step worse.
     ///
-    /// The label is the caller's because the three uses are three different
+    /// The name is the caller's because the three uses are three different
     /// words, and the control draws none of them: a shared "Item" would name
     /// every one of them wrongly, which is barely better than naming none.
-    private func idPicker(_ options: [(String, String)], label: Text) -> some View {
-        Picker(selection: Binding(
-            get: { criterion.value.text ?? "" },
-            set: { next in write { $0.value(.text(next)) } }
-        )) {
-            Text("—").tag("")
-            ForEach(options, id: \.0) { Text($0.1).tag($0.0) }
-        } label: {
-            label
-        }
-        .labelsHidden()
-        .pickerStyle(.menu)
-        .fixedSize()
+    private func idPicker(_ options: [(String, String)], name: String) -> some View {
+        ThemedPicker(
+            options: [ChoiceOption("", "—")] + options.map { ChoiceOption($0.0, $0.1) },
+            selection: Binding(
+                get: { criterion.value.text ?? "" },
+                set: { next in write { $0.value(.text(next)) } }
+            ),
+            name: name,
+            height: metrics.fieldHeight,
+            hit: metrics.hit
+        )
     }
 
     private func write(_ transform: @escaping (inout ViewCriterion) -> Void) {

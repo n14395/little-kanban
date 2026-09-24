@@ -131,7 +131,7 @@ struct MoveToPicker: View {
                         }
                         .frame(minHeight: metrics.itemHit)
                 }
-                .buttonStyle(.bare)
+                .bareButton()
                 .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
             }
         }

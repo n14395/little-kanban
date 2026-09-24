@@ -308,7 +308,7 @@ struct BoardTaskCard: View {
         } label: {
             content
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .overlay(alignment: .topTrailing) { completionToggle }
         .overlay(alignment: .bottomTrailing) { restoreButton }
         .overlay(alignment: dropCaretEdge ?? .top) { dropCaret }
@@ -518,7 +518,7 @@ struct BoardTaskCard: View {
                 .background(palette.ink(0.06), in: .capsule)
                 .frame(minWidth: metrics.restoreHit, minHeight: metrics.restoreHit)
             }
-            .buttonStyle(.bare)
+            .bareButton(radius: .infinity)
             .padding(.trailing, 10)
             .padding(.bottom, 8)
             .help("Put this task back on the board")

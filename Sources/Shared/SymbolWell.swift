@@ -77,7 +77,7 @@ struct SymbolWell: View {
             }
             .contentShape(.rect)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .accessibilityLabel(title)
         // The name of the symbol, which is the only description there is: SF
         // Symbols carry no localized label, and `flag.checkered` read aloud is

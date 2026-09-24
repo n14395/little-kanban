@@ -90,7 +90,7 @@ struct BackupSheet: View {
                         .padding(.horizontal, 12)
                         .frame(minHeight: 30)
                 }
-                .buttonStyle(.bare)
+                .bareButton()
                 .keyboardShortcut(.cancelAction)
             }
         }
@@ -140,7 +140,7 @@ struct BackupSheet: View {
             .frame(minHeight: metrics.rowHit)
             .hoverBackground(palette.ink(0.05), radius: metrics.rowRadius)
         }
-        .buttonStyle(.bare)
+        .bareButton()
     }
 
     /// The restore itself. A failure leaves the board exactly as it was — see

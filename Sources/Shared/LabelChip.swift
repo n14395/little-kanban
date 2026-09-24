@@ -72,7 +72,7 @@ struct LabelChip: View {
                         .font(palette.ui(size.removeGlyph, .extraBold, relativeTo: .caption2))
                         .fontWeight(.bold)
                 }
-                .buttonStyle(.bare)
+                .bareButton()
                 .opacity(isHovering ? 1 : 0)
                 .allowsHitTesting(isHovering)
                 .accessibilityHidden(!isHovering)

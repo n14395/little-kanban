@@ -150,7 +150,7 @@ struct ColorPickerPopover: View {
                 }
                 .frame(minWidth: metrics.swatchHit, minHeight: metrics.swatchHit)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .help(entry.displayName)
         .accessibilityLabel(entry.displayName)
         .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
@@ -307,7 +307,7 @@ struct ColorPickerPopover: View {
                     .frame(minHeight: metrics.hit)
                     .contentShape(.rect)
             }
-            .buttonStyle(.bare)
+            .bareButton()
             // Nothing to do rather than nothing to say: the colour is already
             // in the row above, where the ring is.
             .disabled(isSaved)
@@ -321,7 +321,7 @@ struct ColorPickerPopover: View {
                     .background(palette.accent, in: .rect(cornerRadius: 9))
                     .contentShape(.rect)
             }
-            .buttonStyle(.bare)
+            .bareButton()
         }
     }
 

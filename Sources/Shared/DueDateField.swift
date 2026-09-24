@@ -113,7 +113,7 @@ struct DueDateField: View {
             .frame(minWidth: metrics.chipHit, minHeight: metrics.chipHit)
             .inAttributeCard(card)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         // Stated rather than left to the label, which now includes the card's
         // own name: "Due" and "Due date" read one after the other otherwise.
         .accessibilityLabel("Due date")
@@ -216,7 +216,7 @@ struct DueDateField: View {
                     .padding(.horizontal, 6)
                     .frame(minHeight: metrics.rowHit)
                 }
-                .buttonStyle(.bare)
+                .bareButton()
                 .hoverBackground(palette.ink(0.06), radius: metrics.rowRadius)
             }
         }
@@ -240,7 +240,7 @@ struct DueDateField: View {
                 .background(isCurrent ? palette.accent : palette.ink(0.06), in: .capsule)
                 .frame(minHeight: metrics.rowHit)
         }
-        .buttonStyle(.bare)
+        .bareButton(radius: .infinity)
         .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
     }
 

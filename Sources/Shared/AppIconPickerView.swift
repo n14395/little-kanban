@@ -86,7 +86,7 @@ struct AppIconPickerView: View {
                     .frame(height: metrics.hit)
                     .background(palette.accent, in: .rect(cornerRadius: 8))
             }
-            .buttonStyle(.bare)
+            .bareButton()
             .keyboardShortcut(.defaultAction)
         }
         .padding(.horizontal, metrics.padding)
@@ -164,7 +164,7 @@ struct AppIconPickerView: View {
                     )
                     .contentShape(.rect)
                 }
-                .buttonStyle(.bare)
+                .bareButton()
                 .help(icon.name)
                 .accessibilityLabel(icon.name)
                 .accessibilityAddTraits(icon.id == gradientID ? [.isSelected] : [])

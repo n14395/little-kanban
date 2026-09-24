@@ -41,7 +41,7 @@ struct PhoneHeader: View {
                 Button { store.isNavDrawerOpen = true } label: {
                     hamburger
                 }
-                .buttonStyle(.bare)
+                .bareButton()
                 .accessibilityLabel("Show boards")
 
                 titleLabel
@@ -290,7 +290,7 @@ struct PhoneHeader: View {
             .frame(minHeight: 44)
             .contentShape(.rect)
         }
-        .buttonStyle(.bare)
+        .bareButton(radius: .infinity)
         .accessibilityLabel("Clear the search filter")
     }
 
@@ -388,7 +388,7 @@ struct PhoneHeader: View {
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(.rect)
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .accessibilityLabel("Clear search")
     }
 
@@ -441,7 +441,7 @@ struct PhoneHeader: View {
                         // 44pt minimum.
                         .frame(minHeight: 44)
                     }
-                    .buttonStyle(.bare)
+                    .bareButton()
                     .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
                     .contextMenu { columnMenu(column, index: index) }
                     // What the strip above scrolls to.

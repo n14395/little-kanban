@@ -214,7 +214,7 @@ struct TrashView: View {
                 .frame(minHeight: metrics.buttonHit)
                 .background(palette.ink(0.06), in: .rect(cornerRadius: 7))
         }
-        .buttonStyle(.bare)
+        .bareButton()
         // The row carries both of these as actions; a reader meeting them twice
         // is a reader reading the same button twice.
         .accessibilityHidden(true)
@@ -256,7 +256,7 @@ struct TrashView: View {
                 .frame(minHeight: metrics.buttonHit)
                 .background(palette.accentSoft, in: .rect(cornerRadius: metrics.rowRadius))
         }
-        .buttonStyle(.bare)
+        .bareButton()
     }
 }
 
@@ -302,7 +302,7 @@ struct TrashSheet: View {
                     .padding(.horizontal, 8)
                     .frame(minHeight: max(metrics.rowHit, 30))
             }
-            .buttonStyle(.bare)
+            .bareButton()
             .hoverBackground(palette.ink(0.06), radius: 8)
         }
         .padding(.horizontal, 18)

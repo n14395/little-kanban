@@ -268,7 +268,7 @@ struct ThemeFontField: View {
                             in: .rect(cornerRadius: 7)
                         )
                 }
-                .buttonStyle(.bare)
+                .bareButton()
                 .accessibilityLabel(String(localized: "Italic", comment: "Accessibility name of the italic toggle"))
                 .accessibilityAddTraits(font.isItalic ? [.isSelected] : [])
             }
@@ -366,7 +366,7 @@ struct ThemeGradientField: View {
                             .frame(width: max(metrics.hit, 26), height: max(metrics.hit, 26))
                             .contentShape(.rect)
                     }
-                    .buttonStyle(.bare)
+                    .bareButton()
                     // One stop is a flat ground, which is a theme somebody may
                     // want. None is not a colour at all.
                     .disabled(gradient.stops.count <= 1)
@@ -389,7 +389,7 @@ struct ThemeGradientField: View {
                 .frame(minHeight: max(metrics.hit, 26))
                 .contentShape(.rect)
             }
-            .buttonStyle(.bare)
+            .bareButton()
         }
     }
 }

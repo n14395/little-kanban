@@ -94,9 +94,22 @@ private struct MenuBarQuickAddView: View {
             HStack(spacing: 8) {
                 destinationPicker
                 Spacer(minLength: 0)
-                Button("Add", action: commit)
-                    .buttonStyle(.borderedProminent)
-                    .disabled(trimmedDraft.isEmpty)
+                // Drawn rather than `.borderedProminent`: the system style
+                // fills from the tint and then rings itself in the *system*
+                // accent whenever it holds focus, which in this panel is most
+                // of the time — see ``ThemedPicker``.
+                Button(action: commit) {
+                    Text("Add")
+                        .font(palette.ui(12, .bold, relativeTo: .caption))
+                        .foregroundStyle(palette.onAccent)
+                        .padding(.horizontal, 14)
+                        .frame(height: 24)
+                        .background(palette.accent, in: .rect(cornerRadius: 7))
+                        .opacity(trimmedDraft.isEmpty ? 0.4 : 1)
+                        .contentShape(.rect)
+                }
+                .bareButton()
+                .disabled(trimmedDraft.isEmpty)
             }
 
             Divider().overlay(palette.ink(0.08))
@@ -118,7 +131,7 @@ private struct MenuBarQuickAddView: View {
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
                 }
-                .buttonStyle(.bare)
+                .bareButton()
                 .hoverBackground(palette.ink(0.05), radius: 6)
             }
         }
@@ -134,21 +147,24 @@ private struct MenuBarQuickAddView: View {
     /// The Inbox and every column of every board, because the extra outlives
     /// whichever board the window happens to be showing.
     private var destinationPicker: some View {
-        Picker(selection: $destinationID) {
-            Text(Board.inboxName).tag("")
-            ForEach(store.boards) { board in
-                Section(board.name) {
-                    ForEach(board.columns) { column in
-                        Text(column.name).tag(column.id.uuidString)
-                    }
-                }
-            }
-        } label: {
-            Text("Add to")
+        ThemedPicker(
+            options: destinations,
+            selection: $destinationID,
+            name: String(localized: "Add to",
+                         comment: "Accessibility name of the quick-add destination picker"),
+            // A column since deleted leaves a remembered id naming nothing. The
+            // capture still lands — `destination` falls back to the Inbox — so
+            // the control says the same thing rather than drawing blank.
+            placeholder: Board.inboxName,
+            font: 12
+        )
+    }
+
+    /// The Inbox, and then every column of every board under its board's name.
+    private var destinations: [ChoiceOption<String>] {
+        [ChoiceOption("", Board.inboxName)] + store.boards.flatMap { board in
+            board.columns.map { ChoiceOption($0.id.uuidString, $0.name, section: board.name) }
         }
-        .labelsHidden()
-        .font(palette.ui(12, .medium, relativeTo: .caption))
-        .fixedSize()
     }
 
     private var trimmedDraft: String {

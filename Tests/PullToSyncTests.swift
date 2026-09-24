@@ -285,6 +285,81 @@ import Testing
         #expect(store.themes.custom.contains { $0.id == early.id })
     }
 
+    /// **Scenario 9 of the two-device checklist, at the store level.** A batch
+    /// of local edits nobody has pushed yet — two captures, a completion, a
+    /// retitle — meets an edit that arrived from elsewhere in the meantime,
+    /// and one pull resolves the lot to the union. The last assertion is the
+    /// sanity line the whole checklist ends on: nothing gets dumped into the
+    /// Inbox on the way through.
+    @Test func aBatchOfLocalEditsAndARemoteEditMergeToTheUnion() throws {
+        let temp = TempBoard()
+        let sync = try BoardSyncStore.inMemory()
+        let seeded = BoardSnapshot(
+            tasks: TestBoard.tasks(on: SeedData.defaultBoard), boards: SeedData.boards,
+            labels: LabelDef.seed, nextSerial: 340, activeBoardID: SeedData.defaultBoard.id
+        )
+        try temp.file.write(seeded, generation: temp.file.nextWriteGeneration())
+        try sync.apply(seeded)
+        let store = BoardStore.restored(file: temp.file, sync: sync)
+
+        let filed = store.tasks.filter { $0.placement != .inbox }.map(\.id)
+        let inboxBefore = Set(store.tasks.map(\.id)).subtracting(filed)
+        let completing = try #require(store.completeTargets(Set(filed)).first)
+        let renaming = try #require(filed.first { $0 != completing })
+        let theirCard = try #require(filed.last { $0 != completing && $0 != renaming })
+
+        // The batch, all inside the debounce — nothing pushed yet.
+        store.addTask(to: .inbox, title: "Batch add one")
+        store.addTask(to: .inbox, title: "Batch add two")
+        store.complete(completing)
+        store.beginEditing(.title, on: renaming, scope: .desk)
+        store.setText("Retitled in the batch", field: .title, on: renaming)
+        store.endEditing(.title, on: renaming, scope: .desk)
+
+        // Meanwhile another device's edit lands in the records, reading a
+        // state that has never heard of the batch.
+        let writer = BoardSyncStore(container: sync.container, isSyncing: false)
+        var theirs = try #require(try writer.load())
+        theirs.tasks = theirs.tasks.map { task in
+            var edited = task
+            if edited.id == theirCard {
+                edited.title = "Edited on the other device"
+                edited.updatedAt = .now
+            }
+            return edited
+        }
+        try writer.apply(theirs)
+
+        store.mergeRemoteChanges()
+
+        // The union: every half of the batch and the other device's edit.
+        #expect(store.tasks.contains { $0.title == "Batch add one" })
+        #expect(store.tasks.contains { $0.title == "Batch add two" })
+        #expect(store[renaming]?.title == "Retitled in the batch",
+                "the merge dropped an edit from the unpushed batch")
+        #expect(store[theirCard]?.title == "Edited on the other device",
+                "the batch's push overwrote the other device's edit")
+        #expect(store[completing] != nil, "the completed card was lost in the merge")
+        #expect(store[completing]?.placement != .inbox, "completing a filed card unfiled it")
+
+        // And the Inbox holds exactly what it held plus what the batch put
+        // there — regression `6c51d45`, the line the checklist calls the most
+        // important on its page.
+        let adds = Set(store.tasks.filter {
+            $0.title.hasPrefix("Batch add")
+        }.map(\.id))
+        let inboxAfter = Set(store.tasks.filter { $0.placement == .inbox }.map(\.id))
+        #expect(inboxAfter == inboxBefore.union(adds),
+                "the merge moved cards into or out of the Inbox that nobody touched")
+
+        // The records hold the same union, so the other device's next read
+        // agrees.
+        let records = try #require(try writer.load())
+        #expect(records.tasks.contains { $0.title == "Batch add one" })
+        #expect(records.tasks.first { $0.id == theirCard }?.title == "Edited on the other device")
+        #expect(records.tasks.first { $0.id == renaming }?.title == "Retitled in the batch")
+    }
+
     // MARK: Where the pull is offered
 
     /// Every surface that holds cards and scrolls downward carries it, and the

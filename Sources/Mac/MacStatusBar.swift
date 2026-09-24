@@ -109,7 +109,7 @@ struct MacStatusBar: View {
                 .padding(.horizontal, 8)
                 .frame(minHeight: 22)
             }
-            .buttonStyle(.bare)
+            .bareButton()
             .hoverBackground(palette.ink(0.06), radius: 8)
             .disabled(!store.isSyncing || isChecking)
             .help(syncHelp)

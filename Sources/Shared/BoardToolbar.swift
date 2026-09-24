@@ -506,7 +506,7 @@ struct BoardToolbar: View {
                     .frame(minWidth: chrome(metrics.control), minHeight: chrome(metrics.control))
                     .contentShape(.rect)
             }
-            .buttonStyle(.bare)
+            .bareButton()
             .hoverBackground(palette.ink(0.06), radius: metrics.controlRadius)
             .accessibilityLabel("Toggle sidebar")
         }
@@ -565,7 +565,7 @@ struct BoardToolbar: View {
                 }
                 .contentShape(.rect(cornerRadius: metrics.controlRadius))
             }
-            .buttonStyle(.bare)
+            .bareButton(radius: 10)
             // Not read by anyone — an identifier is not a label — but the one
             // way a UI test can tell this button from the source list's Inbox
             // row and the panel's own header, all three of which are called
@@ -667,7 +667,7 @@ struct BoardToolbar: View {
                             // preset is what the text already measured.
                             .frame(minHeight: chrome(metrics.control))
                     }
-                    .buttonStyle(.bare)
+                    .bareButton()
                     .help("Rename this board")
                     .accessibilityLabel("Board name, \(board.name)")
                     .accessibilityHint("Renames this board")
@@ -811,7 +811,7 @@ struct BoardToolbar: View {
                         .foregroundStyle(palette.inkText(0.32))
                         .frame(minWidth: metrics.fieldHit, minHeight: metrics.fieldHit)
                 }
-                .buttonStyle(.bare)
+                .bareButton()
                 .accessibilityLabel("Clear search")
             }
         }
@@ -864,7 +864,7 @@ struct BoardToolbar: View {
                 }
                 .contentShape(.rect(cornerRadius: metrics.controlRadius))
         }
-        .buttonStyle(.bare)
+        .bareButton()
         // Not read by anyone — an identifier is not a label — but the one way a
         // UI test can tell this button from the glyph inside the field it folded
         // out of, both of which are a magnifying glass because both are search.
@@ -915,7 +915,7 @@ struct BoardToolbar: View {
                     .background(palette.accent, in: .capsule)
                     .contentShape(.capsule)
             }
-            .buttonStyle(.bare)
+            .bareButton(radius: .infinity)
             .help("New task")
             // The glyph publishes nothing, so this is the whole of what the
             // button is called. ⌘N is the File menu's on the desk and there is
@@ -938,7 +938,7 @@ struct BoardToolbar: View {
                         .strokeBorder(palette.ink(0.12), lineWidth: 1)
                 }
         }
-        .buttonStyle(.bare)
+        .bareButton()
         .help("Toggle details sidebar")
         .accessibilityLabel("Toggle details sidebar")
         // ⌥⌘I is the View menu's. Nothing in this bar claims a key of its own:

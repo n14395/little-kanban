@@ -6,6 +6,12 @@ iPhone screen.
 
 Built in SwiftUI, offline-first, with optional iCloud sync.
 
+![The Mac window: boards in the sidebar, the global Inbox, the four Northwind columns and a card's inspector, all at once](docs/mac-01-board.png)
+
+| iPad | iPhone |
+| --- | --- |
+| ![The board in an iPad split view](docs/ipad-01-split-view.png) | ![One column per page on iPhone](docs/iphone-01-column.png) |
+
 ## Features
 
 **Boards**
@@ -171,6 +177,8 @@ Refreshing the catalog requires building *both* platforms — see
 [DESIGN.md](DESIGN.md) for the command.
 
 ## Design notes
+
+![The theme browser: twenty themes, each thumbnail drawn in its own colours and typeface](docs/mac-02-theme-browser.png)
 
 [DESIGN.md](DESIGN.md) is the long-form companion to this file: why each surface
 is laid out the way it is, how drag and drop resolves, what the sync layer will

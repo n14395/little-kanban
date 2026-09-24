@@ -41,6 +41,6 @@ struct ColumnAddRow: View {
                         )
                 }
         }
-        .buttonStyle(.bare)
+        .bareButton()
     }
 }

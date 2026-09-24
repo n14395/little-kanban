@@ -108,7 +108,7 @@ struct ThemeEditorView: View {
                 .frame(width: 32, height: 32)
                 .contentShape(.rect)
             }
-            .buttonStyle(.bare)
+            .bareButton()
             .help(String(localized: "Export this theme as JSON",
                          comment: "Tooltip on the theme export button"))
 
@@ -120,7 +120,7 @@ struct ThemeEditorView: View {
                     .frame(height: 30)
                     .contentShape(.rect)
             }
-            .buttonStyle(.bare)
+            .bareButton()
 
             Button {
                 onSave(draft)
@@ -134,7 +134,7 @@ struct ThemeEditorView: View {
                     .background(palette.accent, in: .rect(cornerRadius: 8))
                     .contentShape(.rect)
             }
-            .buttonStyle(.bare)
+            .bareButton()
             .disabled(draft.name.trimmingCharacters(in: .whitespaces).isEmpty)
         }
         .padding(.horizontal, metrics.padding)
@@ -174,16 +174,20 @@ struct ThemeEditorView: View {
                              comment: "Explains that a theme fills either the light slot or the dark one"),
                 metrics: metrics.field
             ) {
-                Picker(selection: $draft.appearance) {
-                    ForEach(ThemeAppearance.allCases) { option in
-                        Text(option.label).tag(option)
-                    }
-                } label: {
-                    Text("Slot", comment: "Accessibility label of the picker choosing which appearance a theme fills")
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .fixedSize()
+                // Drawn rather than `.pickerStyle(.segmented)`, which marks the
+                // chosen segment in `NSColor.controlAccentColor` — the *system*
+                // accent, which no tint reaches. A theme editor whose own
+                // controls are wearing another palette is the one place in the
+                // app that cannot be allowed to happen.
+                ThemedSegments(
+                    options: ThemeAppearance.allCases.map { ChoiceOption($0, $0.label) },
+                    selection: $draft.appearance,
+                    name: String(localized: "Slot",
+                                 comment: "Accessibility label of the picker choosing which appearance a theme fills"),
+                    font: metrics.field.valueFont - 1,
+                    height: 24,
+                    hit: metrics.field.hit
+                )
             }
         }
     }

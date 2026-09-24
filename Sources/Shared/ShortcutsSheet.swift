@@ -59,7 +59,7 @@ struct ShortcutsSheet: View {
                     .padding(.horizontal, 12)
                     .frame(minHeight: 30)
             }
-            .buttonStyle(.bare)
+            .bareButton()
             .hoverBackground(palette.ink(0.06), radius: 9)
             .keyboardShortcut(.defaultAction)
         }

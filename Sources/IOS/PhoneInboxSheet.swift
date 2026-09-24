@@ -519,7 +519,7 @@ struct PhoneInboxSheet: View {
                         )
                 }
         }
-        .buttonStyle(.bare)
+        .bareButton()
     }
 
     /// Straight to `.inbox` rather than through `mobileAddPlacement`, which
