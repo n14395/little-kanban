@@ -50,6 +50,19 @@ Built in SwiftUI, offline-first, with optional iCloud sync.
 - Optional iCloud sync over CloudKit, private database, same-person-multi-device
 - Everything works fully offline with sync switched off
 
+## Install
+
+```sh
+brew tap n14395/tap
+brew install --cask little-kanban
+```
+
+Or download the `.dmg` from [Releases](../../releases) and drag LittleKanban to
+Applications. The Cask installs the Mac app and needs macOS 26 or later; for
+iOS, build from source.
+
+The requirements below are for building, not for running the released app.
+
 ## Requirements
 
 - Xcode 26 or newer
